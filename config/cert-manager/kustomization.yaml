@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: cert-manager
+resources:
+  - namespace.yaml
+helmCharts:
+  - name: cert-manager
+    repo: https://charts.jetstack.io
+    version: v1.7.1
+    releaseName: mctc
+    namespace: cert-manager
+    valuesInline:
+      global:
+        leaderElection:
+          namespace: cert-manager
+      installCRDs: true
+      # The Job API is not present
+      startupapicheck:
+        enabled: false
+      # The APIService API is not present
+      cainjector:
+        enabled: false
+      # Customize active controllers
+      extraArgs: ["--controllers=*,-ingress-shim"]
