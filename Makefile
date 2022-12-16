@@ -58,6 +58,10 @@ vet: ## Run go vet against code.
 test: manifests generate fmt vet envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -coverprofile cover.out
 
+.PHONY: local-setup
+local-setup: kind kustomize helm ## Setup multi cluster traffic controller locally using kind.
+	./hack/local-setup.sh
+
 ##@ Build
 
 .PHONY: build
@@ -130,10 +134,14 @@ $(LOCALBIN):
 KUSTOMIZE ?= $(LOCALBIN)/kustomize
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
+KIND ?= $(LOCALBIN)/kind
+HELM ?= $(LOCALBIN)/helm
 
 ## Tool Versions
-KUSTOMIZE_VERSION ?= v3.8.7
+KUSTOMIZE_VERSION ?= v4.5.4
 CONTROLLER_TOOLS_VERSION ?= v0.10.0
+KIND_VERSION ?= v0.14.0
+HELM_VERSION ?= v3.10.0
 
 KUSTOMIZE_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"
 .PHONY: kustomize
@@ -155,3 +163,14 @@ $(CONTROLLER_GEN): $(LOCALBIN)
 envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
 $(ENVTEST): $(LOCALBIN)
 	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
+
+.PHONY: kind
+kind: $(KIND) ## Download kind locally if necessary.
+$(KIND):
+	GOBIN=$(LOCALBIN) go install sigs.k8s.io/kind@$(KIND_VERSION)
+
+HELM_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3"
+.PHONY: helm
+helm: $(HELM)
+$(HELM):
+	curl -s $(HELM_INSTALL_SCRIPT) | HELM_INSTALL_DIR=$(LOCALBIN) PATH=$$PATH:$$HELM_INSTALL_DIR bash -s -- --no-sudo --version $(HELM_VERSION)
