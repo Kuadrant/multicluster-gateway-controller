@@ -23,8 +23,10 @@ source "${LOCAL_SETUP_DIR}"/.kindUtils
 KIND_CLUSTER_PREFIX="mctc-"
 KIND_CLUSTER_CONTROL_PLANE="${KIND_CLUSTER_PREFIX}control-plane"
 
+INGRESS_NGINX_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/ingress-nginx
 CERT_MANAGER_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/cert-manager
 EXTERNAL_DNS_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/external-dns
+ARGOCD_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/argocd
 
 set -e pipefail
 
@@ -34,9 +36,7 @@ deployIngressController () {
 
   kubectl config use-context kind-${clusterName}
 
-  VERSION=controller-v1.2.1
-  curl https://raw.githubusercontent.com/kubernetes/ingress-nginx/"${VERSION}"/deploy/static/provider/kind/deploy.yaml | sed "s/--publish-status-address=localhost/--report-node-internal-ip-address/g" | kubectl apply -f -
-  kubectl annotate ingressclass nginx "ingressclass.kubernetes.io/is-default-class=true"
+  ${KUSTOMIZE_BIN} build ${INGRESS_NGINX_KUSTOMIZATION_DIR} --enable-helm --helm-command ${HELM_BIN} | kubectl apply -f -
   echo "Waiting for deployments to be ready ..."
   kubectl -n ingress-nginx wait --timeout=300s --for=condition=Available deployments --all
 }
@@ -69,7 +69,20 @@ deployArgoCD() {
 
   kubectl config use-context kind-${clusterName}
 
-  echo "deployArgoCD - ToDo Implement Me!!"
+  ${KUSTOMIZE_BIN} build ${ARGOCD_KUSTOMIZATION_DIR} --enable-helm --helm-command ${HELM_BIN} | kubectl apply -f -
+  echo "Waiting for ARGOCD deployments to be ready..."
+  kubectl -n argocd wait --timeout=300s --for=condition=Available deployments --all
+
+  ports=$(docker ps --format '{{json .}}' | jq "select(.Names == \"$clusterName-control-plane\").Ports")
+  httpsport=$(echo $ports | sed -e 's/.*0.0.0.0\:\(.*\)->443\/tcp.*/\1/')
+  argoPassword=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
+  nodeIP=$(kubectl get nodes -o json | jq -r ".items[] | select(.metadata.name == \"$clusterName-control-plane\").status | .addresses[] | select(.type == \"InternalIP\").address")
+
+  echo -ne "\n\n\tConnect to ArgoCD UI\n\n"
+  echo -ne "\t\tLocal URL: https://argocd.127.0.0.1.nip.io:$httpsport\n"
+  echo -ne "\t\tNode URL : https://argocd.$nodeIP.nip.io\n"
+  echo -ne "\t\tUser     : admin\n"
+  echo -ne "\t\tPassword : $argoPassword\n\n\n"
 }
 
 #Delete existing kind clusters
