@@ -76,3 +76,6 @@ config/deploy/local/**/*.env
 config/deploy/**/_*
 
 *__
+
+aws-credentials.env
+controller-config.env

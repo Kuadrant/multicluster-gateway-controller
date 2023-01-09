@@ -31,8 +31,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	kuadrantiov1 "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/dnsrecord"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/secret"
-
 	//+kubebuilder:scaffold:imports
 
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/multiClusterWatch"
@@ -45,6 +46,8 @@ var (
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+
+	utilruntime.Must(kuadrantiov1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -78,6 +81,16 @@ func main() {
 		os.Exit(1)
 	}
 
+	if err = (&dnsrecord.DNSRecordReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+		ReconcilerConfig: dnsrecord.DNSRecordReconcilerConfig{
+			DNSProvider: "aws",
+		},
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "DNSRecord")
+		os.Exit(1)
+	}
 	if err = (&secret.SecretReconciler{
 		Client:  mgr.GetClient(),
 		Scheme:  mgr.GetScheme(),
