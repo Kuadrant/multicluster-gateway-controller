@@ -23,7 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -32,8 +32,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	kuadrantiov1 "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/dnsrecord"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/secret"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncers"
+
 	//+kubebuilder:scaffold:imports
 
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/multiClusterWatch"
@@ -55,8 +55,13 @@ func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
-	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
-	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
+	var controlPlaneConfigSecretName string
+	var controlPlaneConfigSecretNamespace string
+
+	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8084", "The address the metric endpoint binds to.")
+	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8085", "The address the probe endpoint binds to.")
+	flag.StringVar(&controlPlaneConfigSecretName, "control-plane-cluster", "control-plane-cluster", "The name of the secret with the control plane client configuration")
+	flag.StringVar(&controlPlaneConfigSecretNamespace, "control-plane-config-namespace", "default", "The namespace containing the secret with the control plane client configuration")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
@@ -74,32 +79,24 @@ func main() {
 		Port:                   9443,
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "fb80029c.kuadrant.io",
+		LeaderElectionID:       "fb80029c-agent.kuadrant.io",
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
 	}
 
-	if err = (&dnsrecord.DNSRecordReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-		ReconcilerConfig: dnsrecord.DNSRecordReconcilerConfig{
-			DNSProvider: "aws",
-		},
+	//start the ingress syncer with a traffic handler
+	if err = (&syncers.Ingress{
+		Client:           mgr.GetClient(),
+		Scheme:           mgr.GetScheme(),
+		ControlSecretRef: client.ObjectKey{Name: controlPlaneConfigSecretName, Namespace: controlPlaneConfigSecretNamespace},
+		HandlerFactory:   multiClusterWatch.NewTrafficHandlerFactory(),
+		Host:             mgr.GetConfig().Host,
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "DNSRecord")
+		setupLog.Error(err, "unable to create controller", "controller", "Ingress")
 		os.Exit(1)
 	}
-	if err = (&secret.SecretReconciler{
-		Client:  mgr.GetClient(),
-		Scheme:  mgr.GetScheme(),
-		MCWatch: &multiClusterWatch.WatchController{Manager: mgr, HandlerFactory: multiClusterWatch.NewTrafficHandlerFactory()},
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Secret")
-		os.Exit(1)
-	}
-	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")

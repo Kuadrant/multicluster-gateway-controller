@@ -19,21 +19,39 @@ package traffic
 import (
 	"context"
 	"fmt"
+	"time"
 
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/json"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/metadata"
+	mctcv1 "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/traffic"
+)
+
+const (
+	CONTROL_PLANE_NAMESPACE string = "default"
+	PATCH_ANNOTATION_PREFIX string = "MCTC_PATCH_"
+	PATCH_CLEANUP_FINALIZER string = "MCTC_PATCH_CLEANUP"
 )
 
 // Reconciler reconciles a traffic object
 type Reconciler struct {
 	WorkloadClient client.Client
 	ControlClient  client.Client
+	ClusterID      string
+}
+
+func (r *Reconciler) SetWorkloadClient(c client.Client) {
+	r.WorkloadClient = c
+}
+
+func (r *Reconciler) SetControlPlaneClient(c client.Client) {
+	r.ControlClient = c
 }
 
 func (r *Reconciler) Handle(ctx context.Context, o runtime.Object) (ctrl.Result, error) {
@@ -42,23 +60,50 @@ func (r *Reconciler) Handle(ctx context.Context, o runtime.Object) (ctrl.Result,
 	trafficAccessor := o.(traffic.Interface)
 	log.Log.Info("got traffic object", "kind", trafficAccessor.GetKind(), "name", trafficAccessor.GetName(), "namespace", trafficAccessor.GetNamespace())
 
-	if trafficAccessor.GetAnnotations() == nil {
-		return ctrl.Result{}, fmt.Errorf("expected dummy configmap annotation missing")
+	dnsTargets := trafficAccessor.GetDNSTargets()
+	targets := []string{}
+	for _, target := range dnsTargets {
+		targets = append(targets, target.Value)
 	}
 
-	cmName := trafficAccessor.GetAnnotations()["configmap"]
-	cmField := trafficAccessor.GetAnnotations()["field"]
+	//build patches to add dns targets to all matched DNSRecords
+	patches := []*Patch{}
+	for _, target := range dnsTargets {
+		patch := &Patch{
+			OP:    "add",
+			Path:  "/spec/endpoints/0/targets/-",
+			Value: target.Value,
+		}
+		patches = append(patches, patch)
+	}
+	patchAnnotation, err := json.Marshal(patches)
 
-	cm := &corev1.ConfigMap{}
-
-	err := r.WorkloadClient.Get(ctx, client.ObjectKey{Namespace: trafficAccessor.GetNamespace(), Name: cmName}, cm)
 	if err != nil {
-		return ctrl.Result{}, err
+		return ctrl.Result{
+			Requeue:      true,
+			RequeueAfter: 5 * time.Second,
+		}, fmt.Errorf("could not convert patches to string. Patches: %+v, error: %v", patches, err)
 	}
+	for _, host := range trafficAccessor.GetHosts() {
+		dnsRecord := &mctcv1.DNSRecord{}
+		err := r.ControlClient.Get(ctx, client.ObjectKey{Name: host, Namespace: CONTROL_PLANE_NAMESPACE}, dnsRecord)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
 
-	value := cm.Data[cmField]
+		if len(dnsTargets) > 0 && trafficAccessor.GetDeletionTimestamp() == nil {
+			metadata.AddAnnotation(dnsRecord, PATCH_ANNOTATION_PREFIX+r.ClusterID, string(patchAnnotation))
+			controllerutil.AddFinalizer(trafficAccessor, PATCH_CLEANUP_FINALIZER)
+		} else {
+			metadata.RemoveAnnotation(dnsRecord, PATCH_ANNOTATION_PREFIX+r.ClusterID)
+			controllerutil.RemoveFinalizer(trafficAccessor, PATCH_CLEANUP_FINALIZER)
+		}
 
-	metadata.AddLabel(trafficAccessor, "dummy-configmap-value", value)
+		err = r.ControlClient.Update(ctx, dnsRecord)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
 
+	}
 	return ctrl.Result{}, nil
 }

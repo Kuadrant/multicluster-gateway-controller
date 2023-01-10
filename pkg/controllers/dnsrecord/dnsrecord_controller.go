@@ -23,17 +23,22 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns"
+	jsonpatch "github.com/evanphx/json-patch/v5"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/apimachinery/pkg/util/json"
 	utilclock "k8s.io/utils/clock"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/metadata"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/traffic"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns"
 
 	v1 "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1"
 )
@@ -101,18 +106,88 @@ func (r *DNSRecordReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 	}
 
+	err = r.applyPatches(dnsRecord)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
 	statuses := r.publishRecordToZones(r.DNSZones, dnsRecord)
 	if !dnsZoneStatusSlicesEqual(statuses, dnsRecord.Status.Zones) || dnsRecord.Status.ObservedGeneration != dnsRecord.Generation {
 		dnsRecord.Status.Zones = statuses
 		dnsRecord.Status.ObservedGeneration = dnsRecord.Generation
 	}
 
-	err = r.Status().Update(ctx, dnsRecord)
+	err = r.Status().Update(ctx, dnsRecord.DeepCopy())
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	err = r.Update(ctx, dnsRecord.DeepCopy())
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
 	return ctrl.Result{}, nil
+}
+
+func (r *DNSRecordReconciler) applyPatches(dnsRecord *v1.DNSRecord) error {
+	//get patches
+	patchStrings := metadata.GetAnnotationsByPrefix(dnsRecord, traffic.PATCH_ANNOTATION_PREFIX)
+
+	//no patches to apply
+	if len(patchStrings) <= 0 {
+		log.Log.Info("no dns record patches found", "dns record", dnsRecord.Name)
+		return nil
+	}
+
+	patches := []jsonpatch.Patch{}
+	for _, patchString := range patchStrings {
+		patch, err := jsonpatch.DecodePatch([]byte(patchString))
+		if err != nil {
+			return err
+		}
+		patches = append(patches, patch)
+	}
+	//we have patches to apply, so first reset the spec
+	dnsRecord.Spec = v1.DNSRecordSpec{
+		Endpoints: []*v1.Endpoint{
+			{
+				DNSName: dnsRecord.Name,
+				Targets: []string{
+					"dummy",
+					/*
+						dummy is required for json patching silliness:
+							omitempty makes the array not exist unless there's a value in it.
+							jsonpatch will only add an element to the array if the array exists.
+					*/
+				},
+				RecordType: "A",
+				RecordTTL:  60,
+			},
+		},
+	}
+
+	//apply the patches
+	dnsRecordBytes, err := json.Marshal(dnsRecord)
+	if err != nil {
+		return err
+	}
+
+	for _, patch := range patches {
+		dnsRecordBytes, err = patch.Apply(dnsRecordBytes)
+		if err != nil {
+			return err
+		}
+	}
+
+	err = json.Unmarshal(dnsRecordBytes, dnsRecord)
+	if err != nil {
+		return err
+	}
+	//remove the dummy, see above comment on why the dummy is required
+	dnsRecord.Spec.Endpoints[0].Targets = dnsRecord.Spec.Endpoints[0].Targets[1:]
+
+	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -166,7 +241,7 @@ func (r *DNSRecordReconciler) publishRecordToZones(zones []v1.DNSZone, record *v
 		// (which would mean the target could have changed) or its
 		// status does not indicate that it has already been published.
 		if record.Generation == record.Status.ObservedGeneration && recordIsAlreadyPublishedToZone(record, &zone) {
-			log.Log.Info("Skipping zone to which the DNS record is already published", "record", record, "zone", zone)
+			log.Log.Info("Skipping zone to which the DNS record is already published", "record", record.Name, "zone", zone.ID)
 			continue
 		}
 

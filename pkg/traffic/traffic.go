@@ -8,6 +8,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns"
 )
 
 type CreateOrUpdateTraffic func(ctx context.Context, i Interface) error
@@ -23,6 +25,7 @@ type Interface interface {
 	AddTLS(host string, secret *corev1.Secret)
 	RemoveTLS(host []string)
 	GetSpec() interface{}
+	GetDNSTargets() []dns.Target
 }
 
 type Pending struct {

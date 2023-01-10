@@ -10,6 +10,7 @@ import (
 	"k8s.io/utils/strings/slices"
 
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/slice"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns"
 )
 
 func NewIngress(i *networkingv1.Ingress) *Ingress {
@@ -22,6 +23,25 @@ type Ingress struct {
 
 func (a *Ingress) GetKind() string {
 	return "Ingress"
+}
+
+// GetDNSTargets will return the LB hosts and or IPs from the the Ingress object associated with the cluster they came from
+func (a *Ingress) GetDNSTargets() []dns.Target {
+	dnsTargets := []dns.Target{}
+	for _, lb := range a.Status.LoadBalancer.Ingress {
+		dnsTarget := dns.Target{}
+		if lb.IP != "" {
+			dnsTarget.TargetType = dns.TargetTypeIP
+			dnsTarget.Value = lb.IP
+		}
+		if lb.Hostname != "" {
+			dnsTarget.TargetType = dns.TargetTypeHost
+			dnsTarget.Value = lb.Hostname
+
+		}
+		dnsTargets = append(dnsTargets, dnsTarget)
+	}
+	return dnsTargets
 }
 
 func (a *Ingress) GetHosts() []string {

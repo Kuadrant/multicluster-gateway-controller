@@ -2,6 +2,8 @@ package multiClusterWatch
 
 import (
 	"context"
+	"net/url"
+	"strings"
 	"time"
 
 	networkingv1 "k8s.io/api/networking/v1"
@@ -25,21 +27,24 @@ const (
 	RESYNC_PERIOD = 30 * time.Minute
 )
 
-type ResourceHandlerFactory func(c *rest.Config, controlClient client.Client) (ResourceHandler, error)
+type ResourceHandlerFactory func(host string, workloadClient client.Client, controlClient client.Client) (ResourceHandler, error)
 
 type ResourceHandler interface {
 	Handle(context.Context, runtime.Object) (ctrl.Result, error)
+	SetWorkloadClient(client.Client)
+	SetControlPlaneClient(client.Client)
 }
 
 func NewTrafficHandlerFactory() ResourceHandlerFactory {
-	return func(config *rest.Config, controlClient client.Client) (ResourceHandler, error) {
-		c, err := client.New(config, client.Options{})
+	return func(host string, workloadClient client.Client, controlClient client.Client) (ResourceHandler, error) {
+		hostUrl, err := url.ParseRequestURI(host)
 		if err != nil {
 			return nil, err
 		}
 		trafficHandler := &trafficController.Reconciler{
-			WorkloadClient: c,
+			WorkloadClient: workloadClient,
 			ControlClient:  controlClient,
+			ClusterID:      strings.Replace(hostUrl.Host, ":", "_", 1),
 		}
 		return trafficHandler, nil
 	}
@@ -146,7 +151,11 @@ func NewClusterWatcher(mgr manager.Manager, config *rest.Config, handlerFactory 
 		return nil, err
 	}
 
-	handler, _ := handlerFactory(config, mgr.GetClient())
+	workloadClient, err := client.New(config, client.Options{})
+	if err != nil {
+		return nil, err
+	}
+	handler, _ := handlerFactory(config.Host, workloadClient, mgr.GetClient())
 	watcher := &ClusterWatcher{client: watcherClient, ClusterName: config.Host, Handler: handler}
 	err = mgr.Add(watcher)
 	if err != nil {

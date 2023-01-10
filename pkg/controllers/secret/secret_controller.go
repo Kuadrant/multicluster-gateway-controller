@@ -18,13 +18,9 @@ package secret
 
 import (
 	"context"
-	"net/url"
-	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/json"
-	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -40,27 +36,6 @@ type SecretReconciler struct {
 	client.Client
 	Scheme  *runtime.Scheme
 	MCWatch multiClusterWatch.Interface
-}
-
-type TLSClientConfig struct {
-	Insecure bool   `json:"insecure"`
-	CaData   []byte `json:"caData,omitempty"`
-	CertData []byte `json:"certData,omitempty"`
-	KeyData  []byte `json:"keyData,omitempty"`
-}
-
-type ProviderConfig struct {
-	Command    string   `json:"command,omitempty"`
-	Args       []string `json:"args,omitempty"`
-	APIVersion string   `json:"apiVersion,omitempty"`
-}
-
-type ArgoClusterConfig struct {
-	BearerToken        string          `json:"bearerToken,omitempty"`
-	Username           string          `json:"username,omitempty"`
-	Password           string          `json:"password,omitempty"`
-	TlsClientConfig    TLSClientConfig `json:"tlsClientConfig,omitempty"`
-	ExecProviderConfig ProviderConfig  `json:"execProviderConfig,omitempty"`
 }
 
 const (
@@ -89,29 +64,9 @@ func (r *SecretReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, err
 	}
 	secret := previous.DeepCopy()
-
-	clusterClientConfig := &ArgoClusterConfig{}
-	err = json.Unmarshal(secret.Data["config"], clusterClientConfig)
+	restConfig, err := multiClusterWatch.RestConfigFromArgoSecret(secret)
 	if err != nil {
 		return ctrl.Result{}, err
-	}
-
-	hostUrl, err := url.Parse(string(secret.Data["server"]))
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-
-	restConfig := &rest.Config{
-		Host:        hostUrl.Host,
-		Username:    clusterClientConfig.Username,
-		Password:    clusterClientConfig.Password,
-		BearerToken: clusterClientConfig.BearerToken,
-		TLSClientConfig: rest.TLSClientConfig{
-			ServerName: strings.SplitN(hostUrl.Host, ":", 2)[0],
-			CertData:   clusterClientConfig.TlsClientConfig.CertData,
-			KeyData:    clusterClientConfig.TlsClientConfig.KeyData,
-			CAData:     clusterClientConfig.TlsClientConfig.CaData,
-		},
 	}
 
 	_, err = r.MCWatch.WatchCluster(restConfig)

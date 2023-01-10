@@ -33,14 +33,13 @@ spec:
               containerPort: 8080
               protocol: TCP
 ---
-
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: echo
 spec:
   rules:
-    - host: ""
+    - host: "pbtest.pb.hcpapps.net"
       http:
         paths:
           - path: /

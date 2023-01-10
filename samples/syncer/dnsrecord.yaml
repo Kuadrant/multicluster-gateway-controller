@@ -1,0 +1,16 @@
+apiVersion: kuadrant.io/v1
+kind: DNSRecord
+metadata:
+  labels:
+    app.kubernetes.io/name: dnsrecord
+    app.kubernetes.io/instance: dnsrecord-sample
+    app.kubernetes.io/part-of: multi-cluster-traffic-controller
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: multi-cluster-traffic-controller
+  name: pbtest.pb.hcpapps.net
+spec:
+  endpoints:
+    - dnsName: pbtest.pb.hcpapps.net
+      recordTTL: 60
+      recordType: A
+      targets:
