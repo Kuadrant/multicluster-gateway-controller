@@ -94,7 +94,7 @@ func main() {
 	if err = (&secret.SecretReconciler{
 		Client:  mgr.GetClient(),
 		Scheme:  mgr.GetScheme(),
-		MCWatch: &multiClusterWatch.WatchController{Manager: mgr, HandlerFactory: multiClusterWatch.NewIngressHandlerFactory()},
+		MCWatch: &multiClusterWatch.WatchController{Manager: mgr, HandlerFactory: multiClusterWatch.NewTrafficHandlerFactory()},
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Secret")
 		os.Exit(1)

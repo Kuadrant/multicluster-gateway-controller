@@ -25,22 +25,23 @@ const (
 	RESYNC_PERIOD = 30 * time.Minute
 )
 
-type ResourceHandlerFactory func(c *rest.Config) (ResourceHandler, error)
+type ResourceHandlerFactory func(c *rest.Config, controlClient client.Client) (ResourceHandler, error)
 
 type ResourceHandler interface {
 	Handle(context.Context, runtime.Object) (ctrl.Result, error)
 }
 
-func NewIngressHandlerFactory() ResourceHandlerFactory {
-	return func(config *rest.Config) (ResourceHandler, error) {
+func NewTrafficHandlerFactory() ResourceHandlerFactory {
+	return func(config *rest.Config, controlClient client.Client) (ResourceHandler, error) {
 		c, err := client.New(config, client.Options{})
 		if err != nil {
 			return nil, err
 		}
-		ingressHandler := &trafficController.IngressReconciler{
-			Client: c,
+		trafficHandler := &trafficController.Reconciler{
+			WorkloadClient: c,
+			ControlClient:  controlClient,
 		}
-		return ingressHandler, nil
+		return trafficHandler, nil
 	}
 }
 
@@ -145,7 +146,7 @@ func NewClusterWatcher(mgr manager.Manager, config *rest.Config, handlerFactory 
 		return nil, err
 	}
 
-	handler, err := handlerFactory(config)
+	handler, err := handlerFactory(config, mgr.GetClient())
 	watcher := &ClusterWatcher{client: watcherClient, ClusterName: config.Host, Handler: handler}
 	err = mgr.Add(watcher)
 	if err != nil {
