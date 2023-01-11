@@ -1,0 +1,18 @@
+apiVersion: kuadrant.io/v1
+kind: DNSRecord
+metadata:
+  labels:
+    app.kubernetes.io/name: dnsrecord
+    app.kubernetes.io/instance: dnsrecord-sample
+    app.kubernetes.io/part-of: multi-cluster-traffic-controller
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: multi-cluster-traffic-controller
+  name: dnsrecord-sample
+spec:
+  endpoints:
+    - dnsName: dnsrecord-simple.mn.hcpapps.net
+      recordTTL: 60
+      recordType: A
+      targets:
+        - 52.215.108.61
+        - 52.30.101.221
