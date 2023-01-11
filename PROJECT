@@ -3,4 +3,14 @@ layout:
 - go.kubebuilder.io/v3
 projectName: multi-cluster-traffic-controller
 repo: github.com/Kuadrant/multi-cluster-traffic-controller
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: kuadrant.io
+  group: kuadrant.io
+  kind: DNSRecord
+  path: github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1
+  version: v1
 version: "3"
