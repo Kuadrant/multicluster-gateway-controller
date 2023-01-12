@@ -30,12 +30,13 @@ import (
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/traffic"
 )
 
-// IngressReconciler reconciles an Ingress object
-type IngressReconciler struct {
-	client.Client
+// Reconciler reconciles a traffic object
+type Reconciler struct {
+	WorkloadClient client.Client
+	ControlClient  client.Client
 }
 
-func (r *IngressReconciler) Handle(ctx context.Context, o runtime.Object) (ctrl.Result, error) {
+func (r *Reconciler) Handle(ctx context.Context, o runtime.Object) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
 
 	trafficAccessor := o.(traffic.Interface)
@@ -50,7 +51,7 @@ func (r *IngressReconciler) Handle(ctx context.Context, o runtime.Object) (ctrl.
 
 	cm := &corev1.ConfigMap{}
 
-	err := r.Client.Get(ctx, client.ObjectKey{Namespace: trafficAccessor.GetNamespace(), Name: cmName}, cm)
+	err := r.WorkloadClient.Get(ctx, client.ObjectKey{Namespace: trafficAccessor.GetNamespace(), Name: cmName}, cm)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
