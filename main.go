@@ -20,8 +20,8 @@ import (
 	"flag"
 	"os"
 
-	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/kubernetes/scheme"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -34,28 +34,38 @@ import (
 	kuadrantiov1 "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/dnsrecord"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/secret"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/tls"
+	certmanv1 "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
+
 	//+kubebuilder:scaffold:imports
 
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/multiClusterWatch"
 )
 
 var (
-	scheme   = runtime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
 )
 
 func init() {
-	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme.Scheme))
 
-	utilruntime.Must(kuadrantiov1.AddToScheme(scheme))
+	utilruntime.Must(kuadrantiov1.AddToScheme(scheme.Scheme))
+	utilruntime.Must(certmanv1.AddToScheme(scheme.Scheme))
 	//+kubebuilder:scaffold:scheme
 }
+
+const (
+	//(cbrookes) This will be removed in the future when we have many tenant ns and way to map to them
+	defaultCtrlNS       = "argocd"
+	defaultCertProvider = "glbc-ca"
+)
 
 func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
-	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
+	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8088", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
@@ -69,7 +79,7 @@ func main() {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:                 scheme,
+		Scheme:                 scheme.Scheme,
 		MetricsBindAddress:     metricsAddr,
 		Port:                   9443,
 		HealthProbeBindAddress: probeAddr,
@@ -81,20 +91,30 @@ func main() {
 		os.Exit(1)
 	}
 
+	dnsProvider, err := dns.DNSProvider("aws")
+	if err != nil {
+		setupLog.Error(err, "unable to create dns provider client")
+		os.Exit(1)
+	}
 	if err = (&dnsrecord.DNSRecordReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 		ReconcilerConfig: dnsrecord.DNSRecordReconcilerConfig{
 			DNSProvider: "aws",
 		},
+		DNSProvider: dnsProvider,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DNSRecord")
 		os.Exit(1)
 	}
+	dnsService := dns.NewService(mgr.GetClient(), dns.NewDefaultHostResolver(), defaultCtrlNS)
+	certService := tls.NewService(mgr.GetClient(), defaultCtrlNS, defaultCertProvider)
+
+	trafficHandler := multiClusterWatch.NewTrafficHandlerFactory(dnsService, certService)
 	if err = (&secret.SecretReconciler{
 		Client:  mgr.GetClient(),
 		Scheme:  mgr.GetScheme(),
-		MCWatch: &multiClusterWatch.WatchController{Manager: mgr, HandlerFactory: multiClusterWatch.NewTrafficHandlerFactory()},
+		MCWatch: &multiClusterWatch.WatchController{Manager: mgr, HandlerFactory: trafficHandler},
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Secret")
 		os.Exit(1)

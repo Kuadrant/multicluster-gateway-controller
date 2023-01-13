@@ -22,6 +22,7 @@ source "${LOCAL_SETUP_DIR}"/.kindUtils
 
 KIND_CLUSTER_PREFIX="mctc-"
 KIND_CLUSTER_CONTROL_PLANE="${KIND_CLUSTER_PREFIX}control-plane"
+KIND_CLUSTER_WORKLOAD="${KIND_CLUSTER_PREFIX}workload"
 
 INGRESS_NGINX_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/ingress-nginx
 CERT_MANAGER_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/cert-manager
@@ -32,10 +33,8 @@ set -e pipefail
 
 deployIngressController () {
   clusterName=${1}
-  echo "Deploying Ingress controller to ${clusterName}"
-
   kubectl config use-context kind-${clusterName}
-
+  echo "Deploying Ingress controller to ${clusterName}"  
   ${KUSTOMIZE_BIN} build ${INGRESS_NGINX_KUSTOMIZATION_DIR} --enable-helm --helm-command ${HELM_BIN} | kubectl apply -f -
   echo "Waiting for deployments to be ready ..."
   kubectl -n ingress-nginx wait --timeout=300s --for=condition=Available deployments --all
@@ -50,6 +49,11 @@ deployCertManager() {
   ${KUSTOMIZE_BIN} build ${CERT_MANAGER_KUSTOMIZATION_DIR} --enable-helm --helm-command ${HELM_BIN} | kubectl apply -f -
   echo "Waiting for Cert Manager deployments to be ready..."
   kubectl -n cert-manager wait --timeout=300s --for=condition=Available deployments --all
+
+  kubectl delete validatingWebhookConfiguration mctc-cert-manager-webhook
+  kubectl delete mutatingWebhookConfiguration mctc-cert-manager-webhook
+  # Apply the default glbc-ca issuer
+  kubectl create -n cert-manager -f ./config/default/issuer.yaml
 }
 
 deployExternalDNS() {
@@ -103,3 +107,9 @@ deployIngressController $KIND_CLUSTER_CONTROL_PLANE
 deployCertManager $KIND_CLUSTER_CONTROL_PLANE
 #4. Deploy argo cd
 deployArgoCD $KIND_CLUSTER_CONTROL_PLANE
+
+
+if [[ $WORKLOAD_CLUSTER == "true" ]]; then
+  kindCreateCluster $KIND_CLUSTER_WORKLOAD $((port80 + 1)) $((port443 + 1))
+  deployIngressController $KIND_CLUSTER_WORKLOAD
+fi  

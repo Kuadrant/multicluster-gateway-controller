@@ -118,12 +118,6 @@ func (r *DNSRecordReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 // SetupWithManager sets up the controller with the Manager.
 func (r *DNSRecordReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
-	dnsProvider, err := dns.DNSProvider(r.ReconcilerConfig.DNSProvider)
-	if err != nil {
-		return err
-	}
-	r.DNSProvider = dnsProvider
-
 	var dnsZones []v1.DNSZone
 	zoneID, zoneIDSet := os.LookupEnv("AWS_DNS_PUBLIC_ZONE_ID")
 	if zoneIDSet {

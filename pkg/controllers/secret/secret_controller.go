@@ -64,7 +64,7 @@ type ArgoClusterConfig struct {
 }
 
 const (
-	ARGO_CLUSTER_LABEL       = "argocd.argoproj.io/secret-type"
+	CLUSTER__SECRET_LABEL    = "argocd.argoproj.io/secret-type"
 	ARGO_CLUSTER_LABEL_VALUE = "cluster"
 )
 
@@ -89,7 +89,7 @@ func (r *SecretReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, err
 	}
 	secret := previous.DeepCopy()
-
+	log.Log.Info("new cluster added ", "name", secret.Name)
 	clusterClientConfig := &ArgoClusterConfig{}
 	err = json.Unmarshal(secret.Data["config"], clusterClientConfig)
 	if err != nil {
@@ -129,13 +129,13 @@ func (r *SecretReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&corev1.Secret{}).
 		WithEventFilter(predicate.Funcs{
 			CreateFunc: func(e event.CreateEvent) bool {
-				return metadata.HasLabel(e.Object, ARGO_CLUSTER_LABEL) && e.Object.GetLabels()[ARGO_CLUSTER_LABEL] == ARGO_CLUSTER_LABEL_VALUE
+				return metadata.HasLabel(e.Object, CLUSTER__SECRET_LABEL) && e.Object.GetLabels()[CLUSTER__SECRET_LABEL] == ARGO_CLUSTER_LABEL_VALUE
 			},
 			DeleteFunc: func(e event.DeleteEvent) bool {
-				return metadata.HasLabel(e.Object, ARGO_CLUSTER_LABEL) && e.Object.GetLabels()[ARGO_CLUSTER_LABEL] == ARGO_CLUSTER_LABEL_VALUE
+				return metadata.HasLabel(e.Object, CLUSTER__SECRET_LABEL) && e.Object.GetLabels()[CLUSTER__SECRET_LABEL] == ARGO_CLUSTER_LABEL_VALUE
 			},
 			UpdateFunc: func(e event.UpdateEvent) bool {
-				return metadata.HasLabel(e.ObjectNew, ARGO_CLUSTER_LABEL) && e.ObjectNew.GetLabels()[ARGO_CLUSTER_LABEL] == ARGO_CLUSTER_LABEL_VALUE
+				return metadata.HasLabel(e.ObjectNew, CLUSTER__SECRET_LABEL) && e.ObjectNew.GetLabels()[CLUSTER__SECRET_LABEL] == ARGO_CLUSTER_LABEL_VALUE
 			},
 		}).
 		Complete(r)
