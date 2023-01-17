@@ -85,6 +85,25 @@ deployArgoCD() {
   echo -ne "\t\tPassword : $argoPassword\n\n\n"
 }
 
+deployOCM() {
+  hubClusterName=${1}
+  managedClusterName=${2}
+  echo "Deploying OCM hub to (${hubClusterName})"
+
+  # Deploy the cluster manager
+  ${CLUSTERADM_BIN} init --wait
+  HUB_API_SERVER=$(kubectl config view -o jsonpath="{$.clusters[?(@.name == 'kind-${hubClusterName}')].cluster.server}" --context kind-${hubClusterName})
+  OCM_BOOTSTRAP_TOKEN=$(${CLUSTERADM_BIN} get token --context kind-${hubClusterName} | awk 'BEGIN{FS="="}/token/{print $2}')
+
+  # create a managed cluster with random mapped ports
+  kindCreateCluster cluster1 0 0
+
+  # Register the cluster1 as a managed cluster
+  ${CLUSTERADM_BIN} join --hub-token ${OCM_BOOTSTRAP_TOKEN} --hub-apiserver ${HUB_API_SERVER} \
+    --wait --cluster-name ${managedClusterName} --force-internal-endpoint-lookup --context kind-${managedClusterName}
+  ${CLUSTERADM_BIN} accept --clusters ${managedClusterName} --context kind-${hubClusterName}
+}
+
 #Delete existing kind clusters
 clusterCount=$(${KIND_BIN} get clusters | grep ${KIND_CLUSTER_PREFIX} | wc -l)
 if ! [[ $clusterCount =~ "0" ]] ; then
@@ -105,3 +124,8 @@ deployCertManager $KIND_CLUSTER_CONTROL_PLANE
 deployExternalDNS $KIND_CLUSTER_CONTROL_PLANE
 #5. Deploy argo cd
 deployArgoCD $KIND_CLUSTER_CONTROL_PLANE
+#6. Deploy OCM hub in the control plane cluster and add a managed kind cluster
+deployOCM $KIND_CLUSTER_CONTROL_PLANE cluster1
+
+# Ensure the current context points to the control plane cluster
+kubectl config use-context kind-${KIND_CLUSTER_CONTROL_PLANE}
