@@ -11,6 +11,10 @@ else
 GOBIN=$(shell go env GOBIN)
 endif
 
+# detect OS and ARCH
+OS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
+ARCH := $(shell uname -m | sed 's/x86_64/amd64/')
+
 # Setting SHELL to bash allows bash commands to be executed by recipes.
 # Options are set to exit when a recipe line exits non-zero or a piped command fails.
 SHELL = /usr/bin/env bash -o pipefail
@@ -136,12 +140,14 @@ CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 KIND ?= $(LOCALBIN)/kind
 HELM ?= $(LOCALBIN)/helm
+CLUSTERADM ?= $(LOCALBIN)/clusteradm
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v4.5.4
 CONTROLLER_TOOLS_VERSION ?= v0.10.0
 KIND_VERSION ?= v0.14.0
 HELM_VERSION ?= v3.10.0
+CLUSTERADM_VERSION ?= v0.4.1
 
 KUSTOMIZE_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"
 .PHONY: kustomize
@@ -174,3 +180,11 @@ HELM_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/helm/helm/main/scripts
 helm: $(HELM)
 $(HELM):
 	curl -s $(HELM_INSTALL_SCRIPT) | HELM_INSTALL_DIR=$(LOCALBIN) PATH=$$PATH:$$HELM_INSTALL_DIR bash -s -- --no-sudo --version $(HELM_VERSION)
+
+CLUSTERADM_DOWNLOAD_URL ?= https://github.com/open-cluster-management-io/clusteradm/releases/download/$(CLUSTERADM_VERSION)/clusteradm_$(OS)_$(ARCH).tar.gz
+CLUSTERADM_TAR ?= /tmp/clusteradm.tar.gz
+.PHONY: clusteradm
+clusteradm: $(CLUSTERADM)
+$(CLUSTERADM): $(LOCALBIN)
+	test -s $(LOCALBIN)/kustomize || \
+		curl -SsL $(CLUSTERADM_DOWNLOAD_URL) -o $(CLUSTERADM_TAR) && tar -C $(LOCALBIN) -xvf $(CLUSTERADM_TAR) --exclude=LICENSE && chmod +x $(CLUSTERADM)
