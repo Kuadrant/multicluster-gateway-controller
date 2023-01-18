@@ -18,6 +18,8 @@ helmCharts:
         hostNetwork: true
         ingressClassResource:
           default: true
+        publishService:
+          enabled: false
         reportNodeInternalIp: true
         service:
           type: NodePort
