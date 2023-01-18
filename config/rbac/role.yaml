@@ -5,8 +5,10 @@ metadata:
   creationTimestamp: null
   name: manager-role
 rules:
-- resources:
-  - secret
+- apiGroups:
+  - ""
+  resources:
+  - secrets
   verbs:
   - create
   - delete
@@ -15,16 +17,44 @@ rules:
   - patch
   - update
   - watch
-- resources:
-  - secret/finalizers
+- apiGroups:
+  - ""
+  resources:
+  - secrets/finalizers
   verbs:
   - update
-- resources:
-  - secret/status
+- apiGroups:
+  - ""
+  resources:
+  - secrets/status
   verbs:
   - get
   - patch
   - update
+- apiGroups:
+  - admissionregistration.k8s.io
+  resources:
+  - mutatingwebhookconfigurations
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - cert-manager.io
+  resources:
+  - certificates
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - kuadrant.io
   resources:

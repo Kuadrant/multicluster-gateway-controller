@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"time"
 
+	admissionv1 "k8s.io/api/admissionregistration/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -72,6 +73,11 @@ func (r *Reconciler) Handle(ctx context.Context, o runtime.Object) (ctrl.Result,
 		return ctrl.Result{}, nil
 	}
 
+	// Check if the traffic object has already TLS before reconciliation.
+	// This is to make sure that we only reconcile the webhooks if the object
+	// already has TLS
+	hasTLSInitially := trafficAccessor.HasTLS()
+
 	// verify host is correct
 	// no managed host assigned assign one
 	// create empty DNSRecord with assigned host
@@ -110,9 +116,18 @@ func (r *Reconciler) Handle(ctx context.Context, o runtime.Object) (ctrl.Result,
 			}
 			trafficAccessor.AddTLS(managedHost, secret)
 		}
+
 		log.Log.Info("certificate secret in place for  host adding dns endpoints", "host", managedHost)
 		if err := r.Hosts.AddEndPoints(ctx, trafficAccessor); err != nil {
 			return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 5}, err
+		}
+
+		if trafficAccessor.HasTLS() && hasTLSInitially {
+			if err := r.reconcileWebhooks(ctx, trafficAccessor, managedHosts, secret); err != nil {
+				return ctrl.Result{}, err
+			}
+		} else if trafficAccessor.HasTLS() && !hasTLSInitially {
+			return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 10}, nil
 		}
 	}
 
@@ -138,4 +153,56 @@ func (r *Reconciler) copySecretToWorkloadCluster(ctx context.Context, trafficAcc
 		}
 	}
 	return nil
+}
+
+func (r *Reconciler) reconcileWebhooks(ctx context.Context, trafficAccessor traffic.Interface, managedHosts []string, tlsSecret *v1.Secret) error {
+	if !trafficAccessor.ExposesOwnController() {
+		return nil
+	}
+
+	validatingWebhooks, mutatingWebhooks := trafficAccessor.GetWebhookConfigurations(managedHosts[0], bundleCA(tlsSecret))
+
+	for _, webhook := range validatingWebhooks {
+		g := &admissionv1.ValidatingWebhookConfiguration{
+			ObjectMeta: webhook.ObjectMeta,
+		}
+
+		_, err := controllerutil.CreateOrUpdate(ctx, r.WorkloadClient, g, func() error {
+			g.Webhooks = webhook.Webhooks
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	for _, webhook := range mutatingWebhooks {
+		g := &admissionv1.MutatingWebhookConfiguration{
+			ObjectMeta: webhook.ObjectMeta,
+		}
+
+		_, err := controllerutil.CreateOrUpdate(ctx, r.WorkloadClient, g, func() error {
+			g.Webhooks = webhook.Webhooks
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func bundleCA(secret *v1.Secret) []byte {
+	result := []byte{}
+
+	for name, cert := range secret.Data {
+		if name == "tls.key" {
+			continue
+		}
+
+		result = append(result, cert...)
+	}
+
+	return result
 }
