@@ -39,7 +39,7 @@ metadata:
   name: echo
 spec:
   rules:
-    - host: "echo.127.0.0.1.nip.io"
+    - host: ""
       http:
         paths:
           - path: /
