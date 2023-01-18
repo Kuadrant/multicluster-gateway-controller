@@ -4,13 +4,16 @@ import (
 	"fmt"
 	"strings"
 
+	admissionv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/utils/strings/slices"
 
+	internalctrl "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/controller"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/slice"
 	kuadrantv1 "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1"
 )
@@ -19,7 +22,7 @@ const (
 	AnnotationManagedHosts = "kuadrant.io/managed-hosts"
 )
 
-func NewIngress(i *networkingv1.Ingress) *Ingress {
+func NewIngress(i *networkingv1.Ingress) Interface {
 	return &Ingress{Ingress: i}
 }
 
@@ -91,6 +94,10 @@ func (a *Ingress) AddManagedHost(h string) error {
 	}
 	a.Annotations[AnnotationManagedHosts] = value
 	return nil
+}
+
+func (a *Ingress) HasTLS() bool {
+	return a.Spec.TLS != nil && len(a.Spec.TLS) != 0
 }
 
 func (a *Ingress) AddTLS(host string, secret *corev1.Secret) {
@@ -167,4 +174,68 @@ func (a *Ingress) GetDNSTargets() ([]kuadrantv1.Target, error) {
 	}
 
 	return dnsTargets, nil
+}
+
+func (a *Ingress) GetWebhookConfigurations(host string, caBundle []byte) ([]*admissionv1.ValidatingWebhookConfiguration, []*admissionv1.MutatingWebhookConfiguration) {
+	var matchPolicy admissionv1.MatchPolicyType = admissionv1.Exact
+	var scope admissionv1.ScopeType = admissionv1.AllScopes
+	var sideEffects admissionv1.SideEffectClass = admissionv1.SideEffectClassNoneOnDryRun
+	var timeoutSeconds int32 = 5
+	var failurePolicy = admissionv1.Fail
+	if internalctrl.IsRunningLocally() {
+		failurePolicy = admissionv1.Ignore
+	}
+
+	url := fmt.Sprintf("https://%s/ingress", host)
+
+	return []*admissionv1.ValidatingWebhookConfiguration{},
+		[]*admissionv1.MutatingWebhookConfiguration{
+			{
+				ObjectMeta: v1.ObjectMeta{
+					Name: "mctc",
+				},
+
+				Webhooks: []admissionv1.MutatingWebhook{
+					{
+						FailurePolicy: &failurePolicy,
+						MatchPolicy:   &matchPolicy,
+						Name:          "mctc.ingress.dev",
+						ClientConfig: admissionv1.WebhookClientConfig{
+							URL:      &url,
+							CABundle: caBundle,
+						},
+						Rules: []admissionv1.RuleWithOperations{
+							{
+								Rule: admissionv1.Rule{
+									APIGroups:   []string{"networking.k8s.io"},
+									APIVersions: []string{"v1"},
+									Resources:   []string{"ingresses", "ingresses/status"},
+									Scope:       &scope,
+								},
+								Operations: []admissionv1.OperationType{
+									admissionv1.Create,
+									admissionv1.Update,
+								},
+							},
+						},
+						SideEffects:             &sideEffects,
+						TimeoutSeconds:          &timeoutSeconds,
+						AdmissionReviewVersions: []string{"v1"},
+					},
+				},
+			},
+		}
+}
+
+func (a *Ingress) ExposesOwnController() bool {
+	if a.Annotations == nil {
+		return false
+	}
+
+	component, ok := a.Annotations["mctc-component"]
+	if !ok {
+		return false
+	}
+
+	return component == "webhook"
 }

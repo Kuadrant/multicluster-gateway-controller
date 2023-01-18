@@ -68,9 +68,13 @@ const (
 	ARGO_CLUSTER_LABEL_VALUE = "cluster"
 )
 
-//+kubebuilder:rbac:groups=,resources=secret,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=,resources=secret/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=,resources=secret/finalizers,verbs=update
+//+kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups="",resources=secrets/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups="",resources=secrets/finalizers,verbs=update
+
+//+kubebuilder:rbac:groups=cert-manager.io,resources=certificates,verbs=get;list;watch;create;update;patch;delete
+
+//+kubebuilder:rbac:groups=admissionregistration.k8s.io,resources=mutatingwebhookconfigurations,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
