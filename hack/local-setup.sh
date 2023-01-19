@@ -96,7 +96,7 @@ deployOCM() {
   ocmInitHub ${hubClusterName}
 
   # Register the control-plane cluster as a managed cluster and
-  # register it with OCM and ArgoCD
+  # and with ArgoCD
   ocmAddCluster ${hubClusterName} ${hubClusterName}
   argocdAddCluster ${hubClusterName} ${hubClusterName}
 
