@@ -95,6 +95,12 @@ deployOCM() {
   HUB_API_SERVER=$(kubectl config view -o jsonpath="{$.clusters[?(@.name == 'kind-${hubClusterName}')].cluster.server}" --context kind-${hubClusterName})
   OCM_BOOTSTRAP_TOKEN=$(${CLUSTERADM_BIN} get token --context kind-${hubClusterName} | awk 'BEGIN{FS="="}/token/{print $2}')
 
+  # Register the control-plane clsuter as a managed cluster
+  ${CLUSTERADM_BIN} join --hub-token ${OCM_BOOTSTRAP_TOKEN} --hub-apiserver ${HUB_API_SERVER} \
+    --wait --cluster-name ${hubClusterName} --force-internal-endpoint-lookup --context kind-${hubClusterName}
+    # sleep 5
+  ${CLUSTERADM_BIN} accept --clusters ${hubClusterName} --context kind-${hubClusterName} --wait
+
   # create a managed cluster with random mapped ports
   kindCreateCluster cluster1 0 0
 
