@@ -1,0 +1,14 @@
+# shellcheck shell=bash
+
+ocmAddCluster() {
+    hubCluster=$1
+    managedCluster=$2
+
+    HUB_API_SERVER=$(kubectl config view -o jsonpath="{$.clusters[?(@.name == 'kind-${hubCluster}')].cluster.server}")
+    OCM_BOOTSTRAP_TOKEN=$(${CLUSTERADM_BIN} get token --context kind-${hubCluster} | awk 'BEGIN{FS="="}/token/{print $2}')
+
+    ${CLUSTERADM_BIN} join --hub-token ${OCM_BOOTSTRAP_TOKEN} --hub-apiserver ${HUB_API_SERVER} \
+        --cluster-name ${managedCluster} --force-internal-endpoint-lookup --context kind-${managedCluster} --wait
+    ${CLUSTERADM_BIN} accept --clusters ${managedCluster} --context kind-${hubCluster} --wait
+
+}

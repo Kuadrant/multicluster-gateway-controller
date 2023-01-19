@@ -1,0 +1,38 @@
+# shellcheck shell=bash
+
+argocdAddCluster() {
+    hubCluster=$1
+    managedCluster=$2
+
+    tmpfile=$(mktemp /tmp/kubeconfig-internal.XXXXXX)
+    ${KIND_BIN} export kubeconfig --internal --name ${managedCluster} --kubeconfig ${tmpfile}
+    server=$(kubectl --kubeconfig ${tmpfile} config view -o jsonpath="{$.clusters[?(@.name == 'kind-${managedCluster}')].cluster.server}")
+    caData=$(kubectl --kubeconfig ${tmpfile} config view --raw -o jsonpath="{$.clusters[?(@.name == 'kind-${managedCluster}')].cluster.certificate-authority-data}")
+    certData=$(kubectl --kubeconfig ${tmpfile} config view --raw -o jsonpath="{$.users[?(@.name == 'kind-${managedCluster}')].user.client-certificate-data}")
+    keyData=$(kubectl --kubeconfig ${tmpfile} config view --raw -o jsonpath="{$.users[?(@.name == 'kind-${managedCluster}')].user.client-key-data}")
+    rm -f ${tmpfile}
+
+    cat <<EOF | kubectl apply --context kind-${hubCluster} -f -
+kind: Secret
+apiVersion: v1
+metadata:
+  name: kind-${managedCluster}
+  namespace: argocd
+  labels:
+    argocd.argoproj.io/secret-type: cluster
+stringData:
+  config: >-
+    {
+      "tlsClientConfig":
+        {
+          "insecure": false,
+          "caData": "${caData}",
+          "certData": "${certData}",
+          "keyData": "${keyData}"
+        }
+    }
+  name: kind-${managedCluster}
+  server: ${server}
+type: Opaque
+EOF
+}

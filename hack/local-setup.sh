@@ -19,6 +19,8 @@
 LOCAL_SETUP_DIR="$(dirname "${BASH_SOURCE[0]}")"
 source "${LOCAL_SETUP_DIR}"/.setupEnv
 source "${LOCAL_SETUP_DIR}"/.kindUtils
+source "${LOCAL_SETUP_DIR}"/.argocdUtils
+source "${LOCAL_SETUP_DIR}"/.ocmUtils
 
 KIND_CLUSTER_PREFIX="mctc-"
 KIND_CLUSTER_CONTROL_PLANE="${KIND_CLUSTER_PREFIX}control-plane"
@@ -92,22 +94,15 @@ deployOCM() {
 
   # Deploy the cluster manager
   ${CLUSTERADM_BIN} init --wait
-  HUB_API_SERVER=$(kubectl config view -o jsonpath="{$.clusters[?(@.name == 'kind-${hubClusterName}')].cluster.server}" --context kind-${hubClusterName})
-  OCM_BOOTSTRAP_TOKEN=$(${CLUSTERADM_BIN} get token --context kind-${hubClusterName} | awk 'BEGIN{FS="="}/token/{print $2}')
 
-  # Register the control-plane clsuter as a managed cluster
-  ${CLUSTERADM_BIN} join --hub-token ${OCM_BOOTSTRAP_TOKEN} --hub-apiserver ${HUB_API_SERVER} \
-    --wait --cluster-name ${hubClusterName} --force-internal-endpoint-lookup --context kind-${hubClusterName}
-    # sleep 5
-  ${CLUSTERADM_BIN} accept --clusters ${hubClusterName} --context kind-${hubClusterName} --wait
+  # Register the control-plane cluster as a managed cluster
+  ocmAddCluster ${hubClusterName} ${hubClusterName}
 
-  # create a managed cluster with random mapped ports
+  # create a managed cluster with random mapped ports and
+  # register it with OCM and ArgoCD
   kindCreateCluster cluster1 0 0
-
-  # Register the cluster1 as a managed cluster
-  ${CLUSTERADM_BIN} join --hub-token ${OCM_BOOTSTRAP_TOKEN} --hub-apiserver ${HUB_API_SERVER} \
-    --wait --cluster-name ${managedClusterName} --force-internal-endpoint-lookup --context kind-${managedClusterName}
-  ${CLUSTERADM_BIN} accept --clusters ${managedClusterName} --context kind-${hubClusterName}
+  ocmAddCluster ${hubClusterName} ${managedClusterName}
+  argocdAddCluster ${hubClusterName} ${managedClusterName}
 }
 
 #Delete existing kind clusters
