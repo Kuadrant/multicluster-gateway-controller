@@ -63,7 +63,7 @@ test: manifests generate fmt vet envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -coverprofile cover.out
 
 .PHONY: local-setup
-local-setup: kind kustomize helm clusteradm argocd ## Setup multi cluster traffic controller locally using kind.
+local-setup: kind kustomize helm clusteradm ## Setup multi cluster traffic controller locally using kind.
 	./hack/local-setup.sh
 
 ##@ Build
@@ -141,7 +141,6 @@ ENVTEST ?= $(LOCALBIN)/setup-envtest
 KIND ?= $(LOCALBIN)/kind
 HELM ?= $(LOCALBIN)/helm
 CLUSTERADM ?= $(LOCALBIN)/clusteradm
-ARGOCD ?= $(LOCALBIN)/argocd
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v4.5.4
@@ -149,7 +148,6 @@ CONTROLLER_TOOLS_VERSION ?= v0.10.0
 KIND_VERSION ?= v0.14.0
 HELM_VERSION ?= v3.10.0
 CLUSTERADM_VERSION ?= v0.4.1
-ARGOCD_VERSION ?= v2.5.5
 
 KUSTOMIZE_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"
 .PHONY: kustomize
@@ -190,9 +188,3 @@ clusteradm: $(CLUSTERADM)
 $(CLUSTERADM): $(LOCALBIN)
 	test -s $(LOCALBIN)/clusteradm || \
 		{ curl -SsL $(CLUSTERADM_DOWNLOAD_URL) -o $(CLUSTERADM_TAR) && tar -C $(LOCALBIN) -xvf $(CLUSTERADM_TAR) --exclude=LICENSE && chmod +x $(CLUSTERADM); }
-
-ARGOCD_DOWNLOAD_URL ?= https://github.com/argoproj/argo-cd/releases/download/$(ARGOCD_VERSION)/argocd-$(OS)-$(ARCH)
-argocd: $(ARGOCD) ## Download argocd CLI locally if necessary
-$(ARGOCD):
-	curl -sL $(ARGOCD_DOWNLOAD_URL) -o $(ARGOCD)
-	chmod +x $(ARGOCD)
