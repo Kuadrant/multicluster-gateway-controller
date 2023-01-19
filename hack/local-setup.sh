@@ -93,10 +93,12 @@ deployOCM() {
   echo "Deploying OCM hub to (${hubClusterName})"
 
   # Deploy the cluster manager
-  ${CLUSTERADM_BIN} init --wait
+  ocmInitHub ${hubClusterName}
 
-  # Register the control-plane cluster as a managed cluster
+  # Register the control-plane cluster as a managed cluster and
+  # register it with OCM and ArgoCD
   ocmAddCluster ${hubClusterName} ${hubClusterName}
+  argocdAddCluster ${hubClusterName} ${hubClusterName}
 
   # create a managed cluster with random mapped ports and
   # register it with OCM and ArgoCD

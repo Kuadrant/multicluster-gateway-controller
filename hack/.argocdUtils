@@ -16,7 +16,7 @@ argocdAddCluster() {
 kind: Secret
 apiVersion: v1
 metadata:
-  name: kind-${managedCluster}
+  name: ${managedCluster}
   namespace: argocd
   labels:
     argocd.argoproj.io/secret-type: cluster
@@ -31,7 +31,7 @@ stringData:
           "keyData": "${keyData}"
         }
     }
-  name: kind-${managedCluster}
+  name: ${managedCluster}
   server: ${server}
 type: Opaque
 EOF
