@@ -186,5 +186,5 @@ CLUSTERADM_TAR ?= /tmp/clusteradm.tar.gz
 .PHONY: clusteradm
 clusteradm: $(CLUSTERADM)
 $(CLUSTERADM): $(LOCALBIN)
-	test -s $(LOCALBIN)/kustomize || \
-		curl -SsL $(CLUSTERADM_DOWNLOAD_URL) -o $(CLUSTERADM_TAR) && tar -C $(LOCALBIN) -xvf $(CLUSTERADM_TAR) --exclude=LICENSE && chmod +x $(CLUSTERADM)
+	test -s $(LOCALBIN)/clusteradm || \
+		{ curl -SsL $(CLUSTERADM_DOWNLOAD_URL) -o $(CLUSTERADM_TAR) && tar -C $(LOCALBIN) -xvf $(CLUSTERADM_TAR) --exclude=LICENSE && chmod +x $(CLUSTERADM); }
