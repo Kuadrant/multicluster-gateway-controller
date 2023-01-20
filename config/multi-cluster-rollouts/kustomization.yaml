@@ -1,0 +1,4 @@
+resources:
+  - github.com/david-martin/multi-cluster-rollouts?ref=kustomize_install
+
+namespace: argocd

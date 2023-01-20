@@ -118,6 +118,12 @@ deployMonitoring() {
   monitoringDeployKubePrometheus ${managedClusterName}
 }
 
+deployMCR() {
+  hubClusterName=${1}
+
+  ${KUSTOMIZE_BIN} build config/multi-cluster-rollouts | kubectl --context kind-${hubClusterName} apply -f -
+}
+
 #Delete existing kind clusters
 clusterCount=$(${KIND_BIN} get clusters | egrep "${KIND_CLUSTER_PREFIX}|${KIND_WORKLOAD_CLUSTER_1}" | wc -l)
 if ! [[ $clusterCount =~ "0" ]] ; then
@@ -142,6 +148,7 @@ deployArgoCD $KIND_CLUSTER_CONTROL_PLANE
 deployOCM $KIND_CLUSTER_CONTROL_PLANE ${KIND_WORKLOAD_CLUSTER_1}
 #7. Deploy the monitoring stack
 deployMonitoring $KIND_CLUSTER_CONTROL_PLANE ${KIND_WORKLOAD_CLUSTER_1}
-
+#8. Deploy the multi-cluster-rollouts controlelr
+deployMCR $KIND_CLUSTER_CONTROL_PLANE
 # Ensure the current context points to the control plane cluster
 kubectl config use-context kind-${KIND_CLUSTER_CONTROL_PLANE}
