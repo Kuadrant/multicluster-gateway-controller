@@ -90,6 +90,22 @@ deployArgoCD() {
   echo -ne "\t\tPassword : $argoPassword\n\n\n"
 }
 
+deployDashboard() {
+  clusterName=${1}
+  echo "Deploying Kubernetes Dashboard to (${clusterName})"
+
+  kubectl config use-context kind-${clusterName} 
+
+  kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.7.0/aio/deploy/recommended.yaml
+  ${KUSTOMIZE_BIN} build config/dashboard | kubectl apply -f -
+  token=$(kubectl get secret/admin-user-token -n kubernetes-dashboard -o go-template="{{.data.token | base64decode}}")
+
+  echo -ne "\n\n\tAccess Kubernetes Dashboard\n\n"
+  echo -ne "\t\tIn a separate terminal, run: kubectl proxy\n"
+  echo -ne "\t\t\tThe dashboard is available at http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/\n"
+  echo -ne "\t\tAccess the dashboard using the following Bearer Token: $token\n"
+}
+
 #Delete existing kind clusters
 clusterCount=$(${KIND_BIN} get clusters | grep ${KIND_CLUSTER_PREFIX} | wc -l)
 if ! [[ $clusterCount =~ "0" ]] ; then
@@ -115,7 +131,10 @@ deployExternalDNS ${KIND_CLUSTER_CONTROL_PLANE}
 #5. Deploy argo cd
 deployArgoCD ${KIND_CLUSTER_CONTROL_PLANE}
 
-#6. Add workload clusters if MCTC_WORKLOAD_CLUSTERS_COUNT environment variable is set
+#6. Deploy Dashboard
+deployDashboard $KIND_CLUSTER_CONTROL_PLANE
+
+#7. Add workload clusters if MCTC_WORKLOAD_CLUSTERS_COUNT environment variable is set
 if [[ -n "${MCTC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
   for ((i = 1; i <= ${MCTC_WORKLOAD_CLUSTERS_COUNT}; i++)); do
     kindCreateCluster ${KIND_CLUSTER_WORKLOAD}-${i} $((${port80} + ${i})) $((${port443} + ${i}))
@@ -124,5 +143,5 @@ if [[ -n "${MCTC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
   done
 fi
 
-#7. Ensure the current context points to the control plane cluster
+#8. Ensure the current context points to the control plane cluster
 kubectl config use-context kind-${KIND_CLUSTER_CONTROL_PLANE}
