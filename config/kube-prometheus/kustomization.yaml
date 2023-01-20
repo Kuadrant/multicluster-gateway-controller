@@ -1,0 +1,45 @@
+# https://github.com/prometheus-operator/kube-prometheus/
+resources:
+  - github.com/prometheus-operator/kube-prometheus?ref=release-0.11
+  - ingress.yaml
+
+patchesStrategicMerge:
+  - cluster_role.yaml
+
+patches:
+  - target:
+      kind: Prometheus
+      name: k8s
+    patch: |-
+      kind: Prometheus
+      metadata:
+        name: k8s
+      spec:
+        replicas: 1
+        remoteWrite:
+          - url: http://thanos-receive-router.172.18.0.2.nip.io/api/v1/receive
+  - target:
+      kind: AlertManager
+      name: k8s
+    patch: |-
+      kind: AlertManager
+      metadata:
+        name: k8s
+      spec:
+        replicas: 1
+  - target:
+      kind: ClusterRole
+      name: prometheus-k8s
+    patch: |-
+      - op: add
+        path: /rules/-
+        value:
+          apiGroups:
+            - ""
+          resources:
+            - services
+            - endpoints
+          verbs:
+            - get
+            - list
+            - watch

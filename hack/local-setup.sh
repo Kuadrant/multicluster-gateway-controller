@@ -21,9 +21,11 @@ source "${LOCAL_SETUP_DIR}"/.setupEnv
 source "${LOCAL_SETUP_DIR}"/.kindUtils
 source "${LOCAL_SETUP_DIR}"/.argocdUtils
 source "${LOCAL_SETUP_DIR}"/.ocmUtils
+source "${LOCAL_SETUP_DIR}"/.monitoringUtils
 
 KIND_CLUSTER_PREFIX="mctc-"
 KIND_CLUSTER_CONTROL_PLANE="${KIND_CLUSTER_PREFIX}control-plane"
+KIND_WORKLOAD_CLUSTER_1="${KIND_CLUSTER_PREFIX}workload-cluster-1"
 
 INGRESS_NGINX_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/ingress-nginx
 CERT_MANAGER_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/cert-manager
@@ -102,16 +104,25 @@ deployOCM() {
 
   # create a managed cluster with random mapped ports and
   # register it with OCM and ArgoCD
-  kindCreateCluster cluster1 0 0
+  kindCreateCluster ${KIND_WORKLOAD_CLUSTER_1} 0 0
   ocmAddCluster ${hubClusterName} ${managedClusterName}
   argocdAddCluster ${hubClusterName} ${managedClusterName}
 }
 
+deployMonitoring() {
+  hubClusterName=${1}
+  managedClusterName=${2}
+
+	${KUSTOMIZE_BIN} build config/thanos | kubectl --context kind-${hubClusterName} apply -f -
+  monitoringDeployKubePrometheus ${hubClusterName}
+  monitoringDeployKubePrometheus ${managedClusterName}
+}
+
 #Delete existing kind clusters
-clusterCount=$(${KIND_BIN} get clusters | grep ${KIND_CLUSTER_PREFIX} | wc -l)
+clusterCount=$(${KIND_BIN} get clusters | egrep "${KIND_CLUSTER_PREFIX}|${KIND_WORKLOAD_CLUSTER_1}" | wc -l)
 if ! [[ $clusterCount =~ "0" ]] ; then
   echo "Deleting previous kind clusters."
-  ${KIND_BIN} get clusters | grep ${KIND_CLUSTER_PREFIX} | xargs ${KIND_BIN} delete clusters
+  ${KIND_BIN} get clusters | egrep "${KIND_CLUSTER_PREFIX}|${KIND_WORKLOAD_CLUSTER_1}" | xargs ${KIND_BIN} delete clusters
 fi
 
 port80=8082
@@ -128,7 +139,9 @@ deployExternalDNS $KIND_CLUSTER_CONTROL_PLANE
 #5. Deploy argo cd
 deployArgoCD $KIND_CLUSTER_CONTROL_PLANE
 #6. Deploy OCM hub in the control plane cluster and add a managed kind cluster
-deployOCM $KIND_CLUSTER_CONTROL_PLANE cluster1
+deployOCM $KIND_CLUSTER_CONTROL_PLANE ${KIND_WORKLOAD_CLUSTER_1}
+#7. Deploy the monitoring stack
+deployMonitoring $KIND_CLUSTER_CONTROL_PLANE ${KIND_WORKLOAD_CLUSTER_1}
 
 # Ensure the current context points to the control plane cluster
 kubectl config use-context kind-${KIND_CLUSTER_CONTROL_PLANE}

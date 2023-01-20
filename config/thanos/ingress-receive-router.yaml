@@ -1,0 +1,17 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: thanos-receive-router
+  namespace: monitoring
+spec:
+  rules:
+    - host: thanos-receive-router.172.18.0.2.nip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: thanos-receive-router
+                port:
+                  number: 19291

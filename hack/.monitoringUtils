@@ -1,0 +1,9 @@
+# shellcheck shell=bash
+
+monitoringDeployKubePrometheus() {
+    clusterName=${1}
+    ${KUSTOMIZE_BIN} build config/kube-prometheus | kfilt -i kind=CustomResourceDefinition | \
+        kubectl --context kind-${clusterName} create -f -
+	${KUSTOMIZE_BIN} build config/kube-prometheus | kfilt -x kind=CustomResourceDefinition | \
+        kubectl --context kind-${clusterName} apply -f -
+}
