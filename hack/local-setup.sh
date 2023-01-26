@@ -101,7 +101,5 @@ kindCreateCluster $KIND_CLUSTER_CONTROL_PLANE $port80 $port443
 deployIngressController $KIND_CLUSTER_CONTROL_PLANE
 #3. Deploy cert manager
 deployCertManager $KIND_CLUSTER_CONTROL_PLANE
-#4. Deploy external dns
-deployExternalDNS $KIND_CLUSTER_CONTROL_PLANE
-#5. Deploy argo cd
+#4. Deploy argo cd
 deployArgoCD $KIND_CLUSTER_CONTROL_PLANE
