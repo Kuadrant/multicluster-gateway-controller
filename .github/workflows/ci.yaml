@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.adoc'
+      - '**.md'
+      - 'samples/**'
+      - 'LICENSE'
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - '**.adoc'
+      - '**.md'
+      - 'samples/**'
+      - 'LICENSE'
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: v1.19
+      - uses: golangci/golangci-lint-action@v2
+        with:
+          version: v1.49.0
+          only-new-issues: true
+          args: --timeout=5m
+          skip-go-installation: true
