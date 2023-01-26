@@ -96,11 +96,11 @@ func (w *ClusterWatcher) Start(ctx context.Context) error {
 			current := obj.(*networkingv1.Ingress)
 			target := current.DeepCopy()
 			targetAccessor := traffic.NewIngress(target)
-			w.Handler.Handle(ctx, targetAccessor)
+			_, _ = w.Handler.Handle(ctx, targetAccessor)
 			//todo handle requeue and errors
 			if !equality.Semantic.DeepEqual(current, target) {
 				//write back to cluster
-				w.client.NetworkingV1().Ingresses(target.Namespace).Update(ctx, target, metav1.UpdateOptions{})
+				_, _ = w.client.NetworkingV1().Ingresses(target.Namespace).Update(ctx, target, metav1.UpdateOptions{})
 			}
 		},
 		UpdateFunc: func(old, obj interface{}) {
@@ -108,11 +108,11 @@ func (w *ClusterWatcher) Start(ctx context.Context) error {
 			current := obj.(*networkingv1.Ingress)
 			target := current.DeepCopy()
 			targetAccessor := traffic.NewIngress(target)
-			w.Handler.Handle(ctx, targetAccessor)
+			_, _ = w.Handler.Handle(ctx, targetAccessor)
 			//todo handle requeue and errors
 			if !equality.Semantic.DeepEqual(current, target) {
 				//write back to cluster
-				w.client.NetworkingV1().Ingresses(target.Namespace).Update(ctx, target, metav1.UpdateOptions{})
+				_, _ = w.client.NetworkingV1().Ingresses(target.Namespace).Update(ctx, target, metav1.UpdateOptions{})
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
@@ -120,11 +120,11 @@ func (w *ClusterWatcher) Start(ctx context.Context) error {
 			current := obj.(*networkingv1.Ingress)
 			target := current.DeepCopy()
 			targetAccessor := traffic.NewIngress(target)
-			w.Handler.Handle(ctx, targetAccessor)
+			_, _ = w.Handler.Handle(ctx, targetAccessor)
 			//todo handle requeue and errors
 			if !equality.Semantic.DeepEqual(current, target) {
 				//write back to cluster
-				w.client.NetworkingV1().Ingresses(target.Namespace).Update(ctx, target, metav1.UpdateOptions{})
+				_, _ = w.client.NetworkingV1().Ingresses(target.Namespace).Update(ctx, target, metav1.UpdateOptions{})
 			}
 		},
 	})
@@ -146,7 +146,7 @@ func NewClusterWatcher(mgr manager.Manager, config *rest.Config, handlerFactory 
 		return nil, err
 	}
 
-	handler, err := handlerFactory(config, mgr.GetClient())
+	handler, _ := handlerFactory(config, mgr.GetClient())
 	watcher := &ClusterWatcher{client: watcherClient, ClusterName: config.Host, Handler: handler}
 	err = mgr.Add(watcher)
 	if err != nil {

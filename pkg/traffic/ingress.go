@@ -18,7 +18,6 @@ func NewIngress(i *networkingv1.Ingress) *Ingress {
 
 type Ingress struct {
 	*networkingv1.Ingress
-	generatedHost string
 }
 
 func (a *Ingress) GetKind() string {
