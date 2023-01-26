@@ -23,7 +23,7 @@ import (
 	"github.com/go-logr/logr"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/endpoints"
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/route53"
 
@@ -35,9 +35,6 @@ import (
 )
 
 const (
-	// chinaRoute53Endpoint is the Route 53 service endpoint used for AWS China regions.
-	chinaRoute53Endpoint = "https://route53.amazonaws.com.cn"
-
 	ProviderSpecificEvaluateTargetHealth       = "aws/evaluate-target-health"
 	ProviderSpecificWeight                     = "aws/weight"
 	ProviderSpecificRegion                     = "aws/region"
@@ -49,74 +46,53 @@ const (
 	ProviderSpecificHealthCheckID              = "aws/health-check-id"
 )
 
-// Inspired by https://github.com/openshift/cluster-ingress-operator/blob/master/pkg/dns/aws/dns.go
-type Provider struct {
-	route53 *InstrumentedRoute53
-	//healthCheckReconciler *Route53HealthCheckReconciler
-	config Config
-	logger logr.Logger
+type Route53DNSProvider struct {
+	client       *InstrumentedRoute53
+	hostedZoneID string
+	logger       logr.Logger
 }
 
-// Config is the necessary input to configure the manager.
-type Config struct {
-	// Region is the AWS region ELBs are created in.
-	Region string
-}
-
-func NewProvider(config Config) (*Provider, error) {
-	var region string
-	if len(config.Region) > 0 {
-		region = config.Region
+// NewDNSProvider returns a Route53DNSProvider instance configured for the AWS Route 53 service using the credentials provided
+func NewDNSProvider(accessKeyID, secretAccessKey, hostedZoneID, region string) (*Route53DNSProvider, error) {
+	if accessKeyID == "" || secretAccessKey == "" {
+		return nil, fmt.Errorf("unable to construct route53 provider: both access and secret key must be provided")
 	}
 
-	sess, err := session.NewSession(&aws.Config{Region: aws.String(region)})
+	config := aws.NewConfig()
+	sessionOpts := session.Options{
+		Config: *config,
+	}
+
+	sessionOpts.Config.Credentials = credentials.NewStaticCredentials(accessKeyID, secretAccessKey, "")
+	sessionOpts.SharedConfigState = session.SharedConfigDisable
+
+	sess, err := session.NewSessionWithOptions(sessionOpts)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't create AWS client session: %v", err)
+		return nil, fmt.Errorf("unable to create aws session: %s", err)
+	}
+	if region != "" {
+		sess.Config.WithRegion(region)
 	}
 
-	r53Config := aws.NewConfig()
-
-	// If the region is in aws china, cn-north-1 or cn-northwest-1, we should:
-	// 1. hard code route53 api endpoint to https://route53.amazonaws.com.cn and region to "cn-northwest-1"
-	//    as route53 is not GA in AWS China and aws sdk didn't have the endpoint.
-	// 2. use the aws china region cn-northwest-1 to setup tagging api correctly instead of "us-east-1"
-	switch region {
-	case endpoints.CnNorth1RegionID, endpoints.CnNorthwest1RegionID:
-		r53Config = r53Config.WithRegion(endpoints.CnNorthwest1RegionID).WithEndpoint(chinaRoute53Endpoint)
-	case endpoints.UsGovEast1RegionID, endpoints.UsGovWest1RegionID:
-		// Route53 for GovCloud uses the "us-gov-west-1" region id:
-		// https://docs.aws.amazon.com/govcloud-us/latest/UserGuide/using-govcloud-endpoints.html
-		r53Config = r53Config.WithRegion(endpoints.UsGovWest1RegionID)
-	case endpoints.UsIsoEast1RegionID:
-		// Do not override the region in C2s
-		r53Config = r53Config.WithRegion(region)
-	default:
-		// Use us-east-1 for Route 53 in AWS Regions other than China or GovCloud Regions.
-		// See https://docs.aws.amazon.com/general/latest/gr/r53.html for details.
-		r53Config = r53Config.WithRegion(endpoints.UsEast1RegionID)
+	p := &Route53DNSProvider{
+		client:       &InstrumentedRoute53{route53.New(sess, config)},
+		hostedZoneID: hostedZoneID,
+		logger:       log.Log.WithName("aws-route53").WithValues("region", config.Region),
 	}
 
-	p := &Provider{
-		route53: &InstrumentedRoute53{route53.New(sess, r53Config)},
-		config:  config,
-		logger:  log.Log.WithName("aws-route53").WithValues("region", r53Config.Region),
-	}
 	if err := validateServiceEndpoints(p); err != nil {
 		return nil, fmt.Errorf("failed to validate AWS provider service endpoints: %v", err)
 	}
-	//if p.healthCheckReconciler == nil {
-	//	p.healthCheckReconciler = newRoute53HealthCheckReconciler(p.route53, p.logger)
-	//}
 
 	return p, nil
 }
 
 // validateServiceEndpoints validates that provider clients can communicate with
 // associated API endpoints by having each client make a list/describe/get call.
-func validateServiceEndpoints(provider *Provider) error {
+func validateServiceEndpoints(provider *Route53DNSProvider) error {
 	var errs []error
 	zoneInput := route53.ListHostedZonesInput{MaxItems: aws.String("1")}
-	if _, err := provider.route53.ListHostedZones(&zoneInput); err != nil {
+	if _, err := provider.client.ListHostedZones(&zoneInput); err != nil {
 		errs = append(errs, fmt.Errorf("failed to list route53 hosted zones: %v", err))
 	}
 	return kerrors.NewAggregate(errs)
@@ -129,40 +105,30 @@ const (
 	deleteAction action = "DELETE"
 )
 
-func (p *Provider) Ensure(record *v1.DNSRecord, zone v1.DNSZone) error {
-	return p.change(record, zone, upsertAction)
+func (p *Route53DNSProvider) Ensure(record *v1.DNSRecord, zone *v1.ManagedZone) error {
+	return p.change(record, zone.Spec.Route53, upsertAction)
 }
 
-func (p *Provider) Delete(record *v1.DNSRecord, zone v1.DNSZone) error {
-	return p.change(record, zone, deleteAction)
+func (p *Route53DNSProvider) Delete(record *v1.DNSRecord, zone *v1.ManagedZone) error {
+	return p.change(record, zone.Spec.Route53, deleteAction)
 }
 
-//func (p *Provider) ReconcileHealthCheck(ctx context.Context, hc v1.HealthCheck, endpoint *v1.Endpoint) error {
-//
-//	return p.healthCheckReconciler.reconcile(ctx, hc, endpoint)
-//}
-//
-//func (p *Provider) DeleteHealthCheck(ctx context.Context, endpoint *v1.Endpoint) error {
-//	return p.healthCheckReconciler.deleteHealthCheck(ctx, endpoint)
-//}
-
-// change will perform an action on a record.
-func (p *Provider) change(record *v1.DNSRecord, zone v1.DNSZone, action action) error {
+func (p *Route53DNSProvider) change(record *v1.DNSRecord, route53Config *v1.DNSProviderConfigRoute53, action action) error {
 	// Configure records.
-	err := p.updateRecord(record, zone.ID, string(action))
+	err := p.updateRecord(record, route53Config.HostedZoneID, string(action))
 	if err != nil {
-		return fmt.Errorf("failed to update record in zone %s: %v", zone.ID, err)
+		return fmt.Errorf("failed to update record in route53 hosted zone %s: %v", route53Config.HostedZoneID, err)
 	}
 	switch action {
 	case upsertAction:
-		p.logger.Info("Upserted DNS record", "record", record.Spec, "zone", zone)
+		p.logger.Info("Upserted DNS record", "record", record.Spec, "hostedZoneID", route53Config.HostedZoneID)
 	case deleteAction:
-		p.logger.Info("Deleted DNS record", "record", record.Spec, "zone", zone)
+		p.logger.Info("Deleted DNS record", "record", record.Spec, "hostedZoneID", route53Config.HostedZoneID)
 	}
 	return nil
 }
 
-func (p *Provider) updateRecord(record *v1.DNSRecord, zoneID, action string) error {
+func (p *Route53DNSProvider) updateRecord(record *v1.DNSRecord, zoneID, action string) error {
 	input := route53.ChangeResourceRecordSetsInput{HostedZoneId: aws.String(zoneID)}
 
 	expectedEndpointsMap := make(map[string]struct{})
@@ -178,10 +144,7 @@ func (p *Provider) updateRecord(record *v1.DNSRecord, zoneID, action string) err
 
 	// Delete any previously published records that are no longer present in record.Spec.Endpoints
 	if action != string(deleteAction) {
-		lastPublishedEndpoints, err := p.endpointsFromZoneStatus(record, zoneID)
-		if err != nil {
-			return err
-		}
+		lastPublishedEndpoints := record.Status.Endpoints
 		for _, endpoint := range lastPublishedEndpoints {
 			if _, found := expectedEndpointsMap[endpoint.SetID()]; !found {
 				change, err := p.changeForEndpoint(endpoint, string(deleteAction))
@@ -199,7 +162,7 @@ func (p *Provider) updateRecord(record *v1.DNSRecord, zoneID, action string) err
 	input.ChangeBatch = &route53.ChangeBatch{
 		Changes: changes,
 	}
-	resp, err := p.route53.ChangeResourceRecordSets(&input)
+	resp, err := p.client.ChangeResourceRecordSets(&input)
 	if err != nil {
 		return fmt.Errorf("couldn't update DNS record %s in zone %s: %v", record.Name, zoneID, err)
 	}
@@ -207,7 +170,7 @@ func (p *Provider) updateRecord(record *v1.DNSRecord, zoneID, action string) err
 	return nil
 }
 
-func (p *Provider) changeForEndpoint(endpoint *v1.Endpoint, action string) (*route53.Change, error) {
+func (p *Route53DNSProvider) changeForEndpoint(endpoint *v1.Endpoint, action string) (*route53.Change, error) {
 	if endpoint.RecordType != string(v1.ARecordType) && endpoint.RecordType != string(v1.CNAMERecordType) {
 		return nil, fmt.Errorf("unsupported record type %s", endpoint.RecordType)
 	}
@@ -280,13 +243,4 @@ func (p *Provider) changeForEndpoint(endpoint *v1.Endpoint, action string) (*rou
 		ResourceRecordSet: resourceRecordSet,
 	}
 	return change, nil
-}
-
-func (p *Provider) endpointsFromZoneStatus(record *v1.DNSRecord, zoneID string) ([]*v1.Endpoint, error) {
-	for _, zoneStatus := range record.Status.Zones {
-		if zoneStatus.DNSZone.ID == zoneID {
-			return zoneStatus.Endpoints, nil
-		}
-	}
-	return []*v1.Endpoint{}, nil
 }

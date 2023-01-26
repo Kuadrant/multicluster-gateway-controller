@@ -13,4 +13,13 @@ resources:
   kind: DNSRecord
   path: github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1
   version: v1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: kuadrant.io
+  group: kuadrant.io
+  kind: ManagedZone
+  path: github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1
+  version: v1
 version: "3"

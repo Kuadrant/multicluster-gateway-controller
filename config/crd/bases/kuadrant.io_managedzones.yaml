@@ -1,0 +1,126 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.10.0
+  creationTimestamp: null
+  name: managedzones.kuadrant.io
+spec:
+  group: kuadrant.io
+  names:
+    kind: ManagedZone
+    listKind: ManagedZoneList
+    plural: managedzones
+    singular: managedzone
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - description: Root domain of this Managed Zone
+      jsonPath: .spec.rootDomain
+      name: Domain
+      type: string
+    name: v1
+    schema:
+      openAPIV3Schema:
+        description: ManagedZone is the Schema for the managedzones API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: ManagedZoneSpec defines the desired state of ManagedZone
+            properties:
+              rootDomain:
+                description: Root Domain of this ManagedZone
+                type: string
+              route53:
+                description: Route53 configures this managed zone to communicate with
+                  AWS Route 53
+                properties:
+                  accessKeyID:
+                    type: string
+                  hostedZoneID:
+                    type: string
+                  region:
+                    description: Always set the region when using AccessKeyID and
+                      SecretAccessKey
+                    type: string
+                  secretAccessKeySecretRef:
+                    description: A reference to a specific 'key' within a Secret resource.
+                      In some instances, `key` is a required field.
+                    properties:
+                      key:
+                        description: The key of the entry in the Secret resource's
+                          `data` field to be used. Some instances of this field may
+                          be defaulted, in others it may be required.
+                        type: string
+                      name:
+                        description: 'Name of the resource being referred to. More
+                          info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names'
+                        type: string
+                    required:
+                    - name
+                    type: object
+                required:
+                - accessKeyID
+                - hostedZoneID
+                - region
+                - secretAccessKeySecretRef
+                type: object
+            required:
+            - rootDomain
+            type: object
+          status:
+            description: ManagedZoneStatus defines the observed state of ManagedZone
+            properties:
+              conditions:
+                description: List of status conditions to indicate the status of a
+                  ManagedZone. Known condition types are `Ready`.
+                items:
+                  description: ManagedZoneCondition contains condition information
+                    for an ManagedZone.
+                  properties:
+                    lastTransitionTime:
+                      description: LastTransitionTime is the timestamp corresponding
+                        to the last status change of this condition.
+                      format: date-time
+                      type: string
+                    message:
+                      description: Message is a human readable description of the
+                        details of the last transition, complementing reason.
+                      type: string
+                    status:
+                      description: Status of the condition, one of (`True`, `False`,
+                        `Unknown`).
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: Type of the condition, known values are (`Ready`).
+                      type: string
+                  required:
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

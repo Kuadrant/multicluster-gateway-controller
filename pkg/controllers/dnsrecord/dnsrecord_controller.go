@@ -19,46 +19,36 @@ package dnsrecord
 import (
 	"context"
 	"fmt"
-	"os"
-	"reflect"
 	"strings"
 
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns"
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	utilerrors "k8s.io/apimachinery/pkg/util/errors"
-	utilclock "k8s.io/utils/clock"
+	"k8s.io/utils/clock"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	v1 "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns/aws"
 )
-
-type ConditionStatus string
 
 const (
 	DNSRecordFinalizer = "kuadrant.io/dns-record"
 
-	ConditionTrue    ConditionStatus = "True"
-	ConditionFalse   ConditionStatus = "False"
-	ConditionUnknown ConditionStatus = "Unknown"
+	ConditionTrue  v1.ConditionStatus = "True"
+	ConditionFalse v1.ConditionStatus = "False"
 )
 
-type DNSRecordReconcilerConfig struct {
-	DNSProvider string
-}
+var Clock clock.Clock = clock.RealClock{}
 
 // DNSRecordReconciler reconciles a DNSRecord object
 type DNSRecordReconciler struct {
 	client.Client
-	Scheme           *runtime.Scheme
-	ReconcilerConfig DNSRecordReconcilerConfig
-	DNSProvider      dns.Provider
-	DNSZones         []v1.DNSZone
+	Scheme         *runtime.Scheme
+	ManagedZonesNS string
 }
 
 //+kubebuilder:rbac:groups=kuadrant.io,resources=dnsrecords,verbs=get;list;watch;create;update;patch;delete
@@ -79,8 +69,10 @@ func (r *DNSRecordReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 	dnsRecord := previous.DeepCopy()
 
+	log.Log.V(3).Info("DNSRecordReconciler Reconcile", "dnsRecord", dnsRecord)
+
 	if dnsRecord.DeletionTimestamp != nil && !dnsRecord.DeletionTimestamp.IsZero() {
-		if err := r.deleteRecord(dnsRecord); err != nil && !strings.Contains(err.Error(), "was not found") {
+		if err := r.deleteRecord(ctx, dnsRecord); err != nil {
 			log.Log.Error(err, "Failed to delete DNSRecord", "record", dnsRecord)
 			return ctrl.Result{}, err
 		}
@@ -93,6 +85,17 @@ func (r *DNSRecordReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, nil
 	}
 
+	if dnsRecord.Status.ManagedZoneRef == nil {
+		err = r.setManagedZone(ctx, dnsRecord)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		err = r.Status().Update(ctx, dnsRecord)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+
 	if !controllerutil.ContainsFinalizer(dnsRecord, DNSRecordFinalizer) {
 		controllerutil.AddFinalizer(dnsRecord, DNSRecordFinalizer)
 		err = r.Update(ctx, dnsRecord)
@@ -101,11 +104,20 @@ func (r *DNSRecordReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 	}
 
-	statuses := r.publishRecordToZones(r.DNSZones, dnsRecord)
-	if !dnsZoneStatusSlicesEqual(statuses, dnsRecord.Status.Zones) || dnsRecord.Status.ObservedGeneration != dnsRecord.Generation {
-		dnsRecord.Status.Zones = statuses
+	var reason, message string
+	status := ConditionTrue
+
+	// Publish the record
+	err = r.publishRecord(ctx, dnsRecord)
+	if err != nil {
+		status = ConditionFalse
+		reason = "ProviderError"
+		message = fmt.Sprintf("The DNS provider failed to ensure the record: %v", err)
+	} else {
 		dnsRecord.Status.ObservedGeneration = dnsRecord.Generation
+		dnsRecord.Status.Endpoints = dnsRecord.Spec.Endpoints
 	}
+	setDNSRecordCondition(dnsRecord, v1.DNSRecordConditionReady, status, reason, message)
 
 	err = r.Status().Update(ctx, dnsRecord)
 	if err != nil {
@@ -117,209 +129,190 @@ func (r *DNSRecordReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *DNSRecordReconciler) SetupWithManager(mgr ctrl.Manager) error {
-
-	dnsProvider, err := dns.DNSProvider(r.ReconcilerConfig.DNSProvider)
-	if err != nil {
-		return err
-	}
-	r.DNSProvider = dnsProvider
-
-	var dnsZones []v1.DNSZone
-	zoneID, zoneIDSet := os.LookupEnv("AWS_DNS_PUBLIC_ZONE_ID")
-	if zoneIDSet {
-		dnsZone := &v1.DNSZone{
-			ID: zoneID,
-		}
-		dnsZones = append(dnsZones, *dnsZone)
-		log.Log.Info("Using AWS DNS zone", "id", zoneID)
-	} else {
-		log.Log.Info("No AWS DNS zone id set (AWS_DNS_PUBLIC_ZONE_ID), no DNS records will be created!")
-	}
-	r.DNSZones = dnsZones
-
-	//Logging state of AWS credentials
-	awsIdKey := os.Getenv("AWS_ACCESS_KEY_ID")
-	if awsIdKey != "" {
-		log.Log.Info("AWS Access Key set")
-	} else {
-		log.Log.Info("AWS Access Key is NOT set")
-	}
-
-	awsSecretKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
-	if awsSecretKey != "" {
-		log.Log.Info("AWS Secret Key set")
-	} else {
-		log.Log.Info("AWS Secret Key is NOT set")
-	}
-
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1.DNSRecord{}).
 		Complete(r)
 }
 
-func (r *DNSRecordReconciler) publishRecordToZones(zones []v1.DNSZone, record *v1.DNSRecord) []v1.DNSZoneStatus {
-	var statuses []v1.DNSZoneStatus
-	for i := range zones {
-		zone := zones[i]
-
-		// Only publish the record if the DNSRecord has been modified
-		// (which would mean the target could have changed) or its
-		// status does not indicate that it has already been published.
-		if record.Generation == record.Status.ObservedGeneration && recordIsAlreadyPublishedToZone(record, &zone) {
-			log.Log.Info("Skipping zone to which the DNS record is already published", "record", record, "zone", zone)
-			continue
-		}
-
-		condition := v1.DNSZoneCondition{
-			Status:             string(ConditionUnknown),
-			Type:               v1.DNSRecordFailedConditionType,
-			LastTransitionTime: metav1.Now(),
-		}
-
-		if recordIsAlreadyPublishedToZone(record, &zone) {
-			log.Log.Info("replacing DNS record", "record", record, "zone", zone)
-
-			if err := r.DNSProvider.Ensure(record, zone); err != nil {
-				log.Log.Error(err, "Failed to replace DNS record in zone", "record", record.Spec, "zone", zone)
-				condition.Status = string(ConditionTrue)
-				condition.Reason = "ProviderError"
-				condition.Message = fmt.Sprintf("The DNS provider failed to replace the record: %v", err)
-			} else {
-				log.Log.Info("Replaced DNS record in zone", "record", record.Spec, "zone", zone)
-				condition.Status = string(ConditionFalse)
-				condition.Reason = "ProviderSuccess"
-				condition.Message = "The DNS provider succeeded in replacing the record"
-			}
-		} else {
-			if err := r.DNSProvider.Ensure(record, zone); err != nil {
-				log.Log.Error(err, "Failed to publish DNS record to zone", "record", record.Spec, "zone", zone)
-				condition.Status = string(ConditionTrue)
-				condition.Reason = "ProviderError"
-				condition.Message = fmt.Sprintf("The DNS provider failed to ensure the record: %v", err)
-			} else {
-				log.Log.Info("Published DNS record to zone", "record", record.Spec, "zone", zone)
-				condition.Status = string(ConditionFalse)
-				condition.Reason = "ProviderSuccess"
-				condition.Message = "The DNS provider succeeded in ensuring the record"
-			}
-		}
-		statuses = append(statuses, v1.DNSZoneStatus{
-			DNSZone:    zone,
-			Conditions: []v1.DNSZoneCondition{condition},
-			Endpoints:  record.Spec.Endpoints,
-		})
+// setManagedZone sets a ManagedZone on the given DNSRecord
+func (r *DNSRecordReconciler) setManagedZone(ctx context.Context, dnsRecord *v1.DNSRecord) error {
+	managedZone, err := r.findManagedZone(ctx, dnsRecord)
+	if err != nil {
+		return err
 	}
-	return mergeStatuses(zones, record.Status.DeepCopy().Zones, statuses)
+	managedZoneRef := &v1.ManagedZoneReference{
+		Name:      managedZone.GetName(),
+		Namespace: managedZone.GetNamespace(),
+	}
+	dnsRecord.Status.ManagedZoneRef = managedZoneRef
+	setDNSRecordCondition(dnsRecord, v1.DNSRecordConditionReady, v1.ConditionFalse, "", "")
+
+	return nil
 }
 
-func (r *DNSRecordReconciler) deleteRecord(record *v1.DNSRecord) error {
-	var errs []error
-	for i := range record.Status.Zones {
-		zone := record.Status.Zones[i].DNSZone
-		// If the record is currently not published in a zone,
-		// skip deleting it for that zone.
-		if !recordIsAlreadyPublishedToZone(record, &zone) {
-			continue
+// findManagedZone returns the most suitable ManagedZone to publish the given DNSRecord into.
+// Currently, this just returns the first ManagedZone found in the DNSRecords own namespace, or if none is found,
+// it looks for the first one listed in the DefautManagedZoneNS.
+func (r *DNSRecordReconciler) findManagedZone(ctx context.Context, dnsRecord *v1.DNSRecord) (*v1.ManagedZone, error) {
+	var managedZones v1.ManagedZoneList
+	if err := r.List(ctx, &managedZones, client.InNamespace(dnsRecord.Namespace)); err != nil {
+		log.Log.Error(err, "unable to list managed zones")
+		return nil, err
+	}
+
+	if len(managedZones.Items) > 0 {
+		return &managedZones.Items[0], nil
+	}
+
+	if err := r.List(ctx, &managedZones, client.InNamespace(r.ManagedZonesNS)); err != nil {
+		log.Log.Error(err, "unable to list managed zones in default NS")
+		return nil, err
+	}
+
+	if len(managedZones.Items) > 0 {
+		return &managedZones.Items[0], nil
+	}
+
+	return nil, fmt.Errorf("no managed zone found for : %s", dnsRecord.Name)
+}
+
+// deleteRecord deletes record(s) in the DNSPRovider(i.e. route53) configured by the ManagedZone assigned to this
+// DNSRecord (dnsRecord.Status.ManagedZoneRef).
+func (r *DNSRecordReconciler) deleteRecord(ctx context.Context, dnsRecord *v1.DNSRecord) error {
+	// Just return if we are deleting and a ManagedZone was never set
+	if dnsRecord.Status.ManagedZoneRef == nil {
+		return nil
+	}
+
+	managedZone, err := r.getDNSRecordManagedZone(ctx, dnsRecord)
+	if err != nil {
+		return err
+	}
+
+	dnsProvider, err := r.getManagedZoneDNSProvider(ctx, managedZone)
+	if err != nil {
+		return err
+	}
+
+	err = dnsProvider.Delete(dnsRecord, managedZone)
+	if err != nil {
+		if strings.Contains(err.Error(), "was not found") {
+			log.Log.Info("Record not found in managed zone, continuing", "dnsRecord", dnsRecord.Name, "managedZone", managedZone.Name)
+			return nil
 		}
-		err := r.DNSProvider.Delete(record, zone)
+		return err
+	}
+	log.Log.Info("Deleted DNSRecord in manage zone", "dnsRecord", dnsRecord.Name, "managedZone", managedZone.Name)
+
+	return nil
+}
+
+// publishRecord publishes record(s) to the DNSPRovider(i.e. route53) configured by the ManagedZone assigned to this
+// DNSRecord (dnsRecord.Status.ManagedZoneRef).
+func (r *DNSRecordReconciler) publishRecord(ctx context.Context, dnsRecord *v1.DNSRecord) error {
+
+	managedZone, err := r.getDNSRecordManagedZone(ctx, dnsRecord)
+	if err != nil {
+		return err
+	}
+
+	dnsProvider, err := r.getManagedZoneDNSProvider(ctx, managedZone)
+	if err != nil {
+		return err
+	}
+
+	if dnsRecord.Generation == dnsRecord.Status.ObservedGeneration {
+		log.Log.Info("Skipping managed zone to which the DNS dnsRecord is already published", "dnsRecord", dnsRecord.Name, "managedZone", managedZone.Name)
+		return nil
+	}
+
+	err = dnsProvider.Ensure(dnsRecord, managedZone)
+	if err != nil {
+		return err
+	}
+	log.Log.Info("Published DNSRecord to manage zone", "dnsRecord", dnsRecord.Name, "managedZone", managedZone.Name)
+
+	return nil
+}
+
+// getDNSRecordManagedZone returns the current ManagedZone for the given DNSRecord.
+func (r *DNSRecordReconciler) getDNSRecordManagedZone(ctx context.Context, dnsRecord *v1.DNSRecord) (*v1.ManagedZone, error) {
+	if dnsRecord.Status.ManagedZoneRef == nil {
+		return nil, fmt.Errorf("no managed zone configured for : %s", dnsRecord.Name)
+	}
+
+	managedZone := &v1.ManagedZone{}
+	err := r.Client.Get(ctx, client.ObjectKey{Namespace: dnsRecord.Status.ManagedZoneRef.Namespace, Name: dnsRecord.Status.ManagedZoneRef.Name}, managedZone)
+	if err != nil {
+		return nil, err
+	}
+	return managedZone, nil
+}
+
+// getManagedZoneDNSProvider returns the DNSProvider for the given ManagedZone.
+func (r *DNSRecordReconciler) getManagedZoneDNSProvider(ctx context.Context, managedZone *v1.ManagedZone) (dnsProvider dns.DNSProvider, err error) {
+	providerConfig := managedZone.Spec
+
+	switch {
+	case providerConfig.Route53 != nil:
+		log.Log.V(3).Info("preparing to create Route53 provider")
+		secretAccessKey := ""
+		if providerConfig.Route53.SecretAccessKey.Name != "" {
+			secretAccessKeySecret := &corev1.Secret{}
+			err := r.Client.Get(ctx, client.ObjectKey{Namespace: managedZone.Namespace, Name: providerConfig.Route53.SecretAccessKey.Name}, secretAccessKeySecret)
+			if err != nil {
+				return nil, fmt.Errorf("error getting route53 secret access key: %s", err)
+			}
+			secretAccessKeyBytes, ok := secretAccessKeySecret.Data[providerConfig.Route53.SecretAccessKey.Key]
+			if !ok {
+				return nil, fmt.Errorf("error getting route53 secret access key: key '%s' not found in secret", providerConfig.Route53.SecretAccessKey.Key)
+			}
+			secretAccessKey = string(secretAccessKeyBytes)
+		}
+
+		dnsProvider, err = aws.NewDNSProvider(providerConfig.Route53.AccessKeyID,
+			secretAccessKey,
+			providerConfig.Route53.HostedZoneID,
+			providerConfig.Route53.Region)
 		if err != nil {
-			errs = append(errs, err)
-		} else {
-			log.Log.Info("Deleted DNSRecord from DNS provider", "record", record.Spec, "zone", zone)
+			return nil, fmt.Errorf("error instantiating route53 dns provider: %s", err)
 		}
+	default:
+		return dnsProvider, fmt.Errorf("no valid dns provider config found for managed zone")
 	}
-	if len(errs) == 0 {
-		controllerutil.RemoveFinalizer(record, DNSRecordFinalizer)
-	}
-	return utilerrors.NewAggregate(errs)
+	return dnsProvider, nil
 }
 
-// recordIsAlreadyPublishedToZone returns a Boolean value indicating whether the
-// given DNSRecord is already published to the given zone, as determined from
-// the DNSRecord's status conditions.
-func recordIsAlreadyPublishedToZone(record *v1.DNSRecord, zoneToPublish *v1.DNSZone) bool {
-	for _, zoneInStatus := range record.Status.Zones {
-		if !reflect.DeepEqual(&zoneInStatus.DNSZone, zoneToPublish) {
+// setDNSRecordCondition adds or updates a given condition in the DNSRecord status..
+func setDNSRecordCondition(dnsRecord *v1.DNSRecord, conditionType v1.DNSRecordConditionType, status v1.ConditionStatus, reason, message string) {
+	newCondition := v1.DNSRecordCondition{
+		Type:    conditionType,
+		Status:  status,
+		Reason:  reason,
+		Message: message,
+	}
+
+	nowTime := metav1.NewTime(Clock.Now())
+	newCondition.LastTransitionTime = nowTime
+
+	// Search through existing conditions
+	for idx, cond := range dnsRecord.Status.Conditions {
+		if cond.Type != conditionType {
 			continue
 		}
 
-		for _, condition := range zoneInStatus.Conditions {
-			if condition.Type == v1.DNSRecordFailedConditionType {
-				return condition.Status == string(ConditionFalse)
-			}
+		if cond.Status == status {
+			newCondition.LastTransitionTime = cond.LastTransitionTime
+		} else {
+			log.Log.Info(fmt.Sprintf("Found status change for DNSRecord %q condition %q: %q -> %q; setting lastTransitionTime to %v", dnsRecord.Name, conditionType, cond.Status, status, nowTime.Time))
 		}
+
+		// Overwrite the existing condition
+		dnsRecord.Status.Conditions[idx] = newCondition
+		return
 	}
 
-	return false
-}
-
-// mergeStatuses updates or extends the provided slice of statuses with the
-// provided updates and returns the resulting slice.
-func mergeStatuses(zones []v1.DNSZone, statuses, updates []v1.DNSZoneStatus) []v1.DNSZoneStatus {
-	var additions []v1.DNSZoneStatus
-	for i, update := range updates {
-		add := true
-		for j, status := range statuses {
-			if cmp.Equal(status.DNSZone, update.DNSZone) {
-				add = false
-				statuses[j].Conditions = mergeConditions(status.Conditions, update.Conditions)
-				statuses[j].Endpoints = update.Endpoints
-			}
-		}
-		if add {
-			additions = append(additions, updates[i])
-		}
-	}
-	return append(statuses, additions...)
-}
-
-// clock is to enable unit testing
-var clock utilclock.Clock = utilclock.RealClock{}
-
-// mergeConditions adds or updates matching conditions, and updates
-// the transition time if details of a condition have changed. Returns
-// the updated condition array.
-func mergeConditions(conditions, updates []v1.DNSZoneCondition) []v1.DNSZoneCondition {
-	now := metav1.NewTime(clock.Now())
-	var additions []v1.DNSZoneCondition
-	for i, update := range updates {
-		add := true
-		for j, cond := range conditions {
-			if cond.Type == update.Type {
-				add = false
-				if conditionChanged(cond, update) {
-					conditions[j].Status = update.Status
-					conditions[j].Reason = update.Reason
-					conditions[j].Message = update.Message
-					conditions[j].LastTransitionTime = now
-					break
-				}
-			}
-		}
-		if add {
-			updates[i].LastTransitionTime = now
-			additions = append(additions, updates[i])
-		}
-	}
-	conditions = append(conditions, additions...)
-	return conditions
-}
-
-func conditionChanged(a, b v1.DNSZoneCondition) bool {
-	return a.Status != b.Status || a.Reason != b.Reason
-}
-
-// dnsZoneStatusSlicesEqual compares two DNSZoneStatus slice values.  Returns
-// true if the provided values should be considered equal for the purpose of
-// determining whether an update is necessary, false otherwise.  The comparison
-// is agnostic with respect to the ordering of status conditions but not with
-// respect to zones.
-func dnsZoneStatusSlicesEqual(a, b []v1.DNSZoneStatus) bool {
-	conditionCmpOpts := []cmp.Option{
-		cmpopts.EquateEmpty(),
-		cmpopts.SortSlices(func(a, b v1.DNSZoneCondition) bool {
-			return a.Type < b.Type
-		}),
-	}
-	return cmp.Equal(a, b, conditionCmpOpts...)
+	// No existing condition, so add a new one
+	dnsRecord.Status.Conditions = append(dnsRecord.Status.Conditions, newCondition)
+	log.Log.Info(fmt.Sprintf("Setting lastTransitionTime for DNSREcord %q condition %q to %v", dnsRecord.Name, conditionType, nowTime.Time))
 }

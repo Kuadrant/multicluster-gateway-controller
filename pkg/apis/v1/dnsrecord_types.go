@@ -112,8 +112,15 @@ type DNSRecordSpec struct {
 
 // DNSRecordStatus defines the observed state of DNSRecord
 type DNSRecordStatus struct {
-	// zones are the status of the record in each zone.
-	Zones []DNSZoneStatus `json:"zones,omitempty"`
+
+	// Reference to the managed zone that this record is being published to.
+	ManagedZoneRef *ManagedZoneReference `json:"managedZone,omitempty"`
+
+	// conditions are any conditions associated with the record in the managed zone.
+	//
+	// If publishing the record fails, the "Failed" condition will be set with a
+	// reason and message describing the cause of the failure.
+	Conditions []DNSRecordCondition `json:"conditions,omitempty"`
 
 	// observedGeneration is the most recently observed generation of the
 	// DNSRecord.  When the DNSRecord is updated, the controller updates the
@@ -123,10 +130,45 @@ type DNSRecordStatus struct {
 	// needs to retry the update for that specific zone.
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
+	// endpoints are the last endpoints that were successfully published by the provider
+	//
+	// Provides a simple mechanism to store the current provider records in order to
+	// delete any that are no longer present in DNSRecordSpec.Endpoints
+	//
+	// Note: This will not be required if/when we switch to using external-dns since when
+	// running with a "sync" policy it will clean up unused records automatically.
+	Endpoints []*Endpoint `json:"endpoints,omitempty"`
+}
+
+// DNSZoneCondition is just the standard condition fields.
+type DNSRecordCondition struct {
+	// +kubebuilder:validation:Required
+	// +required
+	Type DNSRecordConditionType `json:"type"`
+	// +kubebuilder:validation:Required
+	// +required
+	Status             ConditionStatus `json:"status"`
+	LastTransitionTime metav1.Time     `json:"lastTransitionTime,omitempty"`
+	Reason             string          `json:"reason,omitempty"`
+	Message            string          `json:"message,omitempty"`
+}
+
+// ServiceReference holds a reference to a ManagedZone
+type ManagedZoneReference struct {
+	// `namespace` is the namespace of the managed zone
+	// Required
+	Namespace string `json:"namespace"`
+	// `name` is the name of the service.
+	// Required
+	Name string `json:"name"`
 }
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="MZ Name",type="string",JSONPath=".status.managedZone.name",description="Managed Zone assigned to this record."
+// +kubebuilder:printcolumn:name="MZ Namespace",type="string",JSONPath=".status.managedZone.namespace",description="Managed Zone namespace."
+// +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type==\"Ready\")].status",description="DNSRecord ready."
 
 // DNSRecord is the Schema for the dnsrecords API
 type DNSRecord struct {
@@ -158,68 +200,13 @@ const (
 	ARecordType DNSRecordType = "A"
 )
 
-// DNSZone is used to define a DNS hosted zone.
-// A zone can be identified by an ID or tags.
-type DNSZone struct {
-	// id is the identifier that can be used to find the DNS hosted zone.
-	//
-	// on AWS zone can be fetched using `ID` as id in [1]
-	// on Azure zone can be fetched using `ID` as a pre-determined name in [2],
-	// on GCP zone can be fetched using `ID` as a pre-determined name in [3].
-	//
-	// [1]: https://docs.aws.amazon.com/cli/latest/reference/route53/get-hosted-zone.html#options
-	// [2]: https://docs.microsoft.com/en-us/cli/azure/network/dns/zone?view=azure-cli-latest#az-network-dns-zone-show
-	// [3]: https://cloud.google.com/dns/docs/reference/v1/managedZones/get
-	// +optional
-	ID string `json:"id,omitempty"`
+// DNSRecordConditionType represents DNSRecord condition value.
+type DNSRecordConditionType string
 
-	// tags can be used to query the DNS hosted zone.
-	//
-	// on AWS, resourcegroupstaggingapi [1] can be used to fetch a zone using `Tags` as tag-filters,
-	//
-	// [1]: https://docs.aws.amazon.com/cli/latest/reference/resourcegroupstaggingapi/get-resources.html#options
-	// +optional
-	Tags map[string]string `json:"tags,omitempty"`
-}
-
-// DNSZoneStatus is the status of a record within a specific zone.
-type DNSZoneStatus struct {
-	// dnsZone is the zone where the record is published.
-	DNSZone DNSZone `json:"dnsZone"`
-	// conditions are any conditions associated with the record in the zone.
-	//
-	// If publishing the record fails, the "Failed" condition will be set with a
-	// reason and message describing the cause of the failure.
-	Conditions []DNSZoneCondition `json:"conditions,omitempty"`
-	// endpoints are the last endpoints that were successfully published to the provider
-	//
-	// Provides a simple mechanism to store the current provider records in order to
-	// delete any that are no longer present in DNSRecordSpec.Endpoints
-	//
-	// Note: This will not be required if/when we switch to using external-dns since when
-	// running with a "sync" policy it will clean up unused records automatically.
-	Endpoints []*Endpoint `json:"endpoints,omitempty"`
-}
-
-var (
-	// Failed means the record is not available within a zone.
-	DNSRecordFailedConditionType = "Failed"
+const (
+	// DNSRecordConditionReady indicates that a dns record is published to a managed zone and ready for use.
+	DNSRecordConditionReady DNSRecordConditionType = "Ready"
 )
-
-// DNSZoneCondition is just the standard condition fields.
-type DNSZoneCondition struct {
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MinLength=1
-	// +required
-	Type string `json:"type"`
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MinLength=1
-	// +required
-	Status             string      `json:"status"`
-	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
-	Reason             string      `json:"reason,omitempty"`
-	Message            string      `json:"message,omitempty"`
-}
 
 func init() {
 	SchemeBuilder.Register(&DNSRecord{}, &DNSRecordList{})

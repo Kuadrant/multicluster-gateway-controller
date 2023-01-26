@@ -20,18 +20,18 @@ import (
 	v1 "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1"
 )
 
-// Provider knows how to manage DNS zones only as pertains to routing.
-type Provider interface {
+// DNSProvider knows how to manage DNS zones only as pertains to routing.
+type DNSProvider interface {
 	// Ensure will create or update record.
-	Ensure(record *v1.DNSRecord, zone v1.DNSZone) error
+	Ensure(record *v1.DNSRecord, zone *v1.ManagedZone) error
 
 	// Delete will delete record.
-	Delete(record *v1.DNSRecord, zone v1.DNSZone) error
+	Delete(record *v1.DNSRecord, zone *v1.ManagedZone) error
 }
 
-var _ Provider = &FakeProvider{}
+var _ DNSProvider = &FakeProvider{}
 
 type FakeProvider struct{}
 
-func (_ *FakeProvider) Ensure(record *v1.DNSRecord, zone v1.DNSZone) error { return nil }
-func (_ *FakeProvider) Delete(record *v1.DNSRecord, zone v1.DNSZone) error { return nil }
+func (_ *FakeProvider) Ensure(record *v1.DNSRecord, zone *v1.ManagedZone) error { return nil }
+func (_ *FakeProvider) Delete(record *v1.DNSRecord, zone *v1.ManagedZone) error { return nil }

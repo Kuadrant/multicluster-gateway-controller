@@ -1,0 +1,19 @@
+apiVersion: kuadrant.io/v1
+kind: ManagedZone
+metadata:
+  labels:
+    app.kubernetes.io/name: managedzone
+    app.kubernetes.io/instance: managedzone-sample
+    app.kubernetes.io/part-of: multi-cluster-traffic-controller
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: multi-cluster-traffic-controller
+  name: managedzone-sample
+spec:
+  rootDomain: "dev.hcapps.net"
+  route53:
+    accessKeyID: "MY ACCESS KEY ID"
+    hostedZoneID: "MY HOSTED ZONE ID"
+    region: "us-east-1"
+    secretAccessKeySecretRef:
+      name: "my-aws-credentials"
+      key: "AWS_SECRET_ACCESS_KEY"

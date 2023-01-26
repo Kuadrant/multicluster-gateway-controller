@@ -33,6 +33,7 @@ import (
 
 	kuadrantiov1 "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/dnsrecord"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/managedzone"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/secret"
 	//+kubebuilder:scaffold:imports
 
@@ -53,8 +54,10 @@ func init() {
 
 func main() {
 	var metricsAddr string
+	var managedZonesNS string
 	var enableLeaderElection bool
 	var probeAddr string
+	flag.StringVar(&managedZonesNS, "managed-zones-namespace", "default", "The namespace where mctc managed zones will be selected.")
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
@@ -82,11 +85,9 @@ func main() {
 	}
 
 	if err = (&dnsrecord.DNSRecordReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-		ReconcilerConfig: dnsrecord.DNSRecordReconcilerConfig{
-			DNSProvider: "aws",
-		},
+		Client:         mgr.GetClient(),
+		Scheme:         mgr.GetScheme(),
+		ManagedZonesNS: managedZonesNS,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DNSRecord")
 		os.Exit(1)
@@ -97,6 +98,13 @@ func main() {
 		MCWatch: &multiClusterWatch.WatchController{Manager: mgr, HandlerFactory: multiClusterWatch.NewTrafficHandlerFactory()},
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Secret")
+		os.Exit(1)
+	}
+	if err = (&managedzone.ManagedZoneReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "ManagedZone")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder
