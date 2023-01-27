@@ -46,7 +46,11 @@ func (s *WebhookServer) Start(ctx context.Context) error {
 	webhook := &webhook.Admission{
 		Handler: handler,
 	}
-	webhook.InjectLogger(logger)
+
+	err = webhook.InjectLogger(logger)
+	if err != nil {
+		return err
+	}
 
 	mux.Handle("/ingress", webhook)
 	httpErr := make(chan error)

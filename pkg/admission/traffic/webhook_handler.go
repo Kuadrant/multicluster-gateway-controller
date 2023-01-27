@@ -95,8 +95,15 @@ func (h *TrafficWebhookHandler[T]) Handle(ctx context.Context, req admission.Req
 		var originalSerialised bytes.Buffer
 		var currentSerialised bytes.Buffer
 
-		h.serializer.Encode(original, &originalSerialised)
-		h.serializer.Encode(obj, &currentSerialised)
+		err = h.serializer.Encode(original, &originalSerialised)
+		if err != nil {
+			return admission.Errored(-1, err)
+		}
+
+		err = h.serializer.Encode(obj, &currentSerialised)
+		if err != nil {
+			return admission.Errored(-1, err)
+		}
 
 		return admission.PatchResponseFromRaw(
 			originalSerialised.Bytes(),
