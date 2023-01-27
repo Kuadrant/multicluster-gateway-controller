@@ -1,9 +1,9 @@
 # shellcheck shell=bash
 
 kindCreateCluster() {
-  cluster=$1;
-  port80=$2;
-  port443=$3;
+  local cluster=$1;
+  local port80=$2;
+  local port443=$3;
   cat <<EOF | ${KIND_BIN} create cluster --name ${cluster} --config=-
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
