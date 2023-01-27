@@ -135,6 +135,7 @@ func main() {
 	}
 
 	if WebhookPortNumber != 0 {
+		setupLog.Info("starting webhook server")
 		if err := mgr.Add(admission.NewWebhookServer(dnsService, certService, WebhookPortNumber)); err != nil {
 			setupLog.Error(err, "unable to set up webhook server")
 			os.Exit(1)

@@ -123,6 +123,7 @@ func (r *Reconciler) Handle(ctx context.Context, o runtime.Object) (ctrl.Result,
 		}
 
 		if trafficAccessor.HasTLS() && hasTLSInitially {
+			log.Log.Info("reconciling webhooks")
 			if err := r.reconcileWebhooks(ctx, trafficAccessor, managedHosts, secret); err != nil {
 				return ctrl.Result{}, err
 			}
@@ -159,9 +160,9 @@ func (r *Reconciler) reconcileWebhooks(ctx context.Context, trafficAccessor traf
 	if !trafficAccessor.ExposesOwnController() {
 		return nil
 	}
-
+	log.Log.Info("getting webhook configurations")
 	validatingWebhooks, mutatingWebhooks := trafficAccessor.GetWebhookConfigurations(managedHosts[0], bundleCA(tlsSecret))
-
+	log.Log.Info("create/update validating webhooks")
 	for _, webhook := range validatingWebhooks {
 		g := &admissionv1.ValidatingWebhookConfiguration{
 			ObjectMeta: webhook.ObjectMeta,
@@ -175,7 +176,7 @@ func (r *Reconciler) reconcileWebhooks(ctx context.Context, trafficAccessor traf
 			return err
 		}
 	}
-
+	log.Log.Info("create/update mutating webhooks")
 	for _, webhook := range mutatingWebhooks {
 		g := &admissionv1.MutatingWebhookConfiguration{
 			ObjectMeta: webhook.ObjectMeta,

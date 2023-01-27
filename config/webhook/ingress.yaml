@@ -6,7 +6,7 @@ metadata:
     mctc-component: webhook
 spec:
   rules:
-    - host: ""
+    - host: "webhooks.mctc.io"
       http:
         paths:
           - path: /
