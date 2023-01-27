@@ -19,6 +19,7 @@
 LOCAL_SETUP_DIR="$(dirname "${BASH_SOURCE[0]}")"
 source "${LOCAL_SETUP_DIR}"/.setupEnv
 source "${LOCAL_SETUP_DIR}"/.kindUtils
+source "${LOCAL_SETUP_DIR}"/.argocdUtils
 
 KIND_CLUSTER_PREFIX="mctc-"
 KIND_CLUSTER_CONTROL_PLANE="${KIND_CLUSTER_PREFIX}control-plane"
@@ -34,7 +35,7 @@ set -e pipefail
 deployIngressController () {
   clusterName=${1}
   kubectl config use-context kind-${clusterName}
-  echo "Deploying Ingress controller to ${clusterName}"  
+  echo "Deploying Ingress controller to ${clusterName}"
   ${KUSTOMIZE_BIN} build ${INGRESS_NGINX_KUSTOMIZATION_DIR} --enable-helm --helm-command ${HELM_BIN} | kubectl apply -f -
   echo "Waiting for deployments to be ready ..."
   kubectl -n ingress-nginx wait --timeout=300s --for=condition=Available deployments --all
@@ -100,16 +101,28 @@ port80=8082
 port443=8445
 
 #1. Create Kind control plane cluster
-kindCreateCluster $KIND_CLUSTER_CONTROL_PLANE $port80 $port443
+kindCreateCluster ${KIND_CLUSTER_CONTROL_PLANE} ${port80} ${port443}
+
 #2. Deploy ingress controller
-deployIngressController $KIND_CLUSTER_CONTROL_PLANE
+deployIngressController ${KIND_CLUSTER_CONTROL_PLANE}
+
 #3. Deploy cert manager
-deployCertManager $KIND_CLUSTER_CONTROL_PLANE
-#4. Deploy argo cd
-deployArgoCD $KIND_CLUSTER_CONTROL_PLANE
+deployCertManager ${KIND_CLUSTER_CONTROL_PLANE}
 
+#4. Deploy external dns
+deployExternalDNS ${KIND_CLUSTER_CONTROL_PLANE}
 
-if [[ $WORKLOAD_CLUSTER == "true" ]]; then
-  kindCreateCluster $KIND_CLUSTER_WORKLOAD $((port80 + 1)) $((port443 + 1))
-  deployIngressController $KIND_CLUSTER_WORKLOAD
-fi  
+#5. Deploy argo cd
+deployArgoCD ${KIND_CLUSTER_CONTROL_PLANE}
+
+#6. Add workload clusters if MCTC_WORKLOAD_CLUSTERS_COUNT environment variable is set
+if [[ -n "${MCTC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
+  for ((i = 1; i <= ${MCTC_WORKLOAD_CLUSTERS_COUNT}; i++)); do
+    kindCreateCluster ${KIND_CLUSTER_WORKLOAD}-${i} $((${port80} + ${i})) $((${port443} + ${i}))
+    deployIngressController ${KIND_CLUSTER_WORKLOAD}-${i}
+    argocdAddCluster ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_WORKLOAD}-${i}
+  done
+fi
+
+#7. Ensure the current context points to the control plane cluster
+kubectl config use-context kind-${KIND_CLUSTER_CONTROL_PLANE}
