@@ -25,11 +25,17 @@ type Interface interface {
 	GetNamespaceName() types.NamespacedName
 	AddTLS(host string, secret *corev1.Secret)
 	HasTLS() bool
+	GetTLS() []TLSConfig
 	RemoveTLS(host []string)
 	GetSpec() interface{}
 	GetDNSTargets() ([]kuadrantv1.Target, error)
 	GetWebhookConfigurations(host string, caBundle []byte) ([]*admissionv1.ValidatingWebhookConfiguration, []*admissionv1.MutatingWebhookConfiguration)
 	ExposesOwnController() bool
+}
+
+type TLSConfig struct {
+	Hosts      []string
+	SecretName string
 }
 
 type Pending struct {
