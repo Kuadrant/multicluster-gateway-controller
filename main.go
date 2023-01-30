@@ -33,6 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	kuadrantiov1 "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/cluster"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/dnsrecord"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/secret"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns"
@@ -116,9 +117,10 @@ func main() {
 
 	trafficHandler := multiClusterWatch.NewTrafficHandlerFactory(dnsService, certService)
 	if err = (&secret.SecretReconciler{
-		Client:  mgr.GetClient(),
-		Scheme:  mgr.GetScheme(),
-		MCWatch: &multiClusterWatch.WatchController{Manager: mgr, HandlerFactory: trafficHandler},
+		Client:            mgr.GetClient(),
+		Scheme:            mgr.GetScheme(),
+		MCWatch:           &multiClusterWatch.WatchController{Manager: mgr, HandlerFactory: trafficHandler},
+		ClusterReconciler: cluster.NewAdmissionReconciler(mgr.GetClient()),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Secret")
 		os.Exit(1)

@@ -32,6 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/metadata"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/cluster"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/multiClusterWatch"
 )
 
@@ -40,6 +41,8 @@ type SecretReconciler struct {
 	client.Client
 	Scheme  *runtime.Scheme
 	MCWatch multiClusterWatch.Interface
+
+	ClusterReconciler cluster.Reconciler
 }
 
 type TLSClientConfig struct {
@@ -75,6 +78,8 @@ const (
 //+kubebuilder:rbac:groups=cert-manager.io,resources=certificates,verbs=get;list;watch;create;update;patch;delete
 
 //+kubebuilder:rbac:groups=admissionregistration.k8s.io,resources=mutatingwebhookconfigurations,verbs=get;list;watch;create;update;patch;delete
+
+//+kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch;update;patch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -119,11 +124,23 @@ func (r *SecretReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	_, err = r.MCWatch.WatchCluster(restConfig)
-
 	if err != nil {
 		log.Log.Info("error occurred", "error", err)
 		return ctrl.Result{}, err
 	}
+
+	result, err := r.ClusterReconciler.Reconcile(ctx, cluster.Object{
+		Name:       secret.Name,
+		RestConfig: restConfig,
+	})
+	if err != nil {
+		log.Log.Error(err, "failed to reconcile cluster")
+		return ctrl.Result{}, err
+	}
+	if result.Requeue {
+		return result, nil
+	}
+
 	return ctrl.Result{}, nil
 }
 
