@@ -110,10 +110,12 @@ func (r *Reconciler) Handle(ctx context.Context, o runtime.Object) (ctrl.Result,
 			}
 			trafficAccessor.AddTLS(managedHost, secret)
 		}
+
 		log.Log.Info("certificate secret in place for  host adding dns endpoints", "host", managedHost)
 		if err := r.Hosts.AddEndPoints(ctx, trafficAccessor); err != nil {
 			return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 5}, err
 		}
+
 	}
 
 	return ctrl.Result{}, nil

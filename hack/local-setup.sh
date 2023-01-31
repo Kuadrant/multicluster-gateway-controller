@@ -134,7 +134,10 @@ deployArgoCD ${KIND_CLUSTER_CONTROL_PLANE}
 #6. Deploy Dashboard
 deployDashboard $KIND_CLUSTER_CONTROL_PLANE
 
-#7. Add workload clusters if MCTC_WORKLOAD_CLUSTERS_COUNT environment variable is set
+#7. Add the control plane cluster
+argocdAddCluster ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_CONTROL_PLANE}
+
+#8. Add workload clusters if MCTC_WORKLOAD_CLUSTERS_COUNT environment variable is set
 if [[ -n "${MCTC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
   for ((i = 1; i <= ${MCTC_WORKLOAD_CLUSTERS_COUNT}; i++)); do
     kindCreateCluster ${KIND_CLUSTER_WORKLOAD}-${i} $((${port80} + ${i})) $((${port443} + ${i}))
@@ -143,5 +146,5 @@ if [[ -n "${MCTC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
   done
 fi
 
-#8. Ensure the current context points to the control plane cluster
+#9. Ensure the current context points to the control plane cluster
 kubectl config use-context kind-${KIND_CLUSTER_CONTROL_PLANE}
