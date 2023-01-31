@@ -58,6 +58,7 @@ func (s *Service) resolveIPS(ctx context.Context, t traffic.Interface) ([]string
 	return activeDNSTargetIPs, nil
 }
 
+// GetDNSRecords returns the DNSRecords that exist for the given traffic resources hosts.
 func (s *Service) GetDNSRecords(ctx context.Context, traffic traffic.Interface) ([]*v1.DNSRecord, error) {
 	// TODO improve this to use a label and list instead of gets
 	hosts := traffic.GetHosts()
@@ -84,7 +85,7 @@ func (s *Service) GetDNSRecords(ctx context.Context, traffic traffic.Interface) 
 	return records, nil
 }
 
-func (s *Service) AddEndPoints(ctx context.Context, traffic traffic.Interface) error {
+func (s *Service) AddEndpoints(ctx context.Context, traffic traffic.Interface) error {
 	ips, err := s.resolveIPS(ctx, traffic)
 	if err != nil {
 		return err
@@ -176,19 +177,12 @@ func (s *Service) RemoveEndpoints(ctx context.Context, t traffic.Interface) erro
 	return nil
 }
 
-// EnsureManagedHost will ensure there is at least one managed host for rthe traffic object and return those host and dnsrecords
-func (s *Service) EnsureManagedHost(ctx context.Context, t traffic.Interface) ([]string, []*v1.DNSRecord, error) {
+// EnsureManagedDNSRecords will ensure there is at least one managed dnsrecord for the traffic object and return those dnsrecords.
+func (s *Service) EnsureManagedDNSRecords(ctx context.Context, t traffic.Interface) ([]*v1.DNSRecord, error) {
 	dnsRecords, err := s.GetDNSRecords(ctx, t)
-	var managedHosts []string
-	if err != nil {
-		return managedHosts, nil, err
-	}
 
 	if len(dnsRecords) != 0 {
-		for _, r := range dnsRecords {
-			managedHosts = append(managedHosts, r.Name)
-		}
-		return managedHosts, dnsRecords, AlreadyAssignedErr
+		return dnsRecords, AlreadyAssignedErr
 	}
 	log.Log.Info("no managed host found generating one")
 	hostKey := shortuuid.NewWithNamespace(t.GetNamespace() + t.GetName())
@@ -203,22 +197,23 @@ func (s *Service) EnsureManagedHost(ctx context.Context, t traffic.Interface) ([
 		}
 	}
 	if chosenZone.ID == "" {
-		return managedHosts, dnsRecords, fmt.Errorf("no zone available to use")
+		return dnsRecords, fmt.Errorf("no zone available to use")
 	}
-	record, err := s.RegisterHost(ctx, managedHost, hostKey, chosenZone.DNSZone)
+	record, err := s.CreateManagedDNSRecord(ctx, managedHost, hostKey, chosenZone.DNSZone)
 	if err != nil {
-		log.Log.Error(err, "failed to register host ")
-		return managedHosts, dnsRecords, err
+		log.Log.Error(err, "failed to create managed dns record ")
+		return dnsRecords, err
 	}
-	managedHosts = append(managedHosts, managedHost)
 	dnsRecords = append(dnsRecords, record)
-	return managedHosts, dnsRecords, nil
+	return dnsRecords, nil
 }
 
-func (s *Service) RegisterHost(ctx context.Context, h string, id string, zone v1.DNSZone) (*v1.DNSRecord, error) {
+// CreateManagedDNSRecord creates a new DNSRecord with a name matching a host managed by a mctc zone.
+func (s *Service) CreateManagedDNSRecord(ctx context.Context, managedHost string, id string, zone v1.DNSZone) (*v1.DNSRecord, error) {
+	//ToDo Consider updating DNSRecord with a managedHOst field, or adding a ManagedDNSRecord type.
 	dnsRecord := v1.DNSRecord{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      h,
+			Name:      managedHost,
 			Namespace: s.defaultCtrlNS,
 			Labels:    map[string]string{labelRecordID: id},
 		},

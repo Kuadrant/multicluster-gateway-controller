@@ -46,9 +46,10 @@ type Reconciler struct {
 	Certificates   CertificateService
 }
 
+// ToDo Why is this called HostService and not DNSService?
 type HostService interface {
-	EnsureManagedHost(ctx context.Context, t traffic.Interface) ([]string, []*kuadrantv1.DNSRecord, error)
-	AddEndPoints(ctx context.Context, t traffic.Interface) error
+	EnsureManagedDNSRecords(ctx context.Context, t traffic.Interface) ([]*kuadrantv1.DNSRecord, error)
+	AddEndpoints(ctx context.Context, t traffic.Interface) error
 	RemoveEndpoints(ctx context.Context, t traffic.Interface) error
 }
 
@@ -75,19 +76,19 @@ func (r *Reconciler) Handle(ctx context.Context, o runtime.Object) (ctrl.Result,
 	// verify host is correct
 	// no managed host assigned assign one
 	// create empty DNSRecord with assigned host
-	managedHosts, records, err := r.Hosts.EnsureManagedHost(ctx, trafficAccessor)
+	dnsRecords, err := r.Hosts.EnsureManagedDNSRecords(ctx, trafficAccessor)
 	if err != nil && err != dns.AlreadyAssignedErr {
 		return ctrl.Result{}, err
 	}
-	for i, managedHost := range managedHosts {
-		record := records[i]
-		log.Log.Info("managed record ", "record", managedHost)
+	for _, dnsRecord := range dnsRecords {
+		managedHost := dnsRecord.Name
+		log.Log.Info("managed record ", "record", dnsRecord)
 		if err := trafficAccessor.AddManagedHost(managedHost); err != nil {
 			return ctrl.Result{}, err
 		}
 		// create certificate resource for assigned host
 		log.Log.Info("host assigned ensuring certificate in place")
-		if err := r.Certificates.EnsureCertificate(ctx, managedHost, record); err != nil && !k8serrors.IsAlreadyExists(err) {
+		if err := r.Certificates.EnsureCertificate(ctx, managedHost, dnsRecord); err != nil && !k8serrors.IsAlreadyExists(err) {
 			return ctrl.Result{}, err
 		}
 		// when certificate ready copy secret (need to add event handler for certs)
@@ -111,7 +112,7 @@ func (r *Reconciler) Handle(ctx context.Context, o runtime.Object) (ctrl.Result,
 			trafficAccessor.AddTLS(managedHost, secret)
 		}
 		log.Log.Info("certificate secret in place for  host adding dns endpoints", "host", managedHost)
-		if err := r.Hosts.AddEndPoints(ctx, trafficAccessor); err != nil {
+		if err := r.Hosts.AddEndpoints(ctx, trafficAccessor); err != nil {
 			return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 5}, err
 		}
 	}
