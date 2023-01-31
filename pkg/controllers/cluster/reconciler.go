@@ -10,6 +10,7 @@ import (
 	admissionv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -108,6 +109,10 @@ func (r *AdmissionReconciler) getWebhookTraffic(ctx context.Context) (traffic.In
 		Namespace: "multi-cluster-traffic-controller-system",
 	}, webhookIngress)
 	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			return nil, false, nil
+		}
+
 		return nil, false, err
 	}
 
