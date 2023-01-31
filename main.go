@@ -20,6 +20,7 @@ import (
 	"flag"
 	"os"
 
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/admission"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -32,6 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	kuadrantiov1 "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/cluster"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/dnsrecord"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/secret"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns"
@@ -65,11 +67,14 @@ func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
-	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8088", "The address the metric endpoint binds to.")
+	var WebhookPortNumber int
+	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
+	flag.IntVar(&WebhookPortNumber, "webhooks-port", 8082, "The port of the webhooks server. Set to 0 disables the webhooks server")
+
 	opts := zap.Options{
 		Development: true,
 	}
@@ -107,14 +112,15 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "DNSRecord")
 		os.Exit(1)
 	}
-	dnsService := dns.NewService(mgr.GetClient(), dns.NewDefaultHostResolver(), defaultCtrlNS)
+	dnsService := dns.NewService(mgr.GetClient(), dns.NewSafeHostResolver(dns.NewDefaultHostResolver()), defaultCtrlNS)
 	certService := tls.NewService(mgr.GetClient(), defaultCtrlNS, defaultCertProvider)
 
 	trafficHandler := multiClusterWatch.NewTrafficHandlerFactory(dnsService, certService)
 	if err = (&secret.SecretReconciler{
-		Client:  mgr.GetClient(),
-		Scheme:  mgr.GetScheme(),
-		MCWatch: &multiClusterWatch.WatchController{Manager: mgr, HandlerFactory: trafficHandler},
+		Client:            mgr.GetClient(),
+		Scheme:            mgr.GetScheme(),
+		MCWatch:           &multiClusterWatch.WatchController{Manager: mgr, HandlerFactory: trafficHandler},
+		ClusterReconciler: cluster.NewAdmissionReconciler(mgr.GetClient()),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Secret")
 		os.Exit(1)
@@ -128,6 +134,14 @@ func main() {
 	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up ready check")
 		os.Exit(1)
+	}
+
+	if WebhookPortNumber != 0 {
+		setupLog.Info("starting webhook server")
+		if err := mgr.Add(admission.NewWebhookServer(dnsService, certService, WebhookPortNumber)); err != nil {
+			setupLog.Error(err, "unable to set up webhook server")
+			os.Exit(1)
+		}
 	}
 
 	setupLog.Info("starting manager")

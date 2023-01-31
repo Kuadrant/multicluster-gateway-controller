@@ -27,3 +27,17 @@ func ContainsString(slice []string, s string) bool {
 	}
 	return false
 }
+
+// Find checks if an element in slice satisfies the given predicate, and returns
+// it. If no element is found returns false
+func Find[T any](slice []T, predicate func(T) bool) (element T, ok bool) {
+	for _, elem := range slice {
+		if predicate(elem) {
+			element = elem
+			ok = true
+			return
+		}
+	}
+
+	return
+}
