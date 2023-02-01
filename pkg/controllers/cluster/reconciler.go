@@ -21,7 +21,7 @@ import (
 )
 
 var (
-	IngressName = "mctc-ingress"
+	IngressName = "mctc-webhooks"
 )
 
 type Object struct {
