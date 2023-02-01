@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/controller"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/slice"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/traffic"
 	admissionv1 "k8s.io/api/admissionregistration/v1"
@@ -17,6 +18,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+)
+
+var (
+	IngressName = "mctc-ingress"
 )
 
 type Object struct {
@@ -103,10 +108,15 @@ func (r *AdmissionReconciler) Reconcile(ctx context.Context, obj Object) (ctrl.R
 }
 
 func (r *AdmissionReconciler) getWebhookTraffic(ctx context.Context) (traffic.Interface, bool, error) {
+	namespace, ok := controller.GetNamespace()
+	if !ok {
+		return nil, false, nil
+	}
+
 	webhookIngress := &networkingv1.Ingress{}
 	err := r.controlClient.Get(ctx, types.NamespacedName{
-		Name:      "mctc-ingress-mctc",
-		Namespace: "multi-cluster-traffic-controller-system",
+		Name:      IngressName,
+		Namespace: namespace,
 	}, webhookIngress)
 	if err != nil {
 		if k8serrors.IsNotFound(err) {

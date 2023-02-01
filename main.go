@@ -24,6 +24,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/controller"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/admission"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -73,12 +74,17 @@ func main() {
 	var enableLeaderElection bool
 	var probeAddr string
 	var WebhookPortNumber int
+	var namespace string
+
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
 	flag.IntVar(&WebhookPortNumber, "webhooks-port", 8082, "The port of the webhooks server. Set to 0 disables the webhooks server")
+	flag.StringVar(&namespace, "namespace", "", "The namespace where the controller runs")
+
+	controller.SpecifiedNamespace(namespace)
 
 	opts := zap.Options{
 		Development: true,
