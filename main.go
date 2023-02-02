@@ -20,10 +20,11 @@ import (
 	"flag"
 	"os"
 
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/admission"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/admission"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -32,13 +33,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	certmanv1 "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
+
 	kuadrantiov1 "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/cluster"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/dnsrecord"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/gateway"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/secret"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/tls"
-	certmanv1 "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
+	gatewayapi "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	//+kubebuilder:scaffold:imports
 
@@ -54,6 +58,7 @@ func init() {
 
 	utilruntime.Must(kuadrantiov1.AddToScheme(scheme.Scheme))
 	utilruntime.Must(certmanv1.AddToScheme(scheme.Scheme))
+	utilruntime.Must(gatewayapi.AddToScheme(scheme.Scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -123,6 +128,21 @@ func main() {
 		ClusterReconciler: cluster.NewAdmissionReconciler(mgr.GetClient()),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Secret")
+		os.Exit(1)
+	}
+
+	if err = (&gateway.GatewayClassReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "GatewayClass")
+		os.Exit(1)
+	}
+	if err = (&gateway.GatewayReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Gateway")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder
