@@ -10,5 +10,5 @@ spec:
       - name: manager
         ports:
           - name: webhooks
-            containerPort: 8082
+            containerPort: 9090
             protocol: TCP

@@ -81,7 +81,7 @@ func main() {
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
-	flag.IntVar(&WebhookPortNumber, "webhooks-port", 8082, "The port of the webhooks server. Set to 0 disables the webhooks server")
+	flag.IntVar(&WebhookPortNumber, "webhooks-port", 9090, "The port of the webhooks server. Set to 0 disables the webhooks server")
 	flag.StringVar(&namespace, "namespace", "", "The namespace where the controller runs")
 
 	controller.SpecifiedNamespace(namespace)
