@@ -25,10 +25,15 @@ KIND_CLUSTER_PREFIX="mctc-"
 KIND_CLUSTER_CONTROL_PLANE="${KIND_CLUSTER_PREFIX}control-plane"
 KIND_CLUSTER_WORKLOAD="${KIND_CLUSTER_PREFIX}workload"
 
+BASE_PROXY_PORT=8085
+
 INGRESS_NGINX_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/ingress-nginx
 CERT_MANAGER_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/cert-manager
 EXTERNAL_DNS_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/external-dns
 ARGOCD_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/argocd
+ISTIO_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/istio
+
+GATEWAY_API_RESOURCES_URL="github.com/kubernetes-sigs/gateway-api/config/crd?ref=v0.6.0"
 
 set -e pipefail
 
@@ -90,8 +95,34 @@ deployArgoCD() {
   echo -ne "\t\tPassword : $argoPassword\n\n\n"
 }
 
+deployIstio() {
+  clusterName=${1}
+
+  echo "Deploying Istio to (${clusterName})"
+
+  kubectl config use-context kind-${clusterName}
+
+  ${KUSTOMIZE_BIN} build ${ISTIO_KUSTOMIZATION_DIR}/base --enable-helm --helm-command ${HELM_BIN} | kubectl apply -f -
+  ${KUSTOMIZE_BIN} build ${ISTIO_KUSTOMIZATION_DIR}/istiod --enable-helm --helm-command ${HELM_BIN} | kubectl apply -f -
+
+  echo "Waiting for Istiod deployment to be ready..."
+  kubectl -n istio-system wait --timeout=300s --for=condition=Available deployments --all
+}
+
+installGatewayAPI() {
+  clusterName=${1}
+
+  echo "Installing Gateway API in ${clusterName}"
+
+  kubectl config use-context kind-${clusterName}
+
+  ${KUSTOMIZE_BIN} build ${GATEWAY_API_RESOURCES_URL} | kubectl apply -f -
+}
+
 deployDashboard() {
   clusterName=${1}
+  portOffset=${2}
+
   echo "Deploying Kubernetes Dashboard to (${clusterName})"
 
   kubectl config use-context kind-${clusterName} 
@@ -100,9 +131,15 @@ deployDashboard() {
   ${KUSTOMIZE_BIN} build config/dashboard | kubectl apply -f -
   token=$(kubectl get secret/admin-user-token -n kubernetes-dashboard -o go-template="{{.data.token | base64decode}}")
 
+  port=$((BASE_PROXY_PORT + portOffset))
+
+  kubectl proxy --context kind-${clusterName} --port ${port} &
+  proxyPID=$!
+
   echo -ne "\n\n\tAccess Kubernetes Dashboard\n\n"
-  echo -ne "\t\tIn a separate terminal, run: kubectl proxy\n"
-  echo -ne "\t\t\tThe dashboard is available at http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/\n"
+  echo -ne "\t\t\t* The dashboard is available at http://localhost:$port/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/\n"
+  echo -ne "\t\t\t* To kill the proxy background process, run:\n"
+  echo -ne "\t\t\t\tkill $proxyPID\n"
   echo -ne "\t\tAccess the dashboard using the following Bearer Token: $token\n"
 }
 
@@ -119,32 +156,38 @@ port443=8445
 #1. Create Kind control plane cluster
 kindCreateCluster ${KIND_CLUSTER_CONTROL_PLANE} ${port80} ${port443}
 
-#2. Deploy ingress controller
+#2. Install the Gateway API CRDs in the control cluster
+installGatewayAPI ${KIND_CLUSTER_CONTROL_PLANE}
+
+#3. Deploy ingress controller
 deployIngressController ${KIND_CLUSTER_CONTROL_PLANE}
 
-#3. Deploy cert manager
+#4. Deploy cert manager
 deployCertManager ${KIND_CLUSTER_CONTROL_PLANE}
 
-#4. Deploy external dns
+#5. Deploy external dns
 deployExternalDNS ${KIND_CLUSTER_CONTROL_PLANE}
 
-#5. Deploy argo cd
+#6. Deploy argo cd
 deployArgoCD ${KIND_CLUSTER_CONTROL_PLANE}
 
-#6. Deploy Dashboard
-deployDashboard $KIND_CLUSTER_CONTROL_PLANE
+#7. Deploy Dashboard
+deployDashboard $KIND_CLUSTER_CONTROL_PLANE 0
 
-#7. Add the control plane cluster
+#8. Add the control plane cluster
 argocdAddCluster ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_CONTROL_PLANE}
 
-#8. Add workload clusters if MCTC_WORKLOAD_CLUSTERS_COUNT environment variable is set
+#9. Add workload clusters if MCTC_WORKLOAD_CLUSTERS_COUNT environment variable is set
 if [[ -n "${MCTC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
   for ((i = 1; i <= ${MCTC_WORKLOAD_CLUSTERS_COUNT}; i++)); do
     kindCreateCluster ${KIND_CLUSTER_WORKLOAD}-${i} $((${port80} + ${i})) $((${port443} + ${i}))
+    installGatewayAPI ${KIND_CLUSTER_WORKLOAD}-${i}
     deployIngressController ${KIND_CLUSTER_WORKLOAD}-${i}
+    deployIstio ${KIND_CLUSTER_WORKLOAD}-${i}
+    deployDashboard ${KIND_CLUSTER_WORKLOAD}-${i} ${i}
     argocdAddCluster ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_WORKLOAD}-${i}
   done
 fi
 
-#9. Ensure the current context points to the control plane cluster
+#10. Ensure the current context points to the control plane cluster
 kubectl config use-context kind-${KIND_CLUSTER_CONTROL_PLANE}

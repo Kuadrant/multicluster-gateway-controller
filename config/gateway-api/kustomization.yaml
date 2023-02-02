@@ -1,0 +1,2 @@
+bases:
+  - github.com/kubernetes-sigs/gateway-api/blob/v0.6.0/config/crd
