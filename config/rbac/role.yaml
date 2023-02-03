@@ -56,7 +56,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - gateway.networking.k8s.io.kuadrant.io
+  - gateway.networking.k8s.io
   resources:
   - gatewayclasses
   verbs:
@@ -68,13 +68,13 @@ rules:
   - update
   - watch
 - apiGroups:
-  - gateway.networking.k8s.io.kuadrant.io
+  - gateway.networking.k8s.io
   resources:
   - gatewayclasses/finalizers
   verbs:
   - update
 - apiGroups:
-  - gateway.networking.k8s.io.kuadrant.io
+  - gateway.networking.k8s.io
   resources:
   - gatewayclasses/status
   verbs:
@@ -82,7 +82,7 @@ rules:
   - patch
   - update
 - apiGroups:
-  - gateway.networking.k8s.io.kuadrant.io
+  - gateway.networking.k8s.io
   resources:
   - gateways
   verbs:
@@ -94,13 +94,13 @@ rules:
   - update
   - watch
 - apiGroups:
-  - gateway.networking.k8s.io.kuadrant.io
+  - gateway.networking.k8s.io
   resources:
   - gateways/finalizers
   verbs:
   - update
 - apiGroups:
-  - gateway.networking.k8s.io.kuadrant.io
+  - gateway.networking.k8s.io
   resources:
   - gateways/status
   verbs:

@@ -1,4 +1,3 @@
-domain: kuadrant.io
 layout:
 - go.kubebuilder.io/v3
 projectName: multi-cluster-traffic-controller
