@@ -131,6 +131,10 @@ undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/confi
 deploy-sample-applicationset:
 	kubectl apply -f ./samples/argocd-applicationset/echo-applicationset.yaml
 
+.PHONY: dev-tls
+dev-tls:
+	openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout config/webhook-setup/tls/tls.key -out config/webhook-setup/tls/tls.crt -subj "/C=IE/O=Red Hat Ltd/OU=HCG/CN=webhook.172.18.0.2.nip.io"
+
 ##@ Build Dependencies
 
 ## Location to install dependencies to
