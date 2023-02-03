@@ -3,9 +3,10 @@
 argocdAddCluster() {
     local hubCluster=$1
     local managedCluster=$2
+    local internal=$3
 
     local tmpfile=$(mktemp /tmp/kubeconfig-internal.XXXXXX)
-    ${KIND_BIN} export kubeconfig --internal --name ${managedCluster} --kubeconfig ${tmpfile}
+    ${KIND_BIN} export kubeconfig --internal=${internal} --name=${managedCluster} --kubeconfig=${tmpfile}
     local server=$(kubectl --kubeconfig ${tmpfile} config view -o jsonpath="{$.clusters[?(@.name == 'kind-${managedCluster}')].cluster.server}")
     local caData=$(kubectl --kubeconfig ${tmpfile} config view --raw -o jsonpath="{$.clusters[?(@.name == 'kind-${managedCluster}')].cluster.certificate-authority-data}")
     local certData=$(kubectl --kubeconfig ${tmpfile} config view --raw -o jsonpath="{$.users[?(@.name == 'kind-${managedCluster}')].user.client-certificate-data}")

@@ -35,6 +35,10 @@ ISTIO_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/istio
 
 GATEWAY_API_RESOURCES_URL="github.com/kubernetes-sigs/gateway-api/config/crd?ref=v0.6.0"
 
+# If you intend to run the controller on the control plane cluster (`make deploy`) set this to true.
+# If you are running the controller locally in dev (`make run`) set this to false (default).
+: ${RUN_IN_CLUSTER_SETUP:=false}
+
 set -e pipefail
 
 deployIngressController () {
@@ -125,7 +129,7 @@ deployDashboard() {
 
   echo "Deploying Kubernetes Dashboard to (${clusterName})"
 
-  kubectl config use-context kind-${clusterName} 
+  kubectl config use-context kind-${clusterName}
 
   kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.7.0/aio/deploy/recommended.yaml
   ${KUSTOMIZE_BIN} build config/dashboard | kubectl apply -f -
@@ -165,19 +169,16 @@ deployIngressController ${KIND_CLUSTER_CONTROL_PLANE}
 #4. Deploy cert manager
 deployCertManager ${KIND_CLUSTER_CONTROL_PLANE}
 
-#5. Deploy external dns
-deployExternalDNS ${KIND_CLUSTER_CONTROL_PLANE}
-
-#6. Deploy argo cd
+#5. Deploy argo cd
 deployArgoCD ${KIND_CLUSTER_CONTROL_PLANE}
 
-#7. Deploy Dashboard
+#6. Deploy Dashboard
 deployDashboard $KIND_CLUSTER_CONTROL_PLANE 0
 
-#8. Add the control plane cluster
-argocdAddCluster ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_CONTROL_PLANE}
+#7. Add the control plane cluster
+argocdAddCluster ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_CONTROL_PLANE} ${RUN_IN_CLUSTER_SETUP}
 
-#9. Add workload clusters if MCTC_WORKLOAD_CLUSTERS_COUNT environment variable is set
+#8. Add workload clusters if MCTC_WORKLOAD_CLUSTERS_COUNT environment variable is set
 if [[ -n "${MCTC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
   for ((i = 1; i <= ${MCTC_WORKLOAD_CLUSTERS_COUNT}; i++)); do
     kindCreateCluster ${KIND_CLUSTER_WORKLOAD}-${i} $((${port80} + ${i})) $((${port443} + ${i}))
@@ -185,9 +186,9 @@ if [[ -n "${MCTC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
     deployIngressController ${KIND_CLUSTER_WORKLOAD}-${i}
     deployIstio ${KIND_CLUSTER_WORKLOAD}-${i}
     deployDashboard ${KIND_CLUSTER_WORKLOAD}-${i} ${i}
-    argocdAddCluster ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_WORKLOAD}-${i}
+    argocdAddCluster ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_WORKLOAD}-${i} ${RUN_IN_CLUSTER_SETUP}
   done
 fi
 
-#10. Ensure the current context points to the control plane cluster
+#9. Ensure the current context points to the control plane cluster
 kubectl config use-context kind-${KIND_CLUSTER_CONTROL_PLANE}
