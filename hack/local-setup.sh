@@ -142,6 +142,11 @@ deployDashboard() {
   echo -ne "\t\tAccess the dashboard using the following Bearer Token: $token\n"
 }
 
+deployWebhookConfigs(){
+  echo "Deploying the webhook configuration to the workload cluster"
+  kubectl apply -f ...
+}
+
 #Delete existing kind clusters
 clusterCount=$(${KIND_BIN} get clusters | grep ${KIND_CLUSTER_PREFIX} | wc -l)
 if ! [[ $clusterCount =~ "0" ]] ; then

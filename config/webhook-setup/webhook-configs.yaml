@@ -1,0 +1,27 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: mctc
+webhooks:
+  - clientConfig:
+      caBundle: test
+      url: https://host/ingress
+    timeoutSeconds: 5
+    sideEffects: SideEffectClassNoneOnDryRun
+    admissionReviewVersions: ["v1"]
+    matchPolicy: Exact
+    name: "mctc.ingress.dev"
+    failurePolicy: Fail
+    rules:
+      - apiGroups:
+          - "networking.k8s.io"
+        apiVersions: ["v1"]
+        resources:
+          - "ingresses"
+          - "ingresses/status"
+        scope: AllScopes
+        operations:
+          - Create
+          - Update
+      
+  
