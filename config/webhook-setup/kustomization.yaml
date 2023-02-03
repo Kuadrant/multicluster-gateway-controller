@@ -1,0 +1,4 @@
+bases:
+  - webhook-configs.yaml
+patches:
+  - caBund.yaml  
