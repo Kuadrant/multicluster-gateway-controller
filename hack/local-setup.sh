@@ -32,8 +32,7 @@ CERT_MANAGER_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/cert-manager
 EXTERNAL_DNS_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/external-dns
 ARGOCD_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/argocd
 ISTIO_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/istio
-
-GATEWAY_API_RESOURCES_URL="github.com/kubernetes-sigs/gateway-api/config/crd?ref=v0.6.0"
+GATEWAY_API_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/gateway-api
 
 set -e pipefail
 
@@ -116,7 +115,7 @@ installGatewayAPI() {
 
   kubectl config use-context kind-${clusterName}
 
-  ${KUSTOMIZE_BIN} build ${GATEWAY_API_RESOURCES_URL} | kubectl apply -f -
+  ${KUSTOMIZE_BIN} build ${GATEWAY_API_KUSTOMIZATION_DIR} | kubectl apply -f -
 }
 
 deployDashboard() {

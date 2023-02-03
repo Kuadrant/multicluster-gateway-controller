@@ -18,13 +18,26 @@ package gateway
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/kubernetes/pkg/util/slice"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
-	gateway "sigs.k8s.io/gateway-api/apis/v1beta1"
+	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
+
+const (
+	ControllerName = "kuadrant.io/mctc-gw-controller"
+)
+
+func getSupportedClasses() []string {
+	return []string{"mctc-gw-istio-instance-per-cluster"}
+}
 
 // GatewayClassReconciler reconciles a GatewayClass object
 type GatewayClassReconciler struct {
@@ -46,9 +59,67 @@ type GatewayClassReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.1/pkg/reconcile
 func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+	log := ctrllog.FromContext(ctx)
 
-	// TODO(user): your logic here
+	previous := &gatewayv1beta1.GatewayClass{}
+	err := r.Client.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: req.Name}, previous)
+	if err != nil {
+		if err := client.IgnoreNotFound(err); err == nil {
+			return ctrl.Result{}, nil
+		} else {
+			log.Error(err, "Unable to fetch GatewayClass")
+			return ctrl.Result{}, err
+		}
+	}
+
+	if previous.Spec.ControllerName != ControllerName {
+		log.Info("Not a GatewayClass for this controller", "ControllerName", previous.Spec.ControllerName)
+		return ctrl.Result{}, nil
+	}
+
+	if previous.Status.Conditions != nil &&
+		len(previous.Status.Conditions) == 1 &&
+		previous.Status.Conditions[0].Type == string(gatewayv1beta1.GatewayClassConditionStatusAccepted) &&
+		previous.Status.Conditions[0].Status == "True" {
+		log.Info("GatewayClass already Accepted")
+		return ctrl.Result{}, nil
+	}
+
+	gatewayclass := previous.DeepCopy()
+	supportedClasses := getSupportedClasses()
+	if !slice.ContainsString(supportedClasses, previous.Name, nil) {
+		gatewayclass.Status = gatewayv1beta1.GatewayClassStatus{
+			Conditions: []metav1.Condition{
+				{
+					LastTransitionTime: metav1.Now(),
+					Message:            fmt.Sprintf("Invalid Parameters - Unsupported class name %s. Must be one of [%v]", previous.Name, strings.Join(supportedClasses, ",")),
+					Reason:             string(gatewayv1beta1.GatewayClassReasonInvalidParameters),
+					Status:             metav1.ConditionFalse,
+					Type:               string(gatewayv1beta1.GatewayClassConditionStatusAccepted),
+					ObservedGeneration: previous.Generation,
+				},
+			},
+		}
+	} else {
+		gatewayclass.Status = gatewayv1beta1.GatewayClassStatus{
+			Conditions: []metav1.Condition{
+				{
+					LastTransitionTime: metav1.Now(),
+					Message:            fmt.Sprintf("Handled by %s", ControllerName),
+					Reason:             string(gatewayv1beta1.GatewayClassConditionStatusAccepted),
+					Status:             metav1.ConditionTrue,
+					Type:               string(gatewayv1beta1.GatewayClassConditionStatusAccepted),
+					ObservedGeneration: previous.Generation,
+				},
+			},
+		}
+	}
+
+	log.Info("Updating GatewayClass", "status", gatewayclass.Status)
+	err = r.Status().Update(ctx, gatewayclass)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
 
 	return ctrl.Result{}, nil
 }
@@ -57,6 +128,10 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 func (r *GatewayClassReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		// Uncomment the following line adding a pointer to an instance of the controlled resource as an argument
-		For(&gateway.GatewayClass{}).
+		For(&gatewayv1beta1.GatewayClass{}).
+		WithEventFilter(predicate.NewPredicateFuncs(func(object client.Object) bool {
+			gatewayClass := object.(*gatewayv1beta1.GatewayClass)
+			return gatewayClass.Spec.ControllerName == ControllerName
+		})).
 		Complete(r)
 }
