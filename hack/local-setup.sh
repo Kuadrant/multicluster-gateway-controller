@@ -33,6 +33,8 @@ EXTERNAL_DNS_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/external-dns
 ARGOCD_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/argocd
 ISTIO_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/istio
 GATEWAY_API_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/gateway-api
+WEBHOOK_PATH=${LOCAL_SETUP_DIR}/../config/webhook-setup/workload
+TLS_CERT_PATH=${LOCAL_SETUP_DIR}/../config/webhook-setup/tls
 
 set -e pipefail
 
@@ -143,8 +145,18 @@ deployDashboard() {
 }
 
 deployWebhookConfigs(){
-  echo "Deploying the webhook configuration to the workload cluster"
-  kubectl apply -f ...
+  clusterName=${1}
+  echo "Deploying the webhook configuration to (${clusterName})"
+
+  kubectl config use-context kind-${clusterName}
+
+  plain=$( cat $TLS_CERT_PATH/tls.crt $TLS_CERT_PATH/tls.crt  )
+  echo $WEBHOOK_PATH/webhook-configs.yaml
+  endocded=$( echo "$plain" | base64 )
+
+  yq -e  -i ".webhooks[0].clientConfig.caBundle =\"$endocded\"" $WEBHOOK_PATH/webhook-configs.yaml
+
+  kubectl apply -f $WEBHOOK_PATH/webhook-configs.yaml 
 }
 
 #Delete existing kind clusters
@@ -175,11 +187,16 @@ deployExternalDNS ${KIND_CLUSTER_CONTROL_PLANE}
 #6. Deploy argo cd
 deployArgoCD ${KIND_CLUSTER_CONTROL_PLANE}
 
-#7. Deploy Dashboard
+#7. Deploy webhook conifgs
+deployWebhookConfigs ${KIND_CLUSTER_CONTROL_PLANE}
+
+#8. Deploy Dashboard
 deployDashboard $KIND_CLUSTER_CONTROL_PLANE 0
 
-#8. Add the control plane cluster
+#9. Add the control plane cluster
 argocdAddCluster ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_CONTROL_PLANE}
+
+
 
 #9. Add workload clusters if MCTC_WORKLOAD_CLUSTERS_COUNT environment variable is set
 if [[ -n "${MCTC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
@@ -190,8 +207,10 @@ if [[ -n "${MCTC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
     deployIstio ${KIND_CLUSTER_WORKLOAD}-${i}
     deployDashboard ${KIND_CLUSTER_WORKLOAD}-${i} ${i}
     argocdAddCluster ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_WORKLOAD}-${i}
+    deployWebhookConfigs ${KIND_CLUSTER_WORKLOAD}-${i}
+    
   done
 fi
 
-#10. Ensure the current context points to the control plane cluster
+# #10. Ensure the current context points to the control plane cluster
 kubectl config use-context kind-${KIND_CLUSTER_CONTROL_PLANE}
