@@ -25,7 +25,7 @@ KIND_CLUSTER_PREFIX="mctc-"
 KIND_CLUSTER_CONTROL_PLANE="${KIND_CLUSTER_PREFIX}control-plane"
 KIND_CLUSTER_WORKLOAD="${KIND_CLUSTER_PREFIX}workload"
 
-BASE_PROXY_PORT=8085
+BASE_PROXY_PORT=9200
 
 INGRESS_NGINX_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/ingress-nginx
 CERT_MANAGER_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/cert-manager
@@ -136,11 +136,10 @@ deployDashboard() {
 
   kubectl proxy --context kind-${clusterName} --port ${port} &
   proxyPID=$!
+  echo $proxyPID >> /tmp/dashboard_pids
 
   echo -ne "\n\n\tAccess Kubernetes Dashboard\n\n"
   echo -ne "\t\t\t* The dashboard is available at http://localhost:$port/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/\n"
-  echo -ne "\t\t\t* To kill the proxy background process, run:\n"
-  echo -ne "\t\t\t\tkill $proxyPID\n"
   echo -ne "\t\tAccess the dashboard using the following Bearer Token: $token\n"
 }
 
@@ -158,6 +157,19 @@ deployWebhookConfigs(){
   kubectl apply -f $WEBHOOK_PATH/webhook-configs.yaml 
 }
 
+stopProxies() {
+  if [[ -f /tmp/dashboard_pids ]]; then
+    echo "Stopping existing proxies"
+    while read p; do
+      kill $p
+    done </tmp/dashboard_pids
+    rm /tmp/dashboard_pids
+  fi
+}
+
+# Stop proxies to the existing clusters
+stopProxies
+
 #Delete existing kind clusters
 clusterCount=$(${KIND_BIN} get clusters | grep ${KIND_CLUSTER_PREFIX} | wc -l)
 if ! [[ $clusterCount =~ "0" ]] ; then
@@ -165,7 +177,7 @@ if ! [[ $clusterCount =~ "0" ]] ; then
   ${KIND_BIN} get clusters | grep ${KIND_CLUSTER_PREFIX} | xargs ${KIND_BIN} delete clusters
 fi
 
-port80=8082
+port80=9090
 port443=8445
 
 #1. Create Kind control plane cluster

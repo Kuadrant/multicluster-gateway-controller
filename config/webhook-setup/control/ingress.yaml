@@ -19,4 +19,4 @@ spec:
               service:
                 name: mctc-webhooks
                 port:
-                  number: 9090
+                  number: 8082

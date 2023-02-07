@@ -5,7 +5,7 @@ metadata:
 spec:
   ports:
     - name: webhooks
-      port: 9090
+      port: 8082
       targetPort: webhooks
       protocol: TCP
   selector:
