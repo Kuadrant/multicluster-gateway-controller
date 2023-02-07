@@ -12,7 +12,7 @@ import (
 	"k8s.io/utils/strings/slices"
 
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/slice"
-	kuadrantv1 "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1alpha1"
 )
 
 const (
@@ -164,19 +164,19 @@ func (a *Ingress) String() string {
 }
 
 // GetDNSTargets will return the LB hosts and or IPs from the the Ingress object associated with the cluster they came from
-func (a *Ingress) GetDNSTargets() ([]kuadrantv1.Target, error) {
+func (a *Ingress) GetDNSTargets() ([]v1alpha1.Target, error) {
 	status := a.Status
 
-	dnsTargets := []kuadrantv1.Target{}
+	dnsTargets := []v1alpha1.Target{}
 	for _, lb := range status.LoadBalancer.Ingress {
-		dnsTarget := kuadrantv1.Target{}
+		dnsTarget := v1alpha1.Target{}
 		//dnsTarget.Cluster = cluster.String()
 		if lb.IP != "" {
-			dnsTarget.TargetType = kuadrantv1.TargetTypeIP
+			dnsTarget.TargetType = v1alpha1.TargetTypeIP
 			dnsTarget.Value = lb.IP
 		}
 		if lb.Hostname != "" {
-			dnsTarget.TargetType = kuadrantv1.TargetTypeHost
+			dnsTarget.TargetType = v1alpha1.TargetTypeHost
 			dnsTarget.Value = lb.Hostname
 
 		}

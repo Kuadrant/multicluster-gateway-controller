@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1
+package v1alpha1
 
 import (
 	"fmt"
@@ -105,6 +105,9 @@ func (e *Endpoint) String() string {
 
 // DNSRecordSpec defines the desired state of DNSRecord
 type DNSRecordSpec struct {
+	// +kubebuilder:validation:Required
+	// +required
+	ManagedZoneRef *ManagedZoneReference `json:"managedZone,omitempty"`
 	// +kubebuilder:validation:MinItems=1
 	// +optional
 	Endpoints []*Endpoint `json:"endpoints"`
@@ -112,8 +115,12 @@ type DNSRecordSpec struct {
 
 // DNSRecordStatus defines the observed state of DNSRecord
 type DNSRecordStatus struct {
-	// zones are the status of the record in each zone.
-	Zones []DNSZoneStatus `json:"zones,omitempty"`
+
+	// conditions are any conditions associated with the record in the managed zone.
+	//
+	// If publishing the record fails, the "Failed" condition will be set with a
+	// reason and message describing the cause of the failure.
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 
 	// observedGeneration is the most recently observed generation of the
 	// DNSRecord.  When the DNSRecord is updated, the controller updates the
@@ -123,10 +130,20 @@ type DNSRecordStatus struct {
 	// needs to retry the update for that specific zone.
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
+	// endpoints are the last endpoints that were successfully published by the provider
+	//
+	// Provides a simple mechanism to store the current provider records in order to
+	// delete any that are no longer present in DNSRecordSpec.Endpoints
+	//
+	// Note: This will not be required if/when we switch to using external-dns since when
+	// running with a "sync" policy it will clean up unused records automatically.
+	Endpoints []*Endpoint `json:"endpoints,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+//+kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type==\"Ready\")].status",description="DNSRecord ready."
 
 // DNSRecord is the Schema for the dnsrecords API
 type DNSRecord struct {
@@ -156,70 +173,10 @@ const (
 
 	// ARecordType is an RFC 1035 A record.
 	ARecordType DNSRecordType = "A"
+
+	// NSRecordType is a name server record.
+	NSRecordType DNSRecordType = "NS"
 )
-
-// DNSZone is used to define a DNS hosted zone.
-// A zone can be identified by an ID or tags.
-type DNSZone struct {
-	// id is the identifier that can be used to find the DNS hosted zone.
-	//
-	// on AWS zone can be fetched using `ID` as id in [1]
-	// on Azure zone can be fetched using `ID` as a pre-determined name in [2],
-	// on GCP zone can be fetched using `ID` as a pre-determined name in [3].
-	//
-	// [1]: https://docs.aws.amazon.com/cli/latest/reference/route53/get-hosted-zone.html#options
-	// [2]: https://docs.microsoft.com/en-us/cli/azure/network/dns/zone?view=azure-cli-latest#az-network-dns-zone-show
-	// [3]: https://cloud.google.com/dns/docs/reference/v1/managedZones/get
-	// +optional
-	ID string `json:"id,omitempty"`
-
-	// tags can be used to query the DNS hosted zone.
-	//
-	// on AWS, resourcegroupstaggingapi [1] can be used to fetch a zone using `Tags` as tag-filters,
-	//
-	// [1]: https://docs.aws.amazon.com/cli/latest/reference/resourcegroupstaggingapi/get-resources.html#options
-	// +optional
-	Tags map[string]string `json:"tags,omitempty"`
-}
-
-// DNSZoneStatus is the status of a record within a specific zone.
-type DNSZoneStatus struct {
-	// dnsZone is the zone where the record is published.
-	DNSZone DNSZone `json:"dnsZone"`
-	// conditions are any conditions associated with the record in the zone.
-	//
-	// If publishing the record fails, the "Failed" condition will be set with a
-	// reason and message describing the cause of the failure.
-	Conditions []DNSZoneCondition `json:"conditions,omitempty"`
-	// endpoints are the last endpoints that were successfully published to the provider
-	//
-	// Provides a simple mechanism to store the current provider records in order to
-	// delete any that are no longer present in DNSRecordSpec.Endpoints
-	//
-	// Note: This will not be required if/when we switch to using external-dns since when
-	// running with a "sync" policy it will clean up unused records automatically.
-	Endpoints []*Endpoint `json:"endpoints,omitempty"`
-}
-
-var (
-	// Failed means the record is not available within a zone.
-	DNSRecordFailedConditionType = "Failed"
-)
-
-// DNSZoneCondition is just the standard condition fields.
-type DNSZoneCondition struct {
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MinLength=1
-	// +required
-	Type string `json:"type"`
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MinLength=1
-	// +required
-	Status             string      `json:"status"`
-	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
-	Reason             string      `json:"reason,omitempty"`
-	Message            string      `json:"message,omitempty"`
-}
 
 const (
 	TargetTypeHost = "HOST"

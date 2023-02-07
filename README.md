@@ -24,16 +24,14 @@ When deploying the multi cluster traffic controller using the make targets the f
     * On fedora use `dnf install openssl`
 
 ### 1. Running the controller in the cluster:
-
+1. Create env files:
+    * One called `aws-credentials.env` containing **AWS_ACCESS_KEY_ID**, **AWS_SECRET_ACCESS_KEY** and **AWS_REGION**
+    * One called `controller-config.env` containing **AWS_DNS_PUBLIC_ZONE_ID** and **ZONE_ROOT_DOMAIN**
 
 1. Setup your local environment 
     ```sh
     make local-setup MCTC_WORKLOAD_CLUSTERS_COUNT=<NUMBER_WORKLOAD_CLUSTER>
     ```
-
-1. Create two env files:
-    * One called `aws-credentials.env` containing **AWS_ACCESS_KEY_ID** and **AWS_SECRET_ACCESS_KEY**
-    * One called `controller-config.env` containing **AWS_DNS_PUBLIC_ZONE_ID** and **ZONE_ROOT_DOMAIN**
 
 1. Build the controller image and load it into the control plane
     ```sh
@@ -52,10 +50,9 @@ When deploying the multi cluster traffic controller using the make targets the f
     ```
 
 ## 2. Running the controller locally:
-1. Create two env files:
-    * One called `aws-credentials.env` containing **AWS_ACCESS_KEY_ID** and **AWS_SECRET_ACCESS_KEY**
+1. Create env files:
+    * One called `aws-credentials.env` containing **AWS_ACCESS_KEY_ID**, **AWS_SECRET_ACCESS_KEY** and **AWS_REGION**
     * One called `controller-config.env` containing **AWS_DNS_PUBLIC_ZONE_ID** and **ZONE_ROOT_DOMAIN**
-
 
 1.  Setup your local environment 
 
@@ -85,18 +82,6 @@ When deploying the multi cluster traffic controller using the make targets the f
 1. Target the workload cluster you wish to run on:
 ```sh
 export KUBECONFIG=./tmp/kubeconfigs/mctc-workload-1.kubeconfig
-```
-1. Update the secret in `config/agent/secret.yaml` with the correct credentials for the control plane
-```sh
-# Setting LOCAL_ACCESS=true will generate an address that can be reached
-# from the local host
-LOCAL_ACCESS=true make agent-secret
-```
-
-1. Apply the control plane secret
-```sh
-kubectl create ns mctc-system
-kubectl create -f config/agent/secret.yaml
 ```
 1. Run the agent locally:
 ```sh

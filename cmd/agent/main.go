@@ -29,7 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	kuadrantiov1 "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/ingress"
 	//+kubebuilder:scaffold:imports
 )
@@ -40,14 +40,14 @@ var (
 )
 
 const (
-	defaultCtrlNS       = "argocd"
+	defaultCtrlNS       = "multi-cluster-traffic-controller-system"
 	defaultCertProvider = "glbc-ca"
 )
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
-	utilruntime.Must(kuadrantiov1.AddToScheme(scheme))
+	utilruntime.Must(v1alpha1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 

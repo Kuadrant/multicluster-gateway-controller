@@ -3,12 +3,13 @@ package traffic
 import (
 	"context"
 
-	kuadrantv1 "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1alpha1"
 )
 
 type CreateOrUpdateTraffic func(ctx context.Context, i Interface) error
@@ -27,7 +28,7 @@ type Interface interface {
 	GetTLS() []TLSConfig
 	RemoveTLS(host []string)
 	GetSpec() interface{}
-	GetDNSTargets() ([]kuadrantv1.Target, error)
+	GetDNSTargets() ([]v1alpha1.Target, error)
 	ExposesOwnController() bool
 }
 
