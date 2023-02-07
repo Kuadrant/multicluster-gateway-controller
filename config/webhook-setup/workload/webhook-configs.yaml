@@ -3,14 +3,14 @@ kind: MutatingWebhookConfiguration
 metadata:
   name: mctc
 webhooks:
-  - clientConfig:
-      caBundle: test
-      url: https://host/ingress
+  - name: "mctc.ingress.dev"
+    clientConfig:
+      caBundle: ""
+      url: https://webhook.172.18.0.2.nip.io/ingress
     timeoutSeconds: 5
-    sideEffects: SideEffectClassNoneOnDryRun
+    sideEffects: NoneOnDryRun
     admissionReviewVersions: ["v1"]
     matchPolicy: Exact
-    name: "mctc.ingress.dev"
     failurePolicy: Fail
     rules:
       - apiGroups:
@@ -19,9 +19,7 @@ webhooks:
         resources:
           - "ingresses"
           - "ingresses/status"
-        scope: AllScopes
+        scope: "*"
         operations:
-          - Create
-          - Update
-      
-  
+          - CREATE
+          - UPDATE
