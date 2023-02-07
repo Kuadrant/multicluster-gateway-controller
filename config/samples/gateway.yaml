@@ -1,0 +1,12 @@
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: Gateway
+metadata:
+  name: example-gateway
+  annotations:
+    kuadrant.io/gateway-cluster-label-selector: type=test
+spec:
+  gatewayClassName: mctc-gw-istio-external-instance-per-cluster
+  listeners:
+  - name: test-listener-1
+    port: 8443
+    protocol: HTTPS

@@ -28,7 +28,7 @@ If the GatewayClass is valid *and* it is a supported class for which mctc will p
       observedGeneration: <corresponding metadata.generation>
 ```
 
-If the Gateway is not valid or an unsupported class is specified, the condition changes to:
+If the GatewayClass is not valid or an unsupported class is specified, the condition changes to:
 
 ```yaml
     - lastTransitionTime: "1970-01-01T00:00:00Z"
@@ -62,7 +62,7 @@ When a Gateway is created, it starts as below. This is the default defined in th
 ```
 
 When reconciled, the condition may change to 1 of 2 states.
-If the Gateway is syntactically and semantically valid, the condition changes to:
+If the Gateway is syntactically and semantically valid, and references a supported gatewayClassName, the condition changes to:
 
 ```yaml
     - lastTransitionTime: "2023-02-03T13:45:58Z"
