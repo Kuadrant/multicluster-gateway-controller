@@ -36,7 +36,7 @@ const (
 )
 
 func getSupportedClasses() []string {
-	return []string{"mctc-gw-istio-instance-per-cluster"}
+	return []string{"mctc-gw-istio-external-instance-per-cluster"}
 }
 
 // GatewayClassReconciler reconciles a GatewayClass object
@@ -72,15 +72,7 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		}
 	}
 
-	if previous.Spec.ControllerName != ControllerName {
-		log.Info("Not a GatewayClass for this controller", "ControllerName", previous.Spec.ControllerName)
-		return ctrl.Result{}, nil
-	}
-
-	if previous.Status.Conditions != nil &&
-		len(previous.Status.Conditions) == 1 &&
-		previous.Status.Conditions[0].Type == string(gatewayv1beta1.GatewayClassConditionStatusAccepted) &&
-		previous.Status.Conditions[0].Status == "True" {
+	if gatewayClassIsAccepted(previous) {
 		log.Info("GatewayClass already Accepted")
 		return ctrl.Result{}, nil
 	}
@@ -122,6 +114,11 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	return ctrl.Result{}, nil
+}
+
+func gatewayClassIsAccepted(gatewayClass *gatewayv1beta1.GatewayClass) bool {
+	acceptedCondition := findConditionByType(gatewayClass.Status.Conditions, gatewayv1beta1.GatewayConditionAccepted)
+	return (acceptedCondition != nil && acceptedCondition.Status == metav1.ConditionTrue)
 }
 
 // SetupWithManager sets up the controller with the Manager.
