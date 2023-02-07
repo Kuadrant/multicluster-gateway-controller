@@ -17,7 +17,7 @@ endif
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
-include ./hack/make/agent.make ./hack/make/controller.make ./hack/make/syncer.make ./hack/make/dependencies.make
+include ./hack/make/*.make
 
 .PHONY: all
 all: build
