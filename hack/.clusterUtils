@@ -4,9 +4,9 @@ makeSecretForCluster() {
   local clusterName=$1
   local targetCluster=$2
   local targetClusterName=${targetCluster:=$clusterName}
-  local localAccess=${LOCAL_ACCESS:="false"}
+  local localAccess=${3}
 
-  if [ $localAccess == "false" ]; then
+  if [ "$localAccess" != "true" ]; then
     internalFlag="--internal"
   fi
 

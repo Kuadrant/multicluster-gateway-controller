@@ -7,7 +7,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/json"
-	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -26,6 +26,7 @@ type ProviderConfig struct {
 }
 
 type ClusterConfig struct {
+	Name               string          `json:"name,omitempty"`
 	BearerToken        string          `json:"bearerToken,omitempty"`
 	Username           string          `json:"username,omitempty"`
 	Password           string          `json:"password,omitempty"`
@@ -42,12 +43,12 @@ func ClientFromSecret(secret *v1.Secret) (client.Client, error) {
 	return client.New(restConfig, client.Options{})
 }
 
-func ClientsetFromSecret(secret *v1.Secret) (*kubernetes.Clientset, error) {
+func DynamicClientsetFromSecret(secret *v1.Secret) (dynamic.Interface, error) {
 	restConfig, err := RestConfigFromSecret(secret)
 	if err != nil {
 		return nil, err
 	}
-	client, err := kubernetes.NewForConfig(restConfig)
+	client, err := dynamic.NewForConfig(restConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -55,9 +56,18 @@ func ClientsetFromSecret(secret *v1.Secret) (*kubernetes.Clientset, error) {
 	return client, nil
 }
 
-func RestConfigFromSecret(secret *v1.Secret) (*rest.Config, error) {
+func ClusterConfigFromSecret(secret *v1.Secret) (*ClusterConfig, error) {
 	clusterClientConfig := &ClusterConfig{}
 	err := json.Unmarshal(secret.Data["config"], clusterClientConfig)
+	if err != nil {
+		return nil, err
+	}
+	clusterClientConfig.Name = string(secret.Data["name"])
+	return clusterClientConfig, nil
+}
+
+func RestConfigFromSecret(secret *v1.Secret) (*rest.Config, error) {
+	clusterClientConfig, err := ClusterConfigFromSecret(secret)
 	if err != nil {
 		return nil, err
 	}

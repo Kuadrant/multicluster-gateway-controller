@@ -9,7 +9,7 @@ set -e pipefail
 KIND_CLUSTER_PREFIX="mctc-"
 KIND_CLUSTER_CONTROL_PLANE="${KIND_CLUSTER_PREFIX}control-plane"
 
-makeSecretForCluster $KIND_CLUSTER_CONTROL_PLANE $(kubectl config current-context) |
+makeSecretForCluster $KIND_CLUSTER_CONTROL_PLANE $(kubectl config current-context) $LOCAL_ACCESS |
 setNamespacedName mctc-system control-plane-cluster |
 setLabel argocd.argoproj.io/secret-type cluster > config/agent/secret.yaml
 

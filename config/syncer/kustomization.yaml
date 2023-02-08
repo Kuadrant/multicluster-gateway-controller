@@ -4,10 +4,10 @@ resources:
 - role.yaml
 - serviceaccount.yaml
 - rolebinding.yaml
-- agent.yaml
+- syncer.yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 images:
-- name: agent
-  newName: agent
+- name: syncer
+  newName: syncer
   newTag: latest

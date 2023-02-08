@@ -58,9 +58,9 @@ func main() {
 	var controlPlaneConfigSecretName string
 	var controlPlaneConfigSecretNamespace string
 
-	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8084", "The address the metric endpoint binds to.")
-	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8085", "The address the probe endpoint binds to.")
-	flag.StringVar(&controlPlaneConfigSecretName, "control-plane-cluster", "control-plane-cluster", "The name of the secret with the control plane client configuration")
+	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
+	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
+	flag.StringVar(&controlPlaneConfigSecretName, "control-plane-config-name", "control-plane-cluster", "The name of the secret with the control plane client configuration")
 	flag.StringVar(&controlPlaneConfigSecretNamespace, "control-plane-config-namespace", "default", "The namespace containing the secret with the control plane client configuration")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
