@@ -153,7 +153,7 @@ deployWebhookConfigs(){
   plain=$( cat $TLS_CERT_PATH/tls.crt $TLS_CERT_PATH/tls.crt  )
   encoded=$( echo "$plain" | base64 )
 
-  yq -e  -i ".webhooks[0].clientConfig.caBundle =\"$encoded\"" $WEBHOOK_PATH/webhook-configs.yaml
+  ${YQ_BIN} -e  -i ".webhooks[0].clientConfig.caBundle =\"$encoded\"" $WEBHOOK_PATH/webhook-configs.yaml
 
   kubectl apply -f $WEBHOOK_PATH/webhook-configs.yaml 
 }
