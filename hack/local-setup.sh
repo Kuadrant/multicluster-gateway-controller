@@ -152,9 +152,9 @@ deployWebhookConfigs(){
 
   plain=$( cat $TLS_CERT_PATH/tls.crt $TLS_CERT_PATH/tls.crt  )
   echo $WEBHOOK_PATH/webhook-configs.yaml
-  endocded=$( echo "$plain" | base64 )
+  encoded=$( echo "$plain" | base64 )
 
-  yq -e  -i ".webhooks[0].clientConfig.caBundle =\"$endocded\"" $WEBHOOK_PATH/webhook-configs.yaml
+  yq -e  -i ".webhooks[0].clientConfig.caBundle =\"$encoded\"" $WEBHOOK_PATH/webhook-configs.yaml
 
   kubectl apply -f $WEBHOOK_PATH/webhook-configs.yaml 
 }
@@ -187,13 +187,10 @@ deployExternalDNS ${KIND_CLUSTER_CONTROL_PLANE}
 #6. Deploy argo cd
 deployArgoCD ${KIND_CLUSTER_CONTROL_PLANE}
 
-#7. Deploy webhook conifgs
-deployWebhookConfigs ${KIND_CLUSTER_CONTROL_PLANE}
-
-#8. Deploy Dashboard
+#7. Deploy Dashboard
 deployDashboard $KIND_CLUSTER_CONTROL_PLANE 0
 
-#9. Add the control plane cluster
+#8. Add the control plane cluster
 argocdAddCluster ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_CONTROL_PLANE}
 
 
