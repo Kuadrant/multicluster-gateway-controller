@@ -18,12 +18,24 @@ package gateway
 
 import (
 	"context"
+	"fmt"
+	"reflect"
+	"strings"
+
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/slice"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	gateway "sigs.k8s.io/gateway-api/apis/v1beta1"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+)
+
+const (
+	ClusterSyncerAnnotation               = "clustersync.kuadrant.io"
+	GatewayClusterLabelSelectorAnnotation = "kuadrant.io/gateway-cluster-label-selector"
 )
 
 // GatewayReconciler reconciles a Gateway object
@@ -46,17 +58,126 @@ type GatewayReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.1/pkg/reconcile
 func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+	log := log.FromContext(ctx)
 
-	// TODO(user): your logic here
+	previous := &gatewayv1beta1.Gateway{}
+	err := r.Client.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: req.Name}, previous)
+	if err != nil {
+		if err := client.IgnoreNotFound(err); err != nil {
+			log.Error(err, "Unable to fetch Gateway")
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{}, nil
+	}
+
+	// Check if the class name is one of ours
+	gatewayClass := &gatewayv1beta1.GatewayClass{}
+	err = r.Client.Get(ctx, client.ObjectKey{Namespace: previous.Namespace, Name: string(previous.Spec.GatewayClassName)}, gatewayClass)
+	if err != nil {
+		if err := client.IgnoreNotFound(err); err != nil {
+			log.Error(err, "Unable to fetch GatewayClass")
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{}, nil
+	}
+	if !slice.ContainsString(getSupportedClasses(), string(previous.Spec.GatewayClassName)) {
+		// ignore as it may be for a different gateway controller
+		log.Info("Not a Gateway for this controller", "GatewayClassName", previous.Spec.GatewayClassName)
+		return ctrl.Result{}, nil
+	}
+
+	gateway := previous.DeepCopy()
+	statusConditions := []metav1.Condition{}
+	statusConditions = append(statusConditions, metav1.Condition{
+		LastTransitionTime: metav1.Now(),
+		Message:            fmt.Sprintf("Handled by %s", ControllerName),
+		Reason:             string(gatewayv1beta1.GatewayConditionAccepted),
+		Status:             metav1.ConditionTrue,
+		Type:               string(gatewayv1beta1.GatewayConditionAccepted),
+		ObservedGeneration: previous.Generation,
+	})
+
+	clusters := selectClusters(*gateway)
+	if len(clusters) == 0 {
+		statusConditions = append(statusConditions, metav1.Condition{
+			LastTransitionTime: metav1.Now(),
+			Message:            "No clusters match selection",
+			Reason:             string(gatewayv1beta1.GatewayReasonPending),
+			Status:             metav1.ConditionFalse,
+			Type:               string(gatewayv1beta1.GatewayConditionProgrammed),
+			ObservedGeneration: previous.Generation,
+		})
+	} else {
+		applyClusterSyncerAnnotations(gateway, clusters)
+		statusConditions = append(statusConditions, metav1.Condition{
+			LastTransitionTime: metav1.Now(),
+			Message:            fmt.Sprintf("Gateways configured in data plane clusters - [%v]", strings.Join(clusters, ",")),
+			Reason:             string(gatewayv1beta1.GatewayConditionProgrammed),
+			Status:             metav1.ConditionTrue,
+			Type:               string(gatewayv1beta1.GatewayConditionProgrammed),
+			ObservedGeneration: previous.Generation,
+		})
+	}
+
+	if !reflect.DeepEqual(gateway.Annotations, previous.Annotations) {
+		log.Info("Updating Gateway annotations", "gateway", gateway)
+		err = r.Update(ctx, gateway)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+
+	gateway.Status.Conditions = statusConditions
+	if !reflect.DeepEqual(gateway.Status, previous.Status) {
+		log.Info("Updating Gateway status", "gatewayStatus", gateway.Status)
+		err = r.Status().Update(ctx, gateway)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+	}
 
 	return ctrl.Result{}, nil
+}
+
+func applyClusterSyncerAnnotations(gateway *gatewayv1beta1.Gateway, clusters []string) {
+	for _, cluster := range clusters {
+		gateway.Annotations[fmt.Sprintf("%s/%s", ClusterSyncerAnnotation, cluster)] = "True"
+	}
+}
+
+func findConditionByType(conditions []metav1.Condition, conditionType gatewayv1beta1.GatewayConditionType) *metav1.Condition {
+	for _, condition := range conditions {
+		if condition.Type == string(conditionType) {
+			return &condition
+		}
+	}
+	return nil
+}
+
+func selectClusters(gateway gatewayv1beta1.Gateway) []string {
+	if gateway.Annotations == nil {
+		return []string{}
+	}
+
+	selector := gateway.Annotations[GatewayClusterLabelSelectorAnnotation]
+	log.Log.Info("selectClusters", "selector", selector)
+
+	// TODO: Lookup clusters and select based on gateway cluster label selector annotation
+	// HARDCODED IMPLEMENTATION
+	// Issue: https://github.com/Kuadrant/multi-cluster-traffic-controller/issues/52
+	if selector == "type=test" {
+		return []string{"test_cluster_one"}
+	}
+	return []string{}
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		// Uncomment the following line adding a pointer to an instance of the controlled resource as an argument
-		For(&gateway.Gateway{}).
+		For(&gatewayv1beta1.Gateway{}).
+		WithEventFilter(predicate.NewPredicateFuncs(func(object client.Object) bool {
+			gateway := object.(*gatewayv1beta1.Gateway)
+			return slice.ContainsString(getSupportedClasses(), string(gateway.Spec.GatewayClassName))
+		})).
 		Complete(r)
 }
