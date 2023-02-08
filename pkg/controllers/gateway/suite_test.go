@@ -338,7 +338,7 @@ var _ = Describe("GatewayController", func() {
 		})
 
 		It("should NOT match any clusters", func() {
-			gateway.ObjectMeta.Annotations["kuadrant.io/gateway-cluster-label-selector"] = "type=prod"
+			gateway.Annotations["kuadrant.io/gateway-cluster-label-selector"] = "type=prod"
 			Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
 			createdGateway := &gatewayv1beta1.Gateway{}
 			gatewayType := types.NamespacedName{Name: gateway.Name, Namespace: gateway.Namespace}

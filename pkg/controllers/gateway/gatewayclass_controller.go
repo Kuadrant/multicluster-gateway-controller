@@ -64,12 +64,11 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	previous := &gatewayv1beta1.GatewayClass{}
 	err := r.Client.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: req.Name}, previous)
 	if err != nil {
-		if err := client.IgnoreNotFound(err); err == nil {
-			return ctrl.Result{}, nil
-		} else {
+		if err := client.IgnoreNotFound(err); err != nil {
 			log.Error(err, "Unable to fetch GatewayClass")
 			return ctrl.Result{}, err
 		}
+		return ctrl.Result{}, nil
 	}
 
 	if gatewayClassIsAccepted(previous) {
