@@ -8,7 +8,7 @@ spec:
   tls:
   - hosts:
     - webhook.172.18.0.2.nip.io
-    secretName: webhook-tls
+    secretName: mctc-ingress-tls
   rules:
     - host: webhook.172.18.0.2.nip.io
       http:
