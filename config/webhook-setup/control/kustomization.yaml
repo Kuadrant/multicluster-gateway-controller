@@ -2,6 +2,7 @@ namespace: multi-cluster-traffic-controller-system
 
 resources:
   - ingress.yaml
+  - service.yaml
 
 secretGenerator:
 - name: ingress-tls
