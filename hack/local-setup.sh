@@ -34,7 +34,7 @@ ARGOCD_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/argocd
 ISTIO_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/istio
 GATEWAY_API_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/gateway-api
 WEBHOOK_PATH=${LOCAL_SETUP_DIR}/../config/webhook-setup/workload
-TLS_CERT_PATH=${LOCAL_SETUP_DIR}/../config/webhook-setup/tls
+TLS_CERT_PATH=${LOCAL_SETUP_DIR}/../config/webhook-setup/control/tls
 
 set -e pipefail
 
@@ -151,7 +151,6 @@ deployWebhookConfigs(){
   kubectl config use-context kind-${clusterName}
 
   plain=$( cat $TLS_CERT_PATH/tls.crt $TLS_CERT_PATH/tls.crt  )
-  echo $WEBHOOK_PATH/webhook-configs.yaml
   encoded=$( echo "$plain" | base64 )
 
   yq -e  -i ".webhooks[0].clientConfig.caBundle =\"$encoded\"" $WEBHOOK_PATH/webhook-configs.yaml
@@ -202,9 +201,9 @@ if [[ -n "${MCTC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
     installGatewayAPI ${KIND_CLUSTER_WORKLOAD}-${i}
     deployIngressController ${KIND_CLUSTER_WORKLOAD}-${i}
     deployIstio ${KIND_CLUSTER_WORKLOAD}-${i}
+    deployWebhookConfigs ${KIND_CLUSTER_WORKLOAD}-${i}
     deployDashboard ${KIND_CLUSTER_WORKLOAD}-${i} ${i}
     argocdAddCluster ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_WORKLOAD}-${i}
-    deployWebhookConfigs ${KIND_CLUSTER_WORKLOAD}-${i}
     
   done
 fi
