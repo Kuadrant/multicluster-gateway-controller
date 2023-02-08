@@ -63,24 +63,22 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	previous := &gatewayv1beta1.Gateway{}
 	err := r.Client.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: req.Name}, previous)
 	if err != nil {
-		if err := client.IgnoreNotFound(err); err == nil {
-			return ctrl.Result{}, nil
-		} else {
+		if err := client.IgnoreNotFound(err); err != nil {
 			log.Error(err, "Unable to fetch Gateway")
 			return ctrl.Result{}, err
 		}
+		return ctrl.Result{}, nil
 	}
 
 	// Check if the class name is one of ours
 	gatewayClass := &gatewayv1beta1.GatewayClass{}
 	err = r.Client.Get(ctx, client.ObjectKey{Namespace: previous.Namespace, Name: string(previous.Spec.GatewayClassName)}, gatewayClass)
 	if err != nil {
-		if err := client.IgnoreNotFound(err); err == nil {
-			return ctrl.Result{}, nil
-		} else {
+		if err := client.IgnoreNotFound(err); err != nil {
 			log.Error(err, "Unable to fetch GatewayClass")
 			return ctrl.Result{}, err
 		}
+		return ctrl.Result{}, nil
 	}
 	if !slice.ContainsString(getSupportedClasses(), string(previous.Spec.GatewayClassName)) {
 		// ignore as it may be for a different gateway controller
@@ -157,11 +155,16 @@ func findConditionByType(conditions []metav1.Condition, conditionType gatewayv1b
 }
 
 func selectClusters(gateway gatewayv1beta1.Gateway) []string {
-	selector := gateway.ObjectMeta.Annotations[GatewayClusterLabelSelectorAnnotation]
+	if gateway.Annotations == nil {
+		return []string{}
+	}
+
+	selector := gateway.Annotations[GatewayClusterLabelSelectorAnnotation]
 	log.Log.Info("selectClusters", "selector", selector)
 
 	// TODO: Lookup clusters and select based on gateway cluster label selector annotation
 	// HARDCODED IMPLEMENTATION
+	// Issue: https://github.com/Kuadrant/multi-cluster-traffic-controller/issues/52
 	if selector == "type=test" {
 		return []string{"test_cluster_one"}
 	}
