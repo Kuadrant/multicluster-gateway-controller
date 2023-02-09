@@ -31,25 +31,9 @@ When deploying the multi cluster traffic controller using the make targets the f
     make local-setup MCTC_WORKLOAD_CLUSTERS_COUNT=<NUMBER_WORKLOAD_CLUSTER>
     ```
 
-1. Update the manager to contain the necessary environment variable and update the image policy (N.B. Do not copy/paste this, the hyphens from github are bad for the YAML parser):
-    ```
-    containers:
-        - command:
-            - /controller
-            args:
-            - --leader-elect
-            image: controller:latest
-            imagePullPolicy: Never
-            env:
-            - name: AWS_ACCESS_KEY_ID
-            value: <AWS_ACCESS_KEY_ID>
-            - name: AWS_SECRET_ACCESS_KEY
-            value: <AWS_SECRET_ACCESS_KEY>
-            - name: AWS_DNS_PUBLIC_ZONE_ID
-            value: <AWS_DNS_PUBLIC_ZONE_ID>
-            - name: ZONE_ROOT_DOMAIN
-            value: <ZONE_ROOT_DOMAIN>
-    ```
+1. Create two env files:
+    * One called `aws-credentials.env` containing **AWS_ACCESS_KEY_ID** and **AWS_SECRET_ACCESS_KEY**
+    * One called `controller-config` containing **AWS_DNS_PUBLIC_ZONE_ID** and **ZONE_ROOT_DOMAIN**
 
 1. Build the controller image and load it into the control plane
     ```sh
