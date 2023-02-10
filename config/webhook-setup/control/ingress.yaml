@@ -5,8 +5,12 @@ metadata:
   annotations:
     mctc-component: webhook
 spec:
+  tls:
+  - hosts:
+    - webhook.172.18.0.2.nip.io
+    secretName: mctc-ingress-tls
   rules:
-    - host: "webhooks.mctc.io"
+    - host: webhook.172.18.0.2.nip.io
       http:
         paths:
           - path: /

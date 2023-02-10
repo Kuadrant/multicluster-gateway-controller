@@ -63,7 +63,7 @@ test: manifests generate fmt vet envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -coverprofile cover.out
 
 .PHONY: local-setup
-local-setup: kind kustomize helm ## Setup multi cluster traffic controller locally using kind.
+local-setup: kind kustomize helm yq dev-tls ## Setup multi cluster traffic controller locally using kind.
 	./hack/local-setup.sh
 
 ##@ Build
@@ -82,6 +82,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 .PHONY: docker-build
 docker-build: test ## Build docker image with the manager.
 	docker build -t ${IMG} .
+	docker image prune -f --filter label=stage=mctc-builder
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.
@@ -131,6 +132,15 @@ undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/confi
 deploy-sample-applicationset:
 	kubectl apply -f ./samples/argocd-applicationset/echo-applicationset.yaml
 
+.PHONY: dev-tls
+dev-tls:
+	test -s config/webhook-setup/control/tls/tls.crt || openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout config/webhook-setup/control/tls/tls.key -out config/webhook-setup/control/tls/tls.crt -subj "/C=IE/O=Red Hat Ltd/OU=HCG/CN=webhook.172.18.0.2.nip.io" -addext "subjectAltName = DNS:webhook.172.18.0.2.nip.io"
+
+.PHONY: clear-dev-tls
+clear-dev-tls:
+	rm -f config/webhook-setup/control/tls/tls.crt
+	rm -f config/webhook-setup/control/tls/tls.key
+
 ##@ Build Dependencies
 
 ## Location to install dependencies to
@@ -150,6 +160,7 @@ KUSTOMIZE_VERSION ?= v4.5.4
 CONTROLLER_TOOLS_VERSION ?= v0.10.0
 KIND_VERSION ?= v0.14.0
 HELM_VERSION ?= v3.10.0
+YQ_VERSION ?= v4.30.8
 
 KUSTOMIZE_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"
 .PHONY: kustomize
@@ -182,3 +193,8 @@ HELM_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/helm/helm/main/scripts
 helm: $(HELM)
 $(HELM):
 	curl -s $(HELM_INSTALL_SCRIPT) | HELM_INSTALL_DIR=$(LOCALBIN) PATH=$$PATH:$$HELM_INSTALL_DIR bash -s -- --no-sudo --version $(HELM_VERSION)
+
+.PHONY: yq
+yq: $(YQ)
+	test -s $(LOCALBIN)/yq || GOBIN=$(LOCALBIN) go install github.com/mikefarah/yq/v4@$(YQ_VERSION)
+

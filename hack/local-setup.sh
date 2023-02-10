@@ -33,6 +33,8 @@ EXTERNAL_DNS_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/external-dns
 ARGOCD_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/argocd
 ISTIO_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/istio
 GATEWAY_API_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/gateway-api
+WEBHOOK_PATH=${LOCAL_SETUP_DIR}/../config/webhook-setup/workload
+TLS_CERT_PATH=${LOCAL_SETUP_DIR}/../config/webhook-setup/control/tls
 
 set -e pipefail
 
@@ -142,6 +144,20 @@ deployDashboard() {
   echo -ne "\t\tAccess the dashboard using the following Bearer Token: $token\n"
 }
 
+deployWebhookConfigs(){
+  clusterName=${1}
+  echo "Deploying the webhook configuration to (${clusterName})"
+
+  kubectl config use-context kind-${clusterName}
+
+  plain=$( cat $TLS_CERT_PATH/tls.crt $TLS_CERT_PATH/tls.crt  )
+  encoded=$( echo "$plain" | base64 )
+
+  ${YQ_BIN} -e  -i ".webhooks[0].clientConfig.caBundle =\"$encoded\"" $WEBHOOK_PATH/webhook-configs.yaml
+
+  kubectl apply -f $WEBHOOK_PATH/webhook-configs.yaml 
+}
+
 #Delete existing kind clusters
 clusterCount=$(${KIND_BIN} get clusters | grep ${KIND_CLUSTER_PREFIX} | wc -l)
 if ! [[ $clusterCount =~ "0" ]] ; then
@@ -176,6 +192,8 @@ deployDashboard $KIND_CLUSTER_CONTROL_PLANE 0
 #8. Add the control plane cluster
 argocdAddCluster ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_CONTROL_PLANE}
 
+
+
 #9. Add workload clusters if MCTC_WORKLOAD_CLUSTERS_COUNT environment variable is set
 if [[ -n "${MCTC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
   for ((i = 1; i <= ${MCTC_WORKLOAD_CLUSTERS_COUNT}; i++)); do
@@ -183,10 +201,12 @@ if [[ -n "${MCTC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
     installGatewayAPI ${KIND_CLUSTER_WORKLOAD}-${i}
     deployIngressController ${KIND_CLUSTER_WORKLOAD}-${i}
     deployIstio ${KIND_CLUSTER_WORKLOAD}-${i}
+    deployWebhookConfigs ${KIND_CLUSTER_WORKLOAD}-${i}
     deployDashboard ${KIND_CLUSTER_WORKLOAD}-${i} ${i}
     argocdAddCluster ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_WORKLOAD}-${i}
+    
   done
 fi
 
-#10. Ensure the current context points to the control plane cluster
+# #10. Ensure the current context points to the control plane cluster
 kubectl config use-context kind-${KIND_CLUSTER_CONTROL_PLANE}
