@@ -6,7 +6,6 @@ When deploying the multi cluster traffic controller using the make targets the f
 * Gateway API CRDs in the control plane cluster
 * Ingress controller
 * Cert manager
-* External DNS
 * Webhook and webhook config
 * ARGO CD instance
 * K8s Dashboard
@@ -49,17 +48,17 @@ When deploying the multi cluster traffic controller using the make targets the f
             value: <ZONE_ROOT_DOMAIN>
     ```
 
-3. Build the image
+1. Build the image
     ```sh
     make docker-build
     ```
-4. Load the image it into the control plane cluster
+1. Load the image it into the control plane cluster
 
     ```sh
     kind load docker-image controller:latest --name mctc-control-plane  --nodes mctc-control-plane-control-plane
     ```
 
-5. Deploy the controller to the control plane cluster
+1. Deploy the controller to the control plane cluster
     ```sh
     make deploy
     ```
@@ -70,17 +69,13 @@ When deploying the multi cluster traffic controller using the make targets the f
     * One called `controller-config` containing **AWS_DNS_PUBLIC_ZONE_ID** and **ZONE_ROOT_DOMAIN**
 
 
-2.  Setup your local environment 
+1.  Setup your local environment 
 
     ```sh
     make local_setup MCTC_WORKLOAD_CLUSTERS_COUNT=<NUMBER_WORKLOAD_CLUSTER>
     ```
 
-3. Deploy the controller to the control plane cluster
-    ```sh
-    make deploy
-    ```
-4. Deploy the operator
+1. Deploy the operator
     ```sh
     (export $(cat ./controller-config.env | xargs) && export $(cat ./aws-credentials.env | xargs) && make build install run
     ```
