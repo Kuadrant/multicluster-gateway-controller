@@ -4,26 +4,26 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 
-	admissioningress "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/admission/ingress"
-	controllertraffic "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/traffic"
 	"github.com/go-logr/logr"
 	"github.com/go-logr/zapr"
 	log "github.com/sirupsen/logrus"
 	"go.uber.org/zap"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	"net/http"
+	admissioningress "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/admission/ingress"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/ingress"
 )
 
 type WebhookServer struct {
 	Port int
 
-	Hosts        controllertraffic.HostService
-	Certificates controllertraffic.CertificateService
+	Hosts        ingress.HostService
+	Certificates ingress.CertificateService
 }
 
-func NewWebhookServer(hostService controllertraffic.HostService, certsService controllertraffic.CertificateService, port int) *WebhookServer {
+func NewWebhookServer(hostService ingress.HostService, certsService ingress.CertificateService, port int) *WebhookServer {
 	return &WebhookServer{
 		Port: port,
 

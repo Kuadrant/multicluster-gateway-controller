@@ -66,6 +66,7 @@ terraform.rc
 
 # Ignore vscode logs
 .vscode/*.log
+.vs/
 
 # Ignore goland files
 .idea
@@ -82,3 +83,4 @@ config/deploy/**/_*
 
 aws-credentials.env
 controller-config.env
+hack/kubeconfigs/*.kubeconfig

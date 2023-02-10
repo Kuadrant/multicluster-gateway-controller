@@ -23,19 +23,22 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns"
+	jsonpatch "github.com/evanphx/json-patch/v5"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/apimachinery/pkg/util/json"
 	utilclock "k8s.io/utils/clock"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/metadata"
 	v1 "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns"
 )
 
 type ConditionStatus string
@@ -61,10 +64,9 @@ type DNSRecordReconciler struct {
 	DNSZones         []v1.DNSZone
 }
 
-//+kubebuilder:rbac:groups=kuadrant.io,resources=dnsrecords,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=kuadrant.io,resources=dnsrecords/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=kuadrant.io,resources=dnsrecords/finalizers,verbs=update
-
+// +kubebuilder:rbac:groups=kuadrant.io,resources=dnsrecords,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=kuadrant.io,resources=dnsrecords/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=kuadrant.io,resources=dnsrecords/finalizers,verbs=update
 func (r *DNSRecordReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
 
@@ -100,6 +102,10 @@ func (r *DNSRecordReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			return ctrl.Result{}, err
 		}
 	}
+	err = r.applyPatches(dnsRecord)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
 
 	statuses := r.publishRecordToZones(r.DNSZones, dnsRecord)
 	if !dnsZoneStatusSlicesEqual(statuses, dnsRecord.Status.Zones) || dnsRecord.Status.ObservedGeneration != dnsRecord.Generation {
@@ -107,12 +113,77 @@ func (r *DNSRecordReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		dnsRecord.Status.ObservedGeneration = dnsRecord.Generation
 	}
 
-	err = r.Status().Update(ctx, dnsRecord)
+	err = r.Status().Update(ctx, dnsRecord.DeepCopy())
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	err = r.Update(ctx, dnsRecord.DeepCopy())
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
 	return ctrl.Result{}, nil
+}
+
+func (r *DNSRecordReconciler) applyPatches(dnsRecord *v1.DNSRecord) error {
+	//get patches
+	patchStrings := metadata.GetAnnotationsByPrefix(dnsRecord, dns.PATCH_ANNOTATION_PREFIX)
+
+	//no patches to apply
+	if len(patchStrings) <= 0 {
+		log.Log.Info("no dns record patches found", "dns record", dnsRecord.Name)
+		return nil
+	}
+
+	patches := []jsonpatch.Patch{}
+	for _, patchString := range patchStrings {
+		patch, err := jsonpatch.DecodePatch([]byte(patchString))
+		if err != nil {
+			return err
+		}
+		patches = append(patches, patch)
+	}
+	//we have patches to apply, so first reset the spec
+	dnsRecord.Spec = v1.DNSRecordSpec{
+		Endpoints: []*v1.Endpoint{
+			{
+				DNSName: dnsRecord.Name,
+				Targets: []string{
+					"dummy",
+					/*
+						dummy is required for json patching silliness:
+							omitempty makes the array not exist unless there's a value in it.
+							jsonpatch will only add an element to the array if the array exists.
+					*/
+				},
+				RecordType: "A",
+				RecordTTL:  60,
+			},
+		},
+	}
+
+	//apply the patches
+	dnsRecordBytes, err := json.Marshal(dnsRecord)
+	if err != nil {
+		return err
+	}
+
+	for _, patch := range patches {
+		dnsRecordBytes, err = patch.Apply(dnsRecordBytes)
+		if err != nil {
+			return err
+		}
+	}
+
+	err = json.Unmarshal(dnsRecordBytes, dnsRecord)
+	if err != nil {
+		return err
+	}
+	//remove the dummy, see above comment on why the dummy is required
+	dnsRecord.Spec.Endpoints[0].Targets = dnsRecord.Spec.Endpoints[0].Targets[1:]
+
+	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

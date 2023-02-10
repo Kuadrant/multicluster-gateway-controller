@@ -29,3 +29,23 @@ rules:
   - dnsrecords/status
   verbs:
   - get
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - kuadrant.io
+  resources:
+  - dnsrecords/finalizers
+  verbs:
+  - get
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch

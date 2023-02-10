@@ -25,6 +25,7 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/admission"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/gateway"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -35,18 +36,13 @@ import (
 
 	certmanv1 "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
 
-	kuadrantiov1 "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/cluster"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/dnsrecord"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/gateway"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/secret"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/tls"
 	gatewayapi "sigs.k8s.io/gateway-api/apis/v1beta1"
 
+	kuadrantiov1 "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/dnsrecord"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/tls"
 	//+kubebuilder:scaffold:imports
-
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/multiClusterWatch"
 )
 
 var (
@@ -119,17 +115,6 @@ func main() {
 	}
 	dnsService := dns.NewService(mgr.GetClient(), dns.NewSafeHostResolver(dns.NewDefaultHostResolver()), defaultCtrlNS)
 	certService := tls.NewService(mgr.GetClient(), defaultCtrlNS, defaultCertProvider)
-
-	trafficHandler := multiClusterWatch.NewTrafficHandlerFactory(dnsService, certService)
-	if err = (&secret.SecretReconciler{
-		Client:            mgr.GetClient(),
-		Scheme:            mgr.GetScheme(),
-		MCWatch:           &multiClusterWatch.WatchController{Manager: mgr, HandlerFactory: trafficHandler},
-		ClusterReconciler: cluster.NewAdmissionReconciler(mgr.GetClient()),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Secret")
-		os.Exit(1)
-	}
 
 	if err = (&gateway.GatewayClassReconciler{
 		Client: mgr.GetClient(),
