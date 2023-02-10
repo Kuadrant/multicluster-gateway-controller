@@ -20,6 +20,7 @@ LOCAL_SETUP_DIR="$(dirname "${BASH_SOURCE[0]}")"
 source "${LOCAL_SETUP_DIR}"/.setupEnv
 source "${LOCAL_SETUP_DIR}"/.kindUtils
 source "${LOCAL_SETUP_DIR}"/.argocdUtils
+source "${LOCAL_SETUP_DIR}"/.cleanupUtils
 
 KIND_CLUSTER_PREFIX="mctc-"
 KIND_CLUSTER_CONTROL_PLANE="${KIND_CLUSTER_PREFIX}control-plane"
@@ -158,15 +159,15 @@ deployWebhookConfigs(){
   kubectl apply -f $WEBHOOK_PATH/webhook-configs.yaml 
 }
 
-#Delete existing kind clusters
-clusterCount=$(${KIND_BIN} get clusters | grep ${KIND_CLUSTER_PREFIX} | wc -l)
-if ! [[ $clusterCount =~ "0" ]] ; then
-  echo "Deleting previous kind clusters."
-  ${KIND_BIN} get clusters | grep ${KIND_CLUSTER_PREFIX} | xargs ${KIND_BIN} delete clusters
-fi
+cleanup
 
 port80=8082
 port443=8445
+
+# Create network for the clusters
+docker network create -d bridge --subnet 172.32.0.0/16 mctc --gateway 172.32.0.1 \
+  -o "com.docker.network.bridge.enable_ip_masquerade"="true" \
+  -o "com.docker.network.driver.mtu"="1500"
 
 #1. Create Kind control plane cluster
 kindCreateCluster ${KIND_CLUSTER_CONTROL_PLANE} ${port80} ${port443}

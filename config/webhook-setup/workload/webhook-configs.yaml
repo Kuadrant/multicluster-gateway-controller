@@ -6,7 +6,7 @@ webhooks:
   - name: "mctc.ingress.dev"
     clientConfig:
       caBundle: ""
-      url: https://webhook.172.18.0.2.nip.io/ingress
+      url: https://webhook.172.32.0.2.nip.io/ingress
     timeoutSeconds: 5
     sideEffects: NoneOnDryRun
     admissionReviewVersions: ["v1"]
