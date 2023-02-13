@@ -25,14 +25,14 @@ When deploying the multi cluster traffic controller using the make targets the f
 
 1. Setup your local environment 
     ```sh
-    make local_setup MCTC_WORKLOAD_CLUSTERS_COUNT=<NUMBER_WORKLOAD_CLUSTER>
+    make local-setup MCTC_WORKLOAD_CLUSTERS_COUNT=<NUMBER_WORKLOAD_CLUSTER>
     ```
 
-1. Update the manager to contain the necessary environment variable and update the image policy:
+1. Update the manager to contain the necessary environment variable and update the image policy (N.B. Do not copy/paste this, the hyphens from github are bad for the YAML parser):
     ```
     containers:
         - command:
-            - /manager
+            - /controller
             args:
             - --leader-elect
             image: controller:latest
@@ -48,19 +48,20 @@ When deploying the multi cluster traffic controller using the make targets the f
             value: <ZONE_ROOT_DOMAIN>
     ```
 
-1. Build the image
+1. Build the controller image and load it into the control plane
     ```sh
-    make docker-build
-    ```
-1. Load the image it into the control plane cluster
-
-    ```sh
-    kind load docker-image controller:latest --name mctc-control-plane  --nodes mctc-control-plane-control-plane
+    export KUBECONFIG=./hack/kubeconfigs/mctc-control-plane.kubeconfig
+    make kind-load-controller
     ```
 
 1. Deploy the controller to the control plane cluster
     ```sh
-    make deploy
+    make deploy-controller
+    ```
+
+1. (Optional) View the logs of the deployed controller
+    ```sh
+    kubectl logs -f $(kubectl get pods -n multi-cluster-traffic-controller-system | grep "mctc-" | awk '{print $1}') -n multi-cluster-traffic-controller-system
     ```
 
 ## 2. Running locally:
@@ -79,7 +80,20 @@ When deploying the multi cluster traffic controller using the make targets the f
     ```sh
     (export $(cat ./controller-config.env | xargs) && export $(cat ./aws-credentials.env | xargs) && make build install run
     ```
-
+## 3. Run the ingress agent locally
+1. Target the workload cluster you wish to run on:
+```sh
+export KUBECONFIG=./hack/kubeconfigs/mctc-workload-1.kubeconfig
+```
+1. Create the control plane secret
+Update the `samples/syncer/secret.yaml` from the `hack/kubeconfigs/mctc-control-plane.kubeconfig` and apply it:
+```sh
+kubectl create -f samples/syncer/secret.yaml
+```
+1. Run the agent locally:
+```sh
+make run-agent
+```
 
 ## License
 
