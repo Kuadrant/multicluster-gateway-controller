@@ -19,6 +19,9 @@ When deploying the multi cluster traffic controller using the make targets the f
     * `make kind`
 * yq 
     * `make yq`
+* openssl>=3
+    * On macos a later version is available with `brew install openssl`. You'll need to update your PATH as macos provides an older version via libressl as well
+    * On fedora use `dnf install openssl`
 
 ### 1. Running the operator in the cluster:
 
