@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"context"
 
-	trafficctrl "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/traffic"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
+
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/ingress"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns"
 	trafficapi "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/traffic"
-	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -18,6 +19,14 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
+//+kubebuilder:rbac:groups=kuadrant.io,resources=dnsrecords,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=kuadrant.io,resources=dnsrecords/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=kuadrant.io,resources=dnsrecords/finalizers,verbs=update
+//+kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups="",resources=secrets/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups="",resources=secrets/finalizers,verbs=update
+//+kubebuilder:rbac:groups=cert-manager.io,resources=certificates,verbs=get;list;watch;create;update;patch;delete
+
 // TrafficWebhookHandler implements the admission Handler interface with the
 // generic logic to handle requests for an object that can be wrapped around
 // the traffic interface
@@ -27,8 +36,8 @@ type TrafficWebhookHandler[T runtime.Object] struct {
 	// Creates a traffic accessor for the given traffic object
 	NewAccessor func(T) trafficapi.Interface
 
-	HostService trafficctrl.HostService
-	CertService trafficctrl.CertificateService
+	HostService ingress.HostService
+	CertService ingress.CertificateService
 
 	decoder    *admission.Decoder
 	serializer *json.Serializer
@@ -39,8 +48,8 @@ func NewTrafficWebhookHandler[T runtime.Object](
 	newObj func() T,
 	newAccessor func(T) trafficapi.Interface,
 
-	hostService trafficctrl.HostService,
-	certService trafficctrl.CertificateService,
+	hostService ingress.HostService,
+	certService ingress.CertificateService,
 ) (*TrafficWebhookHandler[T], error) {
 	scheme := runtime.NewScheme()
 	if err := addToScheme(scheme); err != nil {
@@ -121,7 +130,7 @@ func (h *TrafficWebhookHandler[T]) handle(ctx context.Context, obj T) (bool, err
 	// no managed host assigned assign one
 	// create empty DNSRecord with assigned host
 	_, managedHostRecords, err := h.HostService.EnsureManagedHost(ctx, trafficAccessor)
-	if err != nil && err != dns.AlreadyAssignedErr {
+	if err != nil && err != dns.ErrAlreadyAssigned {
 		return false, err
 	}
 

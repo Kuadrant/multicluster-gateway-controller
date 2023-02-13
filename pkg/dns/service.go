@@ -7,21 +7,31 @@ import (
 	"strconv"
 	"strings"
 
-	v1 "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns/aws"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/traffic"
 	"github.com/lithammer/shortuuid/v4"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/json"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/metadata"
+	v1 "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns/aws"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/traffic"
 )
 
 const (
-	labelRecordID = "kuadrant.io/record-id"
+	labelRecordID                  = "kuadrant.io/record-id"
+	PATCH_ANNOTATION_PREFIX string = "MCTC_PATCH_"
 )
 
-var AlreadyAssignedErr = fmt.Errorf("managed host already assigned")
+type Patch struct {
+	OP    string      `json:"op"`
+	Path  string      `json:"path"`
+	Value interface{} `json:"value"`
+}
+
+var ErrAlreadyAssigned = fmt.Errorf("managed host already assigned")
 
 type Service struct {
 	controlClient client.Client
@@ -176,7 +186,7 @@ func (s *Service) RemoveEndpoints(ctx context.Context, t traffic.Interface) erro
 	return nil
 }
 
-// EnsureManagedHost will ensure there is at least one managed host for rthe traffic object and return those host and dnsrecords
+// EnsureManagedHost will ensure there is at least one managed host for the traffic object and return those host and dnsrecords
 func (s *Service) EnsureManagedHost(ctx context.Context, t traffic.Interface) ([]string, []*v1.DNSRecord, error) {
 	dnsRecords, err := s.GetDNSRecords(ctx, t)
 	var managedHosts []string
@@ -188,8 +198,9 @@ func (s *Service) EnsureManagedHost(ctx context.Context, t traffic.Interface) ([
 		for _, r := range dnsRecords {
 			managedHosts = append(managedHosts, r.Name)
 		}
-		return managedHosts, dnsRecords, AlreadyAssignedErr
+		return managedHosts, dnsRecords, ErrAlreadyAssigned
 	}
+
 	log.Log.Info("no managed host found generating one")
 	hostKey := shortuuid.NewWithNamespace(t.GetNamespace() + t.GetName())
 	zones := getManagedZones()
@@ -236,6 +247,45 @@ func (s *Service) RegisterHost(ctx context.Context, h string, id string, zone v1
 		}
 	}
 	return &dnsRecord, nil
+}
+
+func (s *Service) PatchTargets(ctx context.Context, targets, hosts []string, clusterID string, remove bool) error {
+	//build patches to add dns targets to all matched DNSRecords
+	patches := []*Patch{}
+	for _, target := range targets {
+		patch := &Patch{
+			OP:    "add",
+			Path:  "/spec/endpoints/0/targets/-",
+			Value: target,
+		}
+		patches = append(patches, patch)
+	}
+	patchAnnotation, err := json.Marshal(patches)
+	if err != nil {
+		return fmt.Errorf("could not convert patches to string. Patches: %+v, error: %v", patches, err)
+	}
+	for _, host := range hosts {
+		if host == "" {
+			continue
+		}
+		dnsRecord := &v1.DNSRecord{}
+		err := s.controlClient.Get(ctx, client.ObjectKey{Name: host, Namespace: s.defaultCtrlNS}, dnsRecord)
+		if err != nil {
+			return err
+		}
+
+		if !remove {
+			metadata.AddAnnotation(dnsRecord, PATCH_ANNOTATION_PREFIX+clusterID, string(patchAnnotation))
+		} else {
+			metadata.RemoveAnnotation(dnsRecord, PATCH_ANNOTATION_PREFIX+clusterID)
+		}
+
+		err = s.controlClient.Update(ctx, dnsRecord)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // this is temporary and will be replaced in the future by CRD resources
