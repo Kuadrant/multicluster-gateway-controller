@@ -23,12 +23,13 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/kubernetes/pkg/util/slice"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/slice"
 )
 
 const (
@@ -78,7 +79,7 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	gatewayclass := previous.DeepCopy()
 	supportedClasses := getSupportedClasses()
-	if !slice.ContainsString(supportedClasses, previous.Name, nil) {
+	if !slice.ContainsString(supportedClasses, previous.Name) {
 		gatewayclass.Status = gatewayv1beta1.GatewayClassStatus{
 			Conditions: []metav1.Condition{
 				{
