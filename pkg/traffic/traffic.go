@@ -4,7 +4,6 @@ import (
 	"context"
 
 	kuadrantv1 "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1"
-	admissionv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -29,7 +28,6 @@ type Interface interface {
 	RemoveTLS(host []string)
 	GetSpec() interface{}
 	GetDNSTargets() ([]kuadrantv1.Target, error)
-	GetWebhookConfigurations(host string, caBundle []byte) ([]*admissionv1.ValidatingWebhookConfiguration, []*admissionv1.MutatingWebhookConfiguration)
 	ExposesOwnController() bool
 }
 

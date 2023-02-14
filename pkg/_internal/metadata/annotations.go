@@ -6,6 +6,23 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+func GetAnnotationsByPrefix(obj metav1.Object, prefix string) []string {
+	annotations := []string{}
+
+	//get any annotations that contain the prefix
+	exists, keys := HasAnnotationsContaining(obj, prefix)
+	if !exists {
+		return annotations
+	}
+	for k, v := range keys {
+		//check the annotation starts with the prefix
+		if strings.HasPrefix(k, prefix) {
+			annotations = append(annotations, v)
+		}
+	}
+	return annotations
+}
+
 func GetAnnotation(obj metav1.Object, key string) string {
 	if !HasAnnotation(obj, key) {
 		return ""

@@ -1,19 +1,20 @@
 package dnsrecord
 
 import (
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/traffic"
 	networkingv1 "k8s.io/api/networking/v1"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/ingress"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/traffic"
+
 	trafficadmission "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/admission/traffic"
-	controllertraffic "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/traffic"
 )
 
 type Handler struct {
 	*trafficadmission.TrafficWebhookHandler[*networkingv1.Ingress]
 }
 
-func CreateHandler(hostService controllertraffic.HostService, certService controllertraffic.CertificateService) (admission.Handler, error) {
+func CreateHandler(hostService ingress.HostService, certService ingress.CertificateService) (admission.Handler, error) {
 	trafficHandler, err := trafficadmission.NewTrafficWebhookHandler(
 		networkingv1.AddToScheme,
 		func() *networkingv1.Ingress { return &networkingv1.Ingress{} },
