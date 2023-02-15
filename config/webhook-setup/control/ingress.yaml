@@ -7,10 +7,10 @@ metadata:
 spec:
   tls:
   - hosts:
-    - webhook.172.18.0.2.nip.io
+    - webhook.172.32.0.2.nip.io
     secretName: mctc-ingress-tls
   rules:
-    - host: webhook.172.18.0.2.nip.io
+    - host: webhook.172.32.0.2.nip.io
       http:
         paths:
           - path: /

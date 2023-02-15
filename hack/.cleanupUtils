@@ -1,0 +1,32 @@
+# shellcheck shell=bash
+
+cleanClusters() {
+	# Delete existing kind clusters
+	clusterCount=$(${KIND_BIN} get clusters | grep ${KIND_CLUSTER_PREFIX} | wc -l)
+	if ! [[ $clusterCount =~ "0" ]] ; then
+		echo "Deleting previous kind clusters."
+		${KIND_BIN} get clusters | grep ${KIND_CLUSTER_PREFIX} | xargs ${KIND_BIN} delete clusters
+	fi	
+}
+
+cleanNetwork() {
+  # Delete the network
+  echo "Deleting mctc network"
+  docker network rm mctc || true
+}
+
+stopProxies() {
+  if [[ -f /tmp/dashboard_pids ]]; then
+    echo "Stopping existing proxies"
+    while read p; do
+      kill $p
+    done </tmp/dashboard_pids
+    rm /tmp/dashboard_pids
+  fi
+}
+
+cleanup() {
+  stopProxies
+  cleanClusters
+  cleanNetwork
+}

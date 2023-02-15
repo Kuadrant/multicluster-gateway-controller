@@ -20,12 +20,11 @@ LOCAL_SETUP_DIR="$(dirname "${BASH_SOURCE[0]}")"
 source "${LOCAL_SETUP_DIR}"/.setupEnv
 source "${LOCAL_SETUP_DIR}"/.kindUtils
 source "${LOCAL_SETUP_DIR}"/.argocdUtils
+source "${LOCAL_SETUP_DIR}"/.cleanupUtils
 
 KIND_CLUSTER_PREFIX="mctc-"
 KIND_CLUSTER_CONTROL_PLANE="${KIND_CLUSTER_PREFIX}control-plane"
 KIND_CLUSTER_WORKLOAD="${KIND_CLUSTER_PREFIX}workload"
-
-BASE_PROXY_PORT=8085
 
 INGRESS_NGINX_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/ingress-nginx
 CERT_MANAGER_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/cert-manager
@@ -132,15 +131,14 @@ deployDashboard() {
   ${KUSTOMIZE_BIN} build config/dashboard | kubectl apply -f -
   token=$(kubectl get secret/admin-user-token -n kubernetes-dashboard -o go-template="{{.data.token | base64decode}}")
 
-  port=$((BASE_PROXY_PORT + portOffset))
+  port=$((proxyPort + portOffset))
 
   kubectl proxy --context kind-${clusterName} --port ${port} &
   proxyPID=$!
+  echo $proxyPID >> /tmp/dashboard_pids
 
   echo -ne "\n\n\tAccess Kubernetes Dashboard\n\n"
   echo -ne "\t\t\t* The dashboard is available at http://localhost:$port/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/\n"
-  echo -ne "\t\t\t* To kill the proxy background process, run:\n"
-  echo -ne "\t\t\t\tkill $proxyPID\n"
   echo -ne "\t\tAccess the dashboard using the following Bearer Token: $token\n"
 }
 
@@ -158,15 +156,16 @@ deployWebhookConfigs(){
   kubectl apply -f $WEBHOOK_PATH/webhook-configs.yaml 
 }
 
-#Delete existing kind clusters
-clusterCount=$(${KIND_BIN} get clusters | grep ${KIND_CLUSTER_PREFIX} | wc -l)
-if ! [[ $clusterCount =~ "0" ]] ; then
-  echo "Deleting previous kind clusters."
-  ${KIND_BIN} get clusters | grep ${KIND_CLUSTER_PREFIX} | xargs ${KIND_BIN} delete clusters
-fi
+cleanup
 
-port80=8082
+port80=9090
 port443=8445
+proxyPort=9200
+
+# Create network for the clusters
+docker network create -d bridge --subnet 172.32.0.0/16 mctc --gateway 172.32.0.1 \
+  -o "com.docker.network.bridge.enable_ip_masquerade"="true" \
+  -o "com.docker.network.driver.mtu"="1500"
 
 #1. Create Kind control plane cluster
 kindCreateCluster ${KIND_CLUSTER_CONTROL_PLANE} ${port80} ${port443}

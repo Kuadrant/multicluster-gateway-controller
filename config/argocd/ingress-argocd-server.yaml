@@ -19,7 +19,7 @@ spec:
                 name: mctc-argocd-server
                 port:
                   number: 80
-    - host: argocd.172.18.0.2.nip.io
+    - host: argocd.172.32.0.2.nip.io
       http:
         paths:
           - path: /
