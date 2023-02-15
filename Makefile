@@ -117,6 +117,11 @@ docker-build-agent: test ## Build docker image with the agent.
 docker-push-agent: ## Push docker image with the controller.
 	docker push ${AGENT_IMG}
 
+.PHONY: kind-load-agent
+kind-load-agent: docker-build-agent
+	kind load docker-image ${AGENT_IMG} --name mctc-workload-1  --nodes mctc-workload-1-control-plane
+
+
 ##@ Deployment
 
 ifndef ignore-not-found
@@ -136,9 +141,20 @@ deploy-controller: manifests kustomize ## Deploy controller to the K8s cluster s
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${CONTROLLER_IMG}
 	$(KUSTOMIZE) build config/default | kubectl apply -f -
 
+.PHONY: deploy-agent
+deploy-agent: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+	cd config/agent && $(KUSTOMIZE) edit set image agent=${AGENT_IMG}
+	$(KUSTOMIZE) build config/agent | kubectl apply -f -
+
 .PHONY: undeploy-controller
-undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
+undeploy-controller: ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	$(KUSTOMIZE) build config/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
+
+
+.PHONY: undeploy-agent
+undeploy-agent: ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
+	$(KUSTOMIZE) build config/agent | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
+
 
 .PHONY: deploy-sample-applicationset
 deploy-sample-applicationset:

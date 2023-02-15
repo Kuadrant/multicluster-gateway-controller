@@ -83,7 +83,22 @@ When deploying the multi cluster traffic controller using the make targets the f
     ```sh
     (export $(cat ./controller-config.env | xargs) && export $(cat ./aws-credentials.env | xargs) && make build install run
     ```
-## 3. Run the ingress agent locally
+
+## 3. Deploy the agent
+1. Update the secret in `config/agent/secret.yaml` with the correct credentials for the control plane. (**N.B.** The server should remain `https://mctc-control-plane-control-plane:6443`)
+
+1. Build the agent image and load it into the workload cluster
+    ```sh
+    export KUBECONFIG=./hack/kubeconfigs/mctc-workload-1.kubeconfig
+    make kind-load-agent
+    ```
+
+1. Deploy the agent to the workload cluster
+    ```sh
+    make deploy-agent
+    ```
+    
+## 4. Run the ingress agent locally
 1. Target the workload cluster you wish to run on:
 ```sh
 export KUBECONFIG=./hack/kubeconfigs/mctc-workload-1.kubeconfig

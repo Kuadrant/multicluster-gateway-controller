@@ -1,0 +1,14 @@
+# Adds namespace to all resources.
+namespace: mctc-system
+resources:
+- role.yaml
+- serviceaccount.yaml
+- rolebinding.yaml
+- secret.yaml
+- agent.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+images:
+- name: agent
+  newName: agent
+  newTag: latest
