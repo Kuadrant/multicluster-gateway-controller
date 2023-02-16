@@ -186,11 +186,6 @@ deployWebhookConfigs(){
 
   kubectl config use-context kind-${clusterName}
 
-  plain=$( cat $TLS_CERT_PATH/tls.crt $TLS_CERT_PATH/tls.crt  )
-  encoded=$( echo "$plain" | base64 )
-
-  ${YQ_BIN} -e  -i ".webhooks[0].clientConfig.caBundle =\"$encoded\"" $WEBHOOK_PATH/webhook-configs.yaml
-
   kubectl apply -f $WEBHOOK_PATH/webhook-configs.yaml
 }
 
