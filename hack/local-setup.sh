@@ -19,6 +19,7 @@
 LOCAL_SETUP_DIR="$(dirname "${BASH_SOURCE[0]}")"
 source "${LOCAL_SETUP_DIR}"/.setupEnv
 source "${LOCAL_SETUP_DIR}"/.kindUtils
+source "${LOCAL_SETUP_DIR}"/.clusterUtils
 source "${LOCAL_SETUP_DIR}"/.argocdUtils
 source "${LOCAL_SETUP_DIR}"/.cleanupUtils
 
@@ -202,6 +203,20 @@ deployWebhookProxy(){
   ${KUSTOMIZE_BIN} --load-restrictor LoadRestrictionsNone build config/webhook-setup/proxy | kubectl apply -f -
 }
 
+deployAgentSecret() {
+  clusterName=${1}
+  echo "Deploying the agent secret to (${clusterName})"
+
+  kubectl config use-context kind-${clusterName}
+
+  kubectl create namespace mctc-system
+
+  makeSecretForCluster $KIND_CLUSTER_CONTROL_PLANE $(kubectl config current-context) |
+  setNamespacedName mctc-system control-plane-cluster |
+  setLabel argocd.argoproj.io/secret-type cluster |
+  kubectl apply -f -
+}
+
 cleanup
 
 port80=9090
@@ -249,6 +264,7 @@ if [[ -n "${MCTC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
     deployWebhookConfigs ${KIND_CLUSTER_WORKLOAD}-${i}
     deployDashboard ${KIND_CLUSTER_WORKLOAD}-${i} ${i}
     argocdAddCluster ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_WORKLOAD}-${i}
+    deployAgentSecret ${KIND_CLUSTER_WORKLOAD}-${i}
   done
 fi
 

@@ -70,8 +70,6 @@ When deploying the multi cluster traffic controller using the make targets the f
     ```
 
 ## 3. Running the agent in the cluster:
-1. Update the secret in `config/agent/secret.yaml` with the correct credentials for the control plane. (**N.B.** The server should remain `https://mctc-control-plane-control-plane:6443`)
-
 1. Build the agent image and load it into the workload cluster
     ```sh
     kubectl config use-context kind-mctc-workload-1 
@@ -88,7 +86,10 @@ When deploying the multi cluster traffic controller using the make targets the f
 ```sh
 export KUBECONFIG=./tmp/kubeconfigs/mctc-workload-1.kubeconfig
 ```
-1. Update the secret in `config/agent/secret.yaml` with the correct credentials for the control plane `tmp/kubeconfigs/mctc-control-plane.kubeconfig` . (**N.B.** The server should be changed to the kind cluster address e.g. `https://127.0.0.1:46419`)
+1. Update the secret in `config/agent/secret.yaml` with the correct credentials for the control plane
+```sh
+make agent-secret
+```
 
 1. Apply the control plane secret
 ```sh
