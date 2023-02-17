@@ -1,0 +1,6 @@
+[allowlist]
+description = "global allow lists"
+paths = [
+    '''config/webhook-setup/control/tls/tls.crt''',
+    '''config/webhook-setup/control/tls/tls.key''',
+]
