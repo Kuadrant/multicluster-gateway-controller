@@ -27,6 +27,7 @@ KIND_CLUSTER_CONTROL_PLANE="${KIND_CLUSTER_PREFIX}control-plane"
 KIND_CLUSTER_WORKLOAD="${KIND_CLUSTER_PREFIX}workload"
 
 INGRESS_NGINX_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/ingress-nginx
+METALLB_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/metallb
 CERT_MANAGER_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/cert-manager
 EXTERNAL_DNS_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/external-dns
 ARGOCD_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/argocd
@@ -44,6 +45,34 @@ deployIngressController () {
   ${KUSTOMIZE_BIN} build ${INGRESS_NGINX_KUSTOMIZATION_DIR} --enable-helm --helm-command ${HELM_BIN} | kubectl apply -f -
   echo "Waiting for deployments to be ready ..."
   kubectl -n ingress-nginx wait --timeout=300s --for=condition=Available deployments --all
+}
+
+deployMetalLB () {
+  clusterName=${1}
+  metalLBSubnet=${2}
+
+  kubectl config use-context kind-${clusterName}
+  echo "Deploying MetalLB to ${clusterName}"
+  ${KUSTOMIZE_BIN} build ${METALLB_KUSTOMIZATION_DIR} | kubectl apply -f -
+  echo "Waiting for deployments to be ready ..."
+  kubectl -n metallb-system wait --for=condition=ready pod --selector=app=metallb --timeout=90s
+  echo "Creating MetalLB AddressPool"
+  cat <<EOF | kubectl apply -f -
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: example
+  namespace: metallb-system
+spec:
+  addresses:
+  - 172.32.${metalLBSubnet}.0/24
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: empty
+  namespace: metallb-system
+EOF
 }
 
 deployCertManager() {
@@ -169,6 +198,7 @@ cleanup
 port80=9090
 port443=8445
 proxyPort=9200
+metalLBSubnetStart=200
 
 # Create network for the clusters
 docker network create -d bridge --subnet 172.32.0.0/16 mctc --gateway 172.32.0.1 \
@@ -205,6 +235,7 @@ if [[ -n "${MCTC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
     kindCreateCluster ${KIND_CLUSTER_WORKLOAD}-${i} $((${port80} + ${i})) $((${port443} + ${i}))
     installGatewayAPI ${KIND_CLUSTER_WORKLOAD}-${i}
     deployIngressController ${KIND_CLUSTER_WORKLOAD}-${i}
+    deployMetalLB ${KIND_CLUSTER_WORKLOAD}-${i} $((${metalLBSubnetStart} + ${i} - 1))
     deployIstio ${KIND_CLUSTER_WORKLOAD}-${i}
     deployKuadrant ${KIND_CLUSTER_WORKLOAD}-${i}
     deployWebhookConfigs ${KIND_CLUSTER_WORKLOAD}-${i}
