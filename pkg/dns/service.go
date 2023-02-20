@@ -48,7 +48,7 @@ func NewService(controlClient client.Client, hostResolv HostResolver, defaultCtr
 
 func (s *Service) resolveIPS(ctx context.Context, t traffic.Interface) ([]string, error) {
 	activeDNSTargetIPs := []string{}
-	targets, err := t.GetDNSTargets()
+	targets, err := t.GetDNSTargets(ctx)
 	if err != nil {
 		return nil, err
 	}
