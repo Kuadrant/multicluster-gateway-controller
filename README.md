@@ -33,7 +33,7 @@ When deploying the multi cluster traffic controller using the make targets the f
 
 1. Create two env files:
     * One called `aws-credentials.env` containing **AWS_ACCESS_KEY_ID** and **AWS_SECRET_ACCESS_KEY**
-    * One called `controller-config` containing **AWS_DNS_PUBLIC_ZONE_ID** and **ZONE_ROOT_DOMAIN**
+    * One called `controller-config.env` containing **AWS_DNS_PUBLIC_ZONE_ID** and **ZONE_ROOT_DOMAIN**
 
 1. Build the controller image and load it into the control plane
     ```sh
@@ -54,7 +54,7 @@ When deploying the multi cluster traffic controller using the make targets the f
 ## 2. Running locally:
 1. Create two env files:
     * One called `aws-credentials.env` containing **AWS_ACCESS_KEY_ID** and **AWS_SECRET_ACCESS_KEY**
-    * One called `controller-config` containing **AWS_DNS_PUBLIC_ZONE_ID** and **ZONE_ROOT_DOMAIN**
+    * One called `controller-config.env` containing **AWS_DNS_PUBLIC_ZONE_ID** and **ZONE_ROOT_DOMAIN**
 
 
 1.  Setup your local environment 
