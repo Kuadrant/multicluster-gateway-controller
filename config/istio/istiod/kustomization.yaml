@@ -10,3 +10,10 @@ helmCharts:
     releaseName: mctc
     namespace: istio
     includeCRDs: true
+
+# Ensure default config is correct for local environment
+patches:
+- path: configmap.yaml
+  target:
+    kind: ConfigMap
+    name: istio
