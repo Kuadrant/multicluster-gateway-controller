@@ -86,9 +86,9 @@ When deploying the multi cluster traffic controller using the make targets the f
 ## 4. Running the agent locally
 1. Target the workload cluster you wish to run on:
 ```sh
-kubectl config use-context kind-mctc-workload-1
+export KUBECONFIG=./tmp/kubeconfigs/mctc-workload-1.kubeconfig
 ```
-1. Update the secret in `config/agent/secret.yaml` with the correct credentials for the control plane `tmp/kubeconfigs/mctc-control-plane.kubeconfig` . (**N.B.** The server should be chnaged to the kind cluster address e.g. ``)
+1. Update the secret in `config/agent/secret.yaml` with the correct credentials for the control plane `tmp/kubeconfigs/mctc-control-plane.kubeconfig` . (**N.B.** The server should be changed to the kind cluster address e.g. `https://127.0.0.1:46419`)
 
 1. Apply the control plane secret
 ```sh
