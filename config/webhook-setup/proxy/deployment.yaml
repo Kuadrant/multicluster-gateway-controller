@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webhook-proxy
+  namespace: system
+spec:
+  selector:
+    matchLabels:
+      control-plane: webhook-proxy
+  replicas: 1
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: nginx
+      labels:
+        control-plane: webhook-proxy
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.14.2
+        ports:
+        - containerPort: 8082
+          name: webhooks
+          protocol: TCP
+        volumeMounts:
+        - name: nginx-config-volume
+          mountPath: /etc/nginx
+      volumes:
+      - name: nginx-config-volume
+        configMap:
+          name: mctc-webhook-proxy-conf
+      

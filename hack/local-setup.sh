@@ -193,6 +193,15 @@ deployWebhookConfigs(){
   kubectl apply -f $WEBHOOK_PATH/webhook-configs.yaml
 }
 
+deployWebhookProxy(){
+  clusterName=${1}
+  echo "Deploying the webhook proxy to (${clusterName})"
+
+  kubectl config use-context kind-${clusterName}
+
+  ${KUSTOMIZE_BIN} --load-restrictor LoadRestrictionsNone build config/webhook-setup/proxy | kubectl apply -f -
+}
+
 cleanup
 
 port80=9090
@@ -225,6 +234,8 @@ deployDashboard $KIND_CLUSTER_CONTROL_PLANE 0
 
 #7. Add the control plane cluster
 argocdAddCluster ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_CONTROL_PLANE}
+
+deployWebhookProxy ${KIND_CLUSTER_CONTROL_PLANE}
 
 #8. Add workload clusters if MCTC_WORKLOAD_CLUSTERS_COUNT environment variable is set
 if [[ -n "${MCTC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
