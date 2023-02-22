@@ -4,4 +4,6 @@ source "${LOCAL_SETUP_DIR}"/.cleanupUtils
 
 KIND_CLUSTER_PREFIX="mctc-"
 
+set -e pipefail
+
 cleanup

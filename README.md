@@ -23,7 +23,7 @@ When deploying the multi cluster traffic controller using the make targets the f
     * On macos a later version is available with `brew install openssl`. You'll need to update your PATH as macos provides an older version via libressl as well
     * On fedora use `dnf install openssl`
 
-### 1. Running the operator in the cluster:
+### 1. Running the controller in the cluster:
 
 
 1. Setup your local environment 
@@ -37,8 +37,8 @@ When deploying the multi cluster traffic controller using the make targets the f
 
 1. Build the controller image and load it into the control plane
     ```sh
-    export KUBECONFIG=./hack/kubeconfigs/mctc-control-plane.kubeconfig
-    make kind-load-controller
+   kubectl config use-context kind-mctc-control-plane 
+   make kind-load-controller
     ```
 
 1. Deploy the controller to the control plane cluster
@@ -51,7 +51,7 @@ When deploying the multi cluster traffic controller using the make targets the f
     kubectl logs -f $(kubectl get pods -n multi-cluster-traffic-controller-system | grep "mctc-" | awk '{print $1}') -n multi-cluster-traffic-controller-system
     ```
 
-## 2. Running locally:
+## 2. Running the controller locally:
 1. Create two env files:
     * One called `aws-credentials.env` containing **AWS_ACCESS_KEY_ID** and **AWS_SECRET_ACCESS_KEY**
     * One called `controller-config.env` containing **AWS_DNS_PUBLIC_ZONE_ID** and **ZONE_ROOT_DOMAIN**
@@ -63,17 +63,18 @@ When deploying the multi cluster traffic controller using the make targets the f
     make local_setup MCTC_WORKLOAD_CLUSTERS_COUNT=<NUMBER_WORKLOAD_CLUSTER>
     ```
 
-1. Deploy the operator
+1. Run the controller locally:
     ```sh
-    (export $(cat ./controller-config.env | xargs) && export $(cat ./aws-credentials.env | xargs) && make build install run
+    kubectl config use-context kind-mctc-control-plane 
+    (export $(cat ./controller-config.env | xargs) && export $(cat ./aws-credentials.env | xargs) && make build-controller install run-controller)
     ```
 
-## 3. Deploy the agent
+## 3. Running the agent in the cluster:
 1. Update the secret in `config/agent/secret.yaml` with the correct credentials for the control plane. (**N.B.** The server should remain `https://mctc-control-plane-control-plane:6443`)
 
 1. Build the agent image and load it into the workload cluster
     ```sh
-    export KUBECONFIG=./hack/kubeconfigs/mctc-workload-1.kubeconfig
+    kubectl config use-context kind-mctc-workload-1 
     make kind-load-agent
     ```
 
@@ -82,19 +83,21 @@ When deploying the multi cluster traffic controller using the make targets the f
     make deploy-agent
     ```
     
-## 4. Run the ingress agent locally
+## 4. Running the agent locally
 1. Target the workload cluster you wish to run on:
 ```sh
-export KUBECONFIG=./hack/kubeconfigs/mctc-workload-1.kubeconfig
+kubectl config use-context kind-mctc-workload-1
 ```
-1. Create the control plane secret
-Update the `samples/syncer/secret.yaml` from the `hack/kubeconfigs/mctc-control-plane.kubeconfig` and apply it:
+1. Update the secret in `config/agent/secret.yaml` with the correct credentials for the control plane `tmp/kubeconfigs/mctc-control-plane.kubeconfig` . (**N.B.** The server should be chnaged to the kind cluster address e.g. ``)
+
+1. Apply the control plane secret
 ```sh
-kubectl create -f samples/syncer/secret.yaml
+kubectl create ns mctc-system
+kubectl create -f config/agent/secret.yaml
 ```
 1. Run the agent locally:
 ```sh
-make run-agent
+make build-agent run-agent
 ```
 
 ## License

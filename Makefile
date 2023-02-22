@@ -3,13 +3,6 @@
 TAG ?= latest
 CONTROLLER_IMG ?= controller:$(TAG)
 AGENT_IMG ?= agent:$(TAG)
-AWS_ENVVARS_FILE ?= aws-credentials.env
-CONTROLLER_ENVVARS_FILE ?= controller-config.env
-
-include $(CONTROLLER_ENVVARS_FILE)
-include $(AWS_ENVVARS_FILE)
-export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_DNS_PUBLIC_ZONE_ID ZONE_ROOT_DOMAIN
-
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.25.0
@@ -48,6 +41,11 @@ help: ## Display this help.
 
 ##@ Development
 
+.PHONY: clean
+clean: ## Clean up temporary files.
+	-rm -rf ./bin/*
+	-rm -rf ./tmp
+
 .PHONY: manifests
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) rbac:roleName=manager-role crd paths="./..." output:crd:artifacts:config=config/crd/bases
@@ -77,27 +75,28 @@ local-setup: kind kustomize helm yq dev-tls ## Setup multi cluster traffic contr
 	./hack/local-setup.sh
 
 .PHONY: local-cleanup
-local-cleanup: kind ## Cleanup resources created by local-setup
+local-cleanup: kind clear-dev-tls  ## Cleanup resources created by local-setup
 	./hack/local-cleanup.sh
+	$(MAKE) clean
 
 ##@ Build
+
+.PHONY: build
+build: build-controller build-agent ## Build all binaries.
+
 .PHONY: build-controller
 build-controller: manifests generate fmt vet ## Build controller binary.
 	go build -o bin/controller ./cmd/controller/main.go
 
 .PHONY: run-controller
-run-controller: manifests generate fmt vet  install
+run-controller: manifests generate fmt vet install ## Run controller from your host.
 	go run ./cmd/controller/main.go
 
 build-agent: manifests generate fmt vet ## Build agent binary.
 	go build -o bin/agent ./cmd/agent/main.go
 
-.PHONY: run
-run: manifests generate fmt vet ## Run a controller from your host.
-	go run ./main.go
-
 .PHONY: run-agent
-run-agent: manifests generate fmt vet install
+run-agent: manifests generate fmt vet install ## Run agent from your host.
 	go run ./cmd/agent/main.go
 
 .PHONY: docker-build-controller
@@ -164,14 +163,19 @@ undeploy-agent: ## Undeploy controller from the K8s cluster specified in ~/.kube
 deploy-sample-applicationset:
 	kubectl apply -f ./samples/argocd-applicationset/echo-applicationset.yaml
 
+DEV_TLS_DIR = config/webhook-setup/control/tls
+DEV_TLS_CRT ?= $(DEV_TLS_DIR)/tls.crt
+DEV_TLS_KEY ?= $(DEV_TLS_DIR)/tls.key
+
 .PHONY: dev-tls
-dev-tls:
-	test -s config/webhook-setup/control/tls/tls.crt || openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout config/webhook-setup/control/tls/tls.key -out config/webhook-setup/control/tls/tls.crt -subj "/C=IE/O=Red Hat Ltd/OU=HCG/CN=webhook.172.32.0.2.nip.io" -addext "subjectAltName = DNS:webhook.172.32.0.2.nip.io"
+dev-tls: $(DEV_TLS_CRT) ## Generate dev tls webhook cert if necessary.
+$(DEV_TLS_CRT):
+	openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout $(DEV_TLS_KEY) -out $(DEV_TLS_CRT) -subj "/C=IE/O=Red Hat Ltd/OU=HCG/CN=webhook.172.32.0.1.nip.io" -addext "subjectAltName = DNS:webhook.172.32.0.1.nip.io"
 
 .PHONY: clear-dev-tls
 clear-dev-tls:
-	rm -f config/webhook-setup/control/tls/tls.crt
-	rm -f config/webhook-setup/control/tls/tls.key
+	-rm -f $(DEV_TLS_CRT)
+	-rm -f $(DEV_TLS_KEY)
 
 ##@ Build Dependencies
 
