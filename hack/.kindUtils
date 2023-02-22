@@ -25,6 +25,6 @@ nodes:
     hostPort: ${port443}
     protocol: TCP
 EOF
-mkdir -p ./hack/kubeconfigs
-kind get kubeconfig --name ${cluster} > ./hack/kubeconfigs/${cluster}.kubeconfig 
+mkdir -p ./tmp/kubeconfigs
+kind get kubeconfig --name ${cluster} > ./tmp/kubeconfigs/${cluster}.kubeconfig
 }

@@ -150,7 +150,7 @@ installGatewayAPI() {
 
 deployKuadrant(){
   clusterName=${1}
-  kubectl config use-context kind-${clusterName} 
+  kubectl config use-context kind-${clusterName}
 
   echo "Installing Kuadrant in ${clusterName}"
   ${KUSTOMIZE_BIN} build config/kuadrant | kubectl apply -f -
@@ -162,7 +162,7 @@ deployDashboard() {
 
   echo "Deploying Kubernetes Dashboard to (${clusterName})"
 
-  kubectl config use-context kind-${clusterName} 
+  kubectl config use-context kind-${clusterName}
 
   kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.7.0/aio/deploy/recommended.yaml
   ${KUSTOMIZE_BIN} build config/dashboard | kubectl apply -f -
@@ -190,7 +190,7 @@ deployWebhookConfigs(){
 
   ${YQ_BIN} -e  -i ".webhooks[0].clientConfig.caBundle =\"$encoded\"" $WEBHOOK_PATH/webhook-configs.yaml
 
-  kubectl apply -f $WEBHOOK_PATH/webhook-configs.yaml 
+  kubectl apply -f $WEBHOOK_PATH/webhook-configs.yaml
 }
 
 cleanup
@@ -217,19 +217,16 @@ deployIngressController ${KIND_CLUSTER_CONTROL_PLANE}
 #4. Deploy cert manager
 deployCertManager ${KIND_CLUSTER_CONTROL_PLANE}
 
-#5. Deploy external dns
-deployExternalDNS ${KIND_CLUSTER_CONTROL_PLANE}
-
-#6. Deploy argo cd
+#5. Deploy argo cd
 deployArgoCD ${KIND_CLUSTER_CONTROL_PLANE}
 
-#7. Deploy Dashboard
+#6. Deploy Dashboard
 deployDashboard $KIND_CLUSTER_CONTROL_PLANE 0
 
-#8. Add the control plane cluster
+#7. Add the control plane cluster
 argocdAddCluster ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_CONTROL_PLANE}
 
-#9. Add workload clusters if MCTC_WORKLOAD_CLUSTERS_COUNT environment variable is set
+#8. Add workload clusters if MCTC_WORKLOAD_CLUSTERS_COUNT environment variable is set
 if [[ -n "${MCTC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
   for ((i = 1; i <= ${MCTC_WORKLOAD_CLUSTERS_COUNT}; i++)); do
     kindCreateCluster ${KIND_CLUSTER_WORKLOAD}-${i} $((${port80} + ${i})) $((${port443} + ${i}))
@@ -241,8 +238,8 @@ if [[ -n "${MCTC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
     deployWebhookConfigs ${KIND_CLUSTER_WORKLOAD}-${i}
     deployDashboard ${KIND_CLUSTER_WORKLOAD}-${i} ${i}
     argocdAddCluster ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_WORKLOAD}-${i}
-  done 
+  done
 fi
 
-#10. Ensure the current context points to the control plane cluster
+#9. Ensure the current context points to the control plane cluster
 kubectl config use-context kind-${KIND_CLUSTER_CONTROL_PLANE}

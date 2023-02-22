@@ -81,6 +81,5 @@ config/deploy/**/_*
 
 *__
 
-aws-credentials.env
-controller-config.env
-hack/kubeconfigs/*.kubeconfig
+aws-credentials*.env
+controller-config*.env
