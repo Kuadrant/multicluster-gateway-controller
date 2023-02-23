@@ -75,7 +75,7 @@ local-setup: kind kustomize helm yq dev-tls ## Setup multi cluster traffic contr
 	./hack/local-setup.sh
 
 .PHONY: local-cleanup
-local-cleanup: kind clear-dev-tls  ## Cleanup resources created by local-setup
+local-cleanup: kind ## Cleanup resources created by local-setup
 	./hack/local-cleanup.sh
 	$(MAKE) clean
 
