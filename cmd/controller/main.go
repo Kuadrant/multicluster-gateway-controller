@@ -90,7 +90,7 @@ func main() {
 		Port:                   9443,
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "fb80029c.kuadrant.io",
+		LeaderElectionID:       "fb80029c-controller.kuadrant.io",
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")

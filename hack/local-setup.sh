@@ -200,14 +200,20 @@ deployWebhookProxy(){
 
 deployAgentSecret() {
   clusterName=${1}
+  localAccess=${2:=LOCAL_ACCESS}
+  if [ $localAccess == "true" ]; then
+    secretName=control-plane-cluster
+  else
+    secretName=control-plane-cluster-internal
+  fi
   echo "Deploying the agent secret to (${clusterName})"
 
   kubectl config use-context kind-${clusterName}
 
-  kubectl create namespace mctc-system
+  kubectl create namespace mctc-system || true
 
-  makeSecretForCluster $KIND_CLUSTER_CONTROL_PLANE $(kubectl config current-context) |
-  setNamespacedName mctc-system control-plane-cluster |
+  makeSecretForCluster $KIND_CLUSTER_CONTROL_PLANE $(kubectl config current-context) $localAccess |
+  setNamespacedName mctc-system ${secretName} |
   setLabel argocd.argoproj.io/secret-type cluster |
   kubectl apply -f -
 }
@@ -259,7 +265,8 @@ if [[ -n "${MCTC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
     deployWebhookConfigs ${KIND_CLUSTER_WORKLOAD}-${i}
     deployDashboard ${KIND_CLUSTER_WORKLOAD}-${i} ${i}
     argocdAddCluster ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_WORKLOAD}-${i}
-    deployAgentSecret ${KIND_CLUSTER_WORKLOAD}-${i}
+    deployAgentSecret ${KIND_CLUSTER_WORKLOAD}-${i} "true"
+    deployAgentSecret ${KIND_CLUSTER_WORKLOAD}-${i} "false"
   done
 fi
 
