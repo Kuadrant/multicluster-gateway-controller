@@ -4,9 +4,14 @@ makeSecretForCluster() {
   local clusterName=$1
   local targetCluster=$2
   local targetClusterName=${targetCluster:=$clusterName}
+  local localAccess=${LOCAL_ACCESS:="false"}
+
+  if [ $localAccess == "false" ]; then
+    internalFlag="--internal"
+  fi
 
   local tmpfile=$(mktemp /tmp/kubeconfig-internal.XXXXXX)
-  ${KIND_BIN} export kubeconfig -q --internal --name ${clusterName} --kubeconfig ${tmpfile}
+  ${KIND_BIN} export kubeconfig -q $internalFlag --name ${clusterName} --kubeconfig ${tmpfile}
   local server=$(kubectl --kubeconfig ${tmpfile} config view -o jsonpath="{$.clusters[?(@.name == 'kind-${clusterName}')].cluster.server}")
   local caData=$(kubectl --kubeconfig ${tmpfile} config view --raw -o jsonpath="{$.clusters[?(@.name == 'kind-${clusterName}')].cluster.certificate-authority-data}")
   local certData=$(kubectl --kubeconfig ${tmpfile} config view --raw -o jsonpath="{$.users[?(@.name == 'kind-${clusterName}')].user.client-certificate-data}")

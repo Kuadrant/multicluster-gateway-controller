@@ -88,7 +88,9 @@ export KUBECONFIG=./tmp/kubeconfigs/mctc-workload-1.kubeconfig
 ```
 1. Update the secret in `config/agent/secret.yaml` with the correct credentials for the control plane
 ```sh
-make agent-secret
+# Setting LOCAL_ACCESS=true will generate an address that can be reached
+# from the local host
+LOCAL_ACCESS=true make agent-secret
 ```
 
 1. Apply the control plane secret
