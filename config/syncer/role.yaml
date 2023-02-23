@@ -6,15 +6,6 @@ metadata:
   name: agent-role
 rules:
 - apiGroups:
-  - "networking.k8s.io"
-  resources:
-  - ingresses
-  verbs:
-  - get
-  - update
-  - watch
-  - list
-- apiGroups:
   - ""
   resources:
   - configmaps
@@ -46,3 +37,28 @@ rules:
   verbs:
   - create
   - patch
+
+- apiGroups:
+    - "gateway.networking.k8s.io"
+  resources:
+    - gateways
+  verbs:
+    - get
+    - list
+    - watch
+    - create
+    - update
+    - patch
+    - delete
+- apiGroups:
+    - ""
+  resources:
+    - namespaces
+  verbs:
+    - get
+    - list
+    - watch
+    - create
+    - update
+    - patch
+    - delete

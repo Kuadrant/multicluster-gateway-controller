@@ -126,8 +126,6 @@ func (c *Controller) process(ctx context.Context, gvr schema.GroupVersionResourc
 		return nil, nil
 	}
 
-	downstreamNamespace := downstreamNamespace
-
 	// get the upstream object
 	upstreamUnstructuredObject, err := c.upstreamClient.Resource(gvr).Namespace(upstreamNamespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil && !errors.IsNotFound(err) {

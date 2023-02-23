@@ -21,6 +21,7 @@ spec:
         args:
         - -control-plane-config-namespace=mctc-system
         - -control-plane-config-name=control-plane-cluster-internal
+        - -synced-resources=gateways.v1beta1.gateway.networking.k8s.io
         image: syncer:latest
         imagePullPolicy: Never
         name: syncer

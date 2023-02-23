@@ -118,13 +118,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	err = startSyncers(ctrl.SetupSignalHandler(), syncedResources, client.ObjectKey{Namespace: controlPlaneConfigSecretNamespace, Name: controlPlaneConfigSecretName}, mgr)
+	ctx := ctrl.SetupSignalHandler()
+	err = startSyncers(ctx, syncedResources, client.ObjectKey{Namespace: controlPlaneConfigSecretNamespace, Name: controlPlaneConfigSecretName}, mgr)
 	if err != nil {
 		setupLog.Error(err, "unable to start syncers")
 		os.Exit(1)
 	}
 	setupLog.Info("starting manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+	if err := mgr.Start(ctx); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
@@ -157,8 +158,11 @@ func startSyncers(ctx context.Context, GVRs []string, secretRef client.ObjectKey
 		return fmt.Errorf("unable to create client from control plane rest config: %v", err)
 	}
 	informerFactory := dynamicinformer.NewDynamicSharedInformerFactory(upstreamClient, DEFAULT_RESYNC)
+	logger.Info("starting informer")
 	informerFactory.Start(ctx.Done())
+	logger.Info("waiting for cache sync")
 	informerFactory.WaitForCacheSync(ctx.Done())
+	logger.Info("cache sync complete")
 
 	specSyncConfig := syncer.Config{
 		UpstreamClientConfig: upstreamRestConfig,
