@@ -1,6 +1,0 @@
-resources:
-  - namespace.yaml
-
-bases:
-  - ./base
-  - ./istiod

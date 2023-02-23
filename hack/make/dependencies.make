@@ -11,6 +11,8 @@ CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 KIND ?= $(LOCALBIN)/kind
 HELM ?= $(LOCALBIN)/helm
+ISTIOCTL ?= $(LOCALBIN)/istioctl
+
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v4.5.4
@@ -18,6 +20,8 @@ CONTROLLER_TOOLS_VERSION ?= v0.10.0
 KIND_VERSION ?= v0.17.0
 HELM_VERSION ?= v3.10.0
 YQ_VERSION ?= v4.30.8
+ISTIOVERSION ?= 1.17.0
+
 
 KUSTOMIZE_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"
 .PHONY: kustomize
@@ -54,4 +58,12 @@ $(HELM):
 .PHONY: yq
 yq: $(YQ)
 	test -s $(LOCALBIN)/yq || GOBIN=$(LOCALBIN) go install github.com/mikefarah/yq/v4@$(YQ_VERSION)
+
+.PHONY: istioctl
+istioctl: $(ISTIOCTL)
+$(ISTIOCTL):
+	$(eval ISTIO_TMP := $(shell mktemp -d))
+	cd $(ISTIO_TMP); curl -sSL https://istio.io/downloadIstio | ISTIO_VERSION=$(ISTIOVERSION) sh -
+	cp $(ISTIO_TMP)/istio-$(ISTIOVERSION)/bin/istioctl ${ISTIOCTL}
+	-rm -rf $(TMP)	
 
