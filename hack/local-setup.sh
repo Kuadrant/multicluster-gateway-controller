@@ -19,6 +19,7 @@
 LOCAL_SETUP_DIR="$(dirname "${BASH_SOURCE[0]}")"
 source "${LOCAL_SETUP_DIR}"/.setupEnv
 source "${LOCAL_SETUP_DIR}"/.kindUtils
+source "${LOCAL_SETUP_DIR}"/.clusterUtils
 source "${LOCAL_SETUP_DIR}"/.argocdUtils
 source "${LOCAL_SETUP_DIR}"/.cleanupUtils
 
@@ -185,11 +186,6 @@ deployWebhookConfigs(){
 
   kubectl config use-context kind-${clusterName}
 
-  plain=$( cat $TLS_CERT_PATH/tls.crt $TLS_CERT_PATH/tls.crt  )
-  encoded=$( echo "$plain" | base64 )
-
-  ${YQ_BIN} -e  -i ".webhooks[0].clientConfig.caBundle =\"$encoded\"" $WEBHOOK_PATH/webhook-configs.yaml
-
   kubectl apply -f $WEBHOOK_PATH/webhook-configs.yaml
 }
 
@@ -200,6 +196,20 @@ deployWebhookProxy(){
   kubectl config use-context kind-${clusterName}
 
   ${KUSTOMIZE_BIN} --load-restrictor LoadRestrictionsNone build config/webhook-setup/proxy | kubectl apply -f -
+}
+
+deployAgentSecret() {
+  clusterName=${1}
+  echo "Deploying the agent secret to (${clusterName})"
+
+  kubectl config use-context kind-${clusterName}
+
+  kubectl create namespace mctc-system
+
+  makeSecretForCluster $KIND_CLUSTER_CONTROL_PLANE $(kubectl config current-context) |
+  setNamespacedName mctc-system control-plane-cluster |
+  setLabel argocd.argoproj.io/secret-type cluster |
+  kubectl apply -f -
 }
 
 cleanup
@@ -249,6 +259,7 @@ if [[ -n "${MCTC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
     deployWebhookConfigs ${KIND_CLUSTER_WORKLOAD}-${i}
     deployDashboard ${KIND_CLUSTER_WORKLOAD}-${i} ${i}
     argocdAddCluster ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_WORKLOAD}-${i}
+    deployAgentSecret ${KIND_CLUSTER_WORKLOAD}-${i}
   done
 fi
 

@@ -75,7 +75,7 @@ local-setup: kind kustomize helm yq dev-tls ## Setup multi cluster traffic contr
 	./hack/local-setup.sh
 
 .PHONY: local-cleanup
-local-cleanup: kind clear-dev-tls  ## Cleanup resources created by local-setup
+local-cleanup: kind ## Cleanup resources created by local-setup
 	./hack/local-cleanup.sh
 	$(MAKE) clean
 
@@ -144,8 +144,12 @@ deploy-controller: manifests kustomize ## Deploy controller to the K8s cluster s
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${CONTROLLER_IMG}
 	$(KUSTOMIZE) --load-restrictor LoadRestrictionsNone build config/deploy/local | kubectl apply -f -
 
+.PHONY: agent-secret
+agent-secret: kustomize kind yq
+	./hack/gen-agent-secret.sh
+	
 .PHONY: deploy-agent
-deploy-agent: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+deploy-agent: manifests kustomize kind yq agent-secret ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	cd config/agent && $(KUSTOMIZE) edit set image agent=${AGENT_IMG}
 	$(KUSTOMIZE) build config/agent | kubectl apply -f -
 
