@@ -4,14 +4,21 @@ projectName: multi-cluster-traffic-controller
 repo: github.com/Kuadrant/multi-cluster-traffic-controller
 resources:
 - api:
+    crdVersion: v1alpha1
+    namespaced: true
+  controller: true
+  group: kuadrant.io
+  kind: DNSRecord
+  path: github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1alpha1
+  version: v1
+- api:
     crdVersion: v1
     namespaced: true
   controller: true
-  domain: kuadrant.io
   group: kuadrant.io
-  kind: DNSRecord
-  path: github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1
-  version: v1
+  kind: ManagedZone
+  path: github.com/Kuadrant/multi-cluster-traffic-controller/api/v1alpha1
+  version: v1alpha1
 - controller: true
   domain: kuadrant.io
   group: gateway.networking.k8s.io

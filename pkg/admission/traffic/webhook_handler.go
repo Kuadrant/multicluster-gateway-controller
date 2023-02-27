@@ -129,7 +129,7 @@ func (h *TrafficWebhookHandler[T]) handle(ctx context.Context, obj T) (bool, err
 	// verify host is correct
 	// no managed host assigned assign one
 	// create empty DNSRecord with assigned host
-	_, managedHostRecords, err := h.HostService.EnsureManagedHost(ctx, trafficAccessor)
+	managedHostRecords, err := h.HostService.EnsureManagedHost(ctx, trafficAccessor)
 	if err != nil && err != dns.ErrAlreadyAssigned {
 		return false, err
 	}

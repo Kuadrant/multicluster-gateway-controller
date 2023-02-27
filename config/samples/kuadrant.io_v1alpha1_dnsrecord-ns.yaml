@@ -1,0 +1,20 @@
+apiVersion: kuadrant.io/v1alpha1
+kind: DNSRecord
+metadata:
+  labels:
+    app.kubernetes.io/name: dnsrecord-ns
+    app.kubernetes.io/instance: dnsrecord-sample
+    app.kubernetes.io/part-of: multi-cluster-traffic-controller
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: multi-cluster-traffic-controller
+  name: dnsrecord-ns
+spec:
+  endpoints:
+    - dnsName: testns.hcpapps.net
+      recordTTL: 172800
+      recordType: NS
+      targets:
+        - ns-59.awsdns-07.com
+        - ns-59.awsdns-07.com
+        - ns-910.awsdns-49.net
+        - ns-1440.awsdns-52.org

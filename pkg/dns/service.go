@@ -3,7 +3,6 @@ package dns
 import (
 	"context"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 
@@ -12,10 +11,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/json"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/metadata"
-	v1 "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns/aws"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/traffic"
 )
@@ -53,7 +53,7 @@ func (s *Service) resolveIPS(ctx context.Context, t traffic.Interface) ([]string
 		return nil, err
 	}
 	for _, target := range targets {
-		if target.TargetType == v1.TargetTypeIP {
+		if target.TargetType == v1alpha1.TargetTypeIP {
 			activeDNSTargetIPs = append(activeDNSTargetIPs, target.Value)
 			continue
 		}
@@ -68,15 +68,15 @@ func (s *Service) resolveIPS(ctx context.Context, t traffic.Interface) ([]string
 	return activeDNSTargetIPs, nil
 }
 
-func (s *Service) GetDNSRecords(ctx context.Context, traffic traffic.Interface) ([]*v1.DNSRecord, error) {
+func (s *Service) GetDNSRecords(ctx context.Context, traffic traffic.Interface) ([]*v1alpha1.DNSRecord, error) {
 	// TODO improve this to use a label and list instead of gets
 	hosts := traffic.GetHosts()
-	records := []*v1.DNSRecord{}
+	records := []*v1alpha1.DNSRecord{}
 	for _, host := range hosts {
 		if host == "" {
 			continue
 		}
-		record := &v1.DNSRecord{
+		record := &v1alpha1.DNSRecord{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      host,
 				Namespace: s.defaultCtrlNS,
@@ -128,7 +128,7 @@ func (s *Service) AddEndPoints(ctx context.Context, traffic traffic.Interface) e
 			endpoints = ips
 		}
 		for _, ep := range endpoints {
-			endpoint := &v1.Endpoint{
+			endpoint := &v1alpha1.Endpoint{
 				DNSName:       host,
 				Targets:       []string{ep},
 				RecordType:    "A",
@@ -160,7 +160,7 @@ func (s *Service) RemoveEndpoints(ctx context.Context, t traffic.Interface) erro
 	if err != nil {
 		return err
 	}
-	newEndpoints := []*v1.Endpoint{}
+	newEndpoints := []*v1alpha1.Endpoint{}
 	for _, record := range records {
 		log.Log.V(10).Info("removing ip from record ", "host ", record.Name)
 		for _, endpoint := range record.Spec.Endpoints {
@@ -187,55 +187,55 @@ func (s *Service) RemoveEndpoints(ctx context.Context, t traffic.Interface) erro
 }
 
 // EnsureManagedHost will ensure there is at least one managed host for the traffic object and return those host and dnsrecords
-func (s *Service) EnsureManagedHost(ctx context.Context, t traffic.Interface) ([]string, []*v1.DNSRecord, error) {
+func (s *Service) EnsureManagedHost(ctx context.Context, t traffic.Interface) ([]*v1alpha1.DNSRecord, error) {
 	dnsRecords, err := s.GetDNSRecords(ctx, t)
-	var managedHosts []string
 	if err != nil {
-		return managedHosts, nil, err
+		return nil, err
 	}
 
 	if len(dnsRecords) != 0 {
-		for _, r := range dnsRecords {
-			managedHosts = append(managedHosts, r.Name)
-		}
-		return managedHosts, dnsRecords, ErrAlreadyAssigned
+		return dnsRecords, ErrAlreadyAssigned
 	}
 
 	log.Log.Info("no managed host found generating one")
 	hostKey := shortuuid.NewWithNamespace(t.GetNamespace() + t.GetName())
-	zones := getManagedZones()
-	var chosenZone zone
-	var managedHost string
-	for _, z := range zones {
-		if z.Default {
-			managedHost = strings.ToLower(fmt.Sprintf("%s.%s", hostKey, z.RootDomain))
-			chosenZone = z
-			break
-		}
+	managedZone, err := s.GetManagedZone(ctx, t)
+	if err != nil {
+		return nil, err
 	}
-	if chosenZone.ID == "" {
-		return managedHosts, dnsRecords, fmt.Errorf("no zone available to use")
+	if managedZone == nil {
+		return dnsRecords, fmt.Errorf("no managed zone available to use")
 	}
-	record, err := s.RegisterHost(ctx, managedHost, hostKey, chosenZone.DNSZone)
+	record, err := s.CreateDNSRecord(ctx, hostKey, managedZone)
 	if err != nil {
 		log.Log.Error(err, "failed to register host ")
-		return managedHosts, dnsRecords, err
+		return dnsRecords, err
 	}
-	managedHosts = append(managedHosts, managedHost)
 	dnsRecords = append(dnsRecords, record)
-	return managedHosts, dnsRecords, nil
+	return dnsRecords, nil
 }
 
-func (s *Service) RegisterHost(ctx context.Context, h string, id string, zone v1.DNSZone) (*v1.DNSRecord, error) {
-	dnsRecord := v1.DNSRecord{
+func (s *Service) CreateDNSRecord(ctx context.Context, hostKey string, managedZone *v1alpha1.ManagedZone) (*v1alpha1.DNSRecord, error) {
+	managedHost := strings.ToLower(fmt.Sprintf("%s.%s", hostKey, managedZone.Spec.DomainName))
+
+	dnsRecord := v1alpha1.DNSRecord{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      h,
-			Namespace: s.defaultCtrlNS,
-			Labels:    map[string]string{labelRecordID: id},
+			Name:      managedHost,
+			Namespace: managedZone.Namespace,
+			Labels:    map[string]string{labelRecordID: hostKey},
+		},
+		Spec: v1alpha1.DNSRecordSpec{
+			ManagedZoneRef: &v1alpha1.ManagedZoneReference{
+				Name: managedZone.Name,
+			},
 		},
 	}
+	err := controllerutil.SetControllerReference(managedZone, &dnsRecord, s.controlClient.Scheme())
+	if err != nil {
+		return nil, err
+	}
 
-	err := s.controlClient.Create(ctx, &dnsRecord, &client.CreateOptions{})
+	err = s.controlClient.Create(ctx, &dnsRecord, &client.CreateOptions{})
 	if err != nil && !k8serrors.IsAlreadyExists(err) {
 		return nil, err
 	}
@@ -268,7 +268,7 @@ func (s *Service) PatchTargets(ctx context.Context, targets, hosts []string, clu
 		if host == "" {
 			continue
 		}
-		dnsRecord := &v1.DNSRecord{}
+		dnsRecord := &v1alpha1.DNSRecord{}
 		err := s.controlClient.Get(ctx, client.ObjectKey{Name: host, Namespace: s.defaultCtrlNS}, dnsRecord)
 		if err != nil {
 			return err
@@ -288,20 +288,30 @@ func (s *Service) PatchTargets(ctx context.Context, targets, hosts []string, clu
 	return nil
 }
 
-// this is temporary and will be replaced in the future by CRD resources
-type zone struct {
-	v1.DNSZone
-	RootDomain string
-	Default    bool
-}
+// GetManagedZone returns the most suitable ManagedZone to publish the given traffic resource into.
+// Currently, this just returns the first ManagedZone found in the traffic resources own namespace, or if none is found,
+// it looks for the first one listed in the default ctrl namespace.
+func (s *Service) GetManagedZone(ctx context.Context, t traffic.Interface) (*v1alpha1.ManagedZone, error) {
+	var managedZones v1alpha1.ManagedZoneList
+	if err := s.controlClient.List(ctx, &managedZones, client.InNamespace(t.GetNamespace())); err != nil {
+		log.Log.Error(err, "unable to list managed zones in traffic resource NS")
+		return nil, err
+	}
 
-// this is temporary and will be replaced in the future by CRD resources
-func getManagedZones() []zone {
-	return []zone{{
-		DNSZone:    v1.DNSZone{ID: os.Getenv("AWS_DNS_PUBLIC_ZONE_ID")},
-		RootDomain: os.Getenv("ZONE_ROOT_DOMAIN"),
-		Default:    true,
-	}}
+	if len(managedZones.Items) > 0 {
+		return &managedZones.Items[0], nil
+	}
+
+	if err := s.controlClient.List(ctx, &managedZones, client.InNamespace(s.defaultCtrlNS)); err != nil {
+		log.Log.Error(err, "unable to list managed zones in default Ctrl NS")
+		return nil, err
+	}
+
+	if len(managedZones.Items) > 0 {
+		return &managedZones.Items[0], nil
+	}
+
+	return nil, fmt.Errorf("no managed zone found for traffic resource : %s", t.GetName())
 }
 
 // awsEndpointWeight returns the weight Value for a single AWS record in a set of records where the traffic is split

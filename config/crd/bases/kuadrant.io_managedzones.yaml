@@ -5,25 +5,41 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.10.0
   creationTimestamp: null
-  name: dnsrecords.kuadrant.io
+  name: managedzones.kuadrant.io
 spec:
   group: kuadrant.io
   names:
-    kind: DNSRecord
-    listKind: DNSRecordList
-    plural: dnsrecords
-    singular: dnsrecord
+    kind: ManagedZone
+    listKind: ManagedZoneList
+    plural: managedzones
+    singular: managedzone
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - description: DNSRecord ready.
+    - description: Domain of this Managed Zone
+      jsonPath: .spec.domainName
+      name: Domain Name
+      type: string
+    - description: The ID assigned by this provider for this zone .
+      jsonPath: .status.id
+      name: ID
+      type: string
+    - description: Number of records in the provider zone.
+      jsonPath: .status.recordCount
+      name: Record Count
+      type: string
+    - description: The NameServers assigned by the provider for this zone.
+      jsonPath: .status.nameServers
+      name: NameServers
+      type: string
+    - description: Managed Zone ready.
       jsonPath: .status.conditions[?(@.type=="Ready")].status
       name: Ready
       type: string
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: DNSRecord is the Schema for the dnsrecords API
+        description: ManagedZone is the Schema for the managedzones API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -38,56 +54,20 @@ spec:
           metadata:
             type: object
           spec:
-            description: DNSRecordSpec defines the desired state of DNSRecord
+            description: ManagedZoneSpec defines the desired state of ManagedZone
             properties:
-              endpoints:
-                items:
-                  description: Endpoint is a high-level way of a connection between
-                    a service and an IP
-                  properties:
-                    dnsName:
-                      description: The hostname of the DNS record
-                      type: string
-                    labels:
-                      additionalProperties:
-                        type: string
-                      description: Labels stores labels defined for the Endpoint
-                      type: object
-                    providerSpecific:
-                      description: ProviderSpecific stores provider specific config
-                      items:
-                        description: ProviderSpecificProperty holds the name and value
-                          of a configuration which is specific to individual DNS providers
-                        properties:
-                          name:
-                            type: string
-                          value:
-                            type: string
-                        type: object
-                      type: array
-                    recordTTL:
-                      description: TTL for the record
-                      format: int64
-                      type: integer
-                    recordType:
-                      description: RecordType type of record, e.g. CNAME, A, SRV,
-                        TXT etc
-                      type: string
-                    setIdentifier:
-                      description: Identifier to distinguish multiple records with
-                        the same name and type (e.g. Route53 records with routing
-                        policies other than 'simple')
-                      type: string
-                    targets:
-                      description: The targets the DNS record points to
-                      items:
-                        type: string
-                      type: array
-                  type: object
-                minItems: 1
-                type: array
-              managedZone:
-                description: ManagedZoneReference holds a reference to a ManagedZone
+              description:
+                description: Description for this ManagedZone
+                type: string
+              domainName:
+                description: Domain name of this ManagedZone
+                type: string
+              id:
+                description: ID is the provider assigned id of this  zone (i.e. route53.HostedZone.ID).
+                type: string
+              parentManagedZone:
+                description: Reference to another managed zone that this managed zone
+                  belongs to.
                 properties:
                   name:
                     description: '`name` is the name of the managed zone. Required'
@@ -95,15 +75,16 @@ spec:
                 required:
                 - name
                 type: object
+            required:
+            - description
+            - domainName
             type: object
           status:
-            description: DNSRecordStatus defines the observed state of DNSRecord
+            description: ManagedZoneStatus defines the observed state of a Zone
             properties:
               conditions:
-                description: "conditions are any conditions associated with the record
-                  in the managed zone. \n If publishing the record fails, the \"Failed\"
-                  condition will be set with a reason and message describing the cause
-                  of the failure."
+                description: List of status conditions to indicate the status of a
+                  ManagedZone. Known condition types are `Ready`.
                 items:
                   description: "Condition contains details for one aspect of the current
                     state of this API Resource. --- This struct is intended for direct
@@ -171,64 +152,26 @@ spec:
                   - type
                   type: object
                 type: array
-              endpoints:
-                description: "endpoints are the last endpoints that were successfully
-                  published by the provider \n Provides a simple mechanism to store
-                  the current provider records in order to delete any that are no
-                  longer present in DNSRecordSpec.Endpoints \n Note: This will not
-                  be required if/when we switch to using external-dns since when running
-                  with a \"sync\" policy it will clean up unused records automatically."
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              id:
+                description: The ID assigned by this provider for this zone (i.e.
+                  route53.HostedZone.ID)
+                type: string
+              nameServers:
+                description: The NameServers assigned by the provider for this zone
+                  (i.e. route53.DelegationSet.NameServers)
                 items:
-                  description: Endpoint is a high-level way of a connection between
-                    a service and an IP
-                  properties:
-                    dnsName:
-                      description: The hostname of the DNS record
-                      type: string
-                    labels:
-                      additionalProperties:
-                        type: string
-                      description: Labels stores labels defined for the Endpoint
-                      type: object
-                    providerSpecific:
-                      description: ProviderSpecific stores provider specific config
-                      items:
-                        description: ProviderSpecificProperty holds the name and value
-                          of a configuration which is specific to individual DNS providers
-                        properties:
-                          name:
-                            type: string
-                          value:
-                            type: string
-                        type: object
-                      type: array
-                    recordTTL:
-                      description: TTL for the record
-                      format: int64
-                      type: integer
-                    recordType:
-                      description: RecordType type of record, e.g. CNAME, A, SRV,
-                        TXT etc
-                      type: string
-                    setIdentifier:
-                      description: Identifier to distinguish multiple records with
-                        the same name and type (e.g. Route53 records with routing
-                        policies other than 'simple')
-                      type: string
-                    targets:
-                      description: The targets the DNS record points to
-                      items:
-                        type: string
-                      type: array
-                  type: object
+                  type: string
                 type: array
               observedGeneration:
                 description: observedGeneration is the most recently observed generation
-                  of the DNSRecord.  When the DNSRecord is updated, the controller
-                  updates the corresponding record in each managed zone.  If an update
-                  for a particular zone fails, that failure is recorded in the status
-                  condition for the zone so that the controller can determine that
-                  it needs to retry the update for that specific zone.
+                  of the ManagedZone.
+                format: int64
+                type: integer
+              recordCount:
+                description: The number of records in the provider zone
                 format: int64
                 type: integer
             type: object

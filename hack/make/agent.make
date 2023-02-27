@@ -1,3 +1,5 @@
+##@ Agent
+
 AGENT_IMG ?= agent:$(TAG)
 
 .PHONY: build-agent
@@ -7,8 +9,8 @@ build-agent: manifests generate fmt vet ## Build agent binary.
 .PHONY: run-agent
 run-agent: manifests generate fmt vet install
 	go run ./cmd/agent/main.go \
-	    --metrics-bind-address=:8082 \
-	    --health-probe-bind-address=:8083 \
+	    --metrics-bind-address=:8084 \
+	    --health-probe-bind-address=:8085 \
 	    --control-plane-config-namespace=mctc-system
 
 .PHONY: docker-build-agent

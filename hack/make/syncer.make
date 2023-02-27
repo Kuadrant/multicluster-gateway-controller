@@ -1,3 +1,5 @@
+##@ Syncer
+
 SYNCER_IMG ?= syncer:$(TAG)
 
 .PHONY: build-syncer
@@ -7,8 +9,8 @@ build-syncer: manifests generate fmt vet ## Build syncer binary.
 .PHONY: run-syncer
 run-syncer: manifests generate fmt vet install
 	go run ./cmd/syncer/main.go \
-	    --metrics-bind-address=:8084 \
-	    --health-probe-bind-address=:8085 \
+	    --metrics-bind-address=:8086 \
+	    --health-probe-bind-address=:8087 \
 	    --control-plane-config-name=control-plane-cluster \
 	    --control-plane-config-namespace=mctc-system \
 	    --synced-resources=gateways.v1beta1.gateway.networking.k8s.io

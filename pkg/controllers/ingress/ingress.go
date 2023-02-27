@@ -32,7 +32,7 @@ import (
 	certmanv1 "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
 
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/clusterSecret"
-	mctcv1 "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/tls"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/traffic"
@@ -43,7 +43,7 @@ const (
 )
 
 type HostService interface {
-	EnsureManagedHost(ctx context.Context, t traffic.Interface) ([]string, []*mctcv1.DNSRecord, error)
+	EnsureManagedHost(ctx context.Context, t traffic.Interface) ([]*v1alpha1.DNSRecord, error)
 	AddEndPoints(ctx context.Context, t traffic.Interface) error
 	RemoveEndpoints(ctx context.Context, t traffic.Interface) error
 }
@@ -214,7 +214,7 @@ func (r *Ingress) ensureControlPlaneClient(ctx context.Context) error {
 		return fmt.Errorf("error creating client from secret: %v", err.Error())
 	}
 	//add expected custom resources to control plane client scheme
-	err = mctcv1.AddToScheme(controlClient.Scheme())
+	err = v1alpha1.AddToScheme(controlClient.Scheme())
 	if err != nil {
 		return fmt.Errorf("error adding mctcv1 to client scheme: %v", err.Error())
 	}

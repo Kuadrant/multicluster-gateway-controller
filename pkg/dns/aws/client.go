@@ -77,6 +77,37 @@ func (c *InstrumentedRoute53) CreateHealthCheck(input *route53.CreateHealthCheck
 	return
 }
 
+func (c *InstrumentedRoute53) GetHostedZone(input *route53.GetHostedZoneInput) (output *route53.GetHostedZoneOutput, err error) {
+	observe("GetHostedZone", func() error {
+		output, err = c.route53.GetHostedZone(input)
+		return err
+	})
+	return
+}
+
+func (c *InstrumentedRoute53) UpdateHostedZoneComment(input *route53.UpdateHostedZoneCommentInput) (output *route53.UpdateHostedZoneCommentOutput, err error) {
+	observe("UpdateHostedZoneComment", func() error {
+		output, err = c.route53.UpdateHostedZoneComment(input)
+		return err
+	})
+	return
+}
+
+func (c *InstrumentedRoute53) CreateHostedZone(input *route53.CreateHostedZoneInput) (output *route53.CreateHostedZoneOutput, err error) {
+	observe("CreateHostedZone", func() error {
+		output, err = c.route53.CreateHostedZone(input)
+		return err
+	})
+	return
+}
+func (c *InstrumentedRoute53) DeleteHostedZone(input *route53.DeleteHostedZoneInput) (output *route53.DeleteHostedZoneOutput, err error) {
+	observe("DeleteHostedZone", func() error {
+		output, err = c.route53.DeleteHostedZone(input)
+		return err
+	})
+	return
+}
+
 func (c *InstrumentedRoute53) GetHealthCheckWithContext(ctx aws.Context, input *route53.GetHealthCheckInput, opts ...request.Option) (output *route53.GetHealthCheckOutput, err error) {
 	observe("GetHealthCheckWithContext", func() error {
 		output, err = c.route53.GetHealthCheckWithContext(ctx, input, opts...)

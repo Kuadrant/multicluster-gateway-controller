@@ -1,3 +1,5 @@
+##@ Controller
+
 CONTROLLER_IMG ?= controller:$(TAG)
 
 .PHONY: build-controller
@@ -6,7 +8,10 @@ build-controller: manifests generate fmt vet ## Build controller binary.
 
 .PHONY: run-controller
 run-controller: manifests generate fmt vet  install
-	go run ./cmd/controller/main.go
+	go run ./cmd/controller/main.go \
+	    --metrics-bind-address=:8080 \
+	    --health-probe-bind-address=:8081 \
+	    --zap-log-level=3
 
 .PHONY: docker-build-controller
 docker-build-controller: test ## Build docker image with the controller.

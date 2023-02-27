@@ -35,12 +35,13 @@ import (
 
 	gatewayapi "sigs.k8s.io/gateway-api/apis/v1beta1"
 
-	kuadrantiov1 "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1"
-
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/admission"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/dnsrecord"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/gateway"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/managedzone"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns/aws"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/tls"
 	//+kubebuilder:scaffold:imports
 )
@@ -52,7 +53,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme.Scheme))
 
-	utilruntime.Must(kuadrantiov1.AddToScheme(scheme.Scheme))
+	utilruntime.Must(v1alpha1.AddToScheme(scheme.Scheme))
 	utilruntime.Must(certmanv1.AddToScheme(scheme.Scheme))
 	utilruntime.Must(gatewayapi.AddToScheme(scheme.Scheme))
 	//+kubebuilder:scaffold:scheme
@@ -60,7 +61,7 @@ func init() {
 
 const (
 	//(cbrookes) This will be removed in the future when we have many tenant ns and way to map to them
-	defaultCtrlNS       = "argocd"
+	defaultCtrlNS       = "multi-cluster-traffic-controller-system"
 	defaultCertProvider = "glbc-ca"
 )
 
@@ -97,17 +98,24 @@ func main() {
 		os.Exit(1)
 	}
 
-	dnsProvider, err := dns.DNSProvider("aws")
+	awsAccessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
+	awsSecretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
+	awsRegion := os.Getenv("AWS_REGION")
+	dnsProviderConfig := v1alpha1.DNSProviderConfig{
+		Route53: &v1alpha1.DNSProviderConfigRoute53{
+			AccessKeyID:     awsAccessKeyID,
+			SecretAccessKey: awsSecretAccessKey,
+			Region:          awsRegion,
+		},
+	}
+	dnsProvider, err := aws.NewDNSProvider(*dnsProviderConfig.Route53)
 	if err != nil {
 		setupLog.Error(err, "unable to create dns provider client")
 		os.Exit(1)
 	}
 	if err = (&dnsrecord.DNSRecordReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-		ReconcilerConfig: dnsrecord.DNSRecordReconcilerConfig{
-			DNSProvider: "aws",
-		},
+		Client:      mgr.GetClient(),
+		Scheme:      mgr.GetScheme(),
 		DNSProvider: dnsProvider,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DNSRecord")
@@ -116,6 +124,14 @@ func main() {
 	dnsService := dns.NewService(mgr.GetClient(), dns.NewSafeHostResolver(dns.NewDefaultHostResolver()), defaultCtrlNS)
 	certService := tls.NewService(mgr.GetClient(), defaultCtrlNS, defaultCertProvider)
 
+	if err = (&managedzone.ManagedZoneReconciler{
+		Client:      mgr.GetClient(),
+		Scheme:      mgr.GetScheme(),
+		DNSProvider: dnsProvider,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "ManagedZone")
+		os.Exit(1)
+	}
 	if err = (&gateway.GatewayClassReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
