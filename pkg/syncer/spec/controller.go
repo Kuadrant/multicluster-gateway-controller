@@ -27,6 +27,7 @@ const (
 	SyncerClusterStatusAnnotationPrefix = "mctc-spec-syncer-status-"
 	syncerApplyManager                  = "syncer"
 	downstreamNamespace                 = "mctc-downstream"
+	NUM_THREADS                         = 1
 )
 
 type Controller struct {
@@ -72,11 +73,11 @@ func (c *Controller) AddToQueue(gvr schema.GroupVersionResource, obj interface{}
 }
 
 // Start starts N worker processes each processing work items.
-func (c *Controller) Start(ctx context.Context, numThreads int) {
+func (c *Controller) Start(ctx context.Context) {
 	defer utilruntime.HandleCrash()
 	defer c.queue.ShutDown()
 
-	for i := 0; i < numThreads; i++ {
+	for i := 0; i < NUM_THREADS; i++ {
 		go wait.UntilWithContext(ctx, c.startWorker, time.Second)
 	}
 

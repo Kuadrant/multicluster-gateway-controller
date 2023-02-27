@@ -118,20 +118,29 @@ func main() {
 		os.Exit(1)
 	}
 
-	ctx := ctrl.SetupSignalHandler()
-	err = startSyncers(ctx, syncedResources, client.ObjectKey{Namespace: controlPlaneConfigSecretNamespace, Name: controlPlaneConfigSecretName}, mgr)
+	syncerContext, cancel := context.WithCancel(context.Background())
+	defer func() {
+		cancel()
+	}()
+	syncRunnable, err := startSyncers(syncerContext, syncedResources, client.ObjectKey{Namespace: controlPlaneConfigSecretNamespace, Name: controlPlaneConfigSecretName}, mgr)
 	if err != nil {
 		setupLog.Error(err, "unable to start syncers")
 		os.Exit(1)
 	}
+
+	if err := mgr.Add(syncRunnable); err != nil {
+		setupLog.Error(err, "error starting syncers")
+		os.Exit(1)
+	}
+
 	setupLog.Info("starting manager")
-	if err := mgr.Start(ctx); err != nil {
+	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
 }
 
-func startSyncers(ctx context.Context, GVRs []string, secretRef client.ObjectKey, mgr manager.Manager) error {
+func startSyncers(ctx context.Context, GVRs []string, secretRef client.ObjectKey, mgr manager.Manager) (*syncer.SyncRunnable, error) {
 	logger := log.FromContext(ctx)
 	controlPlaneSecret := &corev1.Secret{}
 	secretClient, err := client.New(mgr.GetConfig(), client.Options{})
@@ -141,21 +150,21 @@ func startSyncers(ctx context.Context, GVRs []string, secretRef client.ObjectKey
 	}
 	err = secretClient.Get(ctx, secretRef, controlPlaneSecret, &client.GetOptions{})
 	if err != nil {
-		return fmt.Errorf("unable to retrieve control plane config secret '%v', error: %v", secretRef.String(), err)
+		return nil, fmt.Errorf("unable to retrieve control plane config secret '%v', error: %v", secretRef.String(), err)
 
 	}
 
 	upstreamClusterConfig, err := clusterSecret.ClusterConfigFromSecret(controlPlaneSecret)
 	if err != nil {
-		return fmt.Errorf("unable to create cluster config from control plane secret: %v", err)
+		return nil, fmt.Errorf("unable to create cluster config from control plane secret: %v", err)
 	}
 	upstreamRestConfig, err := clusterSecret.RestConfigFromSecret(controlPlaneSecret)
 	if err != nil {
-		return fmt.Errorf("unable to create rest config from control plane secret: %v", err)
+		return nil, fmt.Errorf("unable to create rest config from control plane secret: %v", err)
 	}
 	upstreamClient, err := clusterSecret.DynamicClientsetFromSecret(controlPlaneSecret)
 	if err != nil {
-		return fmt.Errorf("unable to create client from control plane rest config: %v", err)
+		return nil, fmt.Errorf("unable to create client from control plane rest config: %v", err)
 	}
 	informerFactory := dynamicinformer.NewDynamicSharedInformerFactory(upstreamClient, DEFAULT_RESYNC)
 	logger.Info("starting informer")
@@ -175,21 +184,17 @@ func startSyncers(ctx context.Context, GVRs []string, secretRef client.ObjectKey
 
 	downstreamDynamicClient, err := dynamic.NewForConfig(mgr.GetConfig())
 	if err != nil {
-		return fmt.Errorf("could not make dynamic downstream client from manager rest config: %v", err.Error())
+		return nil, fmt.Errorf("could not make dynamic downstream client from manager rest config: %v", err.Error())
 	}
 	SpecSyncer, err := spec.NewSpecSyncer(upstreamClusterConfig.Name, upstreamClusterConfig.Name, upstreamClient, downstreamDynamicClient)
 	if err != nil {
-		return fmt.Errorf("could not create new spec syncer: %v", err.Error())
+		return nil, fmt.Errorf("could not create new spec syncer: %v", err.Error())
 	}
 	logger.Info("starting syncer", "name", upstreamClusterConfig.Name)
 
-	go SpecSyncer.Start(ctx, SYNCER_THREADS)
+	go SpecSyncer.Start(ctx)
 
-	err = syncer.StartSyncers(ctx, specSyncConfig, syncer.InformerForGVR, SpecSyncer)
-	if err != nil {
-		return fmt.Errorf("error starting syncers, %v", err.Error())
-	}
-
-	return nil
+	syncRunnable := syncer.GetSyncerRunnable(ctx, specSyncConfig, syncer.InformerForGVR, SpecSyncer)
+	return syncRunnable, nil
 
 }
