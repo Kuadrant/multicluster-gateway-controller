@@ -27,4 +27,5 @@ nodes:
 EOF
 mkdir -p ./tmp/kubeconfigs
 ${KIND_BIN} get kubeconfig --name ${cluster} > ./tmp/kubeconfigs/${cluster}.kubeconfig
+${KIND_BIN} export kubeconfig --name ${cluster} --kubeconfig ./tmp/kubeconfigs/internal/${cluster}.kubeconfig --internal
 }
