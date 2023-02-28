@@ -314,6 +314,33 @@ func (s *Service) GetManagedZone(ctx context.Context, t traffic.Interface) (*v1a
 	return nil, fmt.Errorf("no managed zone found for traffic resource : %s", t.GetName())
 }
 
+// GetManagedZoneForDomain returns a ManagedZone for the given domain if one exists.
+// Currently, this returns the first matching ManagedZone found in the traffic resources own namespace, or if none is found,
+// it looks for the first matching one listed in the default ctrl namespace.
+func (s *Service) GetManagedZoneForDomain(ctx context.Context, domain string, t traffic.Interface) (*v1alpha1.ManagedZone, error) {
+	var managedZones v1alpha1.ManagedZoneList
+
+	if err := s.controlClient.List(ctx, &managedZones, client.InNamespace(t.GetNamespace()), client.MatchingFields{"spec.domainName": domain}); err != nil {
+		log.Log.Error(err, "unable to list managed zones in traffic resource NS")
+		return nil, err
+	}
+
+	if len(managedZones.Items) > 0 {
+		return &managedZones.Items[0], nil
+	}
+
+	if err := s.controlClient.List(ctx, &managedZones, client.InNamespace(s.defaultCtrlNS), client.MatchingFields{"spec.domainName": domain}); err != nil {
+		log.Log.Error(err, "unable to list managed zones in default Ctrl NS")
+		return nil, err
+	}
+
+	if len(managedZones.Items) > 0 {
+		return &managedZones.Items[0], nil
+	}
+
+	return nil, fmt.Errorf("no managed zone found for traffic resource : %s", t.GetName())
+}
+
 // awsEndpointWeight returns the weight Value for a single AWS record in a set of records where the traffic is split
 // evenly between a number of clusters/ingresses, each splitting traffic evenly to a number of IPs (numIPs)
 //

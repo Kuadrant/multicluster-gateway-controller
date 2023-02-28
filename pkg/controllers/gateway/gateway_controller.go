@@ -48,6 +48,7 @@ const (
 type HostService interface {
 	CreateDNSRecord(ctx context.Context, hostKey string, managedZone *v1alpha1.ManagedZone) (*v1alpha1.DNSRecord, error)
 	GetManagedZone(ctx context.Context, t traffic.Interface) (*v1alpha1.ManagedZone, error)
+	GetManagedZoneForDomain(ctx context.Context, domain string, t traffic.Interface) (*v1alpha1.ManagedZone, error)
 	AddEndPoints(ctx context.Context, t traffic.Interface) error
 	RemoveEndpoints(ctx context.Context, t traffic.Interface) error
 }
@@ -210,7 +211,16 @@ func (r *GatewayReconciler) reconcileGateway(ctx context.Context, previous gatew
 
 		if hasAttachedRoutes {
 			hasAnyAttachedRoutes = true
-			managedZone, err := r.Host.GetManagedZone(ctx, trafficAccessor)
+
+			hostParts := strings.SplitN(host, ".", 2)
+			if len(hostParts) < 2 {
+				continue
+			}
+			subDomain := hostParts[0]
+			parentDomain := hostParts[1]
+
+			log.V(2).Info("getting managed zone for parent domain of host", "host", host, "parentDomain", parentDomain, "subDomain", subDomain)
+			managedZone, err := r.Host.GetManagedZoneForDomain(ctx, parentDomain, trafficAccessor)
 			if err != nil {
 				return metav1.ConditionUnknown, clusters, false, err
 			}
@@ -220,7 +230,7 @@ func (r *GatewayReconciler) reconcileGateway(ctx context.Context, previous gatew
 			}
 			// TODO: ownerRefs e.g.
 			// err = controllerutil.SetControllerReference(parentZone, nsRecord, r.Scheme)
-			record, err := r.Host.CreateDNSRecord(ctx, host, managedZone)
+			record, err := r.Host.CreateDNSRecord(ctx, subDomain, managedZone)
 			if err != nil {
 				log.Error(err, "failed to register host ")
 				return metav1.ConditionUnknown, clusters, false, err
