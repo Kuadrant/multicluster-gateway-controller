@@ -114,7 +114,7 @@ func (s *Service) AddEndPoints(ctx context.Context, traffic traffic.Interface) e
 			endpointFound := false
 			for _, endpoint := range r.Spec.Endpoints {
 				if endpoint.DNSName == host && endpoint.SetIdentifier == addr {
-					log.Log.V(3).Info("address ", addr, "already exists in record for host ", host)
+					log.Log.V(3).Info("address already exists in record for host", "address ", addr, "host", host)
 					endpointFound = true
 					continue
 				}
