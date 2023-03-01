@@ -119,9 +119,7 @@ func main() {
 	}
 
 	syncerContext, cancel := context.WithCancel(context.Background())
-	defer func() {
-		cancel()
-	}()
+	defer cancel()
 	syncRunnable, err := startSyncers(syncerContext, syncedResources, client.ObjectKey{Namespace: controlPlaneConfigSecretNamespace, Name: controlPlaneConfigSecretName}, mgr)
 	if err != nil {
 		setupLog.Error(err, "unable to start syncers")
