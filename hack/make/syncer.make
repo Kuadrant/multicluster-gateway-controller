@@ -16,7 +16,7 @@ run-syncer: manifests generate fmt vet install
 	    --synced-resources=gateways.v1beta1.gateway.networking.k8s.io
 
 .PHONY: docker-build-syncer
-docker-build-syncer: test ## Build docker image with the syncer.
+docker-build-syncer: ## Build docker image with the syncer.
 	docker build --target syncer -t ${SYNCER_IMG} .
 	docker image prune -f --filter label=stage=mctc-builder
 
@@ -36,3 +36,6 @@ deploy-syncer: manifests kustomize ## Deploy controller to the K8s cluster speci
 .PHONY: undeploy-syncer
 undeploy-syncer: ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	$(KUSTOMIZE) build config/syncer | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
+
+.PHONY: redeploy-syncer
+redeploy-syncer: undeploy-syncer deploy-syncer

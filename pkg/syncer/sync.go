@@ -44,21 +44,36 @@ type SyncController interface {
 	AddToQueue(schema.GroupVersionResource, interface{})
 }
 
-func StartSyncers(ctx context.Context, cfg Config, informerEventDecorator InformerEventsDecorator, c SyncController) error {
-	for _, gvrStr := range cfg.GVRs {
+type SyncRunnable struct {
+	cfg               Config
+	informerDecorator InformerEventsDecorator
+	controller        SyncController
+}
+
+func (r *SyncRunnable) Start(ctx context.Context) error {
+	for _, gvrStr := range r.cfg.GVRs {
 		// Some GVRs should never be synced (e.g. 'pods')
-		if slice.ContainsString(cfg.NeverSyncedGVRs, gvrStr) {
+		if slice.ContainsString(r.cfg.NeverSyncedGVRs, gvrStr) {
 			continue
 		}
 		gvr, _ := schema.ParseResourceArg(gvrStr)
-		informer := cfg.InformerFactory.ForResource(*gvr)
-		err := informerEventDecorator(cfg, informer, gvr, c)
+		informer := r.cfg.InformerFactory.ForResource(*gvr)
+		err := r.informerDecorator(r.cfg, informer, gvr, r.controller)
 		if err != nil {
 			return fmt.Errorf("error decorating informer for GVR events: %v", err.Error())
 		}
 		informer.Informer().Run(ctx.Done())
 	}
+	<-ctx.Done()
 	return nil
+}
+
+func GetSyncerRunnable(ctx context.Context, cfg Config, informerEventDecorator InformerEventsDecorator, c SyncController) *SyncRunnable {
+	return &SyncRunnable{
+		cfg:               cfg,
+		informerDecorator: informerEventDecorator,
+		controller:        c,
+	}
 }
 
 // InformerForGVR is an informer Decorator which adds generic event handlers to an informer
