@@ -42,6 +42,7 @@ import (
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/clusterSecret"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer/spec"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer/status"
 )
 
 var (
@@ -51,8 +52,8 @@ var (
 )
 
 const (
-	DEFAULT_RESYNC = 0
-	SYNCER_THREADS = 1
+	DEFAULT_RESYNC     = 0
+	dataPlaneNamespace = "mctc-downstream"
 )
 
 type arrayFlags []string
@@ -78,12 +79,14 @@ func main() {
 	var controlPlaneConfigSecretName string
 	var controlPlaneConfigSecretNamespace string
 	var syncedResources arrayFlags
+	var controlPlaneNS string
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.StringVar(&controlPlaneConfigSecretName, "control-plane-config-name", "control-plane-cluster", "The name of the secret with the control plane client configuration")
 	flag.StringVar(&controlPlaneConfigSecretNamespace, "control-plane-config-namespace", "mctc-system", "The namespace containing the secret with the control plane client configuration")
 	flag.Var(&syncedResources, "synced-resources", "A list of GVRs to sync (e.g. ingresses.v1.networking.k8s.io)")
+	flag.StringVar(&controlPlaneNS, "control-plane-namespace", "mctc-tenant", "The name of the upstream namespace to sync resources from")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
@@ -120,14 +123,25 @@ func main() {
 
 	syncerContext, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	syncRunnable, err := startSyncers(syncerContext, syncedResources, client.ObjectKey{Namespace: controlPlaneConfigSecretNamespace, Name: controlPlaneConfigSecretName}, mgr)
+	syncRunnable, err := startSpecSyncers(syncerContext, syncedResources, client.ObjectKey{Namespace: controlPlaneConfigSecretNamespace, Name: controlPlaneConfigSecretName}, mgr, controlPlaneNS)
 	if err != nil {
-		setupLog.Error(err, "unable to start syncers")
+		setupLog.Error(err, "unable to start spec syncers")
 		os.Exit(1)
 	}
 
 	if err := mgr.Add(syncRunnable); err != nil {
-		setupLog.Error(err, "error starting syncers")
+		setupLog.Error(err, "error starting spec syncers")
+		os.Exit(1)
+	}
+
+	statusRunnable, err := startStatusSyncers(syncerContext, syncedResources, client.ObjectKey{Namespace: controlPlaneConfigSecretNamespace, Name: controlPlaneConfigSecretName}, mgr, controlPlaneNS)
+	if err != nil {
+		setupLog.Error(err, "unable to start status syncers")
+		os.Exit(1)
+	}
+
+	if err := mgr.Add(statusRunnable); err != nil {
+		setupLog.Error(err, "error starting status syncers")
 		os.Exit(1)
 	}
 
@@ -138,7 +152,7 @@ func main() {
 	}
 }
 
-func startSyncers(ctx context.Context, GVRs []string, secretRef client.ObjectKey, mgr manager.Manager) (*syncer.SyncRunnable, error) {
+func startSpecSyncers(ctx context.Context, GVRs []string, secretRef client.ObjectKey, mgr manager.Manager, controlPlaneNS string) (*syncer.SyncRunnable, error) {
 	logger := log.FromContext(ctx)
 	controlPlaneSecret := &corev1.Secret{}
 	secretClient, err := client.New(mgr.GetConfig(), client.Options{})
@@ -156,43 +170,93 @@ func startSyncers(ctx context.Context, GVRs []string, secretRef client.ObjectKey
 	if err != nil {
 		return nil, fmt.Errorf("unable to create cluster config from control plane secret: %v", err)
 	}
-	upstreamRestConfig, err := clusterSecret.RestConfigFromSecret(controlPlaneSecret)
-	if err != nil {
-		return nil, fmt.Errorf("unable to create rest config from control plane secret: %v", err)
-	}
 	upstreamClient, err := clusterSecret.DynamicClientsetFromSecret(controlPlaneSecret)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create client from control plane rest config: %v", err)
 	}
 	informerFactory := dynamicinformer.NewDynamicSharedInformerFactory(upstreamClient, DEFAULT_RESYNC)
-	logger.Info("starting informer")
 	informerFactory.Start(ctx.Done())
-	logger.Info("waiting for cache sync")
 	informerFactory.WaitForCacheSync(ctx.Done())
-	logger.Info("cache sync complete")
 
+	//for spec: upstream is control-plane, downstream is data plane
 	specSyncConfig := syncer.Config{
-		UpstreamClientConfig: upstreamRestConfig,
-		GVRs:                 GVRs,
-		DownStreamClient:     mgr.GetClient(),
-		InformerFactory:      informerFactory,
-		ClusterID:            upstreamClusterConfig.Name,
-		NeverSyncedGVRs:      NEVER_SYNCED_GVRs,
+		GVRs:            GVRs,
+		InformerFactory: informerFactory,
+		ClusterID:       upstreamClusterConfig.Name,
+		NeverSyncedGVRs: NEVER_SYNCED_GVRs,
+		UpstreamNS:      controlPlaneNS,
+		DownstreamNS:    dataPlaneNamespace,
 	}
 
 	downstreamDynamicClient, err := dynamic.NewForConfig(mgr.GetConfig())
 	if err != nil {
 		return nil, fmt.Errorf("could not make dynamic downstream client from manager rest config: %v", err.Error())
 	}
-	SpecSyncer, err := spec.NewSpecSyncer(upstreamClusterConfig.Name, upstreamClusterConfig.Name, upstreamClient, downstreamDynamicClient)
+	SpecSyncer, err := spec.NewSpecSyncer(upstreamClusterConfig.Name, upstreamClusterConfig.Name, upstreamClient, downstreamDynamicClient, specSyncConfig)
 	if err != nil {
 		return nil, fmt.Errorf("could not create new spec syncer: %v", err.Error())
 	}
-	logger.Info("starting syncer", "name", upstreamClusterConfig.Name)
+	logger.Info("starting spec syncer", "name", upstreamClusterConfig.Name)
 
 	go SpecSyncer.Start(ctx)
 
-	syncRunnable := syncer.GetSyncerRunnable(ctx, specSyncConfig, syncer.InformerForGVR, SpecSyncer)
+	syncRunnable := syncer.GetSyncerRunnable(specSyncConfig, syncer.InformerForGVR, SpecSyncer)
+	return syncRunnable, nil
+
+}
+
+func startStatusSyncers(ctx context.Context, GVRs []string, secretRef client.ObjectKey, mgr manager.Manager, controlPlaneNS string) (*syncer.SyncRunnable, error) {
+	logger := log.FromContext(ctx)
+	controlPlaneSecret := &corev1.Secret{}
+	secretClient, err := client.New(mgr.GetConfig(), client.Options{})
+	if err != nil {
+		setupLog.Error(err, "unable to create sync secret client")
+		os.Exit(1)
+	}
+	err = secretClient.Get(ctx, secretRef, controlPlaneSecret, &client.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("unable to retrieve control plane config secret '%v', error: %v", secretRef.String(), err)
+
+	}
+	downstreamClusterConfig, err := clusterSecret.ClusterConfigFromSecret(controlPlaneSecret)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create cluster config from control plane secret: %v", err)
+	}
+	downstreamClient, err := clusterSecret.DynamicClientsetFromSecret(controlPlaneSecret)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create client from control plane rest config: %v", err)
+	}
+	upstreamClient, err := dynamic.NewForConfig(mgr.GetConfig())
+	if err != nil {
+		return nil, fmt.Errorf("unable to create client from mgr rest config: %v", err)
+	}
+	informerFactory := dynamicinformer.NewDynamicSharedInformerFactory(upstreamClient, DEFAULT_RESYNC)
+	informerFactory.Start(ctx.Done())
+	informerFactory.WaitForCacheSync(ctx.Done())
+
+	//for status: downstream is control-plane, upstream is data plane
+	statusSyncConfig := syncer.Config{
+		GVRs:            GVRs,
+		InformerFactory: informerFactory,
+		ClusterID:       downstreamClusterConfig.Name,
+		NeverSyncedGVRs: NEVER_SYNCED_GVRs,
+		UpstreamNS:      dataPlaneNamespace,
+		DownstreamNS:    controlPlaneNS,
+	}
+
+	upstreamDynamicClient, err := dynamic.NewForConfig(mgr.GetConfig())
+	if err != nil {
+		return nil, fmt.Errorf("could not make dynamic downstream client from manager rest config: %v", err.Error())
+	}
+	statusSyncer, err := status.NewStatusSyncer(downstreamClusterConfig.Name, downstreamClusterConfig.Name, upstreamDynamicClient, downstreamClient, statusSyncConfig)
+	if err != nil {
+		return nil, fmt.Errorf("could not create new spec syncer: %v", err.Error())
+	}
+	logger.Info("starting status syncer", "name", downstreamClusterConfig.Name)
+
+	go statusSyncer.Start(ctx)
+
+	syncRunnable := syncer.GetSyncerRunnable(statusSyncConfig, syncer.InformerForGVR, statusSyncer)
 	return syncRunnable, nil
 
 }

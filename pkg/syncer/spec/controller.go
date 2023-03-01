@@ -18,6 +18,8 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer"
 )
 
 const (
@@ -26,8 +28,7 @@ const (
 	SyncerDeletionAnnotationPrefix      = "mctc-spec-syncer-deletion-timestamp-"
 	SyncerClusterStatusAnnotationPrefix = "mctc-spec-syncer-status-"
 	syncerApplyManager                  = "syncer"
-	downstreamNamespace                 = "mctc-downstream"
-	NUM_THREADS                         = 1
+	NUM_THREADS                         = 8
 )
 
 type Controller struct {
@@ -38,15 +39,19 @@ type Controller struct {
 
 	syncTargetName string
 	syncTargetKey  string
+	upstreamNS     string
+	downstreamNS   string
 }
 
-func NewSpecSyncer(syncTargetName, syncTargetKey string, upstreamClient dynamic.Interface, downstreamClient dynamic.Interface) (*Controller, error) {
+func NewSpecSyncer(syncTargetName, syncTargetKey string, upstreamClient dynamic.Interface, downstreamClient dynamic.Interface, cfg syncer.Config) (*Controller, error) {
 	c := &Controller{
 		queue:            workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), controllerName),
 		upstreamClient:   upstreamClient,
 		downstreamClient: downstreamClient,
 		syncTargetName:   syncTargetName,
 		syncTargetKey:    syncTargetKey,
+		upstreamNS:       cfg.UpstreamNS,
+		downstreamNS:     cfg.DownstreamNS,
 	}
 
 	return c, nil
@@ -119,7 +124,7 @@ func (c *Controller) processNextWorkItem(ctx context.Context) bool {
 
 func (c *Controller) process(ctx context.Context, gvr schema.GroupVersionResource, key string) (retryAfter *time.Duration, err error) {
 	logger := log.FromContext(ctx)
-	logger.Info("sync controller process", "key", key, "gvr", gvr.String())
+	logger.Info("spec controller process", "key", key, "gvr", gvr.String())
 	// from upstream
 	upstreamNamespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -136,7 +141,7 @@ func (c *Controller) process(ctx context.Context, gvr schema.GroupVersionResourc
 		logger.Info("upstream object not found.", "gvr", gvr, "namespace", upstreamNamespace, "name", name)
 		// deleted upstream => delete downstream
 		logger.Info("Deleting downstream object for upstream object")
-		err = c.downstreamClient.Resource(gvr).Namespace(downstreamNamespace).Delete(ctx, name, metav1.DeleteOptions{})
+		err = c.downstreamClient.Resource(gvr).Namespace(c.downstreamNS).Delete(ctx, name, metav1.DeleteOptions{})
 		if err != nil && !errors.IsNotFound(err) {
 			return nil, err
 		}
@@ -145,7 +150,7 @@ func (c *Controller) process(ctx context.Context, gvr schema.GroupVersionResourc
 	}
 
 	// upsert downstream
-	if err := c.ensureDownstreamNamespaceExists(ctx, downstreamNamespace); err != nil {
+	if err := c.ensureDownstreamNamespaceExists(ctx, c.downstreamNS); err != nil {
 		return nil, err
 	}
 
@@ -156,7 +161,7 @@ func (c *Controller) process(ctx context.Context, gvr schema.GroupVersionResourc
 		return nil, err
 	}
 
-	return nil, c.applyToDownstream(ctx, gvr, downstreamNamespace, upstreamUnstructuredObject)
+	return nil, c.applyToDownstream(ctx, gvr, c.downstreamNS, upstreamUnstructuredObject)
 }
 
 func (c *Controller) ensureDownstreamNamespaceExists(ctx context.Context, downstreamNamespace string) error {
