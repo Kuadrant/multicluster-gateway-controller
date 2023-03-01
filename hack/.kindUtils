@@ -26,5 +26,5 @@ nodes:
     protocol: TCP
 EOF
 mkdir -p ./tmp/kubeconfigs
-kind get kubeconfig --name ${cluster} > ./tmp/kubeconfigs/${cluster}.kubeconfig
+${KIND_BIN} get kubeconfig --name ${cluster} > ./tmp/kubeconfigs/${cluster}.kubeconfig
 }
