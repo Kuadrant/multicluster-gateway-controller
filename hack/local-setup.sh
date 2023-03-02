@@ -32,7 +32,7 @@ METALLB_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/metallb
 CERT_MANAGER_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/cert-manager
 EXTERNAL_DNS_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/external-dns
 ARGOCD_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/argocd
-ISTIO_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/istio
+ISTIO_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/istio/istio-operator.yaml
 GATEWAY_API_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/gateway-api
 WEBHOOK_PATH=${LOCAL_SETUP_DIR}/../config/webhook-setup/workload
 TLS_CERT_PATH=${LOCAL_SETUP_DIR}/../config/webhook-setup/control/tls
@@ -130,13 +130,11 @@ deployIstio() {
 
   echo "Deploying Istio to (${clusterName})"
 
-  kubectl config use-context kind-${clusterName}
+  ${ISTIOCTL_BIN} operator init
+	kubectl apply -f  ${ISTIO_KUSTOMIZATION_DIR}
 
-  ${KUSTOMIZE_BIN} build ${ISTIO_KUSTOMIZATION_DIR}/base --enable-helm --helm-command ${HELM_BIN} | kubectl apply -f -
-  ${KUSTOMIZE_BIN} build ${ISTIO_KUSTOMIZATION_DIR}/istiod --enable-helm --helm-command ${HELM_BIN} | kubectl apply -f -
 
-  echo "Waiting for Istiod deployment to be ready..."
-  kubectl -n istio-system wait --timeout=300s --for=condition=Available deployments --all
+	
 }
 
 installGatewayAPI() {
@@ -147,6 +145,7 @@ installGatewayAPI() {
   kubectl config use-context kind-${clusterName}
 
   ${KUSTOMIZE_BIN} build ${GATEWAY_API_KUSTOMIZATION_DIR} | kubectl apply -f -
+
 }
 
 deployKuadrant(){
@@ -262,10 +261,10 @@ initController ${KIND_CLUSTER_CONTROL_PLANE}
 if [[ -n "${MCTC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
   for ((i = 1; i <= ${MCTC_WORKLOAD_CLUSTERS_COUNT}; i++)); do
     kindCreateCluster ${KIND_CLUSTER_WORKLOAD}-${i} $((${port80} + ${i})) $((${port443} + ${i}))
+    deployIstio ${KIND_CLUSTER_WORKLOAD}-${i}
     installGatewayAPI ${KIND_CLUSTER_WORKLOAD}-${i}
     deployIngressController ${KIND_CLUSTER_WORKLOAD}-${i}
     deployMetalLB ${KIND_CLUSTER_WORKLOAD}-${i} $((${metalLBSubnetStart} + ${i} - 1))
-    deployIstio ${KIND_CLUSTER_WORKLOAD}-${i}
     deployKuadrant ${KIND_CLUSTER_WORKLOAD}-${i}
     deployWebhookConfigs ${KIND_CLUSTER_WORKLOAD}-${i}
     deployDashboard ${KIND_CLUSTER_WORKLOAD}-${i} ${i}
