@@ -9,9 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/metadata"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/slice"
@@ -27,15 +25,13 @@ type Syncer interface {
 }
 
 type Config struct {
-	UpstreamClientConfig *rest.Config
-	DownStreamClient     client.Client
-	ClusterID            string
-	GVRs                 []string
-	InformerFactory      dynamicinformer.DynamicSharedInformerFactory
-	NeverSyncedGVRs      []string
-	UpstreamNS           string
-	DownstreamNS         string
-	Syncer               Syncer
+	ClusterID       string
+	GVRs            []string
+	InformerFactory dynamicinformer.DynamicSharedInformerFactory
+	NeverSyncedGVRs []string
+	UpstreamNS      string
+	DownstreamNS    string
+	Syncer          Syncer
 }
 
 type InformerEventsDecorator func(cfg Config, informer informers.GenericInformer, gvr *schema.GroupVersionResource, c SyncController) error
@@ -68,7 +64,7 @@ func (r *SyncRunnable) Start(ctx context.Context) error {
 	return nil
 }
 
-func GetSyncerRunnable(ctx context.Context, cfg Config, informerEventDecorator InformerEventsDecorator, c SyncController) *SyncRunnable {
+func GetSyncerRunnable(cfg Config, informerEventDecorator InformerEventsDecorator, c SyncController) *SyncRunnable {
 	return &SyncRunnable{
 		cfg:               cfg,
 		informerDecorator: informerEventDecorator,
@@ -82,6 +78,9 @@ func InformerForGVR(cfg Config, informer informers.GenericInformer, gvr *schema.
 		AddFunc: func(objInterface interface{}) {
 			metaAccessor, err := meta.Accessor(objInterface)
 			if err != nil {
+				return
+			}
+			if metaAccessor.GetNamespace() != cfg.UpstreamNS {
 				return
 			}
 			value := metadata.GetAnnotation(metaAccessor, MCTC_SYNC_ANNOTATION_PREFIX+cfg.ClusterID)
@@ -100,6 +99,9 @@ func InformerForGVR(cfg Config, informer informers.GenericInformer, gvr *schema.
 			if err != nil {
 				return
 			}
+			if metaAccessor.GetNamespace() != cfg.UpstreamNS {
+				return
+			}
 			value := metadata.GetAnnotation(metaAccessor, MCTC_SYNC_ANNOTATION_PREFIX+cfg.ClusterID)
 			if value != "true" {
 				// no specific annotation for this cluster, is a wildcard annotation present?
@@ -113,6 +115,9 @@ func InformerForGVR(cfg Config, informer informers.GenericInformer, gvr *schema.
 		DeleteFunc: func(objInterface interface{}) {
 			metaAccessor, err := meta.Accessor(objInterface)
 			if err != nil {
+				return
+			}
+			if metaAccessor.GetNamespace() != cfg.UpstreamNS {
 				return
 			}
 			value := metadata.GetAnnotation(metaAccessor, MCTC_SYNC_ANNOTATION_PREFIX+cfg.ClusterID)
