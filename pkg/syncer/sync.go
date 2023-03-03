@@ -10,6 +10,7 @@ import (
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/metadata"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/slice"
@@ -47,18 +48,25 @@ type SyncRunnable struct {
 }
 
 func (r *SyncRunnable) Start(ctx context.Context) error {
+	logger := log.FromContext(ctx)
 	for _, gvrStr := range r.cfg.GVRs {
 		// Some GVRs should never be synced (e.g. 'pods')
 		if slice.ContainsString(r.cfg.NeverSyncedGVRs, gvrStr) {
 			continue
 		}
-		gvr, _ := schema.ParseResourceArg(gvrStr)
+		gvr, gr := schema.ParseResourceArg(gvrStr)
+		if gvr == nil {
+			gvr = &schema.GroupVersionResource{}
+			gvr.Resource = gr.Resource
+			gvr.Version = gr.Group
+		}
 		informer := r.cfg.InformerFactory.ForResource(*gvr)
 		err := r.informerDecorator(r.cfg, informer, gvr, r.controller)
 		if err != nil {
 			return fmt.Errorf("error decorating informer for GVR events: %v", err.Error())
 		}
-		informer.Informer().Run(ctx.Done())
+		go informer.Informer().Run(ctx.Done())
+		logger.Info("started informer", "gvr", gvr.String())
 	}
 	<-ctx.Done()
 	return nil
