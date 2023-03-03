@@ -94,7 +94,11 @@ func (s *Service) GetDNSRecords(ctx context.Context, traffic traffic.Interface) 
 	return records, nil
 }
 
-func (s *Service) AddEndPoints(ctx context.Context, traffic traffic.Interface) error {
+// Add endpoints for hosts in the traffic object.
+// If an endpointHost is non empty, only endpoints for that host are added to DNS.
+// This can be useful in cases like a Gateway where multiple listeners with different hosts
+// are defined, and only 1 listener has an attached route.
+func (s *Service) AddEndPoints(ctx context.Context, traffic traffic.Interface, endpointHost string) error {
 	ips, err := s.resolveIPS(ctx, traffic)
 	if err != nil {
 		return err
@@ -107,6 +111,10 @@ func (s *Service) AddEndPoints(ctx context.Context, traffic traffic.Interface) e
 	// for each managed host update dns. A managed host will have a DNSRecord in the control plane
 	for _, r := range records {
 		host := r.Name
+		if endpointHost != "" && endpointHost != host {
+			continue
+		}
+
 		// record found update
 		// check if endpoint already exists in the DNSRecord
 		endpoints := []string{}

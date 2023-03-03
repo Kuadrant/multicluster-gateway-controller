@@ -21,9 +21,11 @@ import (
 	"time"
 
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/conditions"
-	v1alpha1 "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer/status"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/tls"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -41,8 +43,6 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/tls"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 	//+kubebuilder:scaffold:imports
 )
@@ -123,6 +123,17 @@ var _ = BeforeSuite(func() {
 		Certificates: certificates,
 		Host:         dns,
 	}).SetupWithManager(k8sManager)
+	Expect(err).ToNot(HaveOccurred())
+
+	// TODO: can we avoid duplicate set code here that also in controller/main.go?
+	err = k8sManager.GetFieldIndexer().IndexField(
+		context.Background(),
+		&v1alpha1.ManagedZone{},
+		"spec.domainName",
+		func(obj client.Object) []string {
+			return []string{obj.(*v1alpha1.ManagedZone).Spec.DomainName}
+		},
+	)
 	Expect(err).ToNot(HaveOccurred())
 
 	go func() {

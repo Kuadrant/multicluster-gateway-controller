@@ -155,15 +155,13 @@ func (a *Gateway) GetGatewayStatuses(ctx context.Context) []gatewayv1beta1.Gatew
 	return statuses
 }
 
-func (a *Gateway) GetListenerNameByHost(host string) string {
-	listenerName := ""
+func (a *Gateway) GetListenerByHost(host string) *gatewayv1beta1.Listener {
 	for _, listener := range a.Spec.Listeners {
 		if *(*string)(listener.Hostname) == host {
-			listenerName = string(listener.Name)
+			return &listener
 		}
 	}
-	return listenerName
-
+	return nil
 }
 
 // Gather all listener statuses in all gateway statuses that match the given listener name

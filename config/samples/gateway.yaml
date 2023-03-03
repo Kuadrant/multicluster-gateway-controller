@@ -10,7 +10,7 @@ spec:
   - name: default
     port: 443
     protocol: HTTPS
-    hostname: "myapp.dm.dev.hcpapps.net"
+    hostname: "test.example.com"
     allowedRoutes:
       namespaces:
         from: All

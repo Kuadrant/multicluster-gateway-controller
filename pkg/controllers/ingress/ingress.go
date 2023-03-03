@@ -44,7 +44,7 @@ const (
 
 type HostService interface {
 	EnsureManagedHost(ctx context.Context, t traffic.Interface) ([]*v1alpha1.DNSRecord, error)
-	AddEndPoints(ctx context.Context, t traffic.Interface) error
+	AddEndPoints(ctx context.Context, t traffic.Interface, host string) error
 	RemoveEndpoints(ctx context.Context, t traffic.Interface) error
 }
 
