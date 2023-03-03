@@ -24,7 +24,7 @@ import (
 
 const (
 	controllerName                      = "mctc-spec-syncing-controller"
-	SyncerFinalizerNamePrefix           = "mctc-spec-syncer-finalizer-"
+	SyncerFinalizerNamePrefix           = "mctc-spec-syncer-finalizer/"
 	SyncerDeletionAnnotationPrefix      = "mctc-spec-syncer-deletion-timestamp-"
 	SyncerClusterStatusAnnotationPrefix = "mctc-spec-syncer-status-"
 	syncerApplyManager                  = "syncer"
@@ -209,7 +209,7 @@ func (c *Controller) ensureSyncerFinalizer(ctx context.Context, gvr schema.Group
 		upstreamFinalizers = append(upstreamFinalizers, SyncerFinalizerNamePrefix+c.syncTargetKey)
 		upstreamObjCopy.SetFinalizers(upstreamFinalizers)
 		if _, err := c.upstreamClient.Resource(gvr).Namespace(namespace).Update(ctx, upstreamObjCopy, metav1.UpdateOptions{}); err != nil {
-			logger.Error(err, "Failed adding finalizer on upstream upstreamresource")
+			logger.Error(err, "Failed adding finalizer on upstream resource")
 			return false, err
 		}
 		logger.Info("Updated upstream resource with syncer finalizer")

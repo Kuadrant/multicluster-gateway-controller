@@ -13,7 +13,8 @@ run-syncer: manifests generate fmt vet install
 	    --health-probe-bind-address=:8087 \
 	    --control-plane-config-name=control-plane-cluster \
 	    --control-plane-config-namespace=mctc-system \
-	    --synced-resources=gateways.v1beta1.gateway.networking.k8s.io
+	    --synced-resources=gateways.v1beta1.gateway.networking.k8s.io \
+	    --synced-resources=secrets.v1
 
 .PHONY: docker-build-syncer
 docker-build-syncer: ## Build docker image with the syncer.
