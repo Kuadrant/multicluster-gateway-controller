@@ -341,7 +341,7 @@ func (s *Service) GetManagedZoneForDomain(ctx context.Context, domain string, t 
 	var managedZones v1alpha1.ManagedZoneList
 
 	if err := s.controlClient.List(ctx, &managedZones, client.InNamespace(t.GetNamespace()), client.MatchingFields{"spec.domainName": domain}); err != nil {
-		log.Log.Error(err, "unable to list managed zones in traffic resource NS")
+		log.FromContext(ctx).Error(err, "unable to list managed zones in traffic resource NS")
 		return nil, err
 	}
 
@@ -350,7 +350,7 @@ func (s *Service) GetManagedZoneForDomain(ctx context.Context, domain string, t 
 	}
 
 	if err := s.controlClient.List(ctx, &managedZones, client.InNamespace(s.defaultCtrlNS), client.MatchingFields{"spec.domainName": domain}); err != nil {
-		log.Log.Error(err, "unable to list managed zones in default Ctrl NS")
+		log.FromContext(ctx).Error(err, "unable to list managed zones in default Ctrl NS")
 		return nil, err
 	}
 
