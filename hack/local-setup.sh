@@ -19,8 +19,6 @@
 LOCAL_SETUP_DIR="$(dirname "${BASH_SOURCE[0]}")"
 source "${LOCAL_SETUP_DIR}"/.setupEnv
 source "${LOCAL_SETUP_DIR}"/.kindUtils
-source "${LOCAL_SETUP_DIR}"/.clusterUtils
-source "${LOCAL_SETUP_DIR}"/.argocdUtils
 source "${LOCAL_SETUP_DIR}"/.cleanupUtils
 
 KIND_CLUSTER_PREFIX="mctc-"
@@ -36,6 +34,10 @@ ISTIO_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/istio/istio-operator.yaml
 GATEWAY_API_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/gateway-api
 WEBHOOK_PATH=${LOCAL_SETUP_DIR}/../config/webhook-setup/workload
 TLS_CERT_PATH=${LOCAL_SETUP_DIR}/../config/webhook-setup/control/tls
+
+LOCAL_SETUP_CONFIG_DIR=${LOCAL_SETUP_DIR}/../config/local-setup
+LOCAL_SETUP_CLUSTERS_DIR=${LOCAL_SETUP_CONFIG_DIR}/clusters
+LOCAL_SETUP_CLUSTERS_TMPL_DIR=${LOCAL_SETUP_CONFIG_DIR}/cluster-templates
 
 set -e pipefail
 
@@ -131,10 +133,7 @@ deployIstio() {
   echo "Deploying Istio to (${clusterName})"
 
   ${ISTIOCTL_BIN} operator init
-	kubectl apply -f  ${ISTIO_KUSTOMIZATION_DIR}
-
-
-	
+  kubectl apply -f  ${ISTIO_KUSTOMIZATION_DIR}
 }
 
 installGatewayAPI() {
@@ -145,7 +144,6 @@ installGatewayAPI() {
   kubectl config use-context kind-${clusterName}
 
   ${KUSTOMIZE_BIN} build ${GATEWAY_API_KUSTOMIZATION_DIR} | kubectl apply -f -
-
 }
 
 deployKuadrant(){
@@ -188,37 +186,115 @@ deployWebhookConfigs(){
   kubectl apply -f $WEBHOOK_PATH/webhook-configs.yaml
 }
 
-deployAgentSecret() {
-  clusterName=${1}
-  localAccess=${2:=LOCAL_ACCESS}
-  if [ $localAccess == "true" ]; then
-    secretName=control-plane-cluster
-  else
-    secretName=control-plane-cluster-internal
-  fi
-  echo "Deploying the agent secret to (${clusterName})"
-
-  kubectl config use-context kind-${clusterName}
-
-  kubectl create namespace mctc-system || true
-
-  makeSecretForCluster $KIND_CLUSTER_CONTROL_PLANE $(kubectl config current-context) $localAccess |
-  setNamespacedName mctc-system ${secretName} |
-  setLabel argocd.argoproj.io/secret-type cluster |
-  kubectl apply -f -
+# Generates a kubeconfig for the given cluster. The server is changed to use the mctc network internal node ip which is
+# reachable from the host and inside containers running on clusters. Note: Mac users need to do something or other for
+# this to work.
+generateClusterKubeconfig() {
+    clusterName=${1}
+    clusterKubeconfig=${2}
+    kubectl config use-context kind-${clusterName}
+    echo "Generate kubeconfig for ${clusterName} to ${clusterKubeconfig}"
+    ${KIND_BIN} get kubeconfig --name ${clusterName} --internal \
+      | sed "s/${clusterName}-control-plane/$(docker inspect "${clusterName}-control-plane" \
+      --format "{{ .NetworkSettings.Networks.mctc.IPAddress }}")/g" \
+      > "${clusterKubeconfig}"
 }
 
-initController() {
+# Generates a secret kustomization for the the given cluster. The tlsconfig, server, name etc.. are extracted from the
+# kubeconfig and stored as config for the secret generator.
+generateClusterSecret() {
+    clusterName=${1}
+    clusterKubeconfig=${2}
+    clusterDir=${LOCAL_SETUP_CLUSTERS_DIR}/${clusterName}
+    kubectl config use-context kind-${clusterName}
+    echo "Generate cluster secret for ${clusterName}"
+
+    mkdir -p ${clusterDir}/cluster-secret
+    (
+     export CLUSTER_NAME=${clusterName}
+     export CLUSTER_SERVER=$(kubectl --kubeconfig ${clusterKubeconfig} config view -o jsonpath="{$.clusters[?(@.name == 'kind-${clusterName}')].cluster.server}")
+     export CLUSTER_CA_DATA=$(kubectl --kubeconfig ${clusterKubeconfig} config view --raw -o jsonpath="{$.clusters[?(@.name == 'kind-${clusterName}')].cluster.certificate-authority-data}")
+     export CLUSTER_CERT_DATA=$(kubectl --kubeconfig ${clusterKubeconfig} config view --raw -o jsonpath="{$.users[?(@.name == 'kind-${clusterName}')].user.client-certificate-data}")
+     export CLUSTER_KEY_DATA=$(kubectl --kubeconfig ${clusterKubeconfig} config view --raw -o jsonpath="{$.users[?(@.name == 'kind-${clusterName}')].user.client-key-data}")
+
+     envsubst \
+             < "${LOCAL_SETUP_CLUSTERS_TMPL_DIR}/cluster-secret/cluster-config.template.env" \
+             > "${clusterDir}/cluster-secret/cluster-config.env"
+     envsubst \
+             < "${LOCAL_SETUP_CLUSTERS_TMPL_DIR}/cluster-secret/config.template" \
+             > "${clusterDir}/cluster-secret/config"
+     envsubst \
+             < "${LOCAL_SETUP_CLUSTERS_TMPL_DIR}/cluster-secret/kustomization.template.yaml" \
+             > "${clusterDir}/cluster-secret/kustomization.yaml"
+    )
+}
+
+# Generates a control cluster kustomize overlay for the given cluster.
+generateControlClusterConfig() {
+    clusterName=${1}
+    clusterDir=${LOCAL_SETUP_CLUSTERS_DIR}/${clusterName}
+    kubectl config use-context kind-${clusterName}
+    echo "Generate control cluster config for ${clusterName} in ${clusterDir}"
+
+    mkdir -p ${clusterDir}
+    cp -r ${LOCAL_SETUP_CLUSTERS_TMPL_DIR}/control-cluster/* ${clusterDir}/
+
+    clusterKubeconfig=${clusterDir}/${clusterName}.kubeconfig
+    generateClusterKubeconfig $1 $clusterKubeconfig
+    generateClusterSecret $1 $clusterKubeconfig
+}
+
+#  Generates a workload cluster kustomize overlay for the given cluster.
+generateWorkloadClusterConfig() {
+    clusterName=${1}
+    controllerClusterName=${2}
+    clusterDir=${LOCAL_SETUP_CLUSTERS_DIR}/${clusterName}
+    kubectl config use-context kind-${clusterName}
+    echo "Generate workload cluster config for ${clusterName} in ${clusterDir}"
+
+    mkdir -p ${clusterDir}
+    cp -r ${LOCAL_SETUP_CLUSTERS_TMPL_DIR}/workload-cluster/* ${clusterDir}/
+
+    clusterKubeconfig=${clusterDir}/${clusterName}.kubeconfig
+    generateClusterKubeconfig $1 $clusterKubeconfig
+    generateClusterSecret $1 $clusterKubeconfig
+
+    controllerClusterDir=${LOCAL_SETUP_CLUSTERS_DIR}/${controllerClusterName}
+    # Add workload cluster secret to argocd on control plane cluster
+    ${YQ_BIN} eval ". *+ {\"resources\":[\"../../${clusterName}/cluster-secret\"]}" "${controllerClusterDir}/argocd/kustomization.yaml" --inplace
+    # Add control plane cluster to workload cluster
+    ${YQ_BIN} eval ". *+ {\"resources\":[\"../${controllerClusterName}/cluster-secret\"]}" "${clusterDir}/kustomization.yaml" --inplace
+}
+
+#  Apply a kustomize overlay for the given cluster.
+applyClusterConfig() {
+    clusterName=${1}
+    clusterDir=${LOCAL_SETUP_CLUSTERS_DIR}/${clusterName}
+    kubectl config use-context kind-${clusterName}
+    echo "Apply cluster config for ${clusterName}"
+    #Apply anything in the init config first
+    ${KUSTOMIZE_BIN} --load-restrictor LoadRestrictionsNone build ${clusterDir}/init --enable-helm --helm-command ${HELM_BIN} | kubectl apply -f -
+    # Wait for all expected deployments to be ready
+    echo "Waiting for deployments to be ready ..."
+    kubectl -n ingress-nginx wait --timeout=300s --for=condition=Available deployments --all
+    #Apply all config for the cluster
+    ${KUSTOMIZE_BIN} --load-restrictor LoadRestrictionsNone build ${clusterDir} --enable-helm --helm-command ${HELM_BIN} | kubectl apply -f -
+}
+
+printClusterInfo() {
     clusterName=${1}
     kubectl config use-context kind-${clusterName}
-    echo "Initialize local dev setup for the controller on ${clusterName}"
 
-    # Add the mctc CRDs
-    ${KUSTOMIZE_BIN} build config/crd | kubectl apply -f -
-    # Create the mctc ns and dev managed zone
-    ${KUSTOMIZE_BIN} --reorder none --load-restrictor LoadRestrictionsNone build config/local-setup/controller | kubectl apply -f -
-    # Create the local dev webhook proxy
-    ${KUSTOMIZE_BIN} --load-restrictor LoadRestrictionsNone build config/webhook-setup/proxy | kubectl apply -f -
+    ports=$(docker ps --format '{{json .}}' | jq "select(.Names == \"$clusterName-control-plane\").Ports")
+    httpsport=$(echo $ports | sed -e 's/.*0.0.0.0\:\(.*\)->443\/tcp.*/\1/')
+    argoPassword=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
+    nodeIP=$(kubectl get nodes -o json | jq -r ".items[] | select(.metadata.name == \"$clusterName-control-plane\").status | .addresses[] | select(.type == \"InternalIP\").address")
+
+    echo -ne "\n\n\tConnect to ArgoCD UI\n\n"
+    echo -ne "\t\tLocal URL: https://argocd.127.0.0.1.nip.io:$httpsport\n"
+    echo -ne "\t\tNode URL : https://argocd.$nodeIP.nip.io\n"
+    echo -ne "\t\tUser     : admin\n"
+    echo -ne "\t\tPassword : $argoPassword\n\n\n"
 }
 
 cleanup
@@ -233,8 +309,10 @@ docker network create -d bridge --subnet 172.32.0.0/16 mctc --gateway 172.32.0.1
   -o "com.docker.network.bridge.enable_ip_masquerade"="true" \
   -o "com.docker.network.driver.mtu"="1500"
 
-#1. Create Kind control plane cluster
+### Control Cluster ###
+
 kindCreateCluster ${KIND_CLUSTER_CONTROL_PLANE} ${port80} ${port443}
+generateControlClusterConfig ${KIND_CLUSTER_CONTROL_PLANE}
 
 #2. Install the Gateway API CRDs in the control cluster
 installGatewayAPI ${KIND_CLUSTER_CONTROL_PLANE}
@@ -251,28 +329,36 @@ deployArgoCD ${KIND_CLUSTER_CONTROL_PLANE}
 #6. Deploy Dashboard
 deployDashboard $KIND_CLUSTER_CONTROL_PLANE 0
 
-#7. Add the control plane cluster
-argocdAddCluster ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_CONTROL_PLANE}
+### Workload Clusters ###
 
-#8. Initialize local dev setup for the controller on the control-plane cluster
-initController ${KIND_CLUSTER_CONTROL_PLANE}
-
-#9. Add workload clusters if MCTC_WORKLOAD_CLUSTERS_COUNT environment variable is set
+# Create workload Kind clusters if MCTC_WORKLOAD_CLUSTERS_COUNT environment variable is set
 if [[ -n "${MCTC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
   for ((i = 1; i <= ${MCTC_WORKLOAD_CLUSTERS_COUNT}; i++)); do
     kindCreateCluster ${KIND_CLUSTER_WORKLOAD}-${i} $((${port80} + ${i})) $((${port443} + ${i}))
+  done
+fi
+
+# Generate workload cluster configs if MCTC_WORKLOAD_CLUSTERS_COUNT environment variable is set
+if [[ -n "${MCTC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
+  for ((i = 1; i <= ${MCTC_WORKLOAD_CLUSTERS_COUNT}; i++)); do
+    generateWorkloadClusterConfig ${KIND_CLUSTER_WORKLOAD}-${i} ${KIND_CLUSTER_CONTROL_PLANE}
+  done
+fi
+
+# Apply all cluster configs to local Kind clusters
+if [[ -n "${MCTC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
+  for ((i = 1; i <= ${MCTC_WORKLOAD_CLUSTERS_COUNT}; i++)); do
+    kindCreateCluster ${KIND_CLUSTER_WORKLOAD}-${i} $((${port80} + ${i})) $((${port443} + ${i}))
+    applyClusterConfig ${KIND_CLUSTER_WORKLOAD}-${i}
     deployIstio ${KIND_CLUSTER_WORKLOAD}-${i}
     installGatewayAPI ${KIND_CLUSTER_WORKLOAD}-${i}
     deployIngressController ${KIND_CLUSTER_WORKLOAD}-${i}
     deployMetalLB ${KIND_CLUSTER_WORKLOAD}-${i} $((${metalLBSubnetStart} + ${i} - 1))
     deployKuadrant ${KIND_CLUSTER_WORKLOAD}-${i}
-    deployWebhookConfigs ${KIND_CLUSTER_WORKLOAD}-${i}
     deployDashboard ${KIND_CLUSTER_WORKLOAD}-${i} ${i}
-    argocdAddCluster ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_WORKLOAD}-${i}
-    deployAgentSecret ${KIND_CLUSTER_WORKLOAD}-${i} "true"
-    deployAgentSecret ${KIND_CLUSTER_WORKLOAD}-${i} "false"
   done
 fi
 
-#10. Ensure the current context points to the control plane cluster
+printClusterInfo $KIND_CLUSTER_CONTROL_PLANE
+
 kubectl config use-context kind-${KIND_CLUSTER_CONTROL_PLANE}
