@@ -79,13 +79,25 @@ func (s *Service) GetDNSRecords(ctx context.Context, traffic traffic.Interface) 
 		record := &v1alpha1.DNSRecord{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      host,
-				Namespace: s.defaultCtrlNS,
+				Namespace: traffic.GetNamespace(),
 			},
 		}
 		if err := s.controlClient.Get(ctx, client.ObjectKeyFromObject(record), record); err != nil {
 			if k8serrors.IsNotFound(err) {
-				log.Log.V(10).Info("no dnsrecord found for host ", "host", record.Name)
-				continue
+				log.Log.V(10).Info("no dnsrecord found for host ", "host", record.Name, "namespace", record.Namespace)
+				// try the default namespace
+				record = &v1alpha1.DNSRecord{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      host,
+						Namespace: s.defaultCtrlNS,
+					},
+				}
+				if err = s.controlClient.Get(ctx, client.ObjectKeyFromObject(record), record); err != nil {
+					if k8serrors.IsNotFound(err) {
+						log.Log.V(10).Info("no dnsrecord found for host ", "host", record.Name, "namespace", record.Namespace)
+						continue
+					}
+				}
 			}
 			return nil, err
 		}
