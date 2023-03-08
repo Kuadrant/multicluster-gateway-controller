@@ -1,22 +1,15 @@
 # shellcheck shell=bash
 
-makeSecretForCluster() {
-  local clusterName=$1
-  local targetCluster=$2
+makeSecretForKubeconfig() {
+  local kubeconfig=$1
+  local clusterName=$2
+  local targetCluster=$3
   local targetClusterName=${targetCluster:=$clusterName}
-  local localAccess=${3}
 
-  if [ "$localAccess" != "true" ]; then
-    internalFlag="--internal"
-  fi
-
-  local tmpfile=$(mktemp /tmp/kubeconfig-internal.XXXXXX)
-  ${KIND_BIN} export kubeconfig -q $internalFlag --name ${clusterName} --kubeconfig ${tmpfile}
-  local server=$(kubectl --kubeconfig ${tmpfile} config view -o jsonpath="{$.clusters[?(@.name == 'kind-${clusterName}')].cluster.server}")
-  local caData=$(kubectl --kubeconfig ${tmpfile} config view --raw -o jsonpath="{$.clusters[?(@.name == 'kind-${clusterName}')].cluster.certificate-authority-data}")
-  local certData=$(kubectl --kubeconfig ${tmpfile} config view --raw -o jsonpath="{$.users[?(@.name == 'kind-${clusterName}')].user.client-certificate-data}")
-  local keyData=$(kubectl --kubeconfig ${tmpfile} config view --raw -o jsonpath="{$.users[?(@.name == 'kind-${clusterName}')].user.client-key-data}")
-  rm -f ${tmpfile}
+  local server=$(kubectl --kubeconfig ${kubeconfig} config view -o jsonpath="{$.clusters[?(@.name == '${clusterName}')].cluster.server}")
+  local caData=$(kubectl --kubeconfig ${kubeconfig} config view --raw -o jsonpath="{$.clusters[?(@.name == '${clusterName}')].cluster.certificate-authority-data}")
+  local certData=$(kubectl --kubeconfig ${kubeconfig} config view --raw -o jsonpath="{$.users[?(@.name == '${clusterName}')].user.client-certificate-data}")
+  local keyData=$(kubectl --kubeconfig ${kubeconfig} config view --raw -o jsonpath="{$.users[?(@.name == '${clusterName}')].user.client-key-data}")
 
   cat <<EOF
 kind: Secret
@@ -39,6 +32,24 @@ stringData:
   server: ${server}
 type: Opaque
 EOF
+
+}
+
+makeSecretForCluster() {
+  local clusterName=$1
+  local targetCluster=$2
+  local targetClusterName=${targetCluster:=$clusterName}
+  local localAccess=${3}
+
+  if [ "$localAccess" != "true" ]; then
+    internalFlag="--internal"
+  fi
+
+  local tmpfile=$(mktemp /tmp/kubeconfig-internal.XXXXXX)
+  ${KIND_BIN} export kubeconfig -q $internalFlag --name ${clusterName} --kubeconfig ${tmpfile}
+
+  makeSecretForKubeconfig $tmpfile kind-$clusterName $targetCluster $targetClusterName
+  rm -f $tmpfile
 }
 
 setNamespacedName() {
@@ -51,4 +62,14 @@ setLabel() {
   label=$1
   value=$2
   cat /dev/stdin | ${YQ_BIN} '.metadata.labels."'$label'"="'$value'"'
+}
+
+setConfig() {
+  expr=$1
+
+  cp /dev/stdin /tmp/doctmp
+  config=$(cat /tmp/doctmp | ${YQ_BIN} '.stringData.config')
+  updatedConfig=$(echo $config | ${YQ_BIN} -P $expr -o=json)
+
+  cat /tmp/doctmp | cfg=$updatedConfig ${YQ_BIN} '.stringData.config=strenv(cfg)'
 }

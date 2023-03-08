@@ -5,9 +5,19 @@ resources:
 - serviceaccount.yaml
 - rolebinding.yaml
 - syncer.yaml
+- secret.yaml
+
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 images:
 - name: syncer
   newName: syncer
   newTag: latest
+
+patches:
+- path: syncer_parameter_patch.json
+  target:
+    group: apps
+    version: v1
+    kind: Deployment
+    name: sync-agent
