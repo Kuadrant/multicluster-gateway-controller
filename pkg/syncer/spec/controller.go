@@ -150,8 +150,9 @@ func (c *Controller) process(ctx context.Context, gvr schema.GroupVersionResourc
 		return nil, nil
 	}
 
+	downstreamUnstructuredObject := upstreamUnstructuredObject.DeepCopy()
 	for _, mutator := range c.mutators {
-		err := mutator.Mutate(syncer.MutatorConfig{ClusterID: c.syncTargetName, Logger: logger}, upstreamUnstructuredObject)
+		err := mutator.Mutate(syncer.MutatorConfig{ClusterID: c.syncTargetName, Logger: logger}, downstreamUnstructuredObject)
 		if err != nil {
 			return nil, fmt.Errorf("error from %v mutator: %v", mutator.GetName(), err.Error())
 		}
@@ -164,12 +165,13 @@ func (c *Controller) process(ctx context.Context, gvr schema.GroupVersionResourc
 
 	if added, err := c.ensureSyncerFinalizer(ctx, gvr, upstreamUnstructuredObject); added {
 		// The successful update of the upstream resource finalizer will trigger a new reconcile
-		return nil, nil
+		retry := time.Millisecond
+		return &retry, nil
 	} else if err != nil {
 		return nil, err
 	}
 
-	return nil, c.applyToDownstream(ctx, gvr, c.downstreamNS, upstreamUnstructuredObject)
+	return nil, c.applyToDownstream(ctx, gvr, c.downstreamNS, downstreamUnstructuredObject)
 }
 
 func (c *Controller) ensureDownstreamNamespaceExists(ctx context.Context, downstreamNamespace string) error {
