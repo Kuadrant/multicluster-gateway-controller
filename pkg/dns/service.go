@@ -98,8 +98,9 @@ func (s *Service) GetDNSRecords(ctx context.Context, traffic traffic.Interface) 
 						continue
 					}
 				}
+			} else {
+				return nil, err
 			}
-			return nil, err
 		}
 		records = append(records, record)
 	}
