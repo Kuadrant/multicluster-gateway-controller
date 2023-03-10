@@ -48,7 +48,7 @@ func NewService(controlClient client.Client, hostResolv HostResolver, defaultCtr
 
 func (s *Service) resolveIPS(ctx context.Context, t traffic.Interface) ([]string, error) {
 	activeDNSTargetIPs := []string{}
-	targets, err := t.GetDNSTargets()
+	targets, err := t.GetDNSTargets(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -79,22 +79,39 @@ func (s *Service) GetDNSRecords(ctx context.Context, traffic traffic.Interface) 
 		record := &v1alpha1.DNSRecord{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      host,
-				Namespace: s.defaultCtrlNS,
+				Namespace: traffic.GetNamespace(),
 			},
 		}
 		if err := s.controlClient.Get(ctx, client.ObjectKeyFromObject(record), record); err != nil {
 			if k8serrors.IsNotFound(err) {
-				log.Log.V(10).Info("no dnsrecord found for host ", "host", record.Name)
-				continue
+				log.Log.V(10).Info("no dnsrecord found for host ", "host", record.Name, "namespace", record.Namespace)
+				// try the default namespace
+				record = &v1alpha1.DNSRecord{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      host,
+						Namespace: s.defaultCtrlNS,
+					},
+				}
+				if err = s.controlClient.Get(ctx, client.ObjectKeyFromObject(record), record); err != nil {
+					if k8serrors.IsNotFound(err) {
+						log.Log.V(10).Info("no dnsrecord found for host ", "host", record.Name, "namespace", record.Namespace)
+						continue
+					}
+				}
+			} else {
+				return nil, err
 			}
-			return nil, err
 		}
 		records = append(records, record)
 	}
 	return records, nil
 }
 
-func (s *Service) AddEndPoints(ctx context.Context, traffic traffic.Interface) error {
+// Add endpoints for hosts in the traffic object.
+// If an endpointHost is non empty, only endpoints for that host are added to DNS.
+// This can be useful in cases like a Gateway where multiple listeners with different hosts
+// are defined, and only 1 listener has an attached route.
+func (s *Service) AddEndPoints(ctx context.Context, traffic traffic.Interface, endpointHost string) error {
 	ips, err := s.resolveIPS(ctx, traffic)
 	if err != nil {
 		return err
@@ -107,6 +124,10 @@ func (s *Service) AddEndPoints(ctx context.Context, traffic traffic.Interface) e
 	// for each managed host update dns. A managed host will have a DNSRecord in the control plane
 	for _, r := range records {
 		host := r.Name
+		if endpointHost != "" && endpointHost != host {
+			continue
+		}
+
 		// record found update
 		// check if endpoint already exists in the DNSRecord
 		endpoints := []string{}
@@ -304,6 +325,33 @@ func (s *Service) GetManagedZone(ctx context.Context, t traffic.Interface) (*v1a
 
 	if err := s.controlClient.List(ctx, &managedZones, client.InNamespace(s.defaultCtrlNS)); err != nil {
 		log.Log.Error(err, "unable to list managed zones in default Ctrl NS")
+		return nil, err
+	}
+
+	if len(managedZones.Items) > 0 {
+		return &managedZones.Items[0], nil
+	}
+
+	return nil, fmt.Errorf("no managed zone found for traffic resource : %s", t.GetName())
+}
+
+// GetManagedZoneForDomain returns a ManagedZone for the given domain if one exists.
+// Currently, this returns the first matching ManagedZone found in the traffic resources own namespace, or if none is found,
+// it looks for the first matching one listed in the default ctrl namespace.
+func (s *Service) GetManagedZoneForDomain(ctx context.Context, domain string, t traffic.Interface) (*v1alpha1.ManagedZone, error) {
+	var managedZones v1alpha1.ManagedZoneList
+
+	if err := s.controlClient.List(ctx, &managedZones, client.InNamespace(t.GetNamespace()), client.MatchingFields{"spec.domainName": domain}); err != nil {
+		log.FromContext(ctx).Error(err, "unable to list managed zones in traffic resource NS")
+		return nil, err
+	}
+
+	if len(managedZones.Items) > 0 {
+		return &managedZones.Items[0], nil
+	}
+
+	if err := s.controlClient.List(ctx, &managedZones, client.InNamespace(s.defaultCtrlNS), client.MatchingFields{"spec.domainName": domain}); err != nil {
+		log.FromContext(ctx).Error(err, "unable to list managed zones in default Ctrl NS")
 		return nil, err
 	}
 

@@ -7,6 +7,10 @@ metadata:
 spec:
   gatewayClassName: mctc-gw-istio-external-instance-per-cluster
   listeners:
-  - name: test-listener-1
-    port: 8443
+  - name: default
+    port: 443
     protocol: HTTPS
+    hostname: "myapp.dev.hcpapps.net"
+    allowedRoutes:
+      namespaces:
+        from: All
