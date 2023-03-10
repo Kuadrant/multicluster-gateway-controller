@@ -1,0 +1,9 @@
+resources:
+- limitador.yaml
+secretGenerator:
+  - name: redisconfig
+    namespace: kuadrant-system
+    literals:
+      -  URL=redis://172.32.0.2:30611
+    options:
+      disableNameSuffixHash: true   
