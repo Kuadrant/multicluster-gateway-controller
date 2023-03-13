@@ -85,4 +85,6 @@ aws-credentials*.env
 controller-config*.env
 
 /gateway.yaml
+/application.yaml
+/ratelimitpolicy.yaml
 /echo_httproute.yaml
