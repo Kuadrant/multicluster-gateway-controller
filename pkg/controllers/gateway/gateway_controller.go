@@ -46,10 +46,10 @@ const (
 )
 
 type HostService interface {
-	CreateDNSRecord(ctx context.Context, hostKey string, managedZone *v1alpha1.ManagedZone) (*v1alpha1.DNSRecord, error)
-	GetManagedZoneForDomain(ctx context.Context, domain string, t traffic.Interface) (*v1alpha1.ManagedZone, error)
-	AddEndPoints(ctx context.Context, t traffic.Interface, host string) error
-	RemoveEndpoints(ctx context.Context, t traffic.Interface) error
+	CreateDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone) (*v1alpha1.DNSRecord, error)
+	GetDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone) (*v1alpha1.DNSRecord, error)
+	GetManagedZoneForHost(ctx context.Context, domain string, t traffic.Interface) (*v1alpha1.ManagedZone, string, error)
+	AddEndpoints(ctx context.Context, t traffic.Interface, dnsRecord *v1alpha1.DNSRecord) error
 }
 
 type CertificateService interface {
@@ -69,6 +69,12 @@ type GatewayReconciler struct {
 	Scheme       *runtime.Scheme
 	Certificates CertificateService
 	Host         HostService
+}
+
+type ManagedHost struct {
+	host        string
+	managedZone *v1alpha1.ManagedZone
+	dnsRecord   *v1alpha1.DNSRecord
 }
 
 //+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways,verbs=get;list;watch;create;update;patch;delete
@@ -155,20 +161,13 @@ func (r *GatewayReconciler) reconcileGateway(ctx context.Context, previous gatew
 	trafficAccessor := traffic.NewGateway(gateway)
 	gatewayHelper := trafficAccessor.(GatewayHelper)
 	allHosts := trafficAccessor.GetHosts()
-	hostsWithMZ := []string{}
+	managedHosts := []ManagedHost{}
 
-	// First, filter out hosts that are *not* in a Managed Zone
-	// Those can be left alone
+	// Create a list of managed hosts.
+	// Find a suitable managed zone for each host, if one exists, ensure a DNSRecord exists for it.
 	for _, host := range allHosts {
-		hostParts := strings.SplitN(host, ".", 2)
-		if len(hostParts) < 2 {
-			continue
-		}
-		subDomain := hostParts[0]
-		parentDomain := hostParts[1]
-
-		log.V(2).Info("getting managed zone for parent domain of host", "host", host, "parentDomain", parentDomain, "subDomain", subDomain)
-		managedZone, err := r.Host.GetManagedZoneForDomain(ctx, parentDomain, trafficAccessor)
+		log.V(2).Info("getting managed zone", "host", host)
+		managedZone, subDomain, err := r.Host.GetManagedZoneForHost(ctx, host, trafficAccessor)
 		if err != nil {
 			return metav1.ConditionUnknown, clusters, false, err
 		}
@@ -179,43 +178,56 @@ func (r *GatewayReconciler) reconcileGateway(ctx context.Context, previous gatew
 		// TODO: ownerRefs e.g.
 		// err = controllerutil.SetControllerReference(parentZone, nsRecord, r.Scheme)
 
-		// Let's create the DNSRecord now, but no endpoint yet.
+		// Get an existing DNSRecord or create a new one, but no endpoint yet.
 		// Endpoints created later when routes are attached.
-		record, err := r.Host.CreateDNSRecord(ctx, subDomain, managedZone)
+		dnsRecord, err := r.Host.GetDNSRecord(ctx, subDomain, managedZone)
 		if err != nil {
-			log.Error(err, "failed to create DNSRecord", "subDomain", subDomain)
 			return metav1.ConditionUnknown, clusters, false, err
 		}
-		log.Info("DNSRecord created", "record", record)
-		hostsWithMZ = append(hostsWithMZ, host)
+		if dnsRecord == nil {
+			dnsRecord, err = r.Host.CreateDNSRecord(ctx, subDomain, managedZone)
+			if err != nil {
+				log.Error(err, "failed to create DNSRecord", "subDomain", subDomain)
+				return metav1.ConditionUnknown, clusters, false, err
+			}
+			log.Info("DNSRecord created", "dnsRecord", dnsRecord)
+		}
+
+		managedHost := ManagedHost{
+			host:        host,
+			managedZone: managedZone,
+			dnsRecord:   dnsRecord,
+		}
+
+		managedHosts = append(managedHosts, managedHost)
 	}
 
-	// Generate certificates for hosts
-	for _, host := range hostsWithMZ {
+	// Generate certificates for managed hosts
+	for _, mh := range managedHosts {
 
 		// Only generate cert for https listeners
-		listener := gatewayHelper.GetListenerByHost(host)
+		listener := gatewayHelper.GetListenerByHost(mh.host)
 		if listener.Protocol != gatewayv1beta1.HTTPSProtocolType {
 			continue
 		}
 
 		// create certificate resource for assigned host
-		if err := r.Certificates.EnsureCertificate(ctx, host, gateway); err != nil && !k8serrors.IsAlreadyExists(err) {
+		if err := r.Certificates.EnsureCertificate(ctx, mh.host, gateway); err != nil && !k8serrors.IsAlreadyExists(err) {
 			log.Error(err, "Error ensuring certificate")
 			return metav1.ConditionUnknown, clusters, false, err
 		}
 
 		// Check if certificate secret is ready
-		secret, err := r.Certificates.GetCertificateSecret(ctx, host, trafficAccessor.GetNamespace())
+		secret, err := r.Certificates.GetCertificateSecret(ctx, mh.host, trafficAccessor.GetNamespace())
 		if err != nil && !k8serrors.IsNotFound(err) {
 			log.Error(err, "Error getting certificate secret")
 			return metav1.ConditionUnknown, clusters, false, err
 		}
 		if err != nil {
-			log.Info("tls secret does not exist yet for host " + host + " requeue")
+			log.Info("tls secret does not exist yet for host " + mh.host + " requeue")
 			return metav1.ConditionUnknown, clusters, true, err
 		}
-		log.Info("certificate exists for host", "host", host)
+		log.Info("certificate exists for host", "host", mh.host)
 
 		//sync secret to clusters
 		if secret != nil {
@@ -228,17 +240,17 @@ func (r *GatewayReconciler) reconcileGateway(ctx context.Context, previous gatew
 					return metav1.ConditionUnknown, clusters, false, err
 				}
 			}
-			trafficAccessor.AddTLS(host, secret)
+			trafficAccessor.AddTLS(mh.host, secret)
 		}
 		// Secrets don't have a status, so we can't say for sure if it's synced OK. Optimism here.
-		log.Info("certificate secret in place for host. Adding dns endpoints", "host", host)
+		log.Info("certificate secret in place for host. Adding dns endpoints", "host", mh.host)
 	}
 
-	// Add host endpoints for attached routes
+	// Add endpoints for attached routes
 	gatewayHasAttachedRoutes := false
-	for _, host := range hostsWithMZ {
+	for _, mh := range managedHosts {
 		// Only consider host for dns if there's at least 1 attached route to the listener for this host in *any* gateway
-		listener := gatewayHelper.GetListenerByHost(host)
+		listener := gatewayHelper.GetListenerByHost(mh.host)
 		listenerStatuses := gatewayHelper.GetListenerStatusesByListenerName(ctx, string(listener.Name))
 		hostHasAttachedRoutes := false
 		for _, listenerStatus := range listenerStatuses {
@@ -247,13 +259,13 @@ func (r *GatewayReconciler) reconcileGateway(ctx context.Context, previous gatew
 				break
 			}
 		}
-		log.Info("hostHasAttachedRoutes", "host", host, "hostHasAttachedRoutes", hostHasAttachedRoutes)
+		log.Info("hostHasAttachedRoutes", "host", mh.host, "hostHasAttachedRoutes", hostHasAttachedRoutes)
 
 		if hostHasAttachedRoutes {
 			gatewayHasAttachedRoutes = true
-			err := r.Host.AddEndPoints(ctx, trafficAccessor, host)
+			err := r.Host.AddEndpoints(ctx, trafficAccessor, mh.dnsRecord)
 			if err != nil {
-				log.Error(err, "Error adding endpoints", "host", host)
+				log.Error(err, "Error adding endpoints", "host", mh.host)
 				return metav1.ConditionUnknown, clusters, false, err
 			}
 		}
