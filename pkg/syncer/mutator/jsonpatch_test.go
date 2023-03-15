@@ -105,7 +105,7 @@ func Test_JSONPatch(t *testing.T) {
 				if gwAfter.Spec.GatewayClassName != "boo" {
 					t.Fatalf("expected modified gateway to have className 'boo' found: %v", gwAfter.Spec.GatewayClassName)
 				}
-				
+
 				if gwAfter.Spec.Listeners == nil {
 					t.Fatalf("expected modified gateway to have listeners")
 				}

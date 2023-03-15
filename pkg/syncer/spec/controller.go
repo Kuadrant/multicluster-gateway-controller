@@ -164,7 +164,6 @@ func (c *Controller) process(ctx context.Context, gvr schema.GroupVersionResourc
 	}
 
 	if added, err := c.ensureSyncerFinalizer(ctx, gvr, upstreamUnstructuredObject); added {
-		// The successful update of the upstream resource finalizer will trigger a new reconcile
 		retry := time.Millisecond
 		return &retry, nil
 	} else if err != nil {
@@ -190,7 +189,7 @@ func (c *Controller) ensureDownstreamNamespaceExists(ctx context.Context, downst
 
 	_, err := namespaces.Create(ctx, newNamespace, metav1.CreateOptions{})
 	if err == nil || !errors.IsAlreadyExists(err) {
-		logger.Info("Created downstream namespace for upstream namespace")
+		logger.Info("Created downstream namespace '" + downstreamNamespace + "'for upstream namespace")
 		return nil
 	}
 
@@ -317,6 +316,7 @@ func (c *Controller) applyToDownstream(ctx context.Context, gvr schema.GroupVers
 	// Marshalling the unstructured object is good enough as SSA patch
 	data, err := json.Marshal(downstreamObj)
 	if err != nil {
+		logger.Info("error marshalling downstream obj", "error", err)
 		return err
 	}
 
