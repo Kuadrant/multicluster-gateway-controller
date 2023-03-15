@@ -181,7 +181,7 @@ func (r *GatewayReconciler) reconcileGateway(ctx context.Context, previous gatew
 		// Get an existing DNSRecord or create a new one, but no endpoint yet.
 		// Endpoints created later when routes are attached.
 		dnsRecord, err := r.Host.GetDNSRecord(ctx, subDomain, managedZone)
-		if err != nil {
+		if err != nil && !k8serrors.IsNotFound(err) {
 			return metav1.ConditionUnknown, clusters, false, err
 		}
 		if dnsRecord == nil {
