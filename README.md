@@ -1,15 +1,15 @@
 # multicluster-gateway-controller
 
 ## Description:
-When deploying the multi cluster traffic controller using the make targets the following will be created: 
+When deploying the multicluster gateway controller using the make targets, the following will be created: 
 * Kind cluster(s)
 * Gateway API CRDs in the control plane cluster
 * Ingress controller
 * Cert manager
 * Webhook and webhook config
-* ARGO CD instance
+* ArgoCD instance
 * K8s Dashboard
-* Lets encrypt certs
+* LetsEncrypt certs
 	
 
 
@@ -90,7 +90,7 @@ make build-agent run-agent
 
 ## License
 
-Copyright 2022 The MultiCluster Traffic Controller Authors.
+Copyright 2022 Red Hat.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
