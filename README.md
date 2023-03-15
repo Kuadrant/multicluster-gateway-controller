@@ -1,4 +1,4 @@
-# multi-cluster-traffic-controller
+# multicluster-gateway-controller
 
 ## Description:
 When deploying the multi cluster traffic controller using the make targets the following will be created: 
