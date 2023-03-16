@@ -140,8 +140,9 @@ var _ = BeforeSuite(func() {
 	specSyncRunnable := syncer.GetSyncerRunnable(specSyncConfig, syncer.InformerForGVR, SpecSyncer)
 
 	log.Log.Info("adding syncer informer to manager")
-	err = k8sManager.Add(specSyncRunnable)
-	Expect(err).NotTo(HaveOccurred())
+	go specSyncRunnable.Start(ctx)
+	//k8sManager.Add(specSyncRunnable)
+	//Expect(err).NotTo(HaveOccurred())
 
 	ns := &v1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{Name: controlPlaneNS},
@@ -244,6 +245,7 @@ var _ = Describe("Syncer", func() {
 			// Delete secret from control plane
 			Expect(k8sClient.Delete(ctx, createdSecret)).To(BeNil())
 
+			log.Log.Info("deleted upstream")
 			// Expect downstream secret to be removed
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, types.NamespacedName{Name: secret.Name, Namespace: dataPlaneNS}, &v1.Secret{})
