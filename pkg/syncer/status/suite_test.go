@@ -24,20 +24,26 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/json"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 	//+kubebuilder:scaffold:imports
 
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/metadata"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer"
 )
 
@@ -68,7 +74,8 @@ func TestAPIs(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
+	zapLogger := zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true))
+	log.SetLogger(zapLogger)
 	ctx, cancel = context.WithCancel(context.TODO())
 
 	By("bootstrapping test environment")
@@ -102,6 +109,8 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).ToNot(HaveOccurred())
 
+	ctrl.SetLogger(zapLogger)
+
 	dynamicClient, err := dynamic.NewForConfig(k8sManager.GetConfig())
 	Expect(err).ToNot(HaveOccurred())
 
@@ -127,8 +136,22 @@ var _ = BeforeSuite(func() {
 
 	statusSyncRunnable := syncer.GetSyncerRunnable(statusSyncConfig, syncer.InformerForGVR, StatusSyncer)
 
-	err = k8sManager.Add(statusSyncRunnable)
-	Expect(err).NotTo(HaveOccurred())
+	go func() {
+		err := statusSyncRunnable.Start(ctx)
+		Expect(err).NotTo(HaveOccurred())
+	}()
+
+	ns := &v1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{Name: controlPlaneNS},
+	}
+	err = k8sClient.Create(ctx, ns)
+	Expect(err).To(BeNil())
+
+	ns = &v1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{Name: dataPlaneNS},
+	}
+	err = k8sClient.Create(ctx, ns)
+	Expect(err).To(BeNil())
 
 	go func() {
 		defer GinkgoRecover()
@@ -144,18 +167,136 @@ var _ = AfterSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 })
 
-var _ = Describe("Syncer", func() {
-	Context("testing syncer", func() {
+var _ = Describe("Status Syncer", func() {
+	Context("testing the status syncer", func() {
+		var gateway *gatewayv1beta1.Gateway
+		hostname := gatewayv1beta1.Hostname("test.host")
 		BeforeEach(func() {
-
+			gateway = &gatewayv1beta1.Gateway{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-gateway",
+					Namespace: controlPlaneNS,
+				},
+				Spec: gatewayv1beta1.GatewaySpec{
+					GatewayClassName: "test",
+					Listeners: []gatewayv1beta1.Listener{
+						{
+							Name:     "listener-1",
+							Hostname: &hostname,
+							Port:     443,
+							Protocol: gatewayv1beta1.HTTPSProtocolType,
+						},
+					},
+				},
+			}
 		})
 
+		//ensure gateway is removed after each test.
 		AfterEach(func() {
+			// Delete gateway from control plane
+			Expect(func() bool {
+				err := k8sClient.Delete(ctx, gateway)
+				return err == nil || apierrors.IsNotFound(err)
+			}()).To(BeTrue())
 
+			// Confirm it's removed downstream
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: gateway.Name, Namespace: dataPlaneNS}, &gatewayv1beta1.Gateway{})
+				return apierrors.IsNotFound(err)
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 		})
 
-		It("should ignore a not annotated gateway", func() {
+		It("should annotate the status to the upstream resource", func() {
+			metadata.AddAnnotation(gateway, syncer.MCTC_SYNC_ANNOTATION_PREFIX+clusterID, "true")
 
+			//we will be creating the data plane gateway (as spec syncer is not running)
+			dataplaneGateway := gateway.DeepCopy()
+			dataplaneGateway.Namespace = dataPlaneNS
+
+			//create control plane gateway
+			Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
+			controlPlaneGateway := &gatewayv1beta1.Gateway{}
+			gatewayNamespacedName := types.NamespacedName{Name: gateway.Name, Namespace: controlPlaneNS}
+
+			//create data plane gateway with status
+			Expect(k8sClient.Create(ctx, dataplaneGateway)).To(BeNil())
+
+			dataplaneGateway.Status.Listeners = []gatewayv1beta1.ListenerStatus{
+				{
+					Name: "test-status-listener",
+					SupportedKinds: []gatewayv1beta1.RouteGroupKind{
+						{
+							Kind: "ingress",
+						},
+					},
+					Conditions: []metav1.Condition{
+						{
+							Type:               "testing",
+							Status:             "True",
+							ObservedGeneration: 1,
+							LastTransitionTime: metav1.Now(),
+							Reason:             "testing",
+							Message:            "testing",
+						},
+					},
+				},
+			}
+			addressType := gatewayv1beta1.HostnameAddressType
+			dataplaneGateway.Status.Addresses = []gatewayv1beta1.GatewayAddress{
+				{
+					Type:  &addressType,
+					Value: "test.host",
+				},
+			}
+			dataplaneGateway.Status.Conditions = []metav1.Condition{
+				{
+					Type:               "testing",
+					Status:             "True",
+					ObservedGeneration: 1,
+					LastTransitionTime: metav1.Now(),
+					Reason:             "testing",
+					Message:            "testing",
+				},
+			}
+
+			ctrl.Log.Info("updating data plane gateway status")
+			Expect(k8sClient.Status().Update(ctx, dataplaneGateway.DeepCopy())).To(BeNil())
+
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: dataplaneGateway.Name, Namespace: dataplaneGateway.Namespace}, dataplaneGateway)
+				if err != nil {
+					ctrl.Log.Error(err, "error getting data plane gateway")
+					return false
+				}
+				err = k8sClient.Get(ctx, gatewayNamespacedName, controlPlaneGateway)
+				if err != nil {
+					ctrl.Log.Error(err, "error getting control plane gateway")
+					return false
+				}
+				//ctrl.Log.Info("got control plane gateway", "annotations", controlPlaneGateway.Annotations)
+				if !metadata.HasAnnotation(controlPlaneGateway, SyncerClusterStatusAnnotationPrefix+clusterID) {
+					return false
+				}
+				annotation := metadata.GetAnnotation(controlPlaneGateway, SyncerClusterStatusAnnotationPrefix+clusterID)
+				controlPlaneStatus := &gatewayv1beta1.GatewayStatus{}
+				err = json.Unmarshal([]byte(annotation), controlPlaneStatus)
+				if err != nil {
+					return false
+				}
+
+				if controlPlaneStatus.Listeners == nil {
+					return false
+				}
+				if controlPlaneStatus.Addresses == nil {
+					return false
+				}
+				if controlPlaneStatus.Conditions == nil {
+					return false
+				}
+				return true
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+
+			Expect(k8sClient.Delete(ctx, dataplaneGateway)).To(BeNil())
 		})
 
 	})

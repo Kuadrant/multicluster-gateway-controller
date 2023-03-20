@@ -98,7 +98,6 @@ func InformerForGVR(cfg Config, informer informers.GenericInformer, gvr *schema.
 	_, err := informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(objInterface interface{}) {
 			metaAccessor, err := meta.Accessor(objInterface)
-			log.Log.Info("got add event for", "name", metaAccessor.GetName(), "namespace", metaAccessor.GetNamespace())
 
 			if err != nil {
 				return
@@ -119,7 +118,6 @@ func InformerForGVR(cfg Config, informer informers.GenericInformer, gvr *schema.
 		},
 		UpdateFunc: func(oldObjInterface, newObjInterface interface{}) {
 			metaAccessor, err := meta.Accessor(newObjInterface)
-			log.Log.Info("got update event for", "name", metaAccessor.GetName(), "namespace", metaAccessor.GetNamespace())
 
 			if err != nil {
 				return
@@ -142,7 +140,6 @@ func InformerForGVR(cfg Config, informer informers.GenericInformer, gvr *schema.
 			if err != nil {
 				return
 			}
-			log.Log.Info("got delete event for", "name", metaAccessor.GetName(), "namespace", metaAccessor.GetNamespace())
 			if !slices.Contains(cfg.UpstreamNamespaces, metaAccessor.GetNamespace()) {
 				return
 			}

@@ -140,9 +140,10 @@ var _ = BeforeSuite(func() {
 	specSyncRunnable := syncer.GetSyncerRunnable(specSyncConfig, syncer.InformerForGVR, SpecSyncer)
 
 	log.Log.Info("adding syncer informer to manager")
-	go specSyncRunnable.Start(ctx)
-	//k8sManager.Add(specSyncRunnable)
-	//Expect(err).NotTo(HaveOccurred())
+	go func() {
+		err := specSyncRunnable.Start(ctx)
+		Expect(err).NotTo(HaveOccurred())
+	}()
 
 	ns := &v1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{Name: controlPlaneNS},
@@ -164,8 +165,8 @@ var _ = AfterSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 })
 
-var _ = Describe("Syncer", func() {
-	Context("testing syncer", func() {
+var _ = Describe("Spec Syncer", func() {
+	Context("testing the spec syncer", func() {
 		var gateway *gatewayv1beta1.Gateway
 		var secret *v1.Secret
 		hostname := gatewayv1beta1.Hostname("test.host")
@@ -195,27 +196,50 @@ var _ = Describe("Syncer", func() {
 			}
 		})
 
+		//ensure gateway and secret are removed after each test.
 		AfterEach(func() {
+			// Delete secret from control plane
+			Expect(func() bool {
+				err := k8sClient.Delete(ctx, secret)
+				return err == nil || apierrors.IsNotFound(err)
+			}()).To(BeTrue())
 
+			// Confirm it's removed downstream
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: secret.Name, Namespace: dataPlaneNS}, &v1.Secret{})
+				return apierrors.IsNotFound(err)
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+
+			// Delete gateway from control plane
+			Expect(func() bool {
+				err := k8sClient.Delete(ctx, gateway)
+				return err == nil || apierrors.IsNotFound(err)
+			}()).To(BeTrue())
+
+			// Confirm it's removed downstream
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: gateway.Name, Namespace: dataPlaneNS}, &gatewayv1beta1.Gateway{})
+				return apierrors.IsNotFound(err)
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 		})
 
 		It("should ignore an unannotated gateway and secret", func() {
-			////create gateway and secret in control plane
-			//Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
-			//createdGateway := &gatewayv1beta1.Gateway{}
-			//gatewayNamespacedName := types.NamespacedName{Name: gateway.Name, Namespace: controlPlaneNS}
-			//
-			//Expect(k8sClient.Create(ctx, secret)).To(BeNil())
-			//createdSecret := &v1.Secret{}
-			//secretNamespacedName := types.NamespacedName{Name: secret.Name, Namespace: controlPlaneNS}
-			//
-			//// Check it does exist in the control plane
-			//Expect(k8sClient.Get(ctx, gatewayNamespacedName, createdGateway)).To(BeNil())
-			//Expect(k8sClient.Get(ctx, secretNamespacedName, createdSecret)).To(BeNil())
-			//
-			//// Check it doesn't exist in the data plane
-			//Expect(apierrors.IsNotFound(k8sClient.Get(ctx, types.NamespacedName{Namespace: dataPlaneNS, Name: gatewayNamespacedName.Name}, createdGateway))).To(BeTrue())
-			//Expect(apierrors.IsNotFound(k8sClient.Get(ctx, types.NamespacedName{Namespace: dataPlaneNS, Name: secretNamespacedName.Name}, createdSecret))).To(BeTrue())
+			//create gateway and secret in control plane
+			Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
+			createdGateway := &gatewayv1beta1.Gateway{}
+			gatewayNamespacedName := types.NamespacedName{Name: gateway.Name, Namespace: controlPlaneNS}
+
+			Expect(k8sClient.Create(ctx, secret)).To(BeNil())
+			createdSecret := &v1.Secret{}
+			secretNamespacedName := types.NamespacedName{Name: secret.Name, Namespace: controlPlaneNS}
+
+			// Check it does exist in the control plane
+			Expect(k8sClient.Get(ctx, gatewayNamespacedName, createdGateway)).To(BeNil())
+			Expect(k8sClient.Get(ctx, secretNamespacedName, createdSecret)).To(BeNil())
+
+			// Check it doesn't exist in the data plane
+			Expect(apierrors.IsNotFound(k8sClient.Get(ctx, types.NamespacedName{Namespace: dataPlaneNS, Name: gatewayNamespacedName.Name}, createdGateway))).To(BeTrue())
+			Expect(apierrors.IsNotFound(k8sClient.Get(ctx, types.NamespacedName{Namespace: dataPlaneNS, Name: secretNamespacedName.Name}, createdSecret))).To(BeTrue())
 		})
 		It("should delete downstream when deleted upstream", func() {
 			metadata.AddAnnotation(gateway, syncer.MCTC_SYNC_ANNOTATION_PREFIX+clusterID, "true")
@@ -244,32 +268,78 @@ var _ = Describe("Syncer", func() {
 
 			// Delete secret from control plane
 			Expect(k8sClient.Delete(ctx, createdSecret)).To(BeNil())
+			// Expect upstream secret to be removed
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: secret.Name, Namespace: controlPlaneNS}, &v1.Secret{})
+				return apierrors.IsNotFound(err)
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 
-			log.Log.Info("deleted upstream")
 			// Expect downstream secret to be removed
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, types.NamespacedName{Name: secret.Name, Namespace: dataPlaneNS}, &v1.Secret{})
 				return apierrors.IsNotFound(err)
 			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 
+			// Delete gateway from control plane
+			Expect(k8sClient.Delete(ctx, createdGateway)).To(BeNil())
+			// Expect upstream gateway to be removed
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: gateway.Name, Namespace: controlPlaneNS}, &gatewayv1beta1.Gateway{})
+				return apierrors.IsNotFound(err)
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+
+			// Expect downstream gateway to be removed
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: gateway.Name, Namespace: dataPlaneNS}, &gatewayv1beta1.Gateway{})
+				return apierrors.IsNotFound(err)
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+
 		})
 		It("should ignore an annotated gateway and secret for another cluster", func() {
-			//create gateway in control plane
+			metadata.AddAnnotation(gateway, syncer.MCTC_SYNC_ANNOTATION_PREFIX+"different-cluster-id", "true")
+			Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
+			createdGateway := &gatewayv1beta1.Gateway{}
+			gatewayNamespacedName := types.NamespacedName{Name: gateway.Name, Namespace: controlPlaneNS}
 
-			// Check it exists in the control plane
+			metadata.AddAnnotation(secret, syncer.MCTC_SYNC_ANNOTATION_PREFIX+"different-cluster-id", "true")
+			Expect(k8sClient.Create(ctx, secret)).To(BeNil())
+			createdSecret := &v1.Secret{}
+			secretNamespacedName := types.NamespacedName{Name: secret.Name, Namespace: controlPlaneNS}
+
+			// Check it does exist in the control plane
+			Expect(k8sClient.Get(ctx, gatewayNamespacedName, createdGateway)).To(BeNil())
+			Expect(k8sClient.Get(ctx, secretNamespacedName, createdSecret)).To(BeNil())
+
+			// Check gateway and secret are never synced to data plane
+			Consistently(func() bool {
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: gateway.Name, Namespace: dataPlaneNS}, &gatewayv1beta1.Gateway{})
+				return apierrors.IsNotFound(err)
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			Consistently(func() bool {
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: secret.Name, Namespace: dataPlaneNS}, &v1.Secret{})
+				return apierrors.IsNotFound(err)
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 
 		})
-		It("should sync a specifically annotated gateway and secret", func() {
 
-		})
-		It("should sync a wildcard annotated gateway and secret", func() {
-
-		})
 		It("should apply correctly annotated json mutations to a gateway and secret", func() {
+			metadata.AddAnnotation(gateway, syncer.MCTC_SYNC_ANNOTATION_PREFIX+clusterID, "true")
+			metadata.AddAnnotation(gateway, mutator.JSONPatchAnnotationPrefix+clusterID, `[
+			  {"op": "replace", "path": "/spec/gatewayClassName", "value": "istio"},
+			  {"op": "replace", "path": "/spec/listeners/0/name", "value": "test"}
+			]`)
+			Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
+			dataPlaneGateway := &gatewayv1beta1.Gateway{}
+			gatewayNamespacedName := types.NamespacedName{Name: gateway.Name, Namespace: dataPlaneNS}
 
-		})
-		It("should ignore json mutations on a gateway and secret annotated for a different cluster", func() {
-
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, gatewayNamespacedName, dataPlaneGateway)
+				if err != nil {
+					return false
+				}
+				ctrl.Log.Info("got dataplane gateway", "yaml", dataPlaneGateway)
+				return dataPlaneGateway.Spec.GatewayClassName == "istio" && dataPlaneGateway.Spec.Listeners[0].Name == "test"
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 		})
 	})
 })
