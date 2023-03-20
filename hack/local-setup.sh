@@ -286,3 +286,8 @@ fi
 
 #10. Ensure the current context points to the control plane cluster
 kubectl config use-context kind-${KIND_CLUSTER_CONTROL_PLANE}
+
+ # Create configmap with gateway parameters for clusters
+kubectl create configmap gateway-params \
+  --from-file=params=config/samples/gatewayclass_params.json \
+  -n multi-cluster-traffic-controller-system

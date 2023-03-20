@@ -71,12 +71,28 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	gatewayclass := previous.DeepCopy()
 	supportedClasses := getSupportedClasses()
+
+	_, err = getParams(ctx, r.Client, previous)
+
 	if !slice.ContainsString(supportedClasses, previous.Name) {
 		gatewayclass.Status = gatewayv1beta1.GatewayClassStatus{
 			Conditions: []metav1.Condition{
 				{
 					LastTransitionTime: metav1.Now(),
 					Message:            fmt.Sprintf("Invalid Parameters - Unsupported class name %s. Must be one of [%v]", previous.Name, strings.Join(supportedClasses, ",")),
+					Reason:             string(gatewayv1beta1.GatewayClassReasonInvalidParameters),
+					Status:             metav1.ConditionFalse,
+					Type:               string(gatewayv1beta1.GatewayClassConditionStatusAccepted),
+					ObservedGeneration: previous.Generation,
+				},
+			},
+		}
+	} else if IsInvalidParamsError(err) {
+		gatewayclass.Status = gatewayv1beta1.GatewayClassStatus{
+			Conditions: []metav1.Condition{
+				{
+					LastTransitionTime: metav1.Now(),
+					Message:            fmt.Sprintf("Invalid Parameters - %s", err.Error()),
 					Reason:             string(gatewayv1beta1.GatewayClassReasonInvalidParameters),
 					Status:             metav1.ConditionFalse,
 					Type:               string(gatewayv1beta1.GatewayClassConditionStatusAccepted),

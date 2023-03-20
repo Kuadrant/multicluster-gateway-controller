@@ -4,3 +4,8 @@ metadata:
   name: mctc-gw-istio-external-instance-per-cluster
 spec:
   controllerName: "kuadrant.io/mctc-gw-controller"
+  parametersRef:
+    group: ""
+    kind: "ConfigMap"
+    namespace: "multi-cluster-traffic-controller-system"
+    name: "gateway-params"
