@@ -1,6 +1,6 @@
-# GatewayClass & Gateway Status Conditions
+# GatewayClass & Gateway Status
 
-## GatewayClass conditions
+## GatewayClass `status.conditions`
 
 There is 1 condition type for GatewayClasses -  `Accepted`.
 
@@ -39,11 +39,7 @@ If the GatewayClass is not valid or an unsupported class is specified, the condi
       observedGeneration: <corresponding metadata.generation>
 ```
 
-### Full list of possible GatewayClass conditions
-
-See https://gateway-api.sigs.k8s.io/references/spec/#gateway.networking.k8s.io%2fv1beta1.GatewayClassConditionType
-
-## Gateway conditions
+## Gateway `status.conditions`
 
 For simplicity of implementing an abstraction on multiple Gateway resources in multiple clusters, only the `Accepted` and `Programmed` condition types will be used.
 The `Ready` condition type, which is optional, will *not* be used.
@@ -129,6 +125,78 @@ If there is a problem with configuring the data plane Gateway resources, the con
       observedGeneration: <corresponding metadata.generation>
 ```
 
-### Full list of possible Gateway conditions
+## Gateway `status.addresses`
 
-See https://gateway-api.sigs.k8s.io/references/spec/#gateway.networking.k8s.io%2fv1beta1.GatewayConditionType
+The `addresses` field behaves similar to the same field in the [Gateway API Specification](https://gateway-api.sigs.k8s.io/references/spec/#gateway.networking.k8s.io/v1beta1.GatewayStatus).
+It lists the IP addresses that have actually been bound to *all* Gateway instances across *all* data plane clusters the Gateway has been instansiated on.
+For example, if there are 2 Gateway instances in the data plane with `status.addresses` values of below:
+
+```yaml
+# Data Plane Gateway 1
+status:
+  addresses:
+  - type: IPAddress
+    value: 172.16.0.1
+
+# Data Plane Gateway 2
+status:
+  addresses:
+  - type: IPAddress
+    value: 172.16.0.2
+```
+
+The `status.addresses` field in the control plane Gateway will look something like this:
+
+```yaml
+status:
+  addresses:
+  - type: IPAddress
+    value: 172.16.0.1
+  - type: IPAddress
+    value: 172.16.0.2
+```
+
+## Individual Data Plane Gateway statuses
+
+The full status of each Gateway in a data plane cluster may have some value beyond what's included in the rolled up control plane Gateway status.
+For this reason, the individual Gateway statuses can be retrieved from annotations as json.
+For example, a Gateway in a data plane cluster with an id of `eu-apps-1` would have the full status available like this in the control plane Gateway:
+
+```yaml
+metadata:
+  annotations:
+    mctc-status-syncer-status-eu-apps-1: {"addresses":[{"type":"IPAddress","value":"172.16.0.1"}],"conditions":[{{"lastTransitionTime":"2023-02-16T11:47:09Z","message":"Gateway valid, assigned to service(s) istio.istio-system.svc.cluster.local:80","observedGeneration":4,"reason":"ListenersValid","status":"True","type":"Ready"}],"listeners":[{"attachedRoutes":1,"conditions":[{"lastTransitionTime":"2023-02-16T11:47:09Z","message":"No errors found","observedGeneration":4,"reason":"Ready","status":"True","type":"Ready"}],"name":"test","supportedKinds":[{"group":"gateway.networking.k8s.io","kind":"HTTPRoute"}]}]}
+```
+
+### WIP Multicluster-gateway-controller specific condition types
+
+WIP
+
+The individual status of each data plane Gateway may also include status conditions that are specific to multicluster-gateway-controller functionality.
+For example, take an Istio Gateway with the below status conditions:
+
+```yaml
+  - lastTransitionTime: "2023-02-16T11:53:13Z"
+    message: Deployed gateway to the cluster
+    observedGeneration: 4
+    reason: ResourcesAvailable
+    status: "True"
+    type: Scheduled
+  - lastTransitionTime: "2023-02-16T11:47:09Z"
+    message: Gateway valid, assigned to service(s) istio.istio-system.svc.cluster.local:80
+    observedGeneration: 4
+    reason: ListenersValid
+    status: "True"
+    type: Ready
+```
+
+If this Gateway has a multicluster-gateway-controller 'Policy' attached to it at the control plane layer, additional status like below will be added to the Gateway in the data plane.
+
+```
+  - lastTransitionTime: "2023-02-16T11:47:09Z"
+    message: Gateway valid, assigned to service(s) istio.istio-system.svc.cluster.local:80
+    observedGeneration: 4
+    reason: ListenersValid
+    status: "True"
+    type: Ready
+```
