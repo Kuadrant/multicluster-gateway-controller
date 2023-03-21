@@ -1,9 +1,9 @@
 
 resources:
-  - ./init
+  - ../../ingress-nginx
+  - ../../istio
   - ../../gateway-api
-  - ../../istio/istiod
   - ../../kuadrant
+#ToDo This should override the control cluster url and cabundle to avoid the hard coded values
   - ../../webhook-setup/workload
   - ./agent
-

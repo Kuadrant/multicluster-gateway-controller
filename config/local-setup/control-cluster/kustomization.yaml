@@ -1,6 +1,7 @@
 
 resources:
-  - ./init
+  - ../../ingress-nginx
+  - ../../crd
   - ../../gateway-api
   - ../../cert-manager
   - ../../argocd
