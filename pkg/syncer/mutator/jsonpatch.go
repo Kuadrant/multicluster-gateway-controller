@@ -26,7 +26,7 @@ func (m *JSONPatch) GetName() string {
 func (m *JSONPatch) Mutate(cfg syncer.MutatorConfig, obj *unstructured.Unstructured) error {
 	patchString := metadata.GetAnnotation(obj, JSONPatchAnnotationPrefix+cfg.ClusterID)
 	if patchString == "" {
-		return fmt.Errorf("no patch found for sync target '%v' on object: %v/%v", cfg.ClusterID, obj.GetNamespace(), obj.GetName())
+		return nil
 	}
 
 	patch, err := jsonpatch.DecodePatch([]byte(patchString))
@@ -45,7 +45,8 @@ func (m *JSONPatch) Mutate(cfg syncer.MutatorConfig, obj *unstructured.Unstructu
 
 	err = json.Unmarshal(objBytes, obj)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to unmarshal patched JSON to object: %v", err.Error())
 	}
+
 	return nil
 }

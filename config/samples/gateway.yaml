@@ -8,7 +8,7 @@ metadata:
     mctc-syncer-patch/kind-mctc-workload-1: '[
       {"op": "replace", "path": "/spec/gatewayClassName", "value": "boo"},
       {"op": "replace", "path": "/spec/listeners/0/name", "value": "test"}
-      ]'
+    ]'
 spec:
   gatewayClassName: mctc-gw-istio-external-instance-per-cluster
   listeners:
