@@ -19,6 +19,7 @@ package gateway
 import (
 	"context"
 	"fmt"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/metadata"
 	"reflect"
 	"strings"
 	"time"
@@ -150,7 +151,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 // Configures Gateway tls & dns for each cluster it targets.
 // Returns the programmed status, a list of clusters that were programmed, if the gateway should be requeued, and any error
-func (r *GatewayReconciler) reconcileGateway(ctx context.Context, previous gatewayv1beta1.Gateway, gateway *gatewayv1beta1.Gateway) (metav1.ConditionStatus, []string, bool, error) {
+func (r *GatewayReconciler) reconcileGateway(ctx context.Context, _ gatewayv1beta1.Gateway, gateway *gatewayv1beta1.Gateway) (metav1.ConditionStatus, []string, bool, error) {
 	log := log.FromContext(ctx)
 
 	clusters := selectClusters(*gateway)
@@ -271,6 +272,12 @@ func (r *GatewayReconciler) reconcileGateway(ctx context.Context, previous gatew
 			}
 		}
 	}
+
+	//set jsonpatch annotation
+	metadata.AddAnnotation(gateway, "mctc-syncer-patch/kind-mctc-workload-1", "[\n"+
+		"{\"op\": \"replace\", \"path\": \"/spec/gatewayClassName\", \"value\": \"istio\"}\n"+
+		"]")
+
 	syncObjectToAllClusters(gateway)
 
 	if !gatewayHasAttachedRoutes {

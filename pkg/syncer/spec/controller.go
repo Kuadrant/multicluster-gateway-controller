@@ -262,9 +262,6 @@ func (c *Controller) applyToDownstream(ctx context.Context, gvr schema.GroupVers
 	//TODO jsonpatch applied
 	// HARDCODED PATCHES - REMOVE THESE
 	if upstreamObj.GetKind() == "Gateway" {
-		// Patch gatewayClassName
-		downstreamObj.Object["spec"].(map[string]interface{})["gatewayClassName"] = "istio"
-
 		// Patch certificateRefs namespace
 		// listeners:
 		// - tls:
