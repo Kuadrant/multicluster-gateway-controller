@@ -31,8 +31,7 @@ When deploying the multicluster gateway controller using the make targets, the f
 1. Setup your local environment 
     ```sh
     make local-setup MCTC_WORKLOAD_CLUSTERS_COUNT=<NUMBER_WORKLOAD_CLUSTER>
-    ```
-
+    ```  
 1. Build the controller image and load it into the control plane
     ```sh
    kubectl config use-context kind-mctc-control-plane 
