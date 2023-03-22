@@ -42,6 +42,7 @@ import (
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/dnsrecord"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/gateway"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/managedzone"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/placement"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns/aws"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/tls"
@@ -153,6 +154,14 @@ func main() {
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder
+
+	if err = (&placement.PlacementReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Placement")
+		os.Exit(1)
+	}
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")

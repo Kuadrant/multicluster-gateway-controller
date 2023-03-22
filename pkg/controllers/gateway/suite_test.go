@@ -303,9 +303,6 @@ var _ = Describe("GatewayController", func() {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-gw-1",
 					Namespace: "default",
-					Annotations: map[string]string{
-						"kuadrant.io/gateway-cluster-label-selector": "type=test",
-					},
 				},
 				Spec: gatewayv1beta1.GatewaySpec{
 					GatewayClassName: "mctc-gw-istio-external-instance-per-cluster",

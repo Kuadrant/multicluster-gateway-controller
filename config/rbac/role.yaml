@@ -147,3 +147,29 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - kuadrant.io
+  resources:
+  - placements
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - kuadrant.io
+  resources:
+  - placements/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - kuadrant.io
+  resources:
+  - placements/status
+  verbs:
+  - get
+  - patch
+  - update
