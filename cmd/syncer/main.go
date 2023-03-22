@@ -53,8 +53,7 @@ var (
 )
 
 const (
-	DEFAULT_RESYNC     = 0
-	dataPlaneNamespace = "mctc-downstream"
+	DEFAULT_RESYNC = 0
 )
 
 type arrayFlags []string
@@ -81,6 +80,7 @@ func main() {
 	var controlPlaneConfigSecretNamespace string
 	var syncedResources arrayFlags
 	var controlPlaneNS string
+	var dataPlaneNS string
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
@@ -88,6 +88,7 @@ func main() {
 	flag.StringVar(&controlPlaneConfigSecretNamespace, "control-plane-config-namespace", "mctc-system", "The namespace containing the secret with the control plane client configuration")
 	flag.Var(&syncedResources, "synced-resources", "A list of GVRs to sync (e.g. ingresses.v1.networking.k8s.io)")
 	flag.StringVar(&controlPlaneNS, "control-plane-namespace", "mctc-tenant", "The name of the upstream namespace to sync resources from")
+	flag.StringVar(&dataPlaneNS, "data-plane-namespace", os.Getenv("DATAPLANE_NAMESPACE"), "The namespace in the data plane to sync resources to")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
@@ -108,6 +109,7 @@ func main() {
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "fb80029c-sync.kuadrant.io",
 	})
+
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
@@ -134,7 +136,7 @@ func main() {
 		setupLog.Error(err, "unable to create client from mgr rest config")
 		os.Exit(1)
 	}
-	syncRunnable, err := startSpecSyncers(syncerContext, syncedResources, controlPlaneDynamicClient, dataPlaneDynamicClient, controlPlaneConfig.Name, controlPlaneNS)
+	syncRunnable, err := startSpecSyncers(syncerContext, syncedResources, controlPlaneDynamicClient, dataPlaneDynamicClient, controlPlaneConfig.Name, controlPlaneNS, dataPlaneNS)
 	if err != nil {
 		setupLog.Error(err, "unable to start spec syncers")
 		os.Exit(1)
@@ -145,7 +147,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	statusRunnable, err := startStatusSyncers(syncerContext, syncedResources, controlPlaneDynamicClient, dataPlaneDynamicClient, controlPlaneConfig.Name, controlPlaneNS)
+	statusRunnable, err := startStatusSyncers(syncerContext, syncedResources, controlPlaneDynamicClient, dataPlaneDynamicClient, controlPlaneConfig.Name, controlPlaneNS, dataPlaneNS)
 	if err != nil {
 		setupLog.Error(err, "unable to start status syncers")
 		os.Exit(1)
@@ -184,7 +186,7 @@ func getControlPlaneObjects(ctx context.Context, mgr manager.Manager, secretRef 
 	}
 	return controlPlaneClient, controlPlaneClusterConfig, nil
 }
-func startSpecSyncers(ctx context.Context, GVRs []string, controlPlaneClient dynamic.Interface, dataPlaneClient dynamic.Interface, clusterID, controlPlaneNS string) (*syncer.SyncRunnable, error) {
+func startSpecSyncers(ctx context.Context, GVRs []string, controlPlaneClient dynamic.Interface, dataPlaneClient dynamic.Interface, clusterID, controlPlaneNS, dataPlaneNS string) (*syncer.SyncRunnable, error) {
 	logger := log.FromContext(ctx)
 	informerFactory := dynamicinformer.NewDynamicSharedInformerFactory(controlPlaneClient, DEFAULT_RESYNC)
 	informerFactory.Start(ctx.Done())
@@ -197,7 +199,7 @@ func startSpecSyncers(ctx context.Context, GVRs []string, controlPlaneClient dyn
 		ClusterID:          clusterID,
 		NeverSyncedGVRs:    NEVER_SYNCED_GVRs,
 		UpstreamNamespaces: []string{controlPlaneNS},
-		DownstreamNS:       dataPlaneNamespace,
+		DownstreamNS:       dataPlaneNS,
 		Mutators: []syncer.Mutator{
 			&mutator.JSONPatch{},
 			&mutator.AnnotationCleaner{},
@@ -217,7 +219,7 @@ func startSpecSyncers(ctx context.Context, GVRs []string, controlPlaneClient dyn
 
 }
 
-func startStatusSyncers(ctx context.Context, GVRs []string, controlPlaneClient dynamic.Interface, dataPlaneClient dynamic.Interface, clusterID, controlPlaneNS string) (*syncer.SyncRunnable, error) {
+func startStatusSyncers(ctx context.Context, GVRs []string, controlPlaneClient dynamic.Interface, dataPlaneClient dynamic.Interface, clusterID, controlPlaneNS, dataPlaneNS string) (*syncer.SyncRunnable, error) {
 	logger := log.FromContext(ctx)
 
 	informerFactory := dynamicinformer.NewDynamicSharedInformerFactory(dataPlaneClient, DEFAULT_RESYNC)
@@ -230,7 +232,7 @@ func startStatusSyncers(ctx context.Context, GVRs []string, controlPlaneClient d
 		InformerFactory:    informerFactory,
 		ClusterID:          clusterID,
 		NeverSyncedGVRs:    NEVER_SYNCED_GVRs,
-		UpstreamNamespaces: []string{dataPlaneNamespace},
+		UpstreamNamespaces: []string{dataPlaneNS},
 		DownstreamNS:       controlPlaneNS,
 		Mutators:           []syncer.Mutator{},
 	}
