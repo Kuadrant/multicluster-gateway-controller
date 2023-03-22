@@ -18,8 +18,11 @@ package placement
 
 import (
 	"context"
+	"reflect"
 
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -36,6 +39,13 @@ type PlacementReconciler struct {
 //+kubebuilder:rbac:groups=kuadrant.io,resources=placements/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=kuadrant.io,resources=placements/finalizers,verbs=update
 
+// Reconciles Placements by doing a few things:
+// - find any matching clusters, given the 'predicates' set in the spec
+// - update the status with these cluster 'decisions'
+// - update the targetRef resource to set syncer annotations for each cluster decision
+//
+// Any change to a Placement triggers a reconcile
+// Also, any change to a cluster secret (create/update/delete) will trigger a reconcile of *all* Placements
 func (r *PlacementReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 
@@ -53,6 +63,48 @@ func (r *PlacementReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		log.Info("Placement is deleting", "placement", previous.Name, "namespace", previous.Namespace)
 		return ctrl.Result{}, nil
 	}
+
+	predicates := previous.Spec.Predicates
+	selectedClusters := []corev1.Secret{}
+	for _, predicate := range predicates {
+		clusterList := &corev1.SecretList{}
+		// filter list by predicate label selector
+		selector, err := metav1.LabelSelectorAsSelector(&predicate.RequiredClusterSelector.LabelSelector)
+		if err != nil {
+			log.Error(err, "Unable to convert label selector")
+			return ctrl.Result{}, err
+		}
+		// only consider cluster secrets
+		listOptions := client.MatchingLabels{
+			"argocd.argoproj.io/secret-type": "cluster",
+		}
+
+		err = r.Client.List(ctx, clusterList, listOptions, client.MatchingLabelsSelector{Selector: selector})
+		if err := client.IgnoreNotFound(err); err != nil {
+			log.Error(err, "Unable to fetch cluster Secrets")
+			return ctrl.Result{}, err
+		}
+		selectedClusters = append(selectedClusters, clusterList.Items...)
+	}
+
+	// Update placement decisions
+	placement := previous.DeepCopy()
+	placement.Status.Decisions = []v1alpha1.ClusterDecision{}
+	for _, cluster := range selectedClusters {
+		placement.Status.Decisions = append(placement.Status.Decisions, v1alpha1.ClusterDecision{ClusterName: cluster.Name})
+	}
+	placement.Status.NumberOfSelectedClusters = int32(len(placement.Status.Decisions))
+
+	// Update status
+	if !reflect.DeepEqual(placement.Status, previous.Status) {
+		log.Info("Updating Placement status", "placementstatus", placement.Status, "previousstatus", previous.Status)
+		err = r.Status().Update(ctx, placement)
+		if err != nil {
+			log.Error(err, "Error updating Placement status")
+		}
+	}
+
+	// TODO: status conditions
 
 	return ctrl.Result{}, nil
 }

@@ -287,6 +287,7 @@ var _ = Describe("PlacementController", func() {
 				return len(decisions) == 1
 			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 			Expect(decisions[0].ClusterName).To(BeEquivalentTo("cluster1"))
+			Expect(createdPlacement.Status.NumberOfSelectedClusters).To(BeEquivalentTo(1))
 
 			// The Gateway should have a sync annotation on it for the matched cluster
 			var syncAnnotation string
@@ -328,6 +329,7 @@ var _ = Describe("PlacementController", func() {
 				decisions = createdPlacement.Status.Decisions
 				return len(decisions) == 1 && decisions[0].ClusterName == "cluster2"
 			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			Expect(createdPlacement.Status.NumberOfSelectedClusters).To(BeEquivalentTo(1))
 
 			// The Gateway should now have a sync annotation on it for the other cluster
 			Eventually(func() bool {
@@ -369,6 +371,7 @@ var _ = Describe("PlacementController", func() {
 			// TODO: Is ordering important here?
 			Expect(decisions[0].ClusterName).To(BeEquivalentTo("cluster1"))
 			Expect(decisions[1].ClusterName).To(BeEquivalentTo("cluster2"))
+			Expect(createdPlacement.Status.NumberOfSelectedClusters).To(BeEquivalentTo(2))
 
 			// The Gateway should now have 2 sync annotations
 			var syncAnnotation1 string
@@ -411,6 +414,7 @@ var _ = Describe("PlacementController", func() {
 				decisions = createdPlacement.Status.Decisions
 				return len(decisions) == 0
 			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			Expect(createdPlacement.Status.NumberOfSelectedClusters).To(BeEquivalentTo(0))
 
 			// The Gateway should now have *no* sync annotations
 			Eventually(func() bool {
@@ -453,6 +457,7 @@ var _ = Describe("PlacementController", func() {
 				decisions = createdPlacement.Status.Decisions
 				return len(decisions) == 1 && decisions[0].ClusterName == "cluster1"
 			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			Expect(createdPlacement.Status.NumberOfSelectedClusters).To(BeEquivalentTo(1))
 
 			// The Gateway should have the sync annoation for the updated cluster
 			Eventually(func() bool {
