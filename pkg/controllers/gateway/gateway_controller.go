@@ -326,7 +326,7 @@ func syncObjectToAllGatewayClusters(obj metav1.Object, gateway gatewayv1beta1.Ga
 // Get a list of all cluster names from sync annotations
 func getClustersFromAnnotations(gateway gatewayv1beta1.Gateway) []string {
 	clusters := []string{}
-	for annKey, _ := range gateway.GetAnnotations() {
+	for annKey := range gateway.GetAnnotations() {
 		if strings.HasPrefix(annKey, syncer.MCTC_SYNC_ANNOTATION_PREFIX) {
 			_, clusterName, found := strings.Cut(annKey, syncer.MCTC_SYNC_ANNOTATION_PREFIX)
 			if found {
