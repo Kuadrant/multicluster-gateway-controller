@@ -205,7 +205,7 @@ deployAgentSecret() {
 
   kubectl create namespace mctc-system || true
 
-  makeSecretForCluster $KIND_CLUSTER_CONTROL_PLANE $(kubectl config current-context) $localAccess |
+  makeSecretForCluster $KIND_CLUSTER_CONTROL_PLANE $clusterName $localAccess |
   setNamespacedName mctc-system ${secretName} |
   setLabel argocd.argoproj.io/secret-type cluster |
   kubectl apply -f -
@@ -255,7 +255,7 @@ deployArgoCD ${KIND_CLUSTER_CONTROL_PLANE}
 deployDashboard $KIND_CLUSTER_CONTROL_PLANE 0
 
 #7. Add the control plane cluster
-argocdAddCluster ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_CONTROL_PLANE}
+argocdAddCluster ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_CONTROL_PLANE} control-plane
 
 #8. Initialize local dev setup for the controller on the control-plane cluster
 initController ${KIND_CLUSTER_CONTROL_PLANE}
@@ -271,7 +271,7 @@ if [[ -n "${MCTC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
     deployKuadrant ${KIND_CLUSTER_WORKLOAD}-${i}
     deployWebhookConfigs ${KIND_CLUSTER_WORKLOAD}-${i}
     deployDashboard ${KIND_CLUSTER_WORKLOAD}-${i} ${i}
-    argocdAddCluster ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_WORKLOAD}-${i}
+    argocdAddCluster ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_WORKLOAD}-${i} data-plane
     deployAgentSecret ${KIND_CLUSTER_WORKLOAD}-${i} "true"
     deployAgentSecret ${KIND_CLUSTER_WORKLOAD}-${i} "false"
   done

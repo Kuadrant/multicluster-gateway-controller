@@ -78,7 +78,7 @@ For example, if you set your `ZONE_ROOT_DOMAIN` as `example.com`, you could set 
 
 ```bash
 export MYAPP_HOST=<myapp.host>
-envsubst < docs/milestone2_gateway.yaml > gateway.yaml
+envsubst < docs/milestone2/milestone2_gateway.yaml > gateway.yaml
 ```
 
 Create the Gateway in the control plane.
@@ -102,7 +102,7 @@ kubectl get gateway example-gateway -n mctc-downstream
 Copy the example Application, modifying the hostname.
 
 ```bash
-envsubst < docs/milestone2_application.yaml > application.yaml
+envsubst < docs/milestone2/milestone2_application.yaml > application.yaml
 ```
 
 Create the Application in both workload clusters
@@ -145,7 +145,7 @@ kubectl apply -f config/samples/kuadrant.yaml
 Copy the example RateLimitPolicy, modifying the hostname.
 
 ```bash
-envsubst < docs/milestone2_ratelimitpolicy.yaml > ratelimitpolicy.yaml
+envsubst < docs/milestone2/milestone2_ratelimitpolicy.yaml > ratelimitpolicy.yaml
 ```
 
 Create the RateLimitPolicy in both workload clusters
