@@ -121,7 +121,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	gateway := previous.DeepCopy()
 	acceptedStatus := metav1.ConditionTrue
-	programmedStatus, clusters, requeue, reconcileErr := r.reconcileGateway(ctx, *previous, gateway)
+	programmedStatus, clusters, requeue, reconcileErr := r.reconcileGateway(ctx, gateway)
 
 	// Update gateway spec/metadata
 	if !reflect.DeepEqual(gateway, previous) {
@@ -151,7 +151,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 // Configures Gateway tls & dns for each cluster it targets.
 // Returns the programmed status, a list of clusters that were programmed, if the gateway should be requeued, and any error
-func (r *GatewayReconciler) reconcileGateway(ctx context.Context, _ gatewayv1beta1.Gateway, gateway *gatewayv1beta1.Gateway) (metav1.ConditionStatus, []string, bool, error) {
+func (r *GatewayReconciler) reconcileGateway(ctx context.Context, gateway *gatewayv1beta1.Gateway) (metav1.ConditionStatus, []string, bool, error) {
 	log := log.FromContext(ctx)
 
 	clusters := selectClusters(*gateway)
@@ -274,9 +274,10 @@ func (r *GatewayReconciler) reconcileGateway(ctx context.Context, _ gatewayv1bet
 	}
 
 	//set jsonpatch annotation
-	metadata.AddAnnotation(gateway, "mctc-syncer-patch/kind-mctc-workload-1", "[\n"+
-		"{\"op\": \"replace\", \"path\": \"/spec/gatewayClassName\", \"value\": \"istio\"}\n"+
-		"]")
+	patchJSON := `[
+		{"op": "replace", "path": "/spec/gatewayClassName", "value": "istio"}
+	]`
+	metadata.AddAnnotation(gateway, "mctc-syncer-patch/kind-mctc-workload-1", patchJSON)
 
 	syncObjectToAllClusters(gateway)
 
