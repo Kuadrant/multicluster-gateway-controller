@@ -32,6 +32,7 @@ import (
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/traffic"
+	kuadrantapi "github.com/kuadrant/kuadrant-operator/api/v1beta1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -460,5 +461,6 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 			return slice.ContainsString(getSupportedClasses(), string(gateway.Spec.GatewayClassName))
 		})).
+		Owns(&kuadrantapi.RateLimitPolicy{}).
 		Complete(r)
 }

@@ -16,6 +16,7 @@ run-syncer: manifests generate fmt vet install
 	    --control-plane-config-name=control-plane-cluster \
 	    --control-plane-config-namespace=mctc-system \
 	    --synced-resources=gateways.v1beta1.gateway.networking.k8s.io \
+	    --synced-resources=ratelimitpolicies.v1beta1.kuadrant.io \
 	    --synced-resources=secrets.v1
 
 .PHONY: docker-build-syncer
@@ -46,4 +47,3 @@ redeploy-syncer: undeploy-syncer deploy-syncer
 .PHONY: restart-syncer
 restart-syncer:
 	kubectl rollout restart deploy sync-agent -n mctc-system
-    

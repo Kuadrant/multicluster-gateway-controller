@@ -22,6 +22,7 @@ spec:
         - -control-plane-config-namespace=mctc-system
         - -control-plane-config-name=control-plane-cluster-internal
         - -synced-resources=gateways.v1beta1.gateway.networking.k8s.io
+        - -synced-resources=ratelimitpolicies.v1beta1.kuadrant.io
         - -synced-resources=secrets.v1
         env:
           - name: DATAPLANE_NAMESPACE

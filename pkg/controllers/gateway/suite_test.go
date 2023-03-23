@@ -43,6 +43,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	kuadrantapi "github.com/kuadrant/kuadrant-operator/api/v1beta1"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 	//+kubebuilder:scaffold:imports
 )
@@ -79,6 +80,7 @@ var _ = BeforeSuite(func() {
 			filepath.Join("../../../", "config", "crd", "bases"),
 			filepath.Join("../../../", "config", "gateway-api", "crd", "standard"),
 			filepath.Join("../../../", "config", "cert-manager", "crd", "v1.7.1"),
+			filepath.Join("../../../", "config", "kuadrant", "crd"),
 		},
 		ErrorIfCRDPathMissing: true,
 	}
@@ -96,6 +98,9 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	err = certman.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = kuadrantapi.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	//+kubebuilder:scaffold:scheme

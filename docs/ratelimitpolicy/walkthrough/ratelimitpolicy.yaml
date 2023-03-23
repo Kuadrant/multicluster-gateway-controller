@@ -1,0 +1,22 @@
+apiVersion: kuadrant.io/v1beta1
+kind: RateLimitPolicy
+metadata:
+  name: echo-rlp
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: example-gateway
+  rateLimits:
+    - configurations:
+      - actions:
+        - generic_key:
+            descriptor_key: "limited"
+            descriptor_value: "1"
+    - rules:
+      - hosts: [ "myapp.mn.hcpapps.net" ]
+      limits:
+        - conditions:
+            - 'limited == "1"'
+          maxValue: 8
+          seconds: 10

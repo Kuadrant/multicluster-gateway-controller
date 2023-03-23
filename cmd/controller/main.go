@@ -37,12 +37,16 @@ import (
 
 	gatewayapi "sigs.k8s.io/gateway-api/apis/v1beta1"
 
+	kuadrantapi "github.com/kuadrant/kuadrant-operator/api/v1beta1"
+
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/clusterSecret"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/admission"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/dnspolicy"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/dnsrecord"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/gateway"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/managedzone"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/ratelimitpolicy"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns/aws"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/tls"
@@ -59,6 +63,7 @@ func init() {
 	utilruntime.Must(v1alpha1.AddToScheme(scheme.Scheme))
 	utilruntime.Must(certmanv1.AddToScheme(scheme.Scheme))
 	utilruntime.Must(gatewayapi.AddToScheme(scheme.Scheme))
+	utilruntime.Must(kuadrantapi.AddToScheme(scheme.Scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -135,6 +140,7 @@ func main() {
 
 	dnsService := dns.NewService(mgr.GetClient(), dns.NewSafeHostResolver(dns.NewDefaultHostResolver()), defaultCtrlNS)
 	certService := tls.NewService(mgr.GetClient(), defaultCtrlNS, certProvider)
+	clusterSecretService := clusterSecret.NewService(mgr.GetClient())
 
 	if err = (&managedzone.ManagedZoneReconciler{
 		Client:      mgr.GetClient(),
@@ -159,6 +165,14 @@ func main() {
 		Host:         dnsService, // implements the required interface
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Gateway")
+		os.Exit(1)
+	}
+	if err = (&ratelimitpolicy.RateLimitPolicyReconciler{
+		Client:         mgr.GetClient(),
+		Scheme:         mgr.GetScheme(),
+		ClusterSecrets: clusterSecretService,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "RateLimitPolicy")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder
