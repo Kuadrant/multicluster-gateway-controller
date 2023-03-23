@@ -303,6 +303,10 @@ var _ = Describe("GatewayController", func() {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-gw-1",
 					Namespace: "default",
+					Annotations: map[string]string{
+						// mimick what the placement controller would add eventually
+						fmt.Sprintf("%s%s", syncer.MCTC_SYNC_ANNOTATION_PREFIX, "test_cluster_one"): "true",
+					},
 				},
 				Spec: gatewayv1beta1.GatewaySpec{
 					GatewayClassName: "mctc-gw-istio-external-instance-per-cluster",
@@ -406,12 +410,15 @@ var _ = Describe("GatewayController", func() {
 				Fail("Error creating mock certificate secret")
 			}
 
-			// update syncer status annoation, mimicking the status from the data plane Gateway
+			// update syncer status annotation, mimicking the status from the data plane Gateway
 			err = k8sClient.Get(ctx, gatewayType, createdGateway)
 			if err != nil {
 				Fail("Error reading gateway")
 			}
 			annotations := createdGateway.GetAnnotations()
+			if annotations == nil {
+				annotations = map[string]string{}
+			}
 			annotations[fmt.Sprintf("%s%s", status.SyncerClusterStatusAnnotationPrefix, "test_cluster_one")] = "{\"addresses\":[{\"type\":\"IPAddress\",\"value\":\"172.32.200.0\"}],\"listeners\":[{\"attachedRoutes\":1,\"name\":\"default\"}]}"
 			createdGateway.SetAnnotations(annotations)
 			err = k8sClient.Update(ctx, createdGateway)
@@ -434,61 +441,12 @@ var _ = Describe("GatewayController", func() {
 			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 			Expect(programmedCondition.Message).To(BeEquivalentTo("Gateway configured in data plane cluster(s) - [test_cluster_one]"))
 
-			// sync annotation is set
-			syncAnnotation := createdGateway.Annotations[fmt.Sprintf("%s%s", syncer.MCTC_SYNC_ANNOTATION_PREFIX, syncer.MCTC_SYNC_ANNOTATION_WILDCARD)]
-			Expect(syncAnnotation).To(BeEquivalentTo("true"))
-
 			// TLS config added to listener
 			listener := createdGateway.Spec.Listeners[0]
 			Expect(listener.Name).To(BeEquivalentTo("default"))
 			Expect(listener.TLS).ToNot(BeNil())
 			certificateRef := listener.TLS.CertificateRefs[0]
 			Expect(certificateRef.Name).To(BeEquivalentTo("test.example.com"))
-		})
-
-		It("should NOT match any clusters", func() {
-			gateway.Annotations["kuadrant.io/gateway-cluster-label-selector"] = "type=prod"
-			Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
-			createdGateway := &gatewayv1beta1.Gateway{}
-			gatewayType := types.NamespacedName{Name: gateway.Name, Namespace: gateway.Namespace}
-
-			// Exists
-			Eventually(func() bool {
-				err := k8sClient.Get(ctx, gatewayType, createdGateway)
-				return err == nil
-			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
-
-			// Accepted is True
-			var acceptedCondition *metav1.Condition
-			Eventually(func() bool {
-				err := k8sClient.Get(ctx, gatewayType, createdGateway)
-				if err != nil {
-					// explicitly fail as we should be passed the point of any errors
-					log.Log.Error(err, "No errors expected")
-					Fail("No errors expected")
-				}
-				acceptedCondition = conditions.GetConditionByType(createdGateway.Status.Conditions, string(gatewayv1beta1.GatewayConditionAccepted))
-				log.Log.Info("acceptedCondition", "acceptedCondition", acceptedCondition)
-				Expect(acceptedCondition).ToNot(BeNil())
-				return acceptedCondition.Status == metav1.ConditionTrue
-			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
-			Expect(acceptedCondition.Message).To(BeEquivalentTo("Handled by kuadrant.io/mctc-gw-controller"))
-
-			// Pending is False
-			var programmedCondition *metav1.Condition
-			Eventually(func() bool {
-				err := k8sClient.Get(ctx, gatewayType, createdGateway)
-				if err != nil {
-					// explicitly fail as we should be passed the point of any errors
-					log.Log.Error(err, "No errors expected")
-					Fail("No errors expected")
-				}
-				programmedCondition = conditions.GetConditionByType(createdGateway.Status.Conditions, string(gatewayv1beta1.GatewayConditionProgrammed))
-				log.Log.Info("programmedCondition", "programmedCondition", programmedCondition)
-				Expect(programmedCondition).ToNot(BeNil())
-				return programmedCondition.Status == metav1.ConditionFalse
-			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
-			Expect(programmedCondition.Message).To(BeEquivalentTo("No clusters match selection"))
 		})
 	})
 })

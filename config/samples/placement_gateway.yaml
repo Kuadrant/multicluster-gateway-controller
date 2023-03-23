@@ -1,0 +1,14 @@
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: Gateway
+metadata:
+  name: example-gateway
+spec:
+  gatewayClassName: mctc-gw-istio-external-instance-per-cluster
+  listeners:
+  - name: default
+    port: 443
+    protocol: HTTPS
+    hostname: "myapp.dev.hcpapps.net"
+    allowedRoutes:
+      namespaces:
+        from: All

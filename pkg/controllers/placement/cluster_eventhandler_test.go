@@ -1,12 +1,11 @@
-package gateway
+package placement
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/clusterSecret"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -14,36 +13,29 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
 func TestClusterEventHandler(t *testing.T) {
 	cases := []struct {
 		name string
 
-		gateways         []gatewayv1beta1.Gateway
-		secret           corev1.Secret
-		enqueuedGateways []gatewayv1beta1.Gateway
+		placements         []v1alpha1.Placement
+		secret             corev1.Secret
+		enqueuedPlacements []v1alpha1.Placement
 	}{
 		{
-			name: "Queued one",
-			gateways: []gatewayv1beta1.Gateway{
+			name: "Queued two",
+			placements: []v1alpha1.Placement{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-gateway",
+						Name:      "test-placement",
 						Namespace: "test-ns",
-						Annotations: map[string]string{
-							fmt.Sprintf("%s%s", syncer.MCTC_SYNC_ANNOTATION_PREFIX, "test_cluster_one"): "true",
-						},
 					},
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-another-gateway",
+						Name:      "test-another-placement",
 						Namespace: "test-ns",
-						Annotations: map[string]string{
-							fmt.Sprintf("%s%s", syncer.MCTC_SYNC_ANNOTATION_PREFIX, "another"): "true",
-						},
 					},
 				},
 			},
@@ -52,13 +44,12 @@ func TestClusterEventHandler(t *testing.T) {
 					Labels: map[string]string{
 						clusterSecret.CLUSTER_SECRET_LABEL: clusterSecret.CLUSTER_SECRET_LABEL_VALUE,
 					},
-					Name:      "test_cluster_one",
+					Name:      "cluster",
 					Namespace: "test-ns",
 				},
 				Data: map[string][]byte{
-					"name": []byte("test_cluster_one"),
-					"config": []byte(
-						`
+					"name": []byte("cluster"),
+					"config": []byte(`
 				{
 					"tlsClientConfig":
 					  {
@@ -71,10 +62,15 @@ func TestClusterEventHandler(t *testing.T) {
 				`),
 				},
 			},
-			enqueuedGateways: []gatewayv1beta1.Gateway{
+			enqueuedPlacements: []v1alpha1.Placement{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-gateway",
+						Name:      "test-placement",
+						Namespace: "test-ns",
+					},
+				}, {
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-another-placement",
 						Namespace: "test-ns",
 					},
 				},
@@ -82,14 +78,11 @@ func TestClusterEventHandler(t *testing.T) {
 		},
 		{
 			name: "Not enqueued. Not a cluster secret",
-			gateways: []gatewayv1beta1.Gateway{
+			placements: []v1alpha1.Placement{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-gateway",
+						Name:      "test-placement",
 						Namespace: "test-ns",
-						Annotations: map[string]string{
-							fmt.Sprintf("%s%s", syncer.MCTC_SYNC_ANNOTATION_PREFIX, "test_cluster_one"): "true",
-						},
 					},
 				},
 			},
@@ -99,20 +92,20 @@ func TestClusterEventHandler(t *testing.T) {
 					Namespace: "test-ns",
 				},
 			},
-			enqueuedGateways: make([]gatewayv1beta1.Gateway, 0),
+			enqueuedPlacements: make([]v1alpha1.Placement, 0),
 		},
 	}
 
 	scheme := runtime.NewScheme()
-	if err := gatewayv1beta1.AddToScheme(scheme); err != nil {
+	if err := v1alpha1.AddToScheme(scheme); err != nil {
 		t.Fatal("unexpected error building scheme", err)
 	}
 
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
 			client := fake.NewClientBuilder().WithScheme(scheme).WithLists(
-				&gatewayv1beta1.GatewayList{
-					Items: testCase.gateways,
+				&v1alpha1.PlacementList{
+					Items: testCase.placements,
 				},
 			).Build()
 
@@ -122,7 +115,7 @@ func TestClusterEventHandler(t *testing.T) {
 			}
 
 			clusterEventHandler.enqueueForObject(&testCase.secret, testQ)
-			testQ.MustHaveEnqueued(testCase.enqueuedGateways)
+			testQ.MustHaveEnqueued(testCase.enqueuedPlacements)
 		})
 	}
 }
@@ -145,16 +138,16 @@ func (q *testQueue) Add(item interface{}) {
 	q.enqueuedRequests[req.NamespacedName] = true
 }
 
-func (q *testQueue) MustHaveEnqueued(gateways []gatewayv1beta1.Gateway) {
+func (q *testQueue) MustHaveEnqueued(placements []v1alpha1.Placement) {
 	enqueuedCopy := map[types.NamespacedName]bool{}
 	for obj := range q.enqueuedRequests {
 		enqueuedCopy[obj] = true
 	}
 
-	for _, gateway := range gateways {
+	for _, placement := range placements {
 		var nsn types.NamespacedName = types.NamespacedName{
-			Namespace: gateway.Namespace,
-			Name:      gateway.Name,
+			Namespace: placement.Namespace,
+			Name:      placement.Name,
 		}
 
 		_, ok := q.enqueuedRequests[nsn]

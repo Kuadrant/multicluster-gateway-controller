@@ -15,7 +15,6 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	gatewayapi "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
@@ -35,7 +34,7 @@ type PlacementSpec struct {
 
 	// +kubebuilder:validation:Required
 	// +required
-	TargetRef gatewayapi.PolicyTargetReference `json:"targetRef"`
+	TargetRef PlacementTargetReference `json:"targetRef"`
 }
 
 // ClusterPredicate represents a predicate to select clusters.
@@ -48,6 +47,24 @@ type ClusterPredicate struct {
 	//    be selected or at least has a chance to be selected (when NumberOfClusters is specified);
 	// +optional
 	RequiredClusterSelector ClusterSelector `json:"requiredClusterSelector,omitempty"`
+}
+
+type PlacementTargetReference struct {
+	// Group is the group of the target resource. e.g. 'gateway.networking.k8s.io'
+	// +required
+	Group string `json:"group"`
+
+	// Version is the group of the target resource. e.g. 'v1beta1'
+	// +required
+	Version string `json:"version"`
+
+	// Resource is kind of the target resource. e.g. 'Gateway'
+	// +required
+	Resource string `json:"resource"`
+
+	// Name is the name of the target resource. Must be in the same namespace as the Placement.
+	// +required
+	Name string `json:"name"`
 }
 
 // ClusterSelector represents the AND of the containing selectors. An empty cluster selector matches all objects.

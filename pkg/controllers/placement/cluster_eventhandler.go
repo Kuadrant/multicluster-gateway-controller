@@ -1,11 +1,11 @@
-package gateway
+package placement
 
 import (
 	"context"
 	"fmt"
 
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/clusterSecret"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/slice"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/workqueue"
@@ -14,7 +14,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
 type ClusterEventHandler struct {
@@ -48,32 +47,23 @@ func (eh *ClusterEventHandler) enqueueForObject(obj v1.Object, q workqueue.RateL
 		return
 	}
 
-	gateways, err := eh.getGatewaysFor(obj.(*corev1.Secret))
+	placements, err := eh.getPlacementsFor(obj.(*corev1.Secret))
 	if err != nil {
-		log.Log.Error(err, "failed to get gateways when enqueueing from cluster secret")
+		log.Log.Error(err, "failed to get placements when enqueueing from cluster secret")
 		return
 	}
 
-	for _, gateway := range gateways {
-		log.Log.Info(fmt.Sprintf("Enqueing reconciliation from secret update to gateway/%s", gateway.Name))
+	for _, placement := range placements {
+		log.Log.Info(fmt.Sprintf("Enqueing reconciliation from secret update to placement/%s", placement.Name))
 		q.Add(ctrl.Request{
-			NamespacedName: client.ObjectKeyFromObject(&gateway),
+			NamespacedName: client.ObjectKeyFromObject(&placement),
 		})
 	}
 }
 
-func (eh *ClusterEventHandler) getGatewaysFor(secret *corev1.Secret) ([]gatewayv1beta1.Gateway, error) {
-	clusterConfig, err := clusterSecret.ClusterConfigFromSecret(secret)
-	if err != nil {
-		return nil, err
-	}
-
-	gateways := &gatewayv1beta1.GatewayList{}
-	if err := eh.client.List(context.TODO(), gateways); err != nil {
-		return nil, err
-	}
-
-	return slice.Filter(gateways.Items, func(gateway gatewayv1beta1.Gateway) bool {
-		return slice.ContainsString(getClustersFromAnnotations(gateway), clusterConfig.Name)
-	}), nil
+func (eh *ClusterEventHandler) getPlacementsFor(secret *corev1.Secret) ([]v1alpha1.Placement, error) {
+	// Return all placements as we don't know which ones are affected by cluster secrets until they are individually reconciled
+	placements := &v1alpha1.PlacementList{}
+	err := eh.client.List(context.TODO(), placements)
+	return placements.Items, err
 }
