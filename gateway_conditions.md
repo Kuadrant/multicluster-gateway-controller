@@ -167,36 +167,3 @@ metadata:
   annotations:
     mctc-status-syncer-status-eu-apps-1: {"addresses":[{"type":"IPAddress","value":"172.16.0.1"}],"conditions":[{{"lastTransitionTime":"2023-02-16T11:47:09Z","message":"Gateway valid, assigned to service(s) istio.istio-system.svc.cluster.local:80","observedGeneration":4,"reason":"ListenersValid","status":"True","type":"Ready"}],"listeners":[{"attachedRoutes":1,"conditions":[{"lastTransitionTime":"2023-02-16T11:47:09Z","message":"No errors found","observedGeneration":4,"reason":"Ready","status":"True","type":"Ready"}],"name":"test","supportedKinds":[{"group":"gateway.networking.k8s.io","kind":"HTTPRoute"}]}]}
 ```
-
-### WIP Multicluster-gateway-controller specific condition types
-
-WIP
-
-The individual status of each data plane Gateway may also include status conditions that are specific to multicluster-gateway-controller functionality.
-For example, take an Istio Gateway with the below status conditions:
-
-```yaml
-  - lastTransitionTime: "2023-02-16T11:53:13Z"
-    message: Deployed gateway to the cluster
-    observedGeneration: 4
-    reason: ResourcesAvailable
-    status: "True"
-    type: Scheduled
-  - lastTransitionTime: "2023-02-16T11:47:09Z"
-    message: Gateway valid, assigned to service(s) istio.istio-system.svc.cluster.local:80
-    observedGeneration: 4
-    reason: ListenersValid
-    status: "True"
-    type: Ready
-```
-
-If this Gateway has a multicluster-gateway-controller 'Policy' attached to it at the control plane layer, additional status like below will be added to the Gateway in the data plane.
-
-```
-  - lastTransitionTime: "2023-02-16T11:47:09Z"
-    message: Gateway valid, assigned to service(s) istio.istio-system.svc.cluster.local:80
-    observedGeneration: 4
-    reason: ListenersValid
-    status: "True"
-    type: Ready
-```
