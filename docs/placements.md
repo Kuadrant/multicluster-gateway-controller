@@ -51,3 +51,17 @@ For example, if you want to change the `spec.gatewayClassName` field to a `istio
 * Take the cluster name from the end of those annotation names
 * For each cluster name, add a new annotation with a name of `mctc-syncer-patch/<cluser_name>` e.g. `mctc-syncer-patch/cluster1`
 * The value of the annotation would be an array of json patches e.g. `[{"op": "replace", "path": "/spec/gatewayClassName", "value": "istio"}]`
+
+The entire set of annotations on the Gateway would look like:
+
+```yaml
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: Gateway
+metadata:
+  annotations:
+    mctc-sync-agent/cluster1: "true" # Added by the placement controller
+    mctc-sync-agent/cluster2: "true" # Added by the placement controller
+    mctc-syncer-patch/cluster1: [{"op": "replace", "path": "/spec/gatewayClassName", "value": "istio"}] # Added by the gateway controller, in response to seeing above sync annotation
+    mctc-syncer-patch/cluster2: [{"op": "replace", "path": "/spec/gatewayClassName", "value": "istio"}] # Added by the gateway controller, in response to seeing above sync annotation
+  name: example-gateway
+```
