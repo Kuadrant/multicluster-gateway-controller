@@ -97,9 +97,9 @@ The Gateway should now be running in both workload clusters
 
 ```bash
 export KUBECONFIG=./tmp/kubeconfigs/mctc-workload-1.kubeconfig
-kubectl get gateway example-gateway -n mctc-downstream
+kubectl get gateway example-gateway -n mctc-system
 export KUBECONFIG=./tmp/kubeconfigs/mctc-workload-2.kubeconfig
-kubectl get gateway example-gateway -n mctc-downstream
+kubectl get gateway example-gateway -n mctc-system
 ```
 
 ## Application Setup
