@@ -40,6 +40,7 @@ import (
 	//+kubebuilder:scaffold:imports
 
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/clusterSecret"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/env"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer/mutator"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer/spec"
@@ -88,7 +89,7 @@ func main() {
 	flag.StringVar(&controlPlaneConfigSecretNamespace, "control-plane-config-namespace", "mctc-system", "The namespace containing the secret with the control plane client configuration")
 	flag.Var(&syncedResources, "synced-resources", "A list of GVRs to sync (e.g. ingresses.v1.networking.k8s.io)")
 	flag.StringVar(&controlPlaneNS, "control-plane-namespace", "mctc-tenant", "The name of the upstream namespace to sync resources from")
-	flag.StringVar(&dataPlaneNS, "data-plane-namespace", os.Getenv("DATAPLANE_NAMESPACE"), "The namespace in the data plane to sync resources to")
+	flag.StringVar(&dataPlaneNS, "data-plane-namespace", env.GetEnvString("DATAPLANE_NAMESPACE", "mctc-downstream"), "The namespace in the data plane to sync resources to")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
