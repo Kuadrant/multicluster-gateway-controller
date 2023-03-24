@@ -22,9 +22,6 @@ import (
 
 // PlacementSpec defines the desired state of Placement
 type PlacementSpec struct {
-	// Static list of clusters
-	Clusters []string `json:"clusters,omitempty"`
-
 	// Copied partially from https://github.com/open-cluster-management-io/api/blob/main/cluster/v1beta1/types_placement.go
 
 	// Predicates represent a slice of predicates to select clusters. The predicates are ORed.
