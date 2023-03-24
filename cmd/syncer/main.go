@@ -215,7 +215,7 @@ func startSpecSyncers(ctx context.Context, GVRs []string, controlPlaneClient dyn
 
 	go SpecSyncer.Start(ctx)
 
-	syncRunnable := syncer.GetSyncerRunnable(specSyncConfig, syncer.InformerForGVR, SpecSyncer)
+	syncRunnable := syncer.GetSyncerRunnable(specSyncConfig, syncer.InformerForAnnotatedGVR, SpecSyncer)
 	return syncRunnable, nil
 
 }

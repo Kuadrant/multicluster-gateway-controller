@@ -207,8 +207,6 @@ var _ = Describe("Status Syncer", func() {
 		})
 
 		It("should annotate the status to the upstream resource", func() {
-			metadata.AddAnnotation(gateway, syncer.MCTC_SYNC_ANNOTATION_PREFIX+clusterID, "true")
-
 			//we will be creating the data plane gateway (as spec syncer is not running)
 			dataplaneGateway := gateway.DeepCopy()
 			dataplaneGateway.Namespace = dataPlaneNS

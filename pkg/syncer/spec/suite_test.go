@@ -137,7 +137,7 @@ var _ = BeforeSuite(func() {
 
 	go SpecSyncer.Start(ctx)
 
-	specSyncRunnable := syncer.GetSyncerRunnable(specSyncConfig, syncer.InformerForGVR, SpecSyncer)
+	specSyncRunnable := syncer.GetSyncerRunnable(specSyncConfig, syncer.InformerForAnnotatedGVR, SpecSyncer)
 
 	log.Log.Info("adding syncer informer to manager")
 	go func() {
