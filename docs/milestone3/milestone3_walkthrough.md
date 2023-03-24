@@ -1,4 +1,4 @@
-# Milestone 2 Walkthrough
+# Milestone 3 Walkthrough
 
 ## Walkthrough Goals
 
