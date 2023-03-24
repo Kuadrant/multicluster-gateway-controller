@@ -93,12 +93,11 @@ func GetSyncerRunnable(cfg Config, informerEventDecorator InformerEventsDecorato
 	}
 }
 
-// InformerForGVR is an informer Decorator which adds generic event handlers to an informer
-func InformerForGVR(cfg Config, informer informers.GenericInformer, gvr *schema.GroupVersionResource, c SyncController) error {
+// InformerForAnnotatedGVR is an informer Decorator which adds generic event handlers to an informer
+func InformerForAnnotatedGVR(cfg Config, informer informers.GenericInformer, gvr *schema.GroupVersionResource, c SyncController) error {
 	_, err := informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(objInterface interface{}) {
 			metaAccessor, err := meta.Accessor(objInterface)
-
 			if err != nil {
 				return
 			}
@@ -150,6 +149,43 @@ func InformerForGVR(cfg Config, informer informers.GenericInformer, gvr *schema.
 				if value != "true" {
 					return
 				}
+			}
+			c.AddToQueue(*gvr, objInterface)
+		},
+	})
+	return err
+}
+
+// InformerForGVR is an informer Decorator which adds generic event handlers to an informer
+func InformerForGVR(cfg Config, informer informers.GenericInformer, gvr *schema.GroupVersionResource, c SyncController) error {
+	_, err := informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(objInterface interface{}) {
+			metaAccessor, err := meta.Accessor(objInterface)
+			if err != nil {
+				return
+			}
+			if !slices.Contains(cfg.UpstreamNamespaces, metaAccessor.GetNamespace()) {
+				return
+			}
+			c.AddToQueue(*gvr, objInterface)
+		},
+		UpdateFunc: func(oldObjInterface, newObjInterface interface{}) {
+			metaAccessor, err := meta.Accessor(newObjInterface)
+			if err != nil {
+				return
+			}
+			if !slices.Contains(cfg.UpstreamNamespaces, metaAccessor.GetNamespace()) {
+				return
+			}
+			c.AddToQueue(*gvr, newObjInterface)
+		},
+		DeleteFunc: func(objInterface interface{}) {
+			metaAccessor, err := meta.Accessor(objInterface)
+			if err != nil {
+				return
+			}
+			if !slices.Contains(cfg.UpstreamNamespaces, metaAccessor.GetNamespace()) {
+				return
 			}
 			c.AddToQueue(*gvr, objInterface)
 		},
