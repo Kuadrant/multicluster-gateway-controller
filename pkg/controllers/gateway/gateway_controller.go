@@ -19,6 +19,8 @@ package gateway
 import (
 	"context"
 	"fmt"
+	certman "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
+	corev1 "k8s.io/api/core/v1"
 	"reflect"
 	"time"
 
@@ -142,7 +144,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	if isDeleting(upstreamGateway) {
 		log.Info("gateway being deleted ", "gateway", upstreamGateway.Name, "namespace", upstreamGateway.Namespace)
-		if _, _, _, err := r.reconcileDownstreamGateway(ctx, upstreamGateway, nil); err != nil {
+		if _, _, _, err := r.reconcileDownstreamFromUpstreamGateway(ctx, upstreamGateway, nil); err != nil {
 			return ctrl.Result{}, err
 		}
 		metadata.RemoveFinalizer(upstreamGateway, GatewayFinalizer)
@@ -192,7 +194,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 }
 
 // reconcileDownstreamGateway takes the upstream definition and transforms it as needed to apply it to the downstream spokes
-func (r *GatewayReconciler) reconcileDownstreamGateway(ctx context.Context, upstreamGateway *gatewayv1beta1.Gateway, params *Params) (bool, metav1.ConditionStatus, []string, error) {
+func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.Context, upstreamGateway *gatewayv1beta1.Gateway, params *Params) (bool, metav1.ConditionStatus, []string, error) {
 	log := log.FromContext(ctx)
 	clusters := []string{}
 	downstream := upstreamGateway.DeepCopy()
@@ -469,5 +471,59 @@ func getListenerByHost(g *gatewayv1beta1.Gateway, host string) *gatewayv1beta1.L
 			return &listener
 		}
 	}
+func (r *GatewayReconciler) cleanupCertificates(ctx context.Context, gateway *gatewayv1beta1.Gateway) error {
+	var hostsToRemove []string
+	var allGateways gatewayv1beta1.GatewayList
+
+	// get names of hosts for traffic object being deleted
+	for _, listener := range gateway.Spec.Listeners {
+		if string(*listener.Hostname) != "*." {
+			hostsToRemove = append(hostsToRemove, string(*listener.Hostname))
+		}
+	}
+	// list all the traffic objects
+	err := r.Client.List(ctx, &allGateways, client.InNamespace(gateway.Namespace))
+	if err != nil {
+		return fmt.Errorf("error listing all Gateways: %s", err)
+	}
+	// for each traffic object check if host is being used
+	for _, candidateGateway := range allGateways.Items {
+		// ignore the gateway being deleted
+		if candidateGateway.Name != gateway.Name && candidateGateway.DeletionTimestamp == nil {
+			// remove host from "delete" list if it is being used
+			for _, listener := range candidateGateway.Spec.Listeners {
+				for i, v := range hostsToRemove {
+					if v == string(*listener.Hostname) {
+						hostsToRemove = append(hostsToRemove[:i], hostsToRemove[i+1:]...)
+					}
+				}
+			}
+		}
+	}
+	// if there are hosts left - only deleting gateway using them
+	for _, host := range hostsToRemove {
+		secret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      host,
+				Namespace: gateway.Namespace,
+			},
+		}
+		cert := &certman.Certificate{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      host,
+				Namespace: gateway.Namespace,
+			},
+		}
+		// only secret or cert cr as well?
+		err = r.Client.Delete(ctx, secret)
+		if err != nil && !k8serrors.IsNotFound(err) {
+			return fmt.Errorf("error deleting cert secret: %s", err)
+		}
+		err = r.Client.Delete(ctx, cert)
+		if err != nil && !k8serrors.IsNotFound(err) {
+			return fmt.Errorf("error deleting certificate: %s", err)
+		}
+	}
+	// assumptions: all traffic objects using the same host are under the same namespace
 	return nil
 }
