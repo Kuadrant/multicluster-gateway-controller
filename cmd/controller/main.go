@@ -39,6 +39,7 @@ import (
 
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/admission"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/dnspolicy"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/dnsrecord"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/gateway"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/managedzone"
@@ -124,6 +125,14 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "DNSRecord")
 		os.Exit(1)
 	}
+
+	if err = (&dnspolicy.DNSPolicyReconciler{
+		Client: mgr.GetClient(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "DNSPolicy")
+		os.Exit(1)
+	}
+
 	dnsService := dns.NewService(mgr.GetClient(), dns.NewSafeHostResolver(dns.NewDefaultHostResolver()), defaultCtrlNS)
 	certService := tls.NewService(mgr.GetClient(), defaultCtrlNS, certProvider)
 
