@@ -3,6 +3,7 @@
 # It should be run by config/default
 resources:
 - bases/kuadrant.io_dnsrecords.yaml
+- bases/kuadrant.io_dnspolicies.yaml
 - bases/kuadrant.io_managedzones.yaml
 #+kubebuilder:scaffold:crdkustomizeresource
 
