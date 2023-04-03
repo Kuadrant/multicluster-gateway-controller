@@ -6,10 +6,12 @@ import (
 	"reflect"
 	"time"
 
+	"gomodules.xyz/jsonpatch/v2"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/json"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -127,8 +129,7 @@ func (c *Controller) process(ctx context.Context, gvr schema.GroupVersionResourc
 	obj, err := c.upstreamClient.Resource(gvr).Namespace(upstreamNamespace).Get(ctx, upstreamName, metav1.GetOptions{})
 
 	if apierrors.IsNotFound(err) {
-		logger.Error(err, "upstream resource not found")
-		return err
+		return nil
 	} else if err != nil {
 		logger.Error(err, "error retrieving upstream object")
 		return err
@@ -178,7 +179,24 @@ func (c *Controller) updateStatus(ctx context.Context, gvr schema.GroupVersionRe
 		return nil
 	}
 
-	_, err = c.downstreamClient.Resource(gvr).Namespace(c.downstreamNS).Update(ctx, newDownstream, metav1.UpdateOptions{})
+	updatedJson, err := json.Marshal(newDownstream)
+	if err != nil {
+		return err
+	}
+	originalJson, err := json.Marshal(existingObj)
+	if err != nil {
+		return err
+	}
+
+	patch, err := jsonpatch.CreatePatch(originalJson, updatedJson)
+	if err != nil {
+		return err
+	}
+	patchStr, err := json.Marshal(patch)
+	if err != nil {
+		return err
+	}
+	_, err = c.downstreamClient.Resource(gvr).Namespace(c.downstreamNS).Patch(ctx, newDownstream.GetName(), types.JSONPatchType, patchStr, metav1.PatchOptions{})
 
 	if err != nil {
 		logger.Error(err, "Failed updating the status annotation of downstream resource")
