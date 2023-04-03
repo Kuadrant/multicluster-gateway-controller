@@ -20,6 +20,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/slice"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer"
 )
 
@@ -158,12 +159,15 @@ func (c *Controller) process(ctx context.Context, gvr schema.GroupVersionResourc
 		err := c.downstreamClient.Resource(gvr).Namespace(c.downstreamNS).Delete(ctx, downstreamUnstructuredObject.GetName(), metav1.DeleteOptions{})
 		//if no error, or object is already removed, remove upstream finalizer for this syncer
 		if err == nil || errors.IsNotFound(err) {
-			controllerutil.RemoveFinalizer(upstreamUnstructuredObject, SyncerFinalizerNamePrefix+c.syncTargetName)
-			_, err = c.upstreamClient.Resource(gvr).Namespace(upstreamUnstructuredObject.GetNamespace()).Update(ctx, upstreamUnstructuredObject, metav1.UpdateOptions{})
-			//error removing upstream finalizer, retry
-			if err != nil && !errors.IsNotFound(err) {
-				retry := time.Millisecond
-				return &retry, err
+			//if upstream object has this syncers finalizer, remove it
+			if slice.ContainsString(upstreamUnstructuredObject.GetFinalizers(), SyncerFinalizerNamePrefix+c.syncTargetName) {
+				controllerutil.RemoveFinalizer(upstreamUnstructuredObject, SyncerFinalizerNamePrefix+c.syncTargetName)
+				_, err = c.upstreamClient.Resource(gvr).Namespace(upstreamUnstructuredObject.GetNamespace()).Update(ctx, upstreamUnstructuredObject, metav1.UpdateOptions{})
+				//error removing upstream finalizer, retry
+				if err != nil && !errors.IsNotFound(err) {
+					retry := time.Millisecond
+					return &retry, err
+				}
 			}
 		}
 		return nil, nil
