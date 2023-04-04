@@ -1,4 +1,4 @@
-name: Build and Publish Controller Image
+name: Build and Publish Agent Image
 
 on:
   push:
@@ -17,11 +17,11 @@ env:
 jobs:
   build:
     if: github.repository_owner == 'kuadrant'
-    name: Build and Publish Controller Image
+    name: Build and Publish Agent Image
     runs-on: ubuntu-22.04
     outputs:
       sha_short: ${{ steps.vars.outputs.sha_short }}
-      controller_image: ${{ steps.vars.outputs.base_image }}-${{ steps.vars.outputs.sha_short }}
+      agent_image: ${{ steps.vars.outputs.base_image }}-${{ steps.vars.outputs.sha_short }}
     steps:
       - uses: actions/checkout@v3
 
@@ -29,7 +29,7 @@ jobs:
         id: vars
         run: |
           echo "sha_short=$(echo ${{ github.sha }} | cut -b -7)" >> $GITHUB_OUTPUT
-          echo "base_image=${{ env.IMG_REGISTRY_HOST }}/${{ env.IMG_REGISTRY_ORG }}/${{ env.IMG_REGISTRY_REPO }}:controller" >> $GITHUB_OUTPUT
+          echo "base_image=${{ env.IMG_REGISTRY_HOST }}/${{ env.IMG_REGISTRY_ORG }}/${{ env.IMG_REGISTRY_REPO }}:agent" >> $GITHUB_OUTPUT
 
       - name: Add image tags
         id: add-tags
@@ -48,43 +48,15 @@ jobs:
           username: ${{ secrets.IMG_REGISTRY_USERNAME }}
           password: ${{ secrets.IMG_REGISTRY_TOKEN }}
 
-      - name: Build and push Controller Image
+      - name: Build and push Agent Image
         id: build-and-push
         uses: docker/build-push-action@v4
         with:
           push: true
           tags: ${{ env.IMG_TAGS }}
-          target: controller
+          target: agent
 
       - name: Print Image URL
         run: |
           echo "Image pushed to ${{ env.IMG_TAGS }}"
           echo "Image digest: ${{ steps.build-and-push.outputs.digest }}"
-
-  update-hcg-unstable:
-    if: "github.repository_owner == 'kuadrant' && github.ref_name == 'main'"
-    name: Update HCG unstable
-    runs-on: ubuntu-22.04
-    needs: build
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          repository: redhat-cps/glbc-deployments
-          ref: 'main'
-          ssh-key: ${{ secrets.HCG_DEPLOYMENTS_SSH_DEPLOY_KEY }}
-      - name: Install kustomize
-        run: make kustomize
-      - name: Setup git config
-        run: |
-          git config user.name "GitHub Actions Bot"
-          git config user.email "<kuadrant.dev@redhat.com>"
-      - name: Update controller image
-        run: |
-          export KUSTOMIZE=$(pwd)/bin/kustomize
-          cd hcg/mctc/environments/unstable
-          ${KUSTOMIZE} edit set image controller=${{ needs.build.outputs.controller_image }}
-      - name: Commit the change for ArgoCD to pick it up
-        run: |
-          git add hcg/mctc/environments/unstable/kustomization.yaml
-          git commit -m "Update controller image to ${{ needs.build.outputs.controller_image }}"
-          git push origin main
