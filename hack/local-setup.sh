@@ -147,16 +147,23 @@ installGatewayAPI() {
 
 deployKuadrant(){
   clusterName=${1}
-  kubectl config use-context kind-${clusterName}
 
-  echo "Installing Kuadrant in ${clusterName}"
-  ${KUSTOMIZE_BIN} build config/kuadrant | kubectl apply -f -
   kubectl config use-context kind-mctc-control-plane
   echo "Installing Redis in kind-mctc-control-plane"
-  ${KUSTOMIZE_BIN} build ${REDIS_KUSTOMIZATION_DIR} | kubectl apply -f - 
+  ${KUSTOMIZE_BIN} build ${REDIS_KUSTOMIZATION_DIR} | kubectl apply -f -
+
   kubectl config use-context kind-${clusterName}
+  echo "Installing Kuadrant in ${clusterName}"
+  ${KUSTOMIZE_BIN} build config/kuadrant | kubectl apply -f -
   echo "Configuring Limitador in ${clusterName}"
   ${KUSTOMIZE_BIN} build ${LIMITADOR_KUSTOMIZATION_DIR} | kubectl apply -f -
+  echo "Waiting for Kuadrant deployments to be ready..."
+  kubectl -n kuadrant-system wait --timeout=300s --for=condition=Available deployments --all
+  echo "Adding Kuadrant CR in ${clusterName}"
+  ${KUSTOMIZE_BIN} build config/kuadrant/cr | kubectl apply -f -
+  # This is adding the kuadrant CR before any gateways are created which is currently a known issue with kuadrant.
+  # After adding a gateway is will necessary to force a reconcile of the kuadrant CR, this can be done by running:
+  # kubectl annotate kuadrant/mctc -n kuadrant-system updateme=`date +%s` --overwrite
 }
 
 deployDashboard() {
@@ -205,7 +212,7 @@ deployAgentSecret() {
 
   kubectl create namespace mctc-system || true
 
-  makeSecretForCluster $KIND_CLUSTER_CONTROL_PLANE $(kubectl config current-context) $localAccess |
+  makeSecretForCluster $KIND_CLUSTER_CONTROL_PLANE $clusterName $localAccess |
   setNamespacedName mctc-system ${secretName} |
   setLabel argocd.argoproj.io/secret-type cluster |
   kubectl apply -f -

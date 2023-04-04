@@ -3,8 +3,7 @@
 makeSecretForKubeconfig() {
   local kubeconfig=$1
   local clusterName=$2
-  local targetCluster=$3
-  local targetClusterName=${targetCluster:=$clusterName}
+  local targetClusterName=$3
 
   local server=$(kubectl --kubeconfig ${kubeconfig} config view -o jsonpath="{$.clusters[?(@.name == '${clusterName}')].cluster.server}")
   local caData=$(kubectl --kubeconfig ${kubeconfig} config view --raw -o jsonpath="{$.clusters[?(@.name == '${clusterName}')].cluster.certificate-authority-data}")
@@ -37,9 +36,8 @@ EOF
 
 makeSecretForCluster() {
   local clusterName=$1
-  local targetCluster=$2
-  local targetClusterName=${targetCluster:=$clusterName}
-  local localAccess=${3}
+  local targetClusterName=$2
+  local localAccess=$3
 
   if [ "$localAccess" != "true" ]; then
     internalFlag="--internal"
@@ -48,7 +46,7 @@ makeSecretForCluster() {
   local tmpfile=$(mktemp /tmp/kubeconfig-internal.XXXXXX)
   ${KIND_BIN} export kubeconfig -q $internalFlag --name ${clusterName} --kubeconfig ${tmpfile}
 
-  makeSecretForKubeconfig $tmpfile kind-$clusterName $targetCluster $targetClusterName
+  makeSecretForKubeconfig $tmpfile kind-$clusterName $targetClusterName
   rm -f $tmpfile
 }
 
