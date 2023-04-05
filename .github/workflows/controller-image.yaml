@@ -1,4 +1,4 @@
-name: Build and Publish MCTC Image
+name: Build and Publish Controller Image
 
 on:
   push:
@@ -17,13 +17,13 @@ env:
 jobs:
   build:
     if: github.repository_owner == 'kuadrant'
-    name: Build and Publish MCTC Image
-    runs-on: ubuntu-20.04
+    name: Build and Publish Controller Image
+    runs-on: ubuntu-22.04
     outputs:
       sha_short: ${{ steps.vars.outputs.sha_short }}
       controller_image: ${{ steps.vars.outputs.base_image }}:${{ steps.vars.outputs.sha_short }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: Calculate vars
         id: vars
@@ -48,7 +48,7 @@ jobs:
           username: ${{ secrets.IMG_REGISTRY_USERNAME }}
           password: ${{ secrets.IMG_REGISTRY_TOKEN }}
 
-      - name: Build and push MCTC Image
+      - name: Build and push Controller Image
         id: build-and-push
         uses: docker/build-push-action@v4
         with:
@@ -60,3 +60,31 @@ jobs:
         run: |
           echo "Image pushed to ${{ env.IMG_TAGS }}"
           echo "Image digest: ${{ steps.build-and-push.outputs.digest }}"
+
+  update-hcg-unstable:
+    if: "github.repository_owner == 'kuadrant' && github.ref_name == 'main'"
+    name: Update HCG unstable
+    runs-on: ubuntu-22.04
+    needs: build
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          repository: redhat-cps/glbc-deployments
+          ref: 'main'
+          ssh-key: ${{ secrets.HCG_DEPLOYMENTS_SSH_DEPLOY_KEY }}
+      - name: Install kustomize
+        run: make kustomize
+      - name: Setup git config
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "<kuadrant.dev@redhat.com>"
+      - name: Update controller image
+        run: |
+          export KUSTOMIZE=$(pwd)/bin/kustomize
+          cd hcg/mctc/environments/unstable
+          ${KUSTOMIZE} edit set image controller=${{ needs.build.outputs.controller_image }}
+      - name: Commit the change for ArgoCD to pick it up
+        run: |
+          git add hcg/mctc/environments/unstable/kustomization.yaml
+          git commit -m "Update controller image to ${{ needs.build.outputs.controller_image }}"
+          git push origin main
