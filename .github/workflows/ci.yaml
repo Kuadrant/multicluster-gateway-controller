@@ -33,3 +33,14 @@ jobs:
           only-new-issues: true
           args: --timeout=5m
           skip-go-installation: true
+  test_suite:
+    name: Test Suite
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: v1.19
+      - name: Run suite
+        run: |
+          make test
