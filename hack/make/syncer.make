@@ -6,11 +6,13 @@ SYNCER_IMG ?= syncer:$(TAG)
 build-syncer: manifests generate fmt vet ## Build syncer binary.
 	go build -o bin/syncer ./cmd/syncer/main.go
 
+METRICS_PORT ?= 8086
+HEALTH_PORT ?= 8087
 .PHONY: run-syncer
 run-syncer: manifests generate fmt vet install
 	go run ./cmd/syncer/main.go \
-	    --metrics-bind-address=:8086 \
-	    --health-probe-bind-address=:8087 \
+	    --metrics-bind-address=:${METRICS_PORT} \
+	    --health-probe-bind-address=:${HEALTH_PORT}\
 	    --control-plane-config-name=control-plane-cluster \
 	    --control-plane-config-namespace=mctc-system \
 	    --synced-resources=gateways.v1beta1.gateway.networking.k8s.io \
