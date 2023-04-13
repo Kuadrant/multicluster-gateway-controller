@@ -117,7 +117,7 @@ func (a *Gateway) String() string {
 	return fmt.Sprintf("kind: %v, namespace/name: %v", a.GetKind(), a.GetNamespaceName())
 }
 
-// GetDNSTargets will return the LB hosts and or IPs from the the Ingress object associated with the cluster they came from
+// GetDNSTargets will return the LB hosts and or IPs from the Gateway object associated with the cluster they came from
 func (a *Gateway) GetDNSTargets(ctx context.Context) ([]v1alpha1.Target, error) {
 	dnsTargets := []v1alpha1.Target{}
 
@@ -126,11 +126,15 @@ func (a *Gateway) GetDNSTargets(ctx context.Context) ([]v1alpha1.Target, error) 
 			continue
 		}
 		// TODO: Allow for more than 1 address
-		ipAddress := gatewayStatus.Addresses[0].Value
-		dnsTarget := v1alpha1.Target{
-			TargetType: v1alpha1.TargetTypeIP,
-			Value:      ipAddress,
+		gwAddress := gatewayStatus.Addresses[0]
+		dnsTarget := v1alpha1.Target{}
+		if *gwAddress.Type == gatewayv1beta1.IPAddressType {
+			dnsTarget.TargetType = v1alpha1.TargetTypeIP
 		}
+		if *gwAddress.Type == gatewayv1beta1.HostnameAddressType {
+			dnsTarget.TargetType = v1alpha1.TargetTypeHost
+		}
+		dnsTarget.Value = gwAddress.Value
 		dnsTargets = append(dnsTargets, dnsTarget)
 	}
 
