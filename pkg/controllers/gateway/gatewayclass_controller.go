@@ -38,7 +38,7 @@ const (
 )
 
 func getSupportedClasses() []string {
-	return []string{"mctc-gw-istio-external-instance-per-cluster"}
+	return []string{"kuadrant-multi-cluster-gateway-instance-per-cluster"}
 }
 
 // GatewayClassReconciler reconciles a GatewayClass object

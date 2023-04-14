@@ -8,10 +8,20 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - secrets
+  - configmaps
   verbs:
   - get
   - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - delete
+  - get
+  - list
+  - update
   - watch
 - apiGroups:
   - cert-manager.io

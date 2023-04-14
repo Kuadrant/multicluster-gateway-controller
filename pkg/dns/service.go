@@ -23,9 +23,8 @@ import (
 )
 
 const (
-	labelRecordID                  = "kuadrant.io/record-id"
-	LabelGatewayReference          = "kuadrant.io/gateway-uid"
-	PATCH_ANNOTATION_PREFIX string = "MCTC_PATCH_"
+	labelRecordID         = "kuadrant.io/record-id"
+	LabelGatewayReference = "kuadrant.io/gateway-uid"
 )
 
 var ErrAlreadyAssigned = fmt.Errorf("managed host already assigned")
@@ -114,7 +113,7 @@ func (s *Service) CreateDNSRecord(ctx context.Context, subDomain string, managed
 			Namespace: managedZone.Namespace,
 			Labels: map[string]string{
 				labelRecordID:         subDomain,
-				labelGatewayReference: string(owner.GetUID()),
+				LabelGatewayReference: string(owner.GetUID()),
 			},
 		},
 		Spec: v1alpha1.DNSRecordSpec{
@@ -225,7 +224,7 @@ func (s *Service) SetEndpoints(ctx context.Context, addresses []gatewayv1beta1.G
 //
 // Currently, this returns the first matching ManagedZone found in the traffic resources own namespace, or if none is found,
 // it looks for the first matching one listed in the default ctrl namespace.
-func (s *Service) GetManagedZoneForHost(ctx context.Context, host string, t metav1.Object) (*v1alpha1.ManagedZone, string, error) {
+func (s *Service) GetManagedZoneForHost(ctx context.Context, host string, t traffic.Interface) (*v1alpha1.ManagedZone, string, error) {
 	hostParts := strings.SplitN(host, ".", 2)
 	if len(hostParts) < 2 {
 		return nil, "", fmt.Errorf("unable to parse host : %s on traffic resource : %s", host, t.GetName())
@@ -259,7 +258,7 @@ func (s *Service) GetManagedZoneForHost(ctx context.Context, host string, t meta
 // CleanupDNSRecords removes all DNS records that were created for a provided traffic.Interface object
 func (s *Service) CleanupDNSRecords(ctx context.Context, owner traffic.Interface) error {
 	recordsToCleaunup := &v1alpha1.DNSRecordList{}
-	selector, _ := labels.Parse(fmt.Sprintf("%s=%s", labelGatewayReference, owner.GetUID()))
+	selector, _ := labels.Parse(fmt.Sprintf("%s=%s", LabelGatewayReference, owner.GetUID()))
 
 	if err := s.controlClient.List(ctx, recordsToCleaunup, &client.ListOptions{LabelSelector: selector}); err != nil {
 		return err

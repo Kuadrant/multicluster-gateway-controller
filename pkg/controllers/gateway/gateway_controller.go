@@ -43,7 +43,6 @@ import (
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/conditions"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/metadata"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/slice"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/traffic"
@@ -119,7 +118,6 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 		return ctrl.Result{}, nil
 	}
-
 	upstreamGateway := previous.DeepCopy()
 	log.V(3).Info("reconciling gateway", "classname", upstreamGateway.Spec.GatewayClassName)
 	if !controllerutil.ContainsFinalizer(upstreamGateway, GatewayFinalizer) && !isDeleting(upstreamGateway) {
@@ -144,7 +142,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		if _, _, _, err := r.reconcileDownstreamFromUpstreamGateway(ctx, upstreamGateway, nil); err != nil {
 			return ctrl.Result{}, err
 		}
-		metadata.RemoveFinalizer(upstreamGateway, GatewayFinalizer)
+		controllerutil.RemoveFinalizer(previous, GatewayFinalizer)
 		if err := r.Update(ctx, upstreamGateway); err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to remove finalizer from gateway : %s", err)
 		}
@@ -209,11 +207,23 @@ func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.C
 		downstream.Labels = map[string]string{}
 	}
 	downstream.Labels[ManagedLabel] = "true"
-	if isDeleting(upstreamGateway) {
-		log.Info("deleting downstream gateways owned by upstream gateway ", "name", upstreamGateway.Name, "namespace", upstreamGateway.Namespace)
+	accessor := traffic.NewGateway(downstream)
+	if isDeleting(downstream) {
+		log.Info("deleting downstream gateways owned by upstream gateway ", "name", downstream.Name, "namespace", downstream.Namespace)
 		targets, err := r.Placement.Place(ctx, upstreamGateway, downstream)
 		if err != nil {
-			return true, metav1.ConditionFalse, clusters, err
+			return false, metav1.ConditionFalse, clusters, err
+		}
+		if err := r.Host.CleanupDNSRecords(ctx, accessor); err != nil {
+			log.Error(err, "Error deleting DNS record")
+			return false, metav1.ConditionFalse, clusters, err
+		}
+
+		// Cleanup certificates
+		err = r.Certificates.CleanupCertificates(ctx, accessor)
+		if err != nil {
+			log.Error(err, "Error deleting certs")
+			return false, metav1.ConditionFalse, clusters, err
 		}
 		return false, metav1.ConditionTrue, targets.UnsortedList(), nil
 	}
@@ -342,15 +352,16 @@ func (r *GatewayReconciler) reconcileDNSEndpoints(ctx context.Context, gateway *
 			}
 			return nil
 		}
-		dnsRecord, err := r.Host.GetDNSRecord(ctx, mh.Subdomain, mh.ManagedZone)
-		if err != nil && k8serrors.IsNotFound(err) {
-			dnsRecord, err = r.Host.CreateDNSRecord(ctx, mh.Subdomain, mh.ManagedZone)
-			if err := client.IgnoreAlreadyExists(err); err != nil {
+		gatewayAccessor := traffic.NewGateway(gateway)
+		var dnsRecord, err = r.Host.CreateDNSRecord(ctx, mh.Subdomain, mh.ManagedZone, gatewayAccessor)
+		if err := client.IgnoreAlreadyExists(err); err != nil {
+			return err
+		}
+		if k8serrors.IsAlreadyExists(err) {
+			dnsRecord, err = r.Host.GetDNSRecord(ctx, mh.Subdomain, mh.ManagedZone, gatewayAccessor)
+			if err != nil {
 				return err
 			}
-		}
-		if err != nil {
-			return err
 		}
 
 		log.Info("setting dns endpoints for gateway listener", "listener", dnsRecord.Name, "values", endpoints)
@@ -448,6 +459,42 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager, ctx context.Conte
 		Watches(&source.Kind{
 			Type: &corev1.Secret{},
 		}, &ClusterEventHandler{client: r.Client}).
+		Watches(&source.Kind{Type: &workv1.ManifestWork{}}, handler.EnqueueRequestsFromMapFunc(func(o client.Object) []reconcile.Request {
+			log.V(3).Info("enqueuing gateways based on manifest work change ", "work namespace", o.GetNamespace())
+			requests := []reconcile.Request{}
+			annotations := o.GetAnnotations()
+			if annotations == nil {
+				log.V(3).Info("no parent or anotations on manifest work ", "work ns", o.GetNamespace(), "name", o.GetName())
+				return requests
+			}
+			key := annotations["kuadrant.io/parent"]
+			ns, name, err := cache.SplitMetaNamespaceKey(key)
+			if err != nil {
+				log.Error(err, "failed to parse namespace and name from maifiest work")
+				return requests
+			}
+			log.Info("requeuing gateway ", "namespace", ns, "name", name)
+			requests = append(requests, reconcile.Request{
+				NamespacedName: types.NamespacedName{Namespace: ns, Name: name},
+			})
+			return requests
+		}), builder.OnlyMetadata).
+		Watches(&source.Kind{Type: &clusterv1beta2.PlacementDecision{}}, handler.EnqueueRequestsFromMapFunc(func(o client.Object) []reconcile.Request {
+			// kinda want to get the old and new object here and only queue if the clusters have changed
+			// queue up gateways in this namespace
+			req := []reconcile.Request{}
+			l := &gatewayv1beta1.GatewayList{}
+			if err := mgr.GetClient().List(ctx, l, &client.ListOptions{Namespace: o.GetNamespace()}); err != nil {
+				log.Error(err, "failed to list gateways to requeue")
+				return req
+			}
+			for _, g := range l.Items {
+				req = append(req, reconcile.Request{
+					NamespacedName: client.ObjectKeyFromObject(&g),
+				})
+			}
+			return req
+		})).
 		WithEventFilter(predicate.NewPredicateFuncs(func(object client.Object) bool {
 			gateway, ok := object.(*gatewayv1beta1.Gateway)
 			if ok {

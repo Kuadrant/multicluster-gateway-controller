@@ -10,7 +10,7 @@ metadata:
       {"op": "replace", "path": "/spec/listeners/0/name", "value": "test"}
     ]'
 spec:
-  gatewayClassName: mctc-gw-istio-external-instance-per-cluster
+  gatewayClassName: kuadrant-multi-cluster-gateway-instance-per-cluster
   listeners:
   - name: default
     port: 443

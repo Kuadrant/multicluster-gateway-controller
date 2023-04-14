@@ -138,7 +138,7 @@ mctc-dev-mz   replace.this   /hostedzone/Z08224701SVEG4XHW89W0   7              
 
 ### Create a gateway
 
-We know will create a multi-cluster gatway definiton in the hub cluster. Make sure to replace the sub.replace.this with a subdomain of your root domain.
+We know will create a multi-cluster gateway definition in the hub cluster. Make sure to replace the sub.replace.this with a subdomain of your root domain.
 
 ```
 kubectl apply -f - <<EOF
@@ -148,7 +148,7 @@ metadata:
   name: prod-web
   namespace: multi-cluster-gateways
 spec:
-  gatewayClassName: mctc-gw-istio-external-instance-per-cluster
+  gatewayClassName: kuadrant-multi-cluster-gateway-instance-per-cluster
   listeners:
   - allowedRoutes:
       namespaces:
@@ -178,7 +178,7 @@ Now on the hub cluster you should find there is a configured gateway and instant
 ```
 kubectl get gateway -A
 kuadrant-multi-cluster-gateways   prod-web   istio                                         172.32.200.0                29s
-multi-cluster-gateways            prod-web   mctc-gw-istio-external-instance-per-cluster                  True         2m42s
+multi-cluster-gateways            prod-web   kuadrant-multi-cluster-gateway-instance-per-cluster                  True         2m42s
 ```
 
 The instantiated gateway in this case is handled by Istio and has been assigned the 172.x address. You can definition of this gateway is handled in multi-cluster-gateways namespace. 
@@ -223,7 +223,7 @@ spec:
     name: prod-web
     namespace: kuadrant-multi-cluster-gateways
   hostnames:
-  - "sub.replace.this"  
+  - "api.cb.hcpapps.net"  
   rules:
   - backendRefs:
     - name: echo
