@@ -44,6 +44,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	kuadrantapi "github.com/kuadrant/kuadrant-operator/api/v1beta1"
+	clusterv1beta2 "open-cluster-management.io/api/cluster/v1beta1"
+	workv1 "open-cluster-management.io/api/work/v1"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 	//+kubebuilder:scaffold:imports
 )
@@ -103,6 +105,11 @@ var _ = BeforeSuite(func() {
 	err = kuadrantapi.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
+	err = workv1.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = clusterv1beta2.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
 	//+kubebuilder:scaffold:scheme
 
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
@@ -124,14 +131,14 @@ var _ = BeforeSuite(func() {
 
 	dnsProvider := &dns.FakeProvider{}
 
-	certificates := tls.NewService(k8sManager.GetClient(), "default", "glbc-ca")
-	dns := dns.NewService(k8sManager.GetClient(), dns.NewSafeHostResolver(dns.NewDefaultHostResolver()), dnsProvider, "default")
+	certificates := tls.NewService(k8sManager.GetClient(), "glbc-ca")
+	dns := dns.NewService(k8sManager.GetClient(), dns.NewSafeHostResolver(dns.NewDefaultHostResolver()), dnsProvider)
 	err = (&GatewayReconciler{
 		Client:       k8sManager.GetClient(),
 		Scheme:       k8sManager.GetScheme(),
 		Certificates: certificates,
 		Host:         dns,
-	}).SetupWithManager(k8sManager)
+	}).SetupWithManager(k8sManager, ctx)
 	Expect(err).ToNot(HaveOccurred())
 
 	// TODO: can we avoid duplicate set code here that also in controller/main.go?

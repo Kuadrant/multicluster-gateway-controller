@@ -30,8 +30,6 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	kerrors "k8s.io/apimachinery/pkg/util/errors"
-
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns"
 )
@@ -194,6 +192,9 @@ func (*Route53DNSProvider) ProviderSpecific() dns.ProviderSpecificLabels {
 
 func (p *Route53DNSProvider) change(record *v1alpha1.DNSRecord, managedZone *v1alpha1.ManagedZone, action action) error {
 	// Configure records.
+	if len(record.Spec.Endpoints) == 0 {
+		return nil
+	}
 	err := p.updateRecord(record, managedZone.Status.ID, string(action))
 	if err != nil {
 		return fmt.Errorf("failed to update record in route53 hosted zone %s: %v", managedZone.Status.ID, err)
@@ -332,10 +333,5 @@ func (p *Route53DNSProvider) changeForEndpoint(endpoint *v1alpha1.Endpoint, acti
 // validateServiceEndpoints validates that provider clients can communicate with
 // associated API endpoints by having each client make a list/describe/get call.
 func validateServiceEndpoints(provider *Route53DNSProvider) error {
-	var errs []error
-	zoneInput := route53.ListHostedZonesInput{MaxItems: aws.String("1")}
-	if _, err := provider.client.ListHostedZones(&zoneInput); err != nil {
-		errs = append(errs, fmt.Errorf("failed to list route53 hosted zones: %v", err))
-	}
-	return kerrors.NewAggregate(errs)
+	return nil
 }

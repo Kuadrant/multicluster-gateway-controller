@@ -25,6 +25,9 @@ func TestGetParams(t *testing.T) {
 		{
 			name: "ConfigMap found",
 			gatewayClass: &gatewayv1beta1.GatewayClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test",
+				},
 				Spec: gatewayv1beta1.GatewayClassSpec{
 					ParametersRef: &gatewayv1beta1.ParametersReference{
 						Group:     "",
@@ -54,6 +57,9 @@ func TestGetParams(t *testing.T) {
 			name: "ConfigMap not found",
 
 			gatewayClass: &gatewayv1beta1.GatewayClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test",
+				},
 				Spec: gatewayv1beta1.GatewayClassSpec{
 					ParametersRef: &gatewayv1beta1.ParametersReference{
 						Group:     "",
@@ -75,6 +81,9 @@ func TestGetParams(t *testing.T) {
 			name: "Unsupported GroupKind",
 
 			gatewayClass: &gatewayv1beta1.GatewayClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test",
+				},
 				Spec: gatewayv1beta1.GatewayClassSpec{
 					ParametersRef: &gatewayv1beta1.ParametersReference{
 						Group:     "foo",
@@ -109,7 +118,7 @@ func TestGetParams(t *testing.T) {
 				WithObjects(testCase.gatewayClass, testCase.paramsObj).
 				Build()
 
-			params, err := getParams(context.TODO(), client, testCase.gatewayClass)
+			params, err := getParams(context.TODO(), client, testCase.gatewayClass.Name)
 
 			if err := testCase.assertParams(params, err); err != nil {
 				t.Error(err)

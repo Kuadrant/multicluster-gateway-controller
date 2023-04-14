@@ -1,4 +1,4 @@
-namespace: multi-cluster-traffic-controller-system
+namespace: multi-cluster-gateways
 
 namePrefix: mctc-
 
