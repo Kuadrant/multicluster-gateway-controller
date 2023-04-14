@@ -27,6 +27,7 @@ KIND_VERSION ?= v0.17.0
 HELM_VERSION ?= v3.10.0
 YQ_VERSION ?= v4.30.8
 ISTIOVERSION ?= 1.17.0
+OPERATOR_SDK_VERSION ?= 1.28.0
 
 
 KUSTOMIZE_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"
@@ -38,6 +39,18 @@ $(KUSTOMIZE): $(LOCALBIN)
 		rm -rf $(LOCALBIN)/kustomize; \
 	fi
 	test -s $(LOCALBIN)/kustomize || { curl -Ss $(KUSTOMIZE_INSTALL_SCRIPT) | bash -s -- $(subst v,,$(KUSTOMIZE_VERSION)) $(LOCALBIN); }
+
+.PHONY: operator-sdk
+operator-sdk: 
+	@if test -x ${LOCALBIN}/operator-sdk && ! ${LOCALBIN}/operator-sdk version | grep -q ${OPERATOR_SDK_VERSION}; then \
+		echo "${OPERATOR_SDK} version is not expected ${OPERATOR_SDK_VERSION}. Removing it before installing."; \
+		rm -rf ${OPERATOR_SDK}; \
+	fi
+ifeq ("$(shell ls ${OPERATOR_SDK})", "")
+	curl -LO https://github.com/operator-framework/operator-sdk/releases/download/v${OPERATOR_SDK_VERSION}/operator-sdk_${OS}_${ARCH}
+	chmod +x operator-sdk_${OS}_${ARCH}
+	mv operator-sdk_${OS}_${ARCH} $(OPERATOR_SDK)
+endif
 
 .PHONY: controller-gen
 controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary. If wrong version is installed, it will be overwritten.
