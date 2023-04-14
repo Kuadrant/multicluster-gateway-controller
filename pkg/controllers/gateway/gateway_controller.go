@@ -100,16 +100,34 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 		return ctrl.Result{}, nil
 	}
+	if !controllerutil.ContainsFinalizer(previous, GatewayFinalizer) {
+		controllerutil.AddFinalizer(previous, GatewayFinalizer)
+		err = r.Update(ctx, previous)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+	}
 
 	if previous.GetDeletionTimestamp() != nil && !previous.GetDeletionTimestamp().IsZero() {
-		// TODO: Do we need to remove dns records and/or endpoints?
-		//       Will ownerRefs be sufficient
-		log.Info("Gateway is deleting", "gateway", previous.Name, "namespace", previous.Namespace)
-		// cleanup dns records
-		// cleunup certificates
+		log.Info("Deleting gateway", "gateway", previous.Name, "namespace", previous.Namespace)
+		//delete dnsRecord
+		err := r.DNSDeletion(ctx, *previous)
+		if err != nil {
+			log.Error(err, "Error deleting DNS record")
+		}
+
+		// Cleanup certificates
 		err = r.cleanupCertificates(ctx, previous)
-		// delete gateway itself if it has no finalizers?
-		return ctrl.Result{}, err
+		if err != nil {
+			log.Error(err, "Error deleting certs")
+		}
+		controllerutil.RemoveFinalizer(previous, GatewayFinalizer)
+		err = r.Update(ctx, previous)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{}, nil
+
 	}
 
 	// Check if the class name is one of ours
@@ -453,23 +471,40 @@ func selectClusters(gateway gatewayv1beta1.Gateway) []string {
 	return []string{}
 }
 
-// SetupWithManager sets up the controller with the Manager.
-func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&gatewayv1beta1.Gateway{}).
-		Watches(&source.Kind{
-			Type: &corev1.Secret{},
-		}, &ClusterEventHandler{client: r.Client}).
-		WithEventFilter(predicate.NewPredicateFuncs(func(object client.Object) bool {
-			gateway, ok := object.(*gatewayv1beta1.Gateway)
-			if !ok {
-				return true
-			}
+func (r *GatewayReconciler) DNSDeletion(ctx context.Context, gateway gatewayv1beta1.Gateway) error {
+	trafficAccessor := traffic.NewGateway(&gateway)
+	allHosts := trafficAccessor.GetHosts()
 
-			return slice.ContainsString(getSupportedClasses(), string(gateway.Spec.GatewayClassName))
-		})).
-		Owns(&kuadrantapi.RateLimitPolicy{}).
-		Complete(r)
+	for _, host := range allHosts {
+		managedZone, subDomain, err := r.Host.GetManagedZoneForHost(ctx, host, trafficAccessor)
+		if err != nil {
+			return err
+		}
+		if managedZone == nil {
+			log.Log.Info("Managed zone not found cannot get DNS record")
+			return nil
+		}
+
+		log.Log.Info("getting DNS record associated with deleting gateway")
+		dnsRecord, err := r.Host.GetDNSRecord(ctx, subDomain, managedZone)
+		if err != nil && !k8serrors.IsNotFound(err) {
+			return err
+		}
+		if dnsRecord == nil {
+			log.Log.Info("dns record not found")
+			continue
+		}
+
+		log.Log.Info("deleting DNS record ", "DNSRecord:", dnsRecord.Name)
+		err = r.Delete(ctx, dnsRecord)
+		log.Log.Info("DNS record deleted ", "DNSRecord:", dnsRecord.Name)
+
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (r *GatewayReconciler) cleanupCertificates(ctx context.Context, gateway *gatewayv1beta1.Gateway) error {
@@ -527,4 +562,23 @@ func (r *GatewayReconciler) cleanupCertificates(ctx context.Context, gateway *ga
 	}
 	// assumptions: all traffic objects using the same host are under the same namespace
 	return nil
+}
+
+// SetupWithManager sets up the controller with the Manager.
+func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&gatewayv1beta1.Gateway{}).
+		Watches(&source.Kind{
+			Type: &corev1.Secret{},
+		}, &ClusterEventHandler{client: r.Client}).
+		WithEventFilter(predicate.NewPredicateFuncs(func(object client.Object) bool {
+			gateway, ok := object.(*gatewayv1beta1.Gateway)
+			if !ok {
+				return true
+			}
+
+			return slice.ContainsString(getSupportedClasses(), string(gateway.Spec.GatewayClassName))
+		})).
+		Owns(&kuadrantapi.RateLimitPolicy{}).
+		Complete(r)
 }
