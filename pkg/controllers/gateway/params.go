@@ -86,7 +86,13 @@ func fromConfigMap(configMap *corev1.ConfigMap) (*Params, error) {
 	return result, nil
 }
 
-func getParams(ctx context.Context, client client.Client, gatewayClass *gatewayv1beta1.GatewayClass) (*Params, error) {
+func getParams(ctx context.Context, c client.Client, gatewayClassName string) (*Params, error) {
+
+	gatewayClass := &gatewayv1beta1.GatewayClass{}
+	err := c.Get(ctx, client.ObjectKey{Name: gatewayClassName}, gatewayClass)
+	if err != nil {
+		return nil, err
+	}
 	if gatewayClass.Spec.ParametersRef == nil {
 		// Default parameters
 		return &defaultParams, nil
@@ -102,5 +108,5 @@ func getParams(ctx context.Context, client client.Client, gatewayClass *gatewayv
 		return nil, &InvalidParamsError{fmt.Sprintf("unable to retrieve parameters for GroupKind %s", groupKind.String())}
 	}
 
-	return resolveParams(ctx, client, *gatewayClass.Spec.ParametersRef)
+	return resolveParams(ctx, c, *gatewayClass.Spec.ParametersRef)
 }

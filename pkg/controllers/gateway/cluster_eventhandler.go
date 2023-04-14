@@ -65,10 +65,6 @@ func (eh *ClusterEventHandler) enqueueForObject(obj v1.Object, q workqueue.RateL
 }
 
 func (eh *ClusterEventHandler) getGatewaysFor(secret *corev1.Secret) ([]gatewayv1beta1.Gateway, error) {
-	clusterConfig, err := clusterSecret.ClusterConfigFromSecret(secret)
-	if err != nil {
-		return nil, err
-	}
 
 	gateways := &gatewayv1beta1.GatewayList{}
 	if err := eh.client.List(context.TODO(), gateways); err != nil {
@@ -76,6 +72,18 @@ func (eh *ClusterEventHandler) getGatewaysFor(secret *corev1.Secret) ([]gatewayv
 	}
 
 	return slice.Filter(gateways.Items, func(gateway gatewayv1beta1.Gateway) bool {
-		return slice.ContainsString(selectClusters(gateway), clusterConfig.Name)
+		for _, l := range gateway.Spec.Listeners {
+			if l.Protocol != gatewayv1beta1.HTTPSProtocolType || l.TLS == nil {
+				continue
+			}
+
+			for _, ts := range l.TLS.CertificateRefs {
+				if ts.Name == gatewayv1beta1.ObjectName(secret.Name) && ts.Namespace == (*gatewayv1beta1.Namespace)(&secret.Namespace) {
+					return true
+				}
+			}
+
+		}
+		return false
 	}), nil
 }

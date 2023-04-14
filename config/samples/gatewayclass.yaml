@@ -7,5 +7,5 @@ spec:
   parametersRef:
     group: ""
     kind: "ConfigMap"
-    namespace: "multi-cluster-traffic-controller-system"
+    namespace: "multi-cluster-gateways"
     name: "gateway-params"

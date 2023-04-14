@@ -35,6 +35,7 @@ import (
 
 	certmanv1 "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
 
+	clusterv1beta2 "open-cluster-management.io/api/cluster/v1beta1"
 	gatewayapi "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	kuadrantapi "github.com/kuadrant/kuadrant-operator/api/v1beta1"
@@ -48,6 +49,7 @@ import (
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/ratelimitpolicy"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns/aws"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/placement"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/tls"
 	//+kubebuilder:scaffold:imports
 )
@@ -63,13 +65,10 @@ func init() {
 	utilruntime.Must(certmanv1.AddToScheme(scheme.Scheme))
 	utilruntime.Must(gatewayapi.AddToScheme(scheme.Scheme))
 	utilruntime.Must(kuadrantapi.AddToScheme(scheme.Scheme))
+	utilruntime.Must(clusterv1beta2.AddToScheme(scheme.Scheme))
+
 	//+kubebuilder:scaffold:scheme
 }
-
-const (
-	//(cbrookes) This will be removed in the future when we have many tenant ns and way to map to them
-	defaultCtrlNS = "multi-cluster-traffic-controller-system"
-)
 
 func main() {
 	var metricsAddr string
@@ -82,7 +81,6 @@ func main() {
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
 	flag.StringVar(&certProvider, "cert-provider", "glbc-ca", "The name of the certificate provider to use")
-
 	opts := zap.Options{
 		Development: true,
 	}
@@ -91,6 +89,7 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
+	ctx := ctrl.SetupSignalHandler()
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme.Scheme,
 		MetricsBindAddress:     metricsAddr,
@@ -119,6 +118,13 @@ func main() {
 		setupLog.Error(err, "unable to create dns provider client")
 		os.Exit(1)
 	}
+	placement, err := placement.NewOCMPlacer(mgr.GetConfig())
+
+	if err != nil {
+		setupLog.Error(err, "unable to create placement provider")
+		os.Exit(1)
+	}
+
 	if err = (&dnsrecord.DNSRecordReconciler{
 		Client:      mgr.GetClient(),
 		Scheme:      mgr.GetScheme(),
@@ -135,8 +141,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	dnsService := dns.NewService(mgr.GetClient(), dns.NewSafeHostResolver(dns.NewDefaultHostResolver()), defaultCtrlNS)
-	certService := tls.NewService(mgr.GetClient(), defaultCtrlNS, certProvider)
+	dnsService := dns.NewService(mgr.GetClient(), dns.NewSafeHostResolver(dns.NewDefaultHostResolver()))
+	certService := tls.NewService(mgr.GetClient(), certProvider)
 	clusterSecretService := clusterSecret.NewService(mgr.GetClient())
 
 	if err = (&managedzone.ManagedZoneReconciler{
@@ -160,7 +166,8 @@ func main() {
 		Scheme:       mgr.GetScheme(),
 		Certificates: certService,
 		Host:         dnsService, // implements the required interface
-	}).SetupWithManager(mgr); err != nil {
+		Placement:    placement,
+	}).SetupWithManager(mgr, ctx); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Gateway")
 		os.Exit(1)
 	}
@@ -196,7 +203,7 @@ func main() {
 	}
 
 	setupLog.Info("starting manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+	if err := mgr.Start(ctx); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}

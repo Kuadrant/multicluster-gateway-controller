@@ -279,4 +279,4 @@ kubectl config use-context kind-${KIND_CLUSTER_CONTROL_PLANE}
  # Create configmap with gateway parameters for clusters
 kubectl create configmap gateway-params \
   --from-file=params=config/samples/gatewayclass_params.json \
-  -n multi-cluster-traffic-controller-system
+  -n multi-cluster-gateways

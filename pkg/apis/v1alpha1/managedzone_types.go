@@ -108,6 +108,13 @@ type ManagedZoneList struct {
 	Items           []ManagedZone `json:"items"`
 }
 
+type ManagedHost struct {
+	Subdomain   string
+	Host        string
+	ManagedZone *ManagedZone
+	DnsRecord   *DNSRecord
+}
+
 func init() {
 	SchemeBuilder.Register(&ManagedZone{}, &ManagedZoneList{})
 }

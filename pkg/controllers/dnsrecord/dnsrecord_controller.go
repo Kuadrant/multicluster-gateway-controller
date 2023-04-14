@@ -132,7 +132,7 @@ func (r *DNSRecordReconciler) applyPatches(dnsRecord *v1alpha1.DNSRecord) error 
 
 	//no patches to apply
 	if len(patchStrings) <= 0 {
-		log.Log.Info("no dns record patches found", "dns record", dnsRecord.Name)
+		log.Log.V(3).Info("no dns record patches found", "dns record", dnsRecord.Name)
 		return nil
 	}
 
@@ -224,7 +224,7 @@ func (r *DNSRecordReconciler) publishRecord(ctx context.Context, dnsRecord *v1al
 	}
 
 	if dnsRecord.Generation == dnsRecord.Status.ObservedGeneration {
-		log.Log.Info("Skipping managed zone to which the DNS dnsRecord is already published", "dnsRecord", dnsRecord.Name, "managedZone", managedZone.Name)
+		log.Log.V(3).Info("Skipping managed zone to which the DNS dnsRecord is already published", "dnsRecord", dnsRecord.Name, "managedZone", managedZone.Name)
 		return nil
 	}
 
