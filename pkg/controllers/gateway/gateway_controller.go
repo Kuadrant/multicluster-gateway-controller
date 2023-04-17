@@ -491,14 +491,11 @@ func (r *GatewayReconciler) DNSDeletion(ctx context.Context, gateway gatewayv1be
 			return err
 		}
 		if dnsRecord == nil {
-			log.Log.Info("dns record not found")
+			log.Log.Info("DNS record not found", "Host name:", host)
 			continue
 		}
-
-		log.Log.Info("deleting DNS record ", "DNSRecord:", dnsRecord.Name)
 		err = r.Delete(ctx, dnsRecord)
 		log.Log.Info("DNS record deleted ", "DNSRecord:", dnsRecord.Name)
-
 		if err != nil {
 			return err
 		}
