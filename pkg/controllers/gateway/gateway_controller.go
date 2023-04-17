@@ -513,7 +513,7 @@ func (r *GatewayReconciler) cleanupCertificates(ctx context.Context, gateway *ga
 
 	// get names of hosts for traffic object being deleted
 	for _, listener := range gateway.Spec.Listeners {
-		if string(*listener.Hostname) != "*." {
+		if !strings.Contains(string(*listener.Hostname), "*.") {
 			hostsToRemove = append(hostsToRemove, string(*listener.Hostname))
 		}
 	}
