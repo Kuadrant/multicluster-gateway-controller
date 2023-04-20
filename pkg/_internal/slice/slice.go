@@ -28,6 +28,11 @@ func ContainsString(slice []string, s string) bool {
 	return false
 }
 
+func Contains[T any](slice []T, predicate func(T) bool) bool {
+	_, ok := Find(slice, predicate)
+	return ok
+}
+
 // Find checks if an element in slice satisfies the given predicate, and returns
 // it. If no element is found returns false
 func Find[T any](slice []T, predicate func(T) bool) (element T, ok bool) {
@@ -51,4 +56,19 @@ func Filter[T any](slice []T, predicate func(T) bool) []T {
 	}
 
 	return result
+}
+
+func MapErr[T, R any](slice []T, f func(T) (R, error)) ([]R, error) {
+	result := make([]R, len(slice))
+
+	for i, elem := range slice {
+		mapped, err := f(elem)
+		if err != nil {
+			return nil, err
+		}
+
+		result[i] = mapped
+	}
+
+	return result, nil
 }

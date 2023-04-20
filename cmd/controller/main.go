@@ -128,16 +128,18 @@ func main() {
 		os.Exit(1)
 	}
 
+	dnsService := dns.NewService(mgr.GetClient(), dns.NewSafeHostResolver(dns.NewDefaultHostResolver()), dnsProvider, defaultCtrlNS)
+	certService := tls.NewService(mgr.GetClient(), defaultCtrlNS, certProvider)
+	clusterSecretService := clusterSecret.NewService(mgr.GetClient())
+
 	if err = (&dnspolicy.DNSPolicyReconciler{
-		Client: mgr.GetClient(),
+		Client:      mgr.GetClient(),
+		DNSProvider: dnsProvider,
+		HostService: dnsService,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DNSPolicy")
 		os.Exit(1)
 	}
-
-	dnsService := dns.NewService(mgr.GetClient(), dns.NewSafeHostResolver(dns.NewDefaultHostResolver()), defaultCtrlNS)
-	certService := tls.NewService(mgr.GetClient(), defaultCtrlNS, certProvider)
-	clusterSecretService := clusterSecret.NewService(mgr.GetClient())
 
 	if err = (&managedzone.ManagedZoneReconciler{
 		Client:      mgr.GetClient(),

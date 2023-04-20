@@ -54,6 +54,7 @@ type HostService interface {
 	GetDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone) (*v1alpha1.DNSRecord, error)
 	GetManagedZoneForHost(ctx context.Context, domain string, t traffic.Interface) (*v1alpha1.ManagedZone, string, error)
 	AddEndpoints(ctx context.Context, t traffic.Interface, dnsRecord *v1alpha1.DNSRecord) error
+	GetDNSRecordsFor(ctx context.Context, t traffic.Interface) ([]*v1alpha1.DNSRecord, error)
 }
 
 type CertificateService interface {

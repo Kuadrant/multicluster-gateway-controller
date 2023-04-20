@@ -6,7 +6,6 @@ require (
 	github.com/aws/aws-sdk-go v1.44.175
 	github.com/evanphx/json-patch/v5 v5.6.0
 	github.com/go-logr/logr v1.2.3
-	github.com/go-logr/zapr v1.2.3
 	github.com/jetstack/cert-manager v1.7.1
 	github.com/kuadrant/kuadrant-operator v0.1.1-0.20230323151616-58593d01833a
 	github.com/lithammer/shortuuid/v4 v4.0.0
@@ -14,8 +13,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.6.1
 	github.com/onsi/gomega v1.24.2
 	github.com/prometheus/client_golang v1.14.0
-	github.com/sirupsen/logrus v1.8.1
-	go.uber.org/zap v1.24.0
+	github.com/rs/xid v1.4.0
 	gomodules.xyz/jsonpatch/v2 v2.2.0
 	k8s.io/api v0.26.0
 	k8s.io/apimachinery v0.26.0
@@ -32,6 +30,7 @@ require (
 	github.com/emicklei/go-restful/v3 v3.9.0 // indirect
 	github.com/evanphx/json-patch v5.6.0+incompatible // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
+	github.com/go-logr/zapr v1.2.3 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
 	github.com/go-openapi/jsonreference v0.20.0 // indirect
 	github.com/go-openapi/swag v0.21.1 // indirect
@@ -62,6 +61,7 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
 	go.uber.org/multierr v1.8.0 // indirect
+	go.uber.org/zap v1.24.0 // indirect
 	golang.org/x/mod v0.7.0 // indirect
 	golang.org/x/net v0.5.0 // indirect
 	golang.org/x/oauth2 v0.4.0 // indirect
