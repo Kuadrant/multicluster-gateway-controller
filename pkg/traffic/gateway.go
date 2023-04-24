@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"strings"
 
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -129,7 +130,14 @@ func (a *Gateway) GetDNSTargets(ctx context.Context) ([]v1alpha1.Target, error) 
 		gwAddress := gatewayStatus.Addresses[0]
 		dnsTarget := v1alpha1.Target{}
 		if *gwAddress.Type == gatewayv1beta1.IPAddressType {
-			dnsTarget.TargetType = v1alpha1.TargetTypeIP
+			// workaround to detect hostnames incorrectly marked
+			// by istio with "Type: IPAddress"
+			// (see https://github.com/Kuadrant/multicluster-gateway-controller/pull/161#issuecomment-1520327276)
+			if host := net.ParseIP(gwAddress.Value); host != nil {
+				dnsTarget.TargetType = v1alpha1.TargetTypeIP
+			} else {
+				dnsTarget.TargetType = v1alpha1.TargetTypeHost
+			}
 		}
 		if *gwAddress.Type == gatewayv1beta1.HostnameAddressType {
 			dnsTarget.TargetType = v1alpha1.TargetTypeHost
