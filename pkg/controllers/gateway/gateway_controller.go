@@ -26,7 +26,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/conditions"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/metadata"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/slice"
+	syncutils "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/sync"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/traffic"
@@ -118,9 +120,32 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, nil
 	}
 
+	params, err := getParams(ctx, r.Client, gatewayClass)
+
+	// If the GatewayClass parametrers are invalid, update the status
+	// and stop reconciling
+	if err != nil && IsInvalidParamsError(err) {
+		gateway := previous.DeepCopy()
+		conditions.SetCondition(gateway.Status.Conditions, previous.Generation, string(gatewayv1beta1.GatewayConditionProgrammed), metav1.ConditionFalse, string(gatewayv1beta1.GatewayReasonPending), fmt.Sprintf("Invalid parameters in gateway class: %s", err.Error()))
+
+		if !reflect.DeepEqual(gateway, previous) {
+			err = r.Status().Update(ctx, gateway)
+			if err != nil {
+				log.Error(err, "Error updating Gateway status")
+				return ctrl.Result{}, err
+			}
+		}
+
+		return ctrl.Result{}, nil
+	}
+
+	if err != nil && !IsInvalidParamsError(err) {
+		return ctrl.Result{}, err
+	}
+
 	gateway := previous.DeepCopy()
 	acceptedStatus := metav1.ConditionTrue
-	programmedStatus, clusters, requeue, reconcileErr := r.reconcileGateway(ctx, *previous, gateway)
+	programmedStatus, clusters, requeue, reconcileErr := r.reconcileGateway(ctx, *previous, gateway, params)
 
 	// Update gateway spec/metadata
 	if !reflect.DeepEqual(gateway, previous) {
@@ -150,7 +175,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 // Configures Gateway tls & dns for each cluster it targets.
 // Returns the programmed status, a list of clusters that were programmed, if the gateway should be requeued, and any error
-func (r *GatewayReconciler) reconcileGateway(ctx context.Context, previous gatewayv1beta1.Gateway, gateway *gatewayv1beta1.Gateway) (metav1.ConditionStatus, []string, bool, error) {
+func (r *GatewayReconciler) reconcileGateway(ctx context.Context, previous gatewayv1beta1.Gateway, gateway *gatewayv1beta1.Gateway, params *Params) (metav1.ConditionStatus, []string, bool, error) {
 	log := log.FromContext(ctx)
 
 	clusters := selectClusters(*gateway)
@@ -163,6 +188,10 @@ func (r *GatewayReconciler) reconcileGateway(ctx context.Context, previous gatew
 	gatewayHelper := trafficAccessor.(GatewayHelper)
 	allHosts := trafficAccessor.GetHosts()
 	managedHosts := []ManagedHost{}
+
+	if err := r.reconcileParams(ctx, gateway, params); err != nil {
+		return metav1.ConditionUnknown, clusters, false, err
+	}
 
 	// Create a list of managed hosts.
 	// Find a suitable managed zone for each host, if one exists, ensure a DNSRecord exists for it.
@@ -279,6 +308,71 @@ func (r *GatewayReconciler) reconcileGateway(ctx context.Context, previous gatew
 	}
 
 	return metav1.ConditionTrue, clusters, false, nil
+}
+
+func (r *GatewayReconciler) reconcileParams(ctx context.Context, gateway *gatewayv1beta1.Gateway, params *Params) error {
+	clusters, err := r.getClustersFromAnnotations(ctx, gateway)
+	if err != nil {
+		return err
+	}
+
+	downstreamClass := params.GetDownstreamClass()
+
+	// Set the annotations to sync the class name from the parameters
+	for _, cluster := range clusters {
+		if err := syncutils.SetPatchAnnotation(func(g *gatewayv1beta1.Gateway) {
+			g.Spec.GatewayClassName = gatewayv1beta1.ObjectName(downstreamClass)
+		}, cluster.Name, gateway); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// getAllClusters returns an array of all cluster secrets available.
+func (r *GatewayReconciler) getAllClusters(ctx context.Context) ([]corev1.Secret, error) {
+	clusterList := &corev1.SecretList{}
+	listOptions := client.MatchingLabels{
+		"argocd.argoproj.io/secret-type": "cluster",
+	}
+	err := r.Client.List(ctx, clusterList, listOptions)
+	if err := client.IgnoreNotFound(err); err != nil {
+		log.Log.Error(err, "Unable to fetch cluster Secrets")
+		return clusterList.Items, err
+	}
+	return clusterList.Items, nil
+}
+
+// getClustersFromAnnotations returns an array of cluster secrets based on the given objects sync annotations.
+// If the wildcard `all` annotation is present, all cluster secrets available are returned.
+func (r *GatewayReconciler) getClustersFromAnnotations(ctx context.Context, obj metav1.Object) ([]corev1.Secret, error) {
+	clusters := []corev1.Secret{}
+
+	allClusters, err := r.getAllClusters(ctx)
+	if err != nil {
+		return clusters, err
+	}
+
+	if metadata.HasAnnotation(obj, syncer.MCTC_SYNC_ANNOTATION_PREFIX+syncer.MCTC_SYNC_ANNOTATION_WILDCARD) {
+		return allClusters, nil
+	}
+
+	clustersMap := map[string]corev1.Secret{}
+	for _, cluster := range allClusters {
+		clustersMap[cluster.Name] = cluster
+	}
+	for annKey := range obj.GetAnnotations() {
+		if strings.HasPrefix(annKey, syncer.MCTC_SYNC_ANNOTATION_PREFIX) {
+			_, clusterName, found := strings.Cut(annKey, syncer.MCTC_SYNC_ANNOTATION_PREFIX)
+			if found {
+				if cluster, exists := clustersMap[clusterName]; exists {
+					clusters = append(clusters, cluster)
+				}
+			}
+		}
+	}
+	return clusters, nil
 }
 
 func buildStatusConditions(gatewayStatus gatewayv1beta1.GatewayStatus, generation int64, clusters []string, acceptedStatus metav1.ConditionStatus, programmedStatus metav1.ConditionStatus) []metav1.Condition {
