@@ -208,6 +208,26 @@ deployAgentSecret() {
   kubectl apply -f -
 }
 
+deployOCMHub(){
+  clusterName=${1}
+  echo "installing the hub cluster in (${clusterName}) "
+
+  clusteradm init --wait --context kind-${clusterName} 
+}
+deployOCMSpoke(){
+  clusterName=${1}
+  echo "joining the spoke cluster to the hub cluster kind(${KIND_CLUSTER_CONTROL_PLANE}),"
+  kubectl config use-context kind-${KIND_CLUSTER_CONTROL_PLANE}
+  join=$(clusteradm get token --context kind-${KIND_CLUSTER_CONTROL_PLANE} |  grep -o  'clusteradm.*--cluster-name')
+  kubectl config use-context kind-${clusterName}
+  ${join} kind-${clusterName} --force-internal-endpoint-lookup --context kind-${clusterName} | grep clusteradm
+  echo "accepting OCM spoke cluster invite"
+  kubectl config use-context kind-${KIND_CLUSTER_CONTROL_PLANE}
+  sleep 45
+  clusteradm accept --clusters kind-${clusterName}
+}
+
+
 initController() {
     clusterName=${1}
     kubectl config use-context kind-${clusterName}
@@ -257,6 +277,9 @@ argocdAddCluster ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_CONTROL_PLANE}
 #8. Initialize local dev setup for the controller on the control-plane cluster
 initController ${KIND_CLUSTER_CONTROL_PLANE}
 
+# 9. Deploy OCM hub
+deployOCMHub ${KIND_CLUSTER_CONTROL_PLANE}
+
 #9. Add workload clusters if MCTC_WORKLOAD_CLUSTERS_COUNT environment variable is set
 if [[ -n "${MCTC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
   for ((i = 1; i <= ${MCTC_WORKLOAD_CLUSTERS_COUNT}; i++)); do
@@ -270,10 +293,11 @@ if [[ -n "${MCTC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
     argocdAddCluster ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_WORKLOAD}-${i}
     deployAgentSecret ${KIND_CLUSTER_WORKLOAD}-${i} "true"
     deployAgentSecret ${KIND_CLUSTER_WORKLOAD}-${i} "false"
+    deployOCMSpoke ${KIND_CLUSTER_WORKLOAD}-${i}
   done
 fi
 
-#10. Ensure the current context points to the control plane cluster
+# 10. Ensure the current context points to the control plane cluster
 kubectl config use-context kind-${KIND_CLUSTER_CONTROL_PLANE}
 
  # Create configmap with gateway parameters for clusters
