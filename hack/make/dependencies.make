@@ -1,5 +1,9 @@
 ##@ Build Dependencies
 
+## system information
+ARCH ?= amd64
+OS ?= $(shell uname)
+
 ## Location to install dependencies to
 LOCALBIN ?= $(shell pwd)/bin
 $(LOCALBIN):
@@ -12,6 +16,9 @@ ENVTEST ?= $(LOCALBIN)/setup-envtest
 KIND ?= $(LOCALBIN)/kind
 HELM ?= $(LOCALBIN)/helm
 ISTIOCTL ?= $(LOCALBIN)/istioctl
+OPERATOR_SDK ?= $(LOCALBIN)/operator-sdk
+CLUSTERADM ?= $(LOCALBIN)/clusteradm
+
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v4.5.4
@@ -65,3 +72,9 @@ $(ISTIOCTL):
 	cd $(ISTIO_TMP); curl -sSL https://istio.io/downloadIstio | ISTIO_VERSION=$(ISTIOVERSION) sh -
 	cp $(ISTIO_TMP)/istio-$(ISTIOVERSION)/bin/istioctl ${ISTIOCTL}
 	-rm -rf $(TMP)	
+
+.PHONY: clusteradm
+clusteradm: $(CLUSTERADM)
+$(CLUSTERADM):
+	test -s $(LOCALBIN)/clusteradm || GOBIN=$(LOCALBIN) GO111MODULE=off go get -u open-cluster-management.io/clusteradm/...
+
