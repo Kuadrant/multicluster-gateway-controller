@@ -37,7 +37,6 @@ GATEWAY_API_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/gateway-api
 REDIS_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/kuadrant/redis
 LIMITADOR_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/kuadrant/limitador
 
-WEBHOOK_PATH=${LOCAL_SETUP_DIR}/../config/webhook-setup/workload
 TLS_CERT_PATH=${LOCAL_SETUP_DIR}/../config/webhook-setup/control/tls
 
 set -e pipefail
@@ -189,15 +188,6 @@ deployDashboard() {
   echo -ne "\t\tAccess the dashboard using the following Bearer Token: $token\n"
 }
 
-deployWebhookConfigs(){
-  clusterName=${1}
-  echo "Deploying the webhook configuration to (${clusterName})"
-
-  kubectl config use-context kind-${clusterName}
-
-  kubectl apply -f $WEBHOOK_PATH/webhook-configs.yaml
-}
-
 deployAgentSecret() {
   clusterName=${1}
   localAccess=${2:=LOCAL_ACCESS}
@@ -229,8 +219,6 @@ initController() {
     ${KUSTOMIZE_BIN} build config/kuadrant/crd | kubectl apply -f -
     # Create the mctc ns and dev managed zone
     ${KUSTOMIZE_BIN} --reorder none --load-restrictor LoadRestrictionsNone build config/local-setup/controller | kubectl apply -f -
-    # Create the local dev webhook proxy
-    ${KUSTOMIZE_BIN} --load-restrictor LoadRestrictionsNone build config/webhook-setup/proxy | kubectl apply -f -
 }
 
 cleanup
@@ -278,7 +266,6 @@ if [[ -n "${MCTC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
     deployIngressController ${KIND_CLUSTER_WORKLOAD}-${i}
     deployMetalLB ${KIND_CLUSTER_WORKLOAD}-${i} $((${metalLBSubnetStart} + ${i} - 1))
     deployKuadrant ${KIND_CLUSTER_WORKLOAD}-${i}
-    deployWebhookConfigs ${KIND_CLUSTER_WORKLOAD}-${i}
     deployDashboard ${KIND_CLUSTER_WORKLOAD}-${i} ${i}
     argocdAddCluster ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_WORKLOAD}-${i}
     deployAgentSecret ${KIND_CLUSTER_WORKLOAD}-${i} "true"
