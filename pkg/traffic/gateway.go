@@ -47,11 +47,6 @@ func (a *Gateway) GetHosts() []string {
 	return hosts
 }
 
-func (a *Gateway) AddManagedHost(h string) error {
-	// Not implemented for Gateways
-	return nil
-}
-
 func (a *Gateway) HasTLS() bool {
 	hasTLS := false
 	for _, listener := range a.Spec.Listeners {
@@ -150,17 +145,17 @@ func (a *Gateway) GetDNSTargets(ctx context.Context) ([]v1alpha1.Target, error) 
 }
 
 func (a *Gateway) GetGatewayStatuses(ctx context.Context) []gatewayv1beta1.GatewayStatus {
-	log := log.FromContext(ctx)
+	logger := log.FromContext(ctx)
 	// Aggregated Gateway status from syncer
 	statuses := []gatewayv1beta1.GatewayStatus{}
 	for annotationName, annotationValue := range a.Annotations {
 		if strings.HasPrefix(annotationName, status.SyncerClusterStatusAnnotationPrefix) {
-			status := gatewayv1beta1.GatewayStatus{}
-			err := json.Unmarshal([]byte(annotationValue), &status)
+			gatewayStatus := gatewayv1beta1.GatewayStatus{}
+			err := json.Unmarshal([]byte(annotationValue), &gatewayStatus)
 			if err != nil {
-				log.Error(err, "Error unmarshalling gateway status from syncer annotation")
+				logger.Error(err, "Error unmarshalling gateway status from syncer annotation")
 			} else {
-				statuses = append(statuses, status)
+				statuses = append(statuses, gatewayStatus)
 			}
 		}
 	}

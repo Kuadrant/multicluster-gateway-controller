@@ -112,7 +112,3 @@ $(DEV_TLS_CRT):
 clear-dev-tls:
 	-rm -f $(DEV_TLS_CRT)
 	-rm -f $(DEV_TLS_KEY)
-
-.PHONY: webhook-proxy
-webhook-proxy: kustomize
-	$(KUSTOMIZE) --load-restrictor LoadRestrictionsNone build config/webhook-setup/proxy | kubectl apply -f -

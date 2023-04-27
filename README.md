@@ -6,7 +6,6 @@ When deploying the multicluster gateway controller using the make targets, the f
 * Gateway API CRDs in the control plane cluster
 * Ingress controller
 * Cert manager
-* Webhook and webhook config
 * ArgoCD instance
 * K8s Dashboard
 * LetsEncrypt certs
