@@ -1,0 +1,4 @@
+resources:
+  - kuadrant.io.ratelimitpolicies.yaml
+## From github.com/Kuadrant/kuadrant-operator/config/crd?ref=main
+# Note: kustomize patchesStrategicMerge doesn't seem to support deleting CRDs, so they are just copied into here instead of being pulled directly from the source repo.

@@ -1,4 +1,20 @@
-package gateway
+/*
+Copyright 2022 The MultiCluster Traffic Controller Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package ratelimitpolicy
 
 import (
 	"context"
@@ -13,10 +29,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+	kuadrantapi "github.com/kuadrant/kuadrant-operator/api/v1beta1"
 
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/clusterSecret"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/metadata"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/slice"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer"
 )
 
 type ClusterEventHandler struct {
@@ -50,32 +68,33 @@ func (eh *ClusterEventHandler) enqueueForObject(obj v1.Object, q workqueue.RateL
 		return
 	}
 
-	gateways, err := eh.getGatewaysFor(obj.(*corev1.Secret))
+	rlps, err := eh.getRateLimitPoliciesFor(obj.(*corev1.Secret))
 	if err != nil {
-		log.Log.Error(err, "failed to get gateways when enqueueing from cluster secret")
+		log.Log.Error(err, "failed to get rlps when enqueueing from cluster secret")
 		return
 	}
 
-	for _, gateway := range gateways {
-		log.Log.Info(fmt.Sprintf("Enqueing reconciliation from secret update to gateway/%s", gateway.Name))
+	for _, rlp := range rlps {
+		log.Log.Info(fmt.Sprintf("Enqueing reconciliation from secret update to ratelimitpolicy/%s", rlp.Name))
 		q.Add(ctrl.Request{
-			NamespacedName: client.ObjectKeyFromObject(&gateway),
+			NamespacedName: client.ObjectKeyFromObject(&rlp),
 		})
 	}
 }
 
-func (eh *ClusterEventHandler) getGatewaysFor(secret *corev1.Secret) ([]gatewayv1beta1.Gateway, error) {
+func (eh *ClusterEventHandler) getRateLimitPoliciesFor(secret *corev1.Secret) ([]kuadrantapi.RateLimitPolicy, error) {
 	clusterConfig, err := clusterSecret.ClusterConfigFromSecret(secret)
 	if err != nil {
 		return nil, err
 	}
 
-	gateways := &gatewayv1beta1.GatewayList{}
-	if err := eh.client.List(context.TODO(), gateways); err != nil {
+	rlps := &kuadrantapi.RateLimitPolicyList{}
+	if err := eh.client.List(context.TODO(), rlps); err != nil {
 		return nil, err
 	}
 
-	return slice.Filter(gateways.Items, func(gateway gatewayv1beta1.Gateway) bool {
-		return slice.ContainsString(selectClusters(gateway), clusterConfig.Name)
+	return slice.Filter(rlps.Items, func(rlp kuadrantapi.RateLimitPolicy) bool {
+		return metadata.HasAnnotation(&rlp, syncer.MCTC_SYNC_ANNOTATION_PREFIX+syncer.MCTC_SYNC_ANNOTATION_WILDCARD) ||
+			metadata.HasAnnotation(&rlp, syncer.MCTC_SYNC_ANNOTATION_PREFIX+clusterConfig.Name)
 	}), nil
 }

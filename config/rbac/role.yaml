@@ -173,3 +173,29 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - kuadrant.io
+  resources:
+  - ratelimitpolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - kuadrant.io
+  resources:
+  - ratelimitpolicies/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - kuadrant.io
+  resources:
+  - ratelimitpolicies/status
+  verbs:
+  - get
+  - patch
+  - update
