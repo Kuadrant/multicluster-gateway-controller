@@ -56,6 +56,97 @@ func TestGetParams(t *testing.T) {
 			),
 		},
 		{
+			name: "ConfigMap found. Uses default params on missing ref",
+			gatewayClass: &gatewayv1beta1.GatewayClass{
+				Spec: gatewayv1beta1.GatewayClassSpec{
+					ParametersRef: nil,
+				},
+			},
+			paramsObj: &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-params",
+					Namespace: "test-ns",
+				},
+				Data: map[string]string{
+					"params": `{"downstreamClass": "istio"}`,
+				},
+			},
+			assertParams: and(
+				noError,
+				paramsEqual(Params{
+					DownstreamClass: "istio",
+				}),
+			),
+		},
+		{
+			name: "Misconfigured ConfigMap",
+			gatewayClass: &gatewayv1beta1.GatewayClass{
+				Spec: gatewayv1beta1.GatewayClassSpec{
+					ParametersRef: &gatewayv1beta1.ParametersReference{
+						Group:     "",
+						Kind:      "ConfigMap",
+						Name:      "test-params",
+						Namespace: addr(gatewayv1beta1.Namespace("test-ns")),
+					},
+				},
+			},
+			paramsObj: &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-params",
+					Namespace: "test-ns",
+				},
+				Data: map[string]string{
+					"parameters": `{"downstreamClass": "istio"}`,
+				},
+			},
+			assertParams: assertError(IsInvalidParamsError),
+		},
+		{
+			name: "Corrupted data field ConfigMap",
+			gatewayClass: &gatewayv1beta1.GatewayClass{
+				Spec: gatewayv1beta1.GatewayClassSpec{
+					ParametersRef: &gatewayv1beta1.ParametersReference{
+						Group:     "",
+						Kind:      "ConfigMap",
+						Name:      "test-params",
+						Namespace: addr(gatewayv1beta1.Namespace("test-ns")),
+					},
+				},
+			},
+			paramsObj: &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-params",
+					Namespace: "test-ns",
+				},
+				Data: map[string]string{
+					"params": `{"downstreamClass": "istio" boop`,
+				},
+			},
+			assertParams: assertError(IsInvalidParamsError),
+		},
+		{
+			name: "Missing namespace",
+			gatewayClass: &gatewayv1beta1.GatewayClass{
+				Spec: gatewayv1beta1.GatewayClassSpec{
+					ParametersRef: &gatewayv1beta1.ParametersReference{
+						Group: "",
+						Kind:  "ConfigMap",
+						Name:  "test-params",
+					},
+				},
+			},
+			paramsObj: &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-params",
+					Namespace: "test-ns",
+				},
+				Data: map[string]string{
+					"params": `{"downstreamClass": "istio"}`,
+				},
+			},
+			assertParams: assertError(IsInvalidParamsError),
+		},
+		{
 			name: "ConfigMap not found",
 
 			gatewayClass: &gatewayv1beta1.GatewayClass{
