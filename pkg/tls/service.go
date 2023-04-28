@@ -3,11 +3,11 @@ package tls
 import (
 	"context"
 	"fmt"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/traffic"
 	v12 "k8s.io/api/networking/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"reflect"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
-	"strings"
 	"time"
 
 	certman "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
@@ -62,14 +62,9 @@ func (s *Service) GetCertificateSecret(ctx context.Context, host string, namespa
 func (s *Service) CleanupCertificates(ctx context.Context, owner interface{}) error {
 	gateway, ok := owner.(*gatewayv1beta1.Gateway)
 	if ok {
-		var hostsToRemove []string
 		// get names of hosts for traffic object being deleted
-		for _, listener := range gateway.Spec.Listeners {
-			if !strings.Contains(string(*listener.Hostname), "*.") {
-				hostsToRemove = append(hostsToRemove, string(*listener.Hostname))
-			}
-		}
-		for _, host := range hostsToRemove {
+		trafficAccessor := traffic.NewGateway(gateway)
+		for _, host := range trafficAccessor.GetHosts() {
 			secret := &v1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      host,
