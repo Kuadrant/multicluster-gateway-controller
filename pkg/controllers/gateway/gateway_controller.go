@@ -19,7 +19,6 @@ package gateway
 import (
 	"context"
 	"fmt"
-	certman "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
 	corev1 "k8s.io/api/core/v1"
 	"reflect"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -57,11 +56,13 @@ type HostService interface {
 	GetManagedZoneForHost(ctx context.Context, domain string, t traffic.Interface) (*v1alpha1.ManagedZone, string, error)
 	AddEndpoints(ctx context.Context, t traffic.Interface, dnsRecord *v1alpha1.DNSRecord) error
 	GetDNSRecordsFor(ctx context.Context, t traffic.Interface) ([]*v1alpha1.DNSRecord, error)
+	DNSDeletion(ctx context.Context, owner interface{}) error
 }
 
 type CertificateService interface {
 	EnsureCertificate(ctx context.Context, host string, owner metav1.Object) error
 	GetCertificateSecret(ctx context.Context, host string, namespace string) (*corev1.Secret, error)
+	CleanupCertificates(ctx context.Context, owner interface{}) error
 }
 
 type GatewayHelper interface {
@@ -96,11 +97,11 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if err != nil {
 		if err := client.IgnoreNotFound(err); err != nil {
 			log.Error(err, "Unable to fetch Gateway")
-			return ctrl.Result{}, err
+			return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 10}, err
 		}
 		return ctrl.Result{}, nil
 	}
-	if !controllerutil.ContainsFinalizer(previous, GatewayFinalizer) {
+	if !controllerutil.ContainsFinalizer(previous, GatewayFinalizer) && previous.GetDeletionTimestamp().IsZero() {
 		controllerutil.AddFinalizer(previous, GatewayFinalizer)
 		err = r.Update(ctx, previous)
 		if err != nil {
@@ -111,13 +112,13 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if previous.GetDeletionTimestamp() != nil && !previous.GetDeletionTimestamp().IsZero() {
 		log.Info("Deleting gateway", "gateway", previous.Name, "namespace", previous.Namespace)
 		//delete dnsRecord
-		err := r.DNSDeletion(ctx, *previous)
+		err := r.Host.DNSDeletion(ctx, previous)
 		if err != nil {
 			log.Error(err, "Error deleting DNS record")
 		}
 
 		// Cleanup certificates
-		err = r.cleanupCertificates(ctx, previous)
+		err = r.Certificates.CleanupCertificates(ctx, previous)
 		if err != nil {
 			log.Error(err, "Error deleting certs")
 		}
@@ -469,96 +470,6 @@ func selectClusters(gateway gatewayv1beta1.Gateway) []string {
 		return []string{"test_cluster_one"}
 	}
 	return []string{}
-}
-
-func (r *GatewayReconciler) DNSDeletion(ctx context.Context, gateway gatewayv1beta1.Gateway) error {
-	trafficAccessor := traffic.NewGateway(&gateway)
-	allHosts := trafficAccessor.GetHosts()
-
-	for _, host := range allHosts {
-		managedZone, subDomain, err := r.Host.GetManagedZoneForHost(ctx, host, trafficAccessor)
-		if err != nil {
-			return err
-		}
-		if managedZone == nil {
-			log.Log.Info("Managed zone not found cannot get DNS record")
-			return nil
-		}
-
-		log.Log.Info("getting DNS record associated with deleting gateway")
-		dnsRecord, err := r.Host.GetDNSRecord(ctx, subDomain, managedZone)
-		if err != nil && !k8serrors.IsNotFound(err) {
-			return err
-		}
-		if dnsRecord == nil {
-			log.Log.Info("DNS record not found", "Host name:", host)
-			continue
-		}
-		err = r.Delete(ctx, dnsRecord)
-		log.Log.Info("DNS record deleted ", "DNSRecord:", dnsRecord.Name)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (r *GatewayReconciler) cleanupCertificates(ctx context.Context, gateway *gatewayv1beta1.Gateway) error {
-	var hostsToRemove []string
-	var allGateways gatewayv1beta1.GatewayList
-
-	// get names of hosts for traffic object being deleted
-	for _, listener := range gateway.Spec.Listeners {
-		if !strings.Contains(string(*listener.Hostname), "*.") {
-			hostsToRemove = append(hostsToRemove, string(*listener.Hostname))
-		}
-	}
-	// list all the traffic objects
-	err := r.Client.List(ctx, &allGateways, client.InNamespace(gateway.Namespace))
-	if err != nil {
-		return fmt.Errorf("error listing all Gateways: %s", err)
-	}
-	// for each traffic object check if host is being used
-	for _, candidateGateway := range allGateways.Items {
-		// ignore the gateway being deleted
-		if candidateGateway.Name != gateway.Name && candidateGateway.DeletionTimestamp == nil {
-			// remove host from "delete" list if it is being used
-			for _, listener := range candidateGateway.Spec.Listeners {
-				for i, v := range hostsToRemove {
-					if v == string(*listener.Hostname) {
-						hostsToRemove = append(hostsToRemove[:i], hostsToRemove[i+1:]...)
-					}
-				}
-			}
-		}
-	}
-	// if there are hosts left - only deleting gateway using them
-	for _, host := range hostsToRemove {
-		secret := &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      host,
-				Namespace: gateway.Namespace,
-			},
-		}
-		cert := &certman.Certificate{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      host,
-				Namespace: gateway.Namespace,
-			},
-		}
-		// only secret or cert cr as well?
-		err = r.Client.Delete(ctx, secret)
-		if err != nil && !k8serrors.IsNotFound(err) {
-			return fmt.Errorf("error deleting cert secret: %s", err)
-		}
-		err = r.Client.Delete(ctx, cert)
-		if err != nil && !k8serrors.IsNotFound(err) {
-			return fmt.Errorf("error deleting certificate: %s", err)
-		}
-	}
-	// assumptions: all traffic objects using the same host are under the same namespace
-	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

@@ -2,6 +2,12 @@ package tls
 
 import (
 	"context"
+	"fmt"
+	v12 "k8s.io/api/networking/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"reflect"
+	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+	"strings"
 	"time"
 
 	certman "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
@@ -51,6 +57,38 @@ func (s *Service) GetCertificateSecret(ctx context.Context, host string, namespa
 		return nil, err
 	}
 	return tlsSecret, nil
+}
+
+func (s *Service) CleanupCertificates(ctx context.Context, owner interface{}) error {
+	gateway, ok := owner.(*gatewayv1beta1.Gateway)
+	if ok {
+		var hostsToRemove []string
+		// get names of hosts for traffic object being deleted
+		for _, listener := range gateway.Spec.Listeners {
+			if !strings.Contains(string(*listener.Hostname), "*.") {
+				hostsToRemove = append(hostsToRemove, string(*listener.Hostname))
+			}
+		}
+		for _, host := range hostsToRemove {
+			secret := &v1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      host,
+					Namespace: gateway.Namespace,
+				},
+			}
+			err := s.controlClient.Delete(ctx, secret)
+			if err != nil && !k8serrors.IsNotFound(err) {
+				return fmt.Errorf("error deleting cert secret: %s", err)
+			}
+		}
+		return nil
+	}
+	// TODO ingress case
+	_, ok = owner.(*v12.Ingress)
+	if ok {
+		return nil
+	}
+	return fmt.Errorf("uknkown object type for a certificate deletion: %s", reflect.TypeOf(owner))
 }
 
 func (s *Service) certificate(host, issuer, controlNS string) *certman.Certificate {

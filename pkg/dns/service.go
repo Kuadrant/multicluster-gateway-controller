@@ -3,6 +3,9 @@ package dns
 import (
 	"context"
 	"fmt"
+	v12 "k8s.io/api/networking/v1"
+	"reflect"
+	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 	"strconv"
 	"strings"
 
@@ -448,6 +451,48 @@ func (s *Service) PatchTargets(ctx context.Context, targets, hosts []string, clu
 		}
 	}
 	return nil
+}
+
+func (s *Service) DNSDeletion(ctx context.Context, owner interface{}) error {
+	gateway, ok := owner.(*gatewayv1beta1.Gateway)
+	if ok {
+		trafficAccessor := traffic.NewGateway(gateway)
+		allHosts := trafficAccessor.GetHosts()
+
+		for _, host := range allHosts {
+			managedZone, subDomain, err := s.GetManagedZoneForHost(ctx, host, trafficAccessor)
+			if err != nil {
+				return err
+			}
+			if managedZone == nil {
+				log.Log.Info("Managed zone not found cannot get DNS record")
+				return nil
+			}
+
+			log.Log.Info("getting DNS record associated with deleting gateway")
+			dnsRecord, err := s.GetDNSRecord(ctx, subDomain, managedZone)
+			if err != nil && !k8serrors.IsNotFound(err) {
+				return err
+			}
+			if dnsRecord == nil {
+				log.Log.Info("DNS record not found", "Host name:", host)
+				continue
+			}
+			err = s.controlClient.Delete(ctx, dnsRecord)
+			log.Log.Info("DNS record deleted ", "DNSRecord:", dnsRecord.Name)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
+	// TODO ingress case
+	_, ok = owner.(*v12.Ingress)
+	if ok {
+		return nil
+	}
+	return fmt.Errorf("uknkown object type for a dnsrecord deletion: %s", reflect.TypeOf(owner))
 }
 
 // awsEndpointWeight returns the weight Value for a single AWS record in a set of records where the traffic is split
