@@ -206,6 +206,9 @@ func (r *DNSRecordReconciler) deleteRecord(ctx context.Context, dnsRecord *v1alp
 		if strings.Contains(err.Error(), "was not found") {
 			log.Log.Info("Record not found in managed zone, continuing", "dnsRecord", dnsRecord.Name, "managedZone", managedZone.Name)
 			return nil
+		} else if strings.Contains(err.Error(), "no endpoints") {
+			log.Log.Info("DNS record had no endpoint, continuing", "dnsRecord", dnsRecord.Name, "managedZone", managedZone.Name)
+			return nil
 		}
 		return err
 	}
