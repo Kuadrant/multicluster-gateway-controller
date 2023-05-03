@@ -47,7 +47,7 @@ deployIngressController () {
   echo "Deploying Ingress controller to ${clusterName}"
   ${KUSTOMIZE_BIN} build ${INGRESS_NGINX_KUSTOMIZATION_DIR} --enable-helm --helm-command ${HELM_BIN} | kubectl apply -f -
   echo "Waiting for deployments to be ready ..."
-  kubectl -n ingress-nginx wait --timeout=300s --for=condition=Available deployments --all
+  kubectl -n ingress-nginx wait --timeout=600s --for=condition=Available deployments --all
 }
 
 deployMetalLB () {
@@ -144,6 +144,15 @@ installGatewayAPI() {
   ${KUSTOMIZE_BIN} build ${GATEWAY_API_KUSTOMIZATION_DIR} | kubectl apply -f -
 }
 
+deployOLM(){
+  clusterName=${1}
+  
+  kubectl config use-context kind-${clusterName}
+  echo "Installing OLM in ${clusterName}"
+  
+  ${OPERATOR_SDK_BIN} olm install --timeout 6m0s
+}
+
 deployKuadrant(){
   clusterName=${1}
 
@@ -223,8 +232,17 @@ deployOCMSpoke(){
   ${join} kind-${clusterName} --force-internal-endpoint-lookup --context kind-${clusterName} | grep clusteradm
   echo "accepting OCM spoke cluster invite"
   kubectl config use-context kind-${KIND_CLUSTER_CONTROL_PLANE}
-  sleep 45
-  clusteradm accept --clusters kind-${clusterName}
+  
+  max_retry=18
+  counter=0
+  until clusteradm accept --clusters kind-${clusterName}
+  do
+     sleep 10
+     [[ counter -eq $max_retry ]] && echo "Failed!" && exit 1
+     echo "Trying again. Try #$counter"
+     ((counter++))
+  done
+
 }
 
 
