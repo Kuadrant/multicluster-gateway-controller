@@ -11,16 +11,19 @@ require (
 	github.com/miekg/dns v1.1.50
 	github.com/onsi/ginkgo/v2 v2.6.1
 	github.com/onsi/gomega v1.24.2
+	github.com/operator-framework/api v0.17.5
 	github.com/prometheus/client_golang v1.14.0
 	github.com/rs/xid v1.4.0
 	gomodules.xyz/jsonpatch/v2 v2.2.0
 	k8s.io/api v0.26.1
 	k8s.io/apimachinery v0.26.1
 	k8s.io/client-go v0.26.1
+	k8s.io/klog/v2 v2.80.1
 	k8s.io/utils v0.0.0-20221128185143-99ec85e7a448
-	open-cluster-management.io/api v0.10.1
-	sigs.k8s.io/controller-runtime v0.14.6
-	sigs.k8s.io/gateway-api v0.6.2
+	open-cluster-management.io/addon-framework v0.6.1
+	open-cluster-management.io/api v0.10.1-0.20230216050312-b716d4a5c514
+	sigs.k8s.io/controller-runtime v0.14.4
+	sigs.k8s.io/gateway-api v0.6.0
 )
 
 require (
@@ -78,7 +81,6 @@ require (
 	istio.io/api v0.0.0-20220907134937-b47284812feb // indirect
 	k8s.io/apiextensions-apiserver v0.26.1 // indirect
 	k8s.io/component-base v0.26.1 // indirect
-	k8s.io/klog/v2 v2.80.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20221207184640-f3cff1453715 // indirect
 	sigs.k8s.io/json v0.0.0-20220713155537-f223a00ba0e2 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
