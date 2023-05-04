@@ -42,3 +42,6 @@
     - apiGroups: ["addon.open-cluster-management.io"]
       resources: ["managedclusteraddons/status"]
       verbs: ["update", "patch"]
+    - apiGroups: ["kuadrant.io/v1beta1"]
+      resources: ["kuadrant"]
+      verbs: ["get", "list", "watch", "create", "update"]  
