@@ -6,6 +6,5 @@ spec:
  addOnMeta:
    displayName: kuadrant Addon
    description: "kuadrant operator"
- supportedConfigs:
-    - resource: ConfigMap
+
    
