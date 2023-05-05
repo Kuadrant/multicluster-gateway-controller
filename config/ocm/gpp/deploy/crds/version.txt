@@ -1,0 +1,1 @@
+https://github.com/open-cluster-management-io/governance-policy-propagator/tree/v0.10.0/deploy/crds

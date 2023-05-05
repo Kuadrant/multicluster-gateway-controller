@@ -1,0 +1,1 @@
+https://github.com/open-cluster-management-io/api/tree/v0.10.0/cluster/v1beta1

@@ -18,6 +18,7 @@ package ratelimitpolicy
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strings"
@@ -25,6 +26,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -32,8 +34,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
+	cpcv1 "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/config-policy-controller/api/v1"
 	kuadrantapi "github.com/kuadrant/kuadrant-operator/api/v1beta1"
 	kuadrantcommon "github.com/kuadrant/kuadrant-operator/pkg/common"
+	gppv1 "open-cluster-management.io/governance-policy-propagator/api/v1"
 
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/clusterSecret"
 	syncutils "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/sync"
@@ -44,11 +48,18 @@ const (
 	RateLimitPolicyFinalizer = "kuadrant.io/rate-limit-policy"
 )
 
+type PolicyPlacer interface {
+	//Place will use the placement logic to create the needed resources and ensure the objects are synced to the targeted clusters
+	// it will return the set of clusters it has targeted
+	PlacePolicy(ctx context.Context, gateway *gatewayv1beta1.Gateway, policy *gppv1.Policy) (sets.Set[string], error)
+}
+
 // RateLimitPolicyReconciler reconciles a RateLimitPolicy object
 type RateLimitPolicyReconciler struct {
 	client.Client
 	Scheme         *runtime.Scheme
 	ClusterSecrets *clusterSecret.Service
+	Placement      PolicyPlacer
 }
 
 //+kubebuilder:rbac:groups=kuadrant.io,resources=ratelimitpolicies,verbs=get;list;watch;create;update;patch;delete
@@ -102,13 +113,69 @@ func (r *RateLimitPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return ctrl.Result{}, nil
 	}
 
-	clusters, err := r.ClusterSecrets.GetClusterSecretsFromAnnotations(ctx, targetGateway)
+	// Create an ocm Policy, wrapping the RLP, for each cluster
+	rlpBytes, err := json.Marshal(rateLimitPolicy)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	configPolicy := &cpcv1.ConfigurationPolicy{
+		TypeMeta: metav1.TypeMeta{ // need to add the type metadata so it gets included in serialised form later
+			Kind:       "ConfigurationPolicy",
+			APIVersion: fmt.Sprintf("%s/%s", cpcv1.GroupVersion.Group, cpcv1.GroupVersion.Version),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: rateLimitPolicy.Name,
+		},
+		Spec: &cpcv1.ConfigurationPolicySpec{
+			RemediationAction: "enforce",
+			Severity:          "low", // TODO: what severity makes sense here?
+			ObjectTemplates: []*cpcv1.ObjectTemplate{
+				{
+					ComplianceType: cpcv1.MustHave,
+					ObjectDefinition: runtime.RawExtension{
+						Raw: rlpBytes,
+					},
+				},
+			},
+		},
+	}
+	configPolicyBytes, err := json.Marshal(configPolicy)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
-	setSyncAnnotationsForClusters(rateLimitPolicy, clusters)
-	setPatchAnnotationsForClusters(rateLimitPolicy, clusters)
+	policy := &gppv1.Policy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: rateLimitPolicy.Name,
+			Annotations: map[string]string{
+				"policy.open-cluster-management.io/standards":  "Kuadrant", // TODO: What are good values here?
+				"policy.open-cluster-management.io/categories": "Kuadrant",
+				"policy.open-cluster-management.io/controls":   "Kuadrant",
+			},
+		},
+		Spec: gppv1.PolicySpec{
+			RemediationAction: "enforce",
+			Disabled:          false,
+			PolicyTemplates: []*gppv1.PolicyTemplate{
+				{
+					ObjectDefinition: runtime.RawExtension{
+						Raw: configPolicyBytes,
+					},
+				},
+			},
+		},
+	}
+	log.Log.Info("Placing RLP")
+	set, err := r.Placement.PlacePolicy(ctx, targetGateway, policy)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	log.Log.Info("Placed RLP in set", "set", set)
+
+	// TODO: Watch the Policy for status updates and propegate them to the RLP. Needs a new controller to watch Policies
+
+	// setSyncAnnotationsForClusters(rateLimitPolicy, clusters)
+	// setPatchAnnotationsForClusters(rateLimitPolicy, clusters)
 
 	if !reflect.DeepEqual(rateLimitPolicy, previous) {
 		log.Log.V(3).Info("Updating RateLimitPolicy Spec", "rateLimitPolicySpec", rateLimitPolicy.Spec, "previousSpec", previous.Spec)

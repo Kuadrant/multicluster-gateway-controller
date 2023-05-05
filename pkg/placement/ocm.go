@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"strings"
 
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/conditions"
 	v1 "k8s.io/api/core/v1"
 	rbac "k8s.io/api/rbac/v1"
@@ -13,7 +16,10 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	k8smeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/selection"
+	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -22,6 +28,7 @@ import (
 	clusterclient "open-cluster-management.io/api/client/cluster/clientset/versioned"
 	workclient "open-cluster-management.io/api/client/work/clientset/versioned"
 	workv1 "open-cluster-management.io/api/work/v1"
+	gppv1 "open-cluster-management.io/governance-policy-propagator/api/v1"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
@@ -38,9 +45,10 @@ const (
 type ocmPlacer struct {
 	workClient      workclient.Interface
 	placementClient clusterclient.Interface
+	client          client.Client
 }
 
-func NewOCMPlacer(restConfig *rest.Config) (*ocmPlacer, error) {
+func NewOCMPlacer(restConfig *rest.Config, client client.Client) (*ocmPlacer, error) {
 	wc, err := workclient.NewForConfig(restConfig)
 	if err != nil {
 		return nil, err
@@ -53,6 +61,7 @@ func NewOCMPlacer(restConfig *rest.Config) (*ocmPlacer, error) {
 	return &ocmPlacer{
 		placementClient: cc,
 		workClient:      wc,
+		client:          client,
 	}, nil
 }
 
@@ -167,6 +176,74 @@ func (op *ocmPlacer) Place(ctx context.Context, gateway *gatewayv1beta1.Gateway,
 	return existingClusters, nil
 }
 
+// find the placement decision. create/update the Policy
+// return the clusters it knows the gateway is placed on
+func (op *ocmPlacer) PlacePolicy(ctx context.Context, gateway *gatewayv1beta1.Gateway, policy *gppv1.Policy) (sets.Set[string], error) {
+	emyptySet := sets.Set[string](sets.NewString())
+	// Check where the placement decision says to place the gateway
+	// The Policy will be placed with each Gateway
+	placementTargets, err := op.GetClusters(ctx, gateway)
+	if err != nil {
+		return emyptySet, err
+	}
+	log.Log.Info("placementTargets", "placementTargets", placementTargets)
+	// Check if the Policy is in any existing clusters
+	existingClusters, err := op.GetPlacedPolicyClusters(ctx, gateway, policy)
+	if err != nil {
+		return emyptySet, err
+	}
+	log.Log.Info("existingClusters", "existingClusters", existingClusters)
+
+	// not in target clusters so need to be removed
+	removeFrom := existingClusters.Difference(placementTargets)
+	log.Log.Info("removeFrom", "removeFrom", removeFrom)
+
+	// if being deleted entirely remove policy from all existing clusters
+	if gateway.GetDeletionTimestamp() != nil {
+		for _, cluster := range existingClusters.UnsortedList() {
+			// being deleted need to remove from clusters
+			policyToDelete := &gppv1.Policy{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      policy.Name,
+					Namespace: cluster,
+				},
+			}
+			if err := op.client.Delete(ctx, policyToDelete, &client.DeleteOptions{}); err != nil {
+				// use a multi-error
+				return existingClusters, err
+			}
+
+			existingClusters.Delete(cluster)
+		}
+		return existingClusters, nil
+	}
+
+	for _, cluster := range placementTargets.UnsortedList() {
+		if err := op.createUpdateClusterPolicy(ctx, gateway, cluster, policy); err != nil {
+			return existingClusters, err
+		}
+		existingClusters.Insert(cluster)
+	}
+	// remove from remove
+	for _, cluster := range removeFrom.UnsortedList() {
+
+		policyToDelete := &gppv1.Policy{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      policy.Name,
+				Namespace: cluster,
+			},
+		}
+		if err := op.client.Delete(ctx, policyToDelete, &client.DeleteOptions{}); err != nil {
+			// use a multi-error
+			return existingClusters, err
+		}
+
+		existingClusters.Delete(cluster)
+	}
+
+	return existingClusters, nil
+}
+
 func (op *ocmPlacer) GetPlacedClusters(ctx context.Context, gateway *gatewayv1beta1.Gateway) (sets.Set[string], error) {
 	selector := fmt.Sprintf("kuadrant.io/manifestKey=%s", workName(gateway))
 	existing, err := op.workClient.WorkV1().ManifestWorks("").List(ctx, metav1.ListOptions{LabelSelector: selector})
@@ -185,11 +262,36 @@ func (op *ocmPlacer) GetPlacedClusters(ctx context.Context, gateway *gatewayv1be
 	return existingClusters, nil
 }
 
+func (op *ocmPlacer) GetPlacedPolicyClusters(ctx context.Context, gateway *gatewayv1beta1.Gateway, policy *gppv1.Policy) (sets.Set[string], error) {
+	existingClusters := sets.Set[string](sets.NewString())
+
+	// TODO: easier way to set up this selector
+	selector := labels.NewSelector()
+	req, err := labels.NewRequirement("kuadrant.io/policyKey", selection.Equals, []string{policy.Name})
+	if err != nil {
+		return existingClusters, err
+	}
+	selector.Add(*req)
+
+	existing := &gppv1.PolicyList{}
+	err = op.client.List(ctx, existing, client.MatchingLabelsSelector{Selector: selector})
+	if err != nil {
+		return existingClusters, err
+	}
+	//where the gateway currently exists
+
+	for _, e := range existing.Items {
+		existingClusters = existingClusters.Insert(e.GetNamespace())
+	}
+	return existingClusters, nil
+}
+
 func (op *ocmPlacer) GetClusters(ctx context.Context, gateway *gatewayv1beta1.Gateway) (sets.Set[string], error) {
 	rootMeta, _ := k8smeta.Accessor(gateway)
 	labels := rootMeta.GetLabels()
 	selectedPlacement := labels[OCMPlacementLabel]
 	targetClusters := sets.Set[string](sets.NewString())
+	log.Log.Info("selectedPlacement", "selectedPlacement", selectedPlacement)
 	if selectedPlacement == "" {
 		return targetClusters, nil
 	}
@@ -199,6 +301,7 @@ func (op *ocmPlacer) GetClusters(ctx context.Context, gateway *gatewayv1beta1.Ga
 	if err != nil {
 		return targetClusters, err
 	}
+	log.Log.Info("pdList.Items", "pdListItems", pdList.Items)
 	for _, pd := range pdList.Items {
 		for _, d := range pd.Status.Decisions {
 			targetClusters.Insert(d.ClusterName)
@@ -262,6 +365,22 @@ func (op *ocmPlacer) createUpdateClusterManifests(ctx context.Context, manifestN
 	}
 
 	return op.createUpdateManifest(ctx, work)
+
+}
+
+func (op *ocmPlacer) createUpdateClusterPolicy(ctx context.Context, rootObj metav1.Object, cluster string, policy *gppv1.Policy) error {
+	// set up gateway policy
+
+	// TODO: should deepcopy the policy?
+	if policy.Labels == nil {
+		policy.Labels = map[string]string{}
+	}
+	policy.Labels["kuadrant.io"] = "managed"
+	policy.Labels["kuadrant.io/policyKey"] = policy.Name
+	policy.Namespace = cluster
+	// TODO: Add RLP descriptor for cluster name
+
+	return op.createUpdatePolicy(ctx, policy)
 
 }
 
@@ -373,6 +492,27 @@ func (op *ocmPlacer) createUpdateManifest(ctx context.Context, m workv1.Manifest
 	if !equality.Semantic.DeepEqual(mw.Spec, m.Spec) {
 		mw.Spec = m.Spec
 		if _, err := op.workClient.WorkV1().ManifestWorks(mw.Namespace).Update(ctx, mw, metav1.UpdateOptions{}); err != nil {
+			return err
+		}
+	}
+
+	return nil
+
+}
+
+func (op *ocmPlacer) createUpdatePolicy(ctx context.Context, p *gppv1.Policy) error {
+	policy := &gppv1.Policy{}
+	err := op.client.Get(ctx, types.NamespacedName{Name: p.Name, Namespace: p.Namespace}, policy)
+	if err != nil && k8serrors.IsNotFound(err) {
+		if err := op.client.Create(ctx, p); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	if !equality.Semantic.DeepEqual(policy.Spec, p.Spec) {
+		policy.Spec = p.Spec
+		if err := op.client.Update(ctx, policy); err != nil {
 			return err
 		}
 	}

@@ -1,0 +1,7 @@
+The direct inclusion of the types in the config-policy-controller is a temporary measure.
+This project includes a version of client-go that is old and required for OpenShift 3.11 compatibility.
+If you try to 'go get' this repo, you get errors like "cannot find module providing package" and warnings like "pre-module versions are obsolete".
+However, there are plans in the ocm community to work around legacy support and upgrade packages.
+See https://kubernetes.slack.com/archives/C01GE7YSUUF/p1683110787409359 for some discussion on this topic.
+
+When those packages are updated, these types can be removed from this repo and referenced in go.mod instead as dependencies.

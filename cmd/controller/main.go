@@ -118,7 +118,7 @@ func main() {
 		setupLog.Error(err, "unable to create dns provider client")
 		os.Exit(1)
 	}
-	placement, err := placement.NewOCMPlacer(mgr.GetConfig())
+	placement, err := placement.NewOCMPlacer(mgr.GetConfig(), mgr.GetClient())
 
 	if err != nil {
 		setupLog.Error(err, "unable to create placement provider")
@@ -175,6 +175,7 @@ func main() {
 		Client:         mgr.GetClient(),
 		Scheme:         mgr.GetScheme(),
 		ClusterSecrets: clusterSecretService,
+		Placement:      placement,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "RateLimitPolicy")
 		os.Exit(1)
