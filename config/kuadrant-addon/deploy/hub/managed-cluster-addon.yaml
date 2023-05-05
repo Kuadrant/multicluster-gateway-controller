@@ -2,7 +2,7 @@ apiVersion: addon.open-cluster-management.io/v1alpha1
 kind: ManagedClusterAddOn
 metadata:
  name: kuadrant-addon
- namespace: kind-mctc-workload-1
+ namespace: <cluster_namespace>
 spec:
  installNamespace: open-cluster-management-agent-addon
  
