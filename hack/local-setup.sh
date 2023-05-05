@@ -219,15 +219,36 @@ deployAgentSecret() {
 
 deployOCMHub(){
   clusterName=${1}
-  echo "installing the hub cluster in (${clusterName}) "
+  echo "installing the hub cluster in kind-(${clusterName}) "
 
   clusteradm init --wait --context kind-${clusterName} 
+  echo "checking if cluster is single or multi"
+  if [[ -n "${OCM_SINGLE}" ]]; then
+    clusterName=kind-${KIND_CLUSTER_CONTROL_PLANE}
+    echo "Found single cluster installing hub and spoke on the one cluster (${clusterName})"
+    join=$(${CLUSTERADM_BIN} get token --context ${clusterName} |  grep -o  'clusteradm.*--cluster-name')
+    ${join} ${clusterName} --force-internal-endpoint-lookup --context ${clusterName} | grep clusteradm
+    echo "accepting OCM spoke cluster invite"
+  
+    max_retry=18
+    counter=0
+    until ${CLUSTERADM_BIN} accept --clusters ${clusterName}
+    do
+      sleep 10
+      [[ counter -eq $max_retry ]] && echo "Failed!" && exit 1
+      echo "Trying again. Try #$counter"
+      ((counter++))
+    done
+    deployOLM ${KIND_CLUSTER_CONTROL_PLANE}
+  fi
+  
 }
 deployOCMSpoke(){
+  
   clusterName=${1}
-  echo "joining the spoke cluster to the hub cluster kind(${KIND_CLUSTER_CONTROL_PLANE}),"
+  echo "joining the spoke cluster to the hub cluster kind-(${KIND_CLUSTER_CONTROL_PLANE}),"
   kubectl config use-context kind-${KIND_CLUSTER_CONTROL_PLANE}
-  join=$(clusteradm get token --context kind-${KIND_CLUSTER_CONTROL_PLANE} |  grep -o  'clusteradm.*--cluster-name')
+  join=$(${CLUSTERADM_BIN} get token --context kind-${KIND_CLUSTER_CONTROL_PLANE} |  grep -o  'clusteradm.*--cluster-name')
   kubectl config use-context kind-${clusterName}
   ${join} kind-${clusterName} --force-internal-endpoint-lookup --context kind-${clusterName} | grep clusteradm
   echo "accepting OCM spoke cluster invite"
@@ -235,7 +256,7 @@ deployOCMSpoke(){
   
   max_retry=18
   counter=0
-  until clusteradm accept --clusters kind-${clusterName}
+  until ${CLUSTERADM_BIN} accept --clusters kind-${clusterName}
   do
      sleep 10
      [[ counter -eq $max_retry ]] && echo "Failed!" && exit 1
@@ -244,7 +265,6 @@ deployOCMSpoke(){
   done
 
 }
-
 
 initController() {
     clusterName=${1}
