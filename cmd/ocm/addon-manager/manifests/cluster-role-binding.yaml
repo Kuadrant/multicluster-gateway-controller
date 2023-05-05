@@ -1,0 +1,12 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kuadrant-olm
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kuadrant-olm
+subjects:
+- kind: ServiceAccount
+  name: klusterlet-work-sa
+  namespace: open-cluster-management-agent
