@@ -2,7 +2,7 @@ apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
 metadata:
   name: kuadrant-operator
-  namespace: operators
+  namespace: kuadrant-system
 spec:
   channel: alpha
   installPlanApproval: Automatic

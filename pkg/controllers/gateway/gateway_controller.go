@@ -55,10 +55,7 @@ const (
 	ClusterSyncerAnnotation               = "clustersync.kuadrant.io"
 	GatewayClusterLabelSelectorAnnotation = "kuadrant.io/gateway-cluster-label-selector"
 	GatewayFinalizer                      = "kuadrant.io/gateway-cleanup"
-<<<<<<< HEAD
 	ManagedLabel                          = "kuadarant.io/managed"
-=======
->>>>>>> 2dad46c (WIP OCM hub integration)
 )
 
 type HostService interface {
