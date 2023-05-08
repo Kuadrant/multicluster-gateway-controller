@@ -33,6 +33,7 @@ const (
 	OCMPlacementLabel = "cluster.open-cluster-management.io/placement"
 	rbacName          = "open-cluster-management:klusterlet-work:gateway"
 	rbacManifest      = "gateway-rbac"
+	downstreamPrefix  = "kuadrant"
 )
 
 type ocmPlacer struct {
@@ -216,9 +217,10 @@ func (op *ocmPlacer) createUpdateClusterManifests(ctx context.Context, manifestN
 	work := workv1.ManifestWork{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      manifestName,
-			Namespace: cluster,
+			Namespace: fmt.Sprintf("%s-%s", downstreamPrefix, cluster),
 			Labels:    map[string]string{"kuadrant.io": "managed", "kuadrant.io/manifestKey": manifestName},
 			// this is crap, there has to be a better way to map to the parent object perhaps using cache
+			// there is also a resource https://github.com/open-cluster-management-io/api/blob/main/work/v1alpha1/types_manifestworkreplicaset.go that we may migrate to which would solve this
 			Annotations: map[string]string{"kuadrant.io/parent": key},
 		},
 	}
