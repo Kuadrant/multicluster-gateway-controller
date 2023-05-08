@@ -23,8 +23,8 @@ import (
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/conditions"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/placement"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer/status"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/tls"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -83,6 +83,7 @@ var _ = BeforeSuite(func() {
 			filepath.Join("../../../", "config", "gateway-api", "crd", "standard"),
 			filepath.Join("../../../", "config", "cert-manager", "crd", "v1.7.1"),
 			filepath.Join("../../../", "config", "kuadrant", "crd"),
+			filepath.Join("../../../", "config", "ocm", "crd"),
 		},
 		ErrorIfCRDPathMissing: true,
 	}
@@ -133,11 +134,14 @@ var _ = BeforeSuite(func() {
 
 	certificates := tls.NewService(k8sManager.GetClient(), "glbc-ca")
 	dns := dns.NewService(k8sManager.GetClient(), dns.NewSafeHostResolver(dns.NewDefaultHostResolver()), dnsProvider)
+	plc, err := placement.NewOCMPlacer(k8sManager.GetConfig())
+	Expect(err).ToNot(HaveOccurred())
 	err = (&GatewayReconciler{
 		Client:       k8sManager.GetClient(),
 		Scheme:       k8sManager.GetScheme(),
 		Certificates: certificates,
 		Host:         dns,
+		Placement:    plc,
 	}).SetupWithManager(k8sManager, ctx)
 	Expect(err).ToNot(HaveOccurred())
 
@@ -311,15 +315,32 @@ var _ = Describe("GatewayController", func() {
 			}
 			Expect(k8sClient.Create(ctx, managedZone)).To(BeNil())
 
+			//create placement decision
+
+			// pd := &clusterv1beta2.PlacementDecision{
+			// 	ObjectMeta: metav1.ObjectMeta{
+			// 		Name:      "doesnot-mattr",
+			// 		Namespace: "default",
+			// 		Labels: map[string]string{
+			// 			"cluster.open-cluster-management.io/placement": "http-gateway",
+			// 		},
+			// 	},
+			// 	Status: clusterv1beta2.PlacementDecisionStatus{
+			// 		Decisions: []clusterv1beta2.ClusterDecision{
+			// 			clusterv1beta2.ClusterDecision{
+			// 				ClusterName: "gateway-1",
+			// 			},
+			// 		},
+			// 	},
+			// }
+
 			// Stub Gateway for tests
 			hostname := gatewayv1beta1.Hostname("test.example.com")
 			gateway = &gatewayv1beta1.Gateway{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-gw-1",
 					Namespace: "default",
-					Annotations: map[string]string{
-						"kuadrant.io/gateway-cluster-label-selector": "type=test",
-					},
+					Labels:    map[string]string{},
 				},
 				Spec: gatewayv1beta1.GatewaySpec{
 					GatewayClassName: "mctc-gw-istio-external-instance-per-cluster",
@@ -423,18 +444,14 @@ var _ = Describe("GatewayController", func() {
 				Fail("Error creating mock certificate secret")
 			}
 
-			// update syncer status annoation, mimicking the status from the data plane Gateway
 			err = k8sClient.Get(ctx, gatewayType, createdGateway)
 			if err != nil {
-				Fail("Error reading gateway")
+				// explicitly fail as we should be passed the point of any errors
+				log.Log.Error(err, "No errors expected")
+				Fail("No errors expected")
 			}
-			annotations := createdGateway.GetAnnotations()
-			annotations[fmt.Sprintf("%s%s", status.SyncerClusterStatusAnnotationPrefix, "test_cluster_one")] = "{\"addresses\":[{\"type\":\"IPAddress\",\"value\":\"172.32.200.0\"}],\"listeners\":[{\"attachedRoutes\":1,\"name\":\"default\"}]}"
-			createdGateway.SetAnnotations(annotations)
-			err = k8sClient.Update(ctx, createdGateway)
-			if err != nil {
-				Fail("Error updating gateway")
-			}
+			// set the placement label
+			createdGateway.Labels = map[string]string{}
 
 			// Programmed is True
 			Eventually(func() bool {
