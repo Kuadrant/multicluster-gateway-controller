@@ -43,19 +43,21 @@ func (eh *DNSRecordEventHandler) Update(e event.UpdateEvent, q workqueue.RateLim
 }
 
 func (eh *DNSRecordEventHandler) enqueueForObject(obj v1.Object, q workqueue.RateLimitingInterface) {
+	ctx := context.Background()
+
 	dnsRecord, ok := obj.(*v1alpha1.DNSRecord)
 	if !ok {
 		return
 	}
 
 	dnsPolicyList := &v1alpha1.DNSPolicyList{}
-	if err := eh.client.List(context.TODO(), dnsPolicyList); err != nil {
-		log.Log.Error(err, "unexpected error listing DNSPolicies when enqueinng DNSRecord", "dnsRecord", dnsRecord)
+	if err := eh.client.List(ctx, dnsPolicyList); err != nil {
+		log.Log.Error(err, "unexpected error listing DNSPolicies when enqueuing DNSRecord", "dnsRecord", dnsRecord)
 		return
 	}
 
 	for _, dnsPolicy := range dnsPolicyList.Items {
-		enqueue, err := eh.targets(&dnsPolicy, dnsRecord)
+		enqueue, err := eh.targets(ctx, &dnsPolicy, dnsRecord)
 		if err != nil || !enqueue {
 			continue
 		}
@@ -66,8 +68,8 @@ func (eh *DNSRecordEventHandler) enqueueForObject(obj v1.Object, q workqueue.Rat
 	}
 }
 
-func (eh *DNSRecordEventHandler) targets(policy *v1alpha1.DNSPolicy, dnsRecord *v1alpha1.DNSRecord) (bool, error) {
-	dnsRecords, err := getDNSRecords(context.TODO(), eh.client, eh.hostService, policy)
+func (eh *DNSRecordEventHandler) targets(ctx context.Context, policy *v1alpha1.DNSPolicy, dnsRecord *v1alpha1.DNSRecord) (bool, error) {
+	dnsRecords, err := getDNSRecords(ctx, eh.client, eh.hostService, policy)
 	if err != nil {
 		return false, err
 	}
