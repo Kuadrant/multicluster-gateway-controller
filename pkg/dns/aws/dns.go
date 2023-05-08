@@ -52,7 +52,7 @@ type Route53DNSProvider struct {
 	client *InstrumentedRoute53
 	logger logr.Logger
 
-	healthCheckReconciler *Route53HealthCheckReconciler
+	healthCheckReconciler dns.HealthCheckReconciler
 }
 
 var _ dns.Provider = &Route53DNSProvider{}
@@ -176,7 +176,10 @@ func (p *Route53DNSProvider) DeleteManagedZone(zone *v1alpha1.ManagedZone) error
 
 func (p *Route53DNSProvider) HealthCheckReconciler() dns.HealthCheckReconciler {
 	if p.healthCheckReconciler == nil {
-		p.healthCheckReconciler = NewRoute53HealthCheckReconciler(p.client.route53)
+		p.healthCheckReconciler = dns.NewCachedHealthCheckReconciler(
+			p,
+			NewRoute53HealthCheckReconciler(p.client.route53),
+		)
 	}
 
 	return p.healthCheckReconciler
@@ -184,7 +187,8 @@ func (p *Route53DNSProvider) HealthCheckReconciler() dns.HealthCheckReconciler {
 
 func (*Route53DNSProvider) ProviderSpecific() dns.ProviderSpecificLabels {
 	return dns.ProviderSpecificLabels{
-		Weight: ProviderSpecificWeight,
+		Weight:        ProviderSpecificWeight,
+		HealthCheckID: ProviderSpecificHealthCheckID,
 	}
 }
 

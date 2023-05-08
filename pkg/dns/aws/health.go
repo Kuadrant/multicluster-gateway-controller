@@ -59,7 +59,11 @@ func (r *Route53HealthCheckReconciler) Reconcile(ctx context.Context, spec dns.H
 	}
 
 	healthCheck, err = r.createHealthCheck(ctx, spec, endpoint)
-	return dns.NewHealthCheckResult(dns.HealthCheckCreated, fmt.Sprintf("Created health check with ID %s", *healthCheck.Id)), err
+	if err != nil {
+		return dns.HealthCheckResult{}, err
+	}
+
+	return dns.NewHealthCheckResult(dns.HealthCheckCreated, fmt.Sprintf("Created health check with ID %s", *healthCheck.Id)), nil
 }
 
 func (r *Route53HealthCheckReconciler) Delete(ctx context.Context, endpoint *v1alpha1.Endpoint) (dns.HealthCheckResult, error) {

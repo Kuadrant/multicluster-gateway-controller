@@ -41,7 +41,8 @@ type Provider interface {
 }
 
 type ProviderSpecificLabels struct {
-	Weight string
+	Weight        string
+	HealthCheckID string
 }
 
 type ManagedZoneOutput struct {
@@ -69,6 +70,7 @@ func (*FakeProvider) HealthCheckReconciler() HealthCheckReconciler {
 }
 func (*FakeProvider) ProviderSpecific() ProviderSpecificLabels {
 	return ProviderSpecificLabels{
-		Weight: "fake/weight",
+		Weight:        "fake/weight",
+		HealthCheckID: "fake/health-check-id",
 	}
 }
