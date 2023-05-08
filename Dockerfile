@@ -53,15 +53,6 @@ ENTRYPOINT ["/agent"]
 
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
-FROM gcr.io/distroless/static:nonroot as syncer
-WORKDIR /
-COPY --from=syncer_builder /workspace/syncer .
-USER 65532:65532
-
-ENTRYPOINT ["/syncer"]
-
-# Use distroless as minimal base image to package the manager binary
-# Refer to https://github.com/GoogleContainerTools/distroless for more details
 FROM gcr.io/distroless/static:nonroot as ocm
 WORKDIR /
 COPY --from=ocm_builder /workspace/ocm .

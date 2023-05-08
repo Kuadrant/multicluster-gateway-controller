@@ -80,7 +80,7 @@ local-cleanup: kind ## Cleanup resources created by local-setup
 	$(MAKE) clean
 
 .PHONY: build
-build: build-controller build-syncer## Build all binaries.
+build: build-controller ## Build all binaries.
 
 ##@ Deployment
 ifndef ignore-not-found
