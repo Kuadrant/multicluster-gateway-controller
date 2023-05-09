@@ -55,7 +55,11 @@ func main() {
 	}
 
 	ctx := context.Background()
-	go addonMgr.Start(ctx)
+	go func() {
+		if err := addonMgr.Start(ctx); err != nil {
+			panic(err)
+		}
+	}()
 
 	<-ctx.Done()
 }
