@@ -97,7 +97,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if err != nil {
 		if err := client.IgnoreNotFound(err); err != nil {
 			log.Error(err, "Unable to fetch Gateway")
-			return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 10}, err
+			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, nil
 	}
