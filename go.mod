@@ -4,8 +4,10 @@ go 1.19
 
 require (
 	github.com/aws/aws-sdk-go v1.44.175
+	github.com/davecgh/go-spew v1.1.1
 	github.com/evanphx/json-patch/v5 v5.6.0
 	github.com/go-logr/logr v1.2.3
+	github.com/goombaio/namegenerator v0.0.0-20181006234301-989e774b106e
 	github.com/jetstack/cert-manager v1.7.1
 	github.com/kuadrant/kuadrant-operator v0.1.1-0.20230323151616-58593d01833a
 	github.com/miekg/dns v1.1.50
@@ -36,7 +38,6 @@ require (
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/cyphar/filepath-securejoin v0.2.3 // indirect
-	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/emicklei/go-restful/v3 v3.9.0 // indirect
 	github.com/evanphx/json-patch v5.6.0+incompatible // indirect
 	github.com/fatih/structs v1.1.0 // indirect
