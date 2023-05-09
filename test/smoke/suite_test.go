@@ -3,15 +3,14 @@ package smoke
 import (
 	"testing"
 
+	. "github.com/Kuadrant/multi-cluster-traffic-controller/test/util"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-
-	testutil "github.com/Kuadrant/multi-cluster-traffic-controller/test/util"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
-var tconfig testutil.SuiteConfig
+var tconfig SuiteConfig
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -21,7 +20,7 @@ func TestAPIs(t *testing.T) {
 var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
-	tconfig = testutil.SuiteConfig{}
+	tconfig = SuiteConfig{}
 	err := tconfig.Build()
 	Expect(err).NotTo(HaveOccurred())
 

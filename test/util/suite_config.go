@@ -21,19 +21,21 @@ const (
 	ClusterSelectorLabelValue = "type=test"
 
 	// configuration environment variables
-	tenantNamespaceEnvvar        = "TEST_TENANT_NAMESPACE"
-	managedZoneEnvvar            = "TEST_MANAGED_ZONE"
-	controlplaneContextEnvvar    = "TEST_CONTROLPLANE_CONTEXT"
-	dataplaneContextPrefixEnvvar = "TEST_DATAPLANE_CONTEXT_PREFIX"
-	dataplaneClusterCountEnvvar  = "TEST_DATAPLANE_CLUSTER_COUNT"
+	tenantNamespaceEnvvar          = "TEST_TENANT_NAMESPACE"
+	managedZoneEnvvar              = "TEST_MANAGED_ZONE"
+	controlplaneContextEnvvar      = "TEST_CONTROLPLANE_CONTEXT"
+	dataplaneContextPrefixEnvvar   = "TEST_DATAPLANE_CONTEXT_PREFIX"
+	dataplaneClusterCountEnvvar    = "TEST_DATAPLANE_CLUSTER_COUNT"
+	dataplaneConfigNamespaceEnvvar = "TEST_DATAPLANE_CONFIG_NAMESPACE"
 )
 
 type SuiteConfig struct {
-	cpClient        client.Client
-	dpClients       []client.Client
-	nameGenerator   namegenerator.Generator
-	tenantNamespace string
-	managedZone     string
+	cpClient                 client.Client
+	dpClients                []client.Client
+	nameGenerator            namegenerator.Generator
+	tenantNamespace          string
+	managedZone              string
+	dataplaneConfigNamespace string
 }
 
 func (cfg *SuiteConfig) Build() error {
@@ -44,6 +46,9 @@ func (cfg *SuiteConfig) Build() error {
 	}
 	if cfg.managedZone = os.Getenv(managedZoneEnvvar); cfg.managedZone == "" {
 		return fmt.Errorf("env variable '%s' must be set", managedZoneEnvvar)
+	}
+	if cfg.dataplaneConfigNamespace = os.Getenv(dataplaneConfigNamespaceEnvvar); cfg.dataplaneConfigNamespace == "" {
+		return fmt.Errorf("env variable '%s' must be set", dataplaneConfigNamespaceEnvvar)
 	}
 
 	var dataplaneClustersCount int
@@ -118,6 +123,8 @@ func (cfg *SuiteConfig) GenerateName() string { return cfg.nameGenerator.Generat
 func (cfg *SuiteConfig) ManagedZone() string { return cfg.managedZone }
 
 func (cfg *SuiteConfig) TenantNamespace() string { return cfg.tenantNamespace }
+
+func (cfg *SuiteConfig) DataplaneConfigNamespace() string { return cfg.dataplaneConfigNamespace }
 
 func loadKubeconfig(context string) (*rest.Config, error) {
 	cfg, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
