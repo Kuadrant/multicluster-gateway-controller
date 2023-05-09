@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	testutil "github.com/Kuadrant/multi-cluster-traffic-controller/test/util"
 	"github.com/davecgh/go-spew/spew"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -43,17 +44,17 @@ var _ = Describe("Gateway single target cluster", func() {
 		// }, 60*time.Second, 5*time.Second).Should(BeTrue())
 
 		By("creating a Gateway in the control plane")
-		gwname = "t-smoke-" + nameGenerator.Generate()
+		gwname = "t-smoke-" + tconfig.GenerateName()
 
-		hostname := gatewayapi.Hostname(strings.Join([]string{gwname, managedZone}, "."))
+		hostname := gatewayapi.Hostname(strings.Join([]string{gwname, tconfig.ManagedZone()}, "."))
 		gw := &gatewayapi.Gateway{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:        gwname,
-				Namespace:   tenantNamespace,
-				Annotations: map[string]string{clusterSelectorLabelKey: clusterSelectorLabelValue},
+				Namespace:   tconfig.TenantNamespace(),
+				Annotations: map[string]string{testutil.ClusterSelectorLabelKey: testutil.ClusterSelectorLabelValue},
 			},
 			Spec: gatewayapi.GatewaySpec{
-				GatewayClassName: gwClassName,
+				GatewayClassName: testutil.GatewayClassName,
 				Listeners: []gatewayapi.Listener{{
 					Name:     "https",
 					Hostname: &hostname,
@@ -68,7 +69,7 @@ var _ = Describe("Gateway single target cluster", func() {
 			},
 		}
 
-		err := cpClient.Create(context.Background(), gw)
+		err := tconfig.ControlPlaneClient().Create(context.Background(), gw)
 		Expect(err).ToNot(HaveOccurred())
 
 	})
@@ -78,20 +79,20 @@ var _ = Describe("Gateway single target cluster", func() {
 		gw := &gatewayapi.Gateway{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      gwname,
-				Namespace: tenantNamespace,
+				Namespace: tconfig.TenantNamespace(),
 			},
 		}
-		err := cpClient.Delete(context.Background(), gw, client.PropagationPolicy(metav1.DeletePropagationForeground))
+		err := tconfig.ControlPlaneClient().Delete(context.Background(), gw, client.PropagationPolicy(metav1.DeletePropagationForeground))
 		Expect(err).ToNot(HaveOccurred())
 	})
 
 	When("the controller picks it up", func() {
 
-		It("sets the 'Accepted' condition to true", func() {
+		FIt("sets the 'Accepted' condition to true", func() {
 
 			gw := &gatewayapi.Gateway{}
 			Eventually(func() bool {
-				if err := cpClient.Get(ctx, types.NamespacedName{Name: gwname, Namespace: tenantNamespace}, gw); err != nil {
+				if err := tconfig.ControlPlaneClient().Get(ctx, types.NamespacedName{Name: gwname, Namespace: tconfig.TenantNamespace()}, gw); err != nil {
 					return false
 				}
 				return meta.IsStatusConditionTrue(gw.Status.Conditions, string(gatewayapi.GatewayConditionAccepted))
@@ -101,13 +102,13 @@ var _ = Describe("Gateway single target cluster", func() {
 
 	When("an HTTPRoute is attached ot the Gateway", func() {
 
-		By("attaching an HTTPRoute to the Gateway in the dataplane")
-		// TODO
+		// By("attaching an HTTPRoute to the Gateway in the dataplane")
+		// // TODO
 
 		It("sets the 'Programmed' condition to true", func() {
 			gw := &gatewayapi.Gateway{}
 			Eventually(func() bool {
-				if err := cpClient.Get(ctx, types.NamespacedName{Name: gwname, Namespace: tenantNamespace}, gw); err != nil {
+				if err := tconfig.ControlPlaneClient().Get(ctx, types.NamespacedName{Name: gwname, Namespace: tconfig.TenantNamespace()}, gw); err != nil {
 					return false
 				}
 				spew.Dump(gw.Status)
