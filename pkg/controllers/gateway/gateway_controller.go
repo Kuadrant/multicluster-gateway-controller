@@ -23,7 +23,6 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/conditions"
@@ -75,7 +74,7 @@ type CertificateService interface {
 type GatewayPlacer interface {
 	//Place will use the placement logic to create the needed resources and ensure the objects are synced to the targeted clusters
 	// it will return the set of clusters it has targeted
-	Place(ctx context.Context, gateway *gatewayv1beta1.Gateway, children ...metav1.Object) (sets.Set[string], error)
+	Place(ctx context.Context, upstream *gatewayv1beta1.Gateway, downstream *gatewayv1beta1.Gateway, children ...metav1.Object) (sets.Set[string], error)
 	// gets the clusters the gateway has actually been placed on
 	GetPlacedClusters(ctx context.Context, gateway *gatewayv1beta1.Gateway) (sets.Set[string], error)
 	//GetClusters returns the clusters decided on by the placement logic
@@ -156,7 +155,10 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 	requeue, programmedStatus, clusters, reconcileErr := r.reconcileDownstreamGateway(ctx, upstreamGateway, params)
 	// gateway now in expected state, place gateway and its associated objects in correct places. Update gateway spec/metadata
-	if !reflect.DeepEqual(upstreamGateway, previous) {
+	if reconcileErr != nil {
+		log.Error(fmt.Errorf("gateway reconcile failed %s", reconcileErr), "gateway failed to reconcile", "gateway", upstreamGateway.Name)
+	}
+	if reconcileErr == nil && !reflect.DeepEqual(upstreamGateway, previous) {
 		return reconcile.Result{}, r.Update(ctx, upstreamGateway)
 	}
 
@@ -173,85 +175,77 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 }
 
 // reconcileDownstreamGateway takes the upstream definition and transforms it as needed to apply it to the downstream spokes
-func (r *GatewayReconciler) reconcileDownstreamGateway(ctx context.Context, gateway *gatewayv1beta1.Gateway, params *Params) (bool, metav1.ConditionStatus, []string, error) {
+func (r *GatewayReconciler) reconcileDownstreamGateway(ctx context.Context, upstreamGateway *gatewayv1beta1.Gateway, params *Params) (bool, metav1.ConditionStatus, []string, error) {
 	log := log.FromContext(ctx)
 	clusters := []string{}
-	downstream := gateway.DeepCopy()
-	if isDeleting(gateway) {
-		log.Info("deleting downstream gateways owned by upstream gateway ", "name", downstream.Name, "namespace", downstream.Namespace)
-		targets, err := r.Placement.Place(ctx, downstream)
+	downstream := upstreamGateway.DeepCopy()
+	downstreamNS := fmt.Sprintf("%s-%s", "kuadrant", downstream.Namespace)
+	downstream.Status = gatewayv1beta1.GatewayStatus{}
+
+	// reset this for the sync as we don't want control plane level UID, creation etc etc
+	downstream.ObjectMeta = metav1.ObjectMeta{
+		Name:        upstreamGateway.Name,
+		Namespace:   downstreamNS,
+		Labels:      upstreamGateway.Labels,
+		Annotations: upstreamGateway.Annotations,
+	}
+	if downstream.Labels == nil {
+		downstream.Labels = map[string]string{}
+	}
+	downstream.Labels[ManagedLabel] = "true"
+	if isDeleting(upstreamGateway) {
+		log.Info("deleting downstream gateways owned by upstream gateway ", "name", upstreamGateway.Name, "namespace", upstreamGateway.Namespace)
+		targets, err := r.Placement.Place(ctx, upstreamGateway, downstream)
 		if err != nil {
 			return true, metav1.ConditionFalse, clusters, err
 		}
 		return false, metav1.ConditionTrue, targets.UnsortedList(), nil
 	}
 
-	accessor := traffic.NewGateway(downstream)
-
-	managedHosts, err := r.Host.GetManagedHosts(ctx, accessor)
+	upstreamAccessor := traffic.NewGateway(upstreamGateway)
+	managedHosts, err := r.Host.GetManagedHosts(ctx, upstreamAccessor)
 	if err != nil {
 		return false, metav1.ConditionFalse, clusters, err
 	}
 	// ensure tls is set up first before doing anything else. TLS is not affectd by placement changes
-	tlsSecrets, err := r.reconcileTLS(ctx, downstream, managedHosts)
+	tlsSecrets, err := r.reconcileTLS(ctx, upstreamGateway, downstream, managedHosts)
 	if err != nil {
 		return true, metav1.ConditionFalse, clusters, err
 	}
-	log.Info("TLS reconciled for gatway ", "gateway", gateway.Name, "namespace", gateway.Namespace)
+	log.Info("TLS reconciled for downstream gatway ", "gateway", downstream.Name, "namespace", downstream.Namespace)
 
 	// some of this should be pulled from gateway class params
 	if err := r.reconcileParams(ctx, downstream, params); err != nil {
 		return false, metav1.ConditionUnknown, clusters, err
 	}
-	downstream.Status = gatewayv1beta1.GatewayStatus{}
-
-	// reset this for the sync as we don't want control plane level UID, creation etc etc
-	downstream.ObjectMeta = metav1.ObjectMeta{
-		Name:        gateway.Name,
-		Namespace:   gateway.Namespace,
-		Labels:      gateway.Labels,
-		Annotations: gateway.Annotations,
-	}
-	if downstream.Labels == nil {
-		downstream.Labels = map[string]string{}
-	}
-	downstream.Labels[ManagedLabel] = "true"
-
-	for _, s := range tlsSecrets {
-		s.(*v1.Secret).ObjectMeta = metav1.ObjectMeta{
-			Labels:    map[string]string{ManagedLabel: "true"},
-			Name:      s.GetName(),
-			Namespace: s.GetNamespace(),
-		}
-	}
 
 	// ensure the gatways are placed into the right target clusters and removed from any that are no longer targeted
-	targets, err := r.Placement.Place(ctx, downstream, tlsSecrets...)
+	targets, err := r.Placement.Place(ctx, upstreamGateway, downstream, tlsSecrets...)
 	if err != nil {
 		return true, metav1.ConditionFalse, clusters, err
 	}
 
-	log.Info("Gateway Placed ", "gateway", gateway.Name, "namespace", gateway.Namespace, "targets", targets.UnsortedList())
+	log.Info("Gateway Placed ", "gateway", upstreamGateway.Name, "namespace", upstreamGateway.Namespace, "targets", targets.UnsortedList())
 	//get updatd list of clusters where this gateway has been successfully placed
-	placed, err := r.Placement.GetPlacedClusters(ctx, downstream)
+	placed, err := r.Placement.GetPlacedClusters(ctx, upstreamGateway)
 	if err != nil {
 		return false, metav1.ConditionUnknown, targets.UnsortedList(), err
 	}
 	//update the cluster set
 	clusters = placed.UnsortedList()
 	//update dns for listeners on the placed gateway
-	if err := r.reconcileDNSEndpoints(ctx, downstream, clusters, managedHosts); err != nil {
+	if err := r.reconcileDNSEndpoints(ctx, upstreamGateway, clusters, managedHosts); err != nil {
 		return true, metav1.ConditionFalse, clusters, err
 	}
-	log.Info("DNS Reconciled ", "gateway", gateway.Name, "namespace", gateway.Namespace)
+	log.Info("DNS Reconciled ", "gateway", upstreamGateway.Name, "namespace", upstreamGateway.Namespace)
 	if placed.Equal(targets) {
 		return false, metav1.ConditionTrue, clusters, nil
 	}
-	log.Info("Gateway Reconciled Successfully ", "gateway", gateway.Name, "namespace", gateway.Namespace)
+	log.Info("Gateway Reconciled Successfully ", "gateway", upstreamGateway.Name, "namespace", upstreamGateway.Namespace)
 	return false, metav1.ConditionUnknown, clusters, nil
 }
 
-func (r *GatewayReconciler) reconcileTLS(ctx context.Context, gateway *gatewayv1beta1.Gateway, managedHosts []v1alpha1.ManagedHost) ([]metav1.Object, error) {
+func (r *GatewayReconciler) reconcileTLS(ctx context.Context, upstreamGateway *gatewayv1beta1.Gateway, gateway *gatewayv1beta1.Gateway, managedHosts []v1alpha1.ManagedHost) ([]metav1.Object, error) {
 	log := log.FromContext(ctx)
 	tlsSecrets := []metav1.Object{}
 	accessor := traffic.NewGateway(gateway)
@@ -264,12 +258,12 @@ func (r *GatewayReconciler) reconcileTLS(ctx context.Context, gateway *gatewayv1
 		}
 
 		// create certificate resource for assigned host
-		if err := r.Certificates.EnsureCertificate(ctx, mh.Host, gateway); err != nil && !k8serrors.IsAlreadyExists(err) {
+		if err := r.Certificates.EnsureCertificate(ctx, mh.Host, upstreamGateway); err != nil && !k8serrors.IsAlreadyExists(err) {
 			return tlsSecrets, err
 		}
 
 		// Check if certificate secret is ready
-		secret, err := r.Certificates.GetCertificateSecret(ctx, mh.Host, gateway.Namespace)
+		secret, err := r.Certificates.GetCertificateSecret(ctx, mh.Host, upstreamGateway.Namespace)
 		if err != nil && !k8serrors.IsNotFound(err) {
 			return tlsSecrets, err
 		}
@@ -280,8 +274,14 @@ func (r *GatewayReconciler) reconcileTLS(ctx context.Context, gateway *gatewayv1
 
 		//sync secret to clusters
 		if secret != nil {
-			accessor.AddTLS(mh.Host, secret)
-			tlsSecrets = append(tlsSecrets, secret)
+			downstreamSecret := secret.DeepCopy()
+			downstreamSecret.ObjectMeta = metav1.ObjectMeta{}
+			downstreamSecret.Name = secret.Name
+			downstreamSecret.Namespace = gateway.Namespace
+			downstreamSecret.Labels = secret.Labels
+			downstreamSecret.Annotations = secret.Annotations
+			accessor.AddTLS(mh.Host, downstreamSecret)
+			tlsSecrets = append(tlsSecrets, downstreamSecret)
 		}
 	}
 	return tlsSecrets, nil
