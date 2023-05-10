@@ -9,4 +9,4 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: kuadrant-addon-sa
-    namespace: open-cluster-management
+    namespace: ocm-addon-manager
