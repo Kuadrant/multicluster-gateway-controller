@@ -240,6 +240,7 @@ deployOCMHub(){
       ((counter++))
     done
     deployOLM ${KIND_CLUSTER_CONTROL_PLANE}
+    deployIstio ${KIND_CLUSTER_CONTROL_PLANE}
   fi
   
 }
