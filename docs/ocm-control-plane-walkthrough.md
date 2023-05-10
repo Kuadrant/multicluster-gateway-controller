@@ -33,20 +33,6 @@ AWS_REGION=eu-west-1
 ```
 
 
-
-### Setup OCM and Register clusters
-
-- Install OCM cli:  
-`curl -L https://raw.githubusercontent.com/open-cluster-management-io/clusteradm/main/install.sh | bash`
-- Set the hub context:
-`export CTX_HUB_CLUSTER=kind-mctc-control-plane`
-- Install OCM hub components
-`clusteradm init --wait --context ${CTX_HUB_CLUSTER}`
-
-Once installation is finished copy the command and token outputted to be used later. Add the following flag to the end of the command
-`--force-internal-endpoint-lookup`
-- create two additional terminal windows and set the kubeconfig for the spoke clusters
-
 session/window 1
 ```
 kind export kubeconfig --name=mctc-workload-1 --kubeconfig=$(pwd)/local/kube/workload1.yaml && export KUBECONFIG=$(pwd)/local/kube/workload1.yaml
@@ -59,44 +45,13 @@ session/window 2
 kind export kubeconfig --name=mctc-workload-2 --kubeconfig=$(pwd)/local/kube/workload2.yaml && export KUBECONFIG=$(pwd)/local/kube/workload2.yaml
 ```
 
-- register the spoke clusters
-
-In each window where you set the kubeconfig run the command you copied earlier. The name of the cluster is up to you. I used gateway-1 and gateway-2
-```
-example
-
-clusteradm join --hub-token the_token --hub-apiserver https://127.0.0.1:49710 --wait --cluster-name gateway-1 --force-internal-endpoint-lookup
-
-clusteradm join --hub-token the_token --hub-apiserver https://127.0.0.1:49710 --wait --cluster-name gateway-2 --force-internal-endpoint-lookup
-```
-Once the gateway clusters have registered you will need to accept them in the hub back in the terminal that has the hub cluster context set 
-
-```
-clusteradm accept --clusters gateway-1
-clusteradm accept --clusters gateway-2
-
-```
-
-### Setup a managedclusterset and bind it to the multi-cluster gateway controller namespace
-
-Now that we have registered the clusters and managed clusters, we can see them as resources in the hub
-
-```
-kubectl get managedclusters
-
-NAME        HUB ACCEPTED   MANAGED CLUSTER URLS                         JOINED   AVAILABLE   AGE
-gateway-1   true           https://mctc-workload-1-control-plane:6443   True     True        2m54s
-gateway-2   true           https://mctc-workload-2-control-plane:6443   True     True        2m37s
-
-```
-
 Let make these clusters usable by the gateway controller:
 
 In the hub cluster context execute the following commands:
 
 ```
-k label managedcluster gateway-1 ingress-cluster=true
-k label managedcluster gateway-2 ingress-cluster=true
+k label managedcluster kind-mctc-workload-1 ingress-cluster=true
+k label managedcluster kind-mctc-workload-2 ingress-cluster=true
 
 ```
 
@@ -242,7 +197,7 @@ spec:
   parentRefs:
   - kind: Gateway
     name: prod-web
-    namespace: multi-cluster-gateways
+    namespace: kuadrant-multi-cluster-gateways
   hostnames:
   - "test.cb.hcpapps.net"  
   rules:

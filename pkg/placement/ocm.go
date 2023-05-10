@@ -22,6 +22,7 @@ import (
 	clusterclient "open-cluster-management.io/api/client/cluster/clientset/versioned"
 	workclient "open-cluster-management.io/api/client/work/clientset/versioned"
 	workv1 "open-cluster-management.io/api/work/v1"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
@@ -33,7 +34,6 @@ const (
 	OCMPlacementLabel = "cluster.open-cluster-management.io/placement"
 	rbacName          = "open-cluster-management:klusterlet-work:gateway"
 	rbacManifest      = "gateway-rbac"
-	downstreamPrefix  = "kuadrant"
 )
 
 type ocmPlacer struct {
@@ -111,25 +111,29 @@ func workName(rootObj runtime.Object) string {
 // TODO (we will need the gateway controller to be triggered by a placement change)
 // find the placement decision. create/update the manifestwork
 // return the clusters it knows the gateway is placed on
-func (op *ocmPlacer) Place(ctx context.Context, gateway *gatewayv1beta1.Gateway, children ...metav1.Object) (sets.Set[string], error) {
+func (op *ocmPlacer) Place(ctx context.Context, upStreamGateway *gatewayv1beta1.Gateway, downStreamGateway *gatewayv1beta1.Gateway, children ...metav1.Object) (sets.Set[string], error) {
 	//PoC currently each object is put into its own manifestwork. This shouldn't be needed but would require finding the manifest work and replacing the existing object
-	workname := workName(gateway)
+	log := log.Log
+	log.V(3).Info("placement: placing ", "gateway", upStreamGateway.Name, "gateway ns", upStreamGateway.Namespace)
+	workname := workName(upStreamGateway)
 	emyptySet := sets.Set[string](sets.NewString())
 	// where the placement decision says to place the gateway
-	placementTargets, err := op.GetClusters(ctx, gateway)
+	placementTargets, err := op.GetClusters(ctx, upStreamGateway)
 	if err != nil {
 		return emyptySet, err
 	}
-	existingClusters, err := op.GetPlacedClusters(ctx, gateway)
+	log.V(3).Info("placement: ", "targets", placementTargets.UnsortedList(), "gateway", downStreamGateway.Name, "gateway ns", upStreamGateway.Namespace)
+	existingClusters, err := op.GetPlacedClusters(ctx, upStreamGateway)
 	if err != nil {
 		return emyptySet, err
 	}
 
 	// not in target clusters so need to be removed
 	removeFrom := existingClusters.Difference(placementTargets)
-
+	log.V(3).Info("placement: ", "removeFrom", removeFrom.UnsortedList(), "gateway", upStreamGateway.Name, "gateway ns", upStreamGateway.Namespace)
 	// if being deleted entirely remove manifest from all existing clusters
-	if gateway.GetDeletionTimestamp() != nil {
+	if upStreamGateway.GetDeletionTimestamp() != nil {
+		log.V(3).Info("placement: ", "deleting gateway from ", existingClusters.UnsortedList(), "gateway", upStreamGateway.Name, "gateway ns", upStreamGateway.Namespace)
 		for _, cluster := range existingClusters.UnsortedList() {
 			// being deleted need to remove from clusters
 			if err := op.workClient.WorkV1().ManifestWorks(cluster).Delete(ctx, workname, metav1.DeleteOptions{}); err != nil {
@@ -140,21 +144,28 @@ func (op *ocmPlacer) Place(ctx context.Context, gateway *gatewayv1beta1.Gateway,
 		}
 		return existingClusters, nil
 	}
-	objects := []metav1.Object{gateway}
+	objects := []metav1.Object{downStreamGateway}
 	objects = append(objects, children...)
 	for _, cluster := range placementTargets.UnsortedList() {
+		log.V(3).Info("placement: ", "adding gateway rbac to cluster ", cluster, "gateway", upStreamGateway.Name, "gateway ns", upStreamGateway.Namespace)
 		if err := op.defaultRBAC(ctx, cluster); err != nil {
+			log.V(3).Info("placement: ", "adding gateway rbac to cluster ", cluster, "gateway", upStreamGateway.Name, "gateway ns", upStreamGateway.Namespace, "error", err)
 			return existingClusters, err
 		}
-		if err := op.createUpdateClusterManifests(ctx, workname, gateway, cluster, objects...); err != nil {
+		log.V(3).Info("placement: ", "adding gateway to cluster ", cluster, "gateway", upStreamGateway.Name, "gateway ns", upStreamGateway.Namespace)
+		if err := op.createUpdateClusterManifests(ctx, workname, downStreamGateway, cluster, objects...); err != nil {
+			log.V(3).Info("placement: ", "adding gateway to cluster ", cluster, "gateway", upStreamGateway.Name, "error", err)
 			return existingClusters, err
 		}
+		log.V(3).Info("placement: ", "added gateway to cluster ", cluster, "gateway", upStreamGateway.Name, "gateway ns", upStreamGateway.Namespace)
 		existingClusters.Insert(cluster)
 	}
+
 	// remove from remove
 	for _, cluster := range removeFrom.UnsortedList() {
+		log.V(3).Info("placement: ", "removing gateway from cluster ", cluster, "gateway", upStreamGateway.Name, "gateway ns", upStreamGateway.Namespace)
 		//todo remove rbac
-		if err := op.workClient.WorkV1().ManifestWorks(cluster).Delete(ctx, workname, metav1.DeleteOptions{}); err != nil {
+		if err := op.workClient.WorkV1().ManifestWorks(cluster).Delete(ctx, workname, metav1.DeleteOptions{}); err != nil && !k8serrors.IsNotFound(err) {
 			// use a multi-error
 			return existingClusters, err
 		}
@@ -209,6 +220,7 @@ func (op *ocmPlacer) GetClusters(ctx context.Context, gateway *gatewayv1beta1.Ga
 }
 
 func (op *ocmPlacer) createUpdateClusterManifests(ctx context.Context, manifestName string, rootObj metav1.Object, cluster string, obj ...metav1.Object) error {
+	log := log.Log
 	// set up gateway manifest
 	key, err := cache.MetaNamespaceKeyFunc(rootObj)
 	if err != nil {
@@ -217,7 +229,7 @@ func (op *ocmPlacer) createUpdateClusterManifests(ctx context.Context, manifestN
 	work := workv1.ManifestWork{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      manifestName,
-			Namespace: fmt.Sprintf("%s-%s", downstreamPrefix, cluster),
+			Namespace: cluster,
 			Labels:    map[string]string{"kuadrant.io": "managed", "kuadrant.io/manifestKey": manifestName},
 			// this is crap, there has to be a better way to map to the parent object perhaps using cache
 			// there is also a resource https://github.com/open-cluster-management-io/api/blob/main/work/v1alpha1/types_manifestworkreplicaset.go that we may migrate to which would solve this
@@ -228,6 +240,7 @@ func (op *ocmPlacer) createUpdateClusterManifests(ctx context.Context, manifestN
 	if err != nil {
 		return err
 	}
+	log.V(3).Info("placement:", "manifests prepared", len(objManifests))
 
 	work.Spec.Workload = workv1.ManifestsTemplate{
 		Manifests: objManifests,
@@ -262,8 +275,8 @@ func (op *ocmPlacer) createUpdateClusterManifests(ctx context.Context, manifestN
 			},
 		},
 	}
-
-	return op.createUpdateManifest(ctx, work)
+	log.V(3).Info("placement: creating updating maniftests for ", "cluster", cluster)
+	return op.createUpdateManifest(ctx, cluster, work)
 
 }
 
@@ -361,20 +374,24 @@ func (op *ocmPlacer) defaultRBAC(ctx context.Context, clusterName string) error 
 			Workload: manifests,
 		},
 	}
-	return op.createUpdateManifest(ctx, work)
+	return op.createUpdateManifest(ctx, clusterName, work)
 }
 
-func (op *ocmPlacer) createUpdateManifest(ctx context.Context, m workv1.ManifestWork) error {
-	mw, err := op.workClient.WorkV1().ManifestWorks(m.Namespace).Get(ctx, m.Name, metav1.GetOptions{})
+func (op *ocmPlacer) createUpdateManifest(ctx context.Context, cluster string, m workv1.ManifestWork) error {
+	mw, err := op.workClient.WorkV1().ManifestWorks(cluster).Get(ctx, m.Name, metav1.GetOptions{})
 	if err != nil && k8serrors.IsNotFound(err) {
-		if _, err := op.workClient.WorkV1().ManifestWorks(m.Namespace).Create(ctx, &m, metav1.CreateOptions{}); err != nil {
+		log.Log.V(3).Info("placement: manifest not found creating it ")
+		if _, err := op.workClient.WorkV1().ManifestWorks(cluster).Create(ctx, &m, metav1.CreateOptions{}); err != nil {
+			log.Log.V(3).Info("placement:  creating manifest ", "error", err)
 			return err
 		}
 		return nil
 	}
 	if !equality.Semantic.DeepEqual(mw.Spec, m.Spec) {
+		log.Log.V(3).Info("placment: manifest found updating it ")
 		mw.Spec = m.Spec
-		if _, err := op.workClient.WorkV1().ManifestWorks(mw.Namespace).Update(ctx, mw, metav1.UpdateOptions{}); err != nil {
+		if _, err := op.workClient.WorkV1().ManifestWorks(cluster).Update(ctx, mw, metav1.UpdateOptions{}); err != nil {
+			log.Log.V(3).Info("placement:  updating manifest ", "error", err)
 			return err
 		}
 	}
