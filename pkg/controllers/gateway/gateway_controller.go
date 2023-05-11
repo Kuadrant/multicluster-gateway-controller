@@ -19,11 +19,21 @@ package gateway
 import (
 	"context"
 	"fmt"
-	corev1 "k8s.io/api/core/v1"
 	"reflect"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"strings"
 	"time"
+
+	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/source"
+	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/conditions"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/metadata"
@@ -33,15 +43,6 @@ import (
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/traffic"
 	kuadrantapi "github.com/kuadrant/kuadrant-operator/api/v1beta1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
-	"sigs.k8s.io/controller-runtime/pkg/source"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
 const (
@@ -55,8 +56,8 @@ type HostService interface {
 	GetDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone) (*v1alpha1.DNSRecord, error)
 	GetManagedZoneForHost(ctx context.Context, domain string, t traffic.Interface) (*v1alpha1.ManagedZone, string, error)
 	AddEndpoints(ctx context.Context, t traffic.Interface, dnsRecord *v1alpha1.DNSRecord) error
+	CleanupDNSRecords(ctx context.Context, owner interface{}) error
 	GetDNSRecordsFor(ctx context.Context, t traffic.Interface) ([]*v1alpha1.DNSRecord, error)
-	DNSDeletion(ctx context.Context, owner interface{}) error
 }
 
 type CertificateService interface {
@@ -101,18 +102,11 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 		return ctrl.Result{}, nil
 	}
-	if !controllerutil.ContainsFinalizer(previous, GatewayFinalizer) && previous.GetDeletionTimestamp().IsZero() {
-		controllerutil.AddFinalizer(previous, GatewayFinalizer)
-		err = r.Update(ctx, previous)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-	}
 
 	if previous.GetDeletionTimestamp() != nil && !previous.GetDeletionTimestamp().IsZero() {
 		log.Info("Deleting gateway", "gateway", previous.Name, "namespace", previous.Namespace)
 		//delete dnsRecord
-		err := r.Host.DNSDeletion(ctx, previous)
+		err := r.Host.CleanupDNSRecords(ctx, previous)
 		if err != nil {
 			log.Error(err, "Error deleting DNS record")
 		}
@@ -129,6 +123,14 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 		return ctrl.Result{}, nil
 
+	}
+
+	if !controllerutil.ContainsFinalizer(previous, GatewayFinalizer) && previous.GetDeletionTimestamp().IsZero() {
+		controllerutil.AddFinalizer(previous, GatewayFinalizer)
+		err = r.Update(ctx, previous)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 
 	// Check if the class name is one of ours

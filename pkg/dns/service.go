@@ -3,19 +3,19 @@ package dns
 import (
 	"context"
 	"fmt"
-	v12 "k8s.io/api/networking/v1"
 	"reflect"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 	"strconv"
 	"strings"
 
 	"github.com/lithammer/shortuuid/v4"
+	v12 "k8s.io/api/networking/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/json"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/metadata"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/slice"
@@ -453,7 +453,7 @@ func (s *Service) PatchTargets(ctx context.Context, targets, hosts []string, clu
 	return nil
 }
 
-func (s *Service) DNSDeletion(ctx context.Context, owner interface{}) error {
+func (s *Service) CleanupDNSRecords(ctx context.Context, owner interface{}) error {
 	gateway, ok := owner.(*gatewayv1beta1.Gateway)
 	if ok {
 		trafficAccessor := traffic.NewGateway(gateway)
