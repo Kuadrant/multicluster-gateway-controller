@@ -12,7 +12,7 @@ This document will walk you through using Open Cluster Management and Kuadrant t
 ## Installation and Setup
 
 - Clone this repo locally 
-- run `make local-setup MCTC_WORKLOAD_CLUSTERS_COUNT=2`
+- run `make local-setup OCM_SINGLE=true MCTC_WORKLOAD_CLUSTERS_COUNT=1`
 - setup a `./controller-config.env` with the following key values
 
 ```
@@ -38,20 +38,12 @@ session/window 1
 kind export kubeconfig --name=mctc-workload-1 --kubeconfig=$(pwd)/local/kube/workload1.yaml && export KUBECONFIG=$(pwd)/local/kube/workload1.yaml
 ```
 
-session/window 2
-
-
-```
-kind export kubeconfig --name=mctc-workload-2 --kubeconfig=$(pwd)/local/kube/workload2.yaml && export KUBECONFIG=$(pwd)/local/kube/workload2.yaml
-```
-
 Let make these clusters usable by the gateway controller:
 
 In the hub cluster context execute the following commands:
 
 ```
-k label managedcluster kind-mctc-workload-1 ingress-cluster=true
-k label managedcluster kind-mctc-workload-2 ingress-cluster=true
+k label managedcluster kind-mctc-control-plane ingress-cluster=true
 
 ```
 
@@ -99,7 +91,7 @@ metadata:
   name: http-gateway
   namespace: multi-cluster-gateways
 spec:
-  numberOfClusters: 2
+  numberOfClusters: 1
   clusterSets:
     - gateway-clusters
 EOF
@@ -107,7 +99,9 @@ EOF
 
 ### Create the gateway class
  
-`kubectl create -f hack/ocm/gatewayclass.yaml`
+```
+kubectl create -f hack/ocm/gatewayclass.yaml
+```
 
 ### Start the gateway controller
 
@@ -141,7 +135,6 @@ spec:
     protocol: HTTPS
 EOF
 ```
-
 
 ### Place the gateway
 
