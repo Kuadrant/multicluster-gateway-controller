@@ -20,7 +20,6 @@ import (
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1alpha1"
 
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/traffic"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
 const (

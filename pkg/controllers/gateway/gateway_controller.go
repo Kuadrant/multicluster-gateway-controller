@@ -66,8 +66,6 @@ type HostService interface {
 	CleanupDNSRecords(ctx context.Context, owner traffic.Interface) error
 	// GetManagedHosts will return the list of hosts in this gateways listeners that are associated with a managedzone managed by this controller
 	GetManagedHosts(ctx context.Context, traffic traffic.Interface) ([]v1alpha1.ManagedHost, error)
-	GetDNSRecordsFor(ctx context.Context, t traffic.Interface) ([]*v1alpha1.DNSRecord, error)
-	DNSDeletion(ctx context.Context, owner interface{}) error
 }
 
 type CertificateService interface {
@@ -120,13 +118,6 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, nil
-	}
-	if !controllerutil.ContainsFinalizer(previous, GatewayFinalizer) && previous.GetDeletionTimestamp().IsZero() {
-		controllerutil.AddFinalizer(previous, GatewayFinalizer)
-		err = r.Update(ctx, previous)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
 	}
 
 	upstreamGateway := previous.DeepCopy()
