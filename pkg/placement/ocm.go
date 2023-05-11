@@ -153,7 +153,7 @@ func (op *ocmPlacer) Place(ctx context.Context, upStreamGateway *gatewayv1beta1.
 			return existingClusters, err
 		}
 		log.V(3).Info("placement: ", "adding gateway to cluster ", cluster, "gateway", upStreamGateway.Name, "gateway ns", upStreamGateway.Namespace)
-		if err := op.createUpdateClusterManifests(ctx, workname, downStreamGateway, cluster, objects...); err != nil {
+		if err := op.createUpdateClusterManifests(ctx, workname, upStreamGateway, downStreamGateway, cluster, objects...); err != nil {
 			log.V(3).Info("placement: ", "adding gateway to cluster ", cluster, "gateway", upStreamGateway.Name, "error", err)
 			return existingClusters, err
 		}
@@ -219,10 +219,10 @@ func (op *ocmPlacer) GetClusters(ctx context.Context, gateway *gatewayv1beta1.Ga
 	return targetClusters, nil
 }
 
-func (op *ocmPlacer) createUpdateClusterManifests(ctx context.Context, manifestName string, rootObj metav1.Object, cluster string, obj ...metav1.Object) error {
+func (op *ocmPlacer) createUpdateClusterManifests(ctx context.Context, manifestName string, upstream metav1.Object, downstream metav1.Object, cluster string, obj ...metav1.Object) error {
 	log := log.Log
 	// set up gateway manifest
-	key, err := cache.MetaNamespaceKeyFunc(rootObj)
+	key, err := cache.MetaNamespaceKeyFunc(upstream)
 	if err != nil {
 		return err
 	}
@@ -251,8 +251,8 @@ func (op *ocmPlacer) createUpdateClusterManifests(ctx context.Context, manifestN
 			ResourceIdentifier: workv1.ResourceIdentifier{
 				Group:     "gateway.networking.k8s.io",
 				Resource:  "gateways",
-				Name:      rootObj.GetName(),
-				Namespace: rootObj.GetNamespace(),
+				Name:      downstream.GetName(),
+				Namespace: downstream.GetNamespace(),
 			},
 			FeedbackRules: []workv1.FeedbackRule{
 				{
