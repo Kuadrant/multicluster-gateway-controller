@@ -114,7 +114,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	upstreamGateway := previous.DeepCopy()
-
+	log.V(3).Info("reconciling gateway", "classname", upstreamGateway.Spec.GatewayClassName)
 	if !controllerutil.ContainsFinalizer(upstreamGateway, GatewayFinalizer) && !isDeleting(upstreamGateway) {
 		controllerutil.AddFinalizer(upstreamGateway, GatewayFinalizer)
 		if err = r.Update(ctx, upstreamGateway); err != nil {
@@ -151,7 +151,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, nil
 	}
 	if err != nil && !IsInvalidParamsError(err) {
-		return ctrl.Result{}, err
+		return ctrl.Result{}, fmt.Errorf("gateway class err %s ", err)
 	}
 	requeue, programmedStatus, clusters, reconcileErr := r.reconcileDownstreamGateway(ctx, upstreamGateway, params)
 	// gateway now in expected state, place gateway and its associated objects in correct places. Update gateway spec/metadata
@@ -392,9 +392,6 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager, ctx context.Conte
 	//TODO need to trigger gatway reconcile when gatewayclass params changes
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gatewayv1beta1.Gateway{}).
-		Watches(&source.Kind{
-			Type: &corev1.Secret{},
-		}, &ClusterEventHandler{client: r.Client}).
 		Watches(&source.Kind{Type: &workv1.ManifestWork{}}, handler.EnqueueRequestsFromMapFunc(func(o client.Object) []reconcile.Request {
 			log.V(3).Info("enqueuing gateways based on manifest work change ", "work namespace", o.GetNamespace())
 			requests := []reconcile.Request{}
@@ -418,6 +415,7 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager, ctx context.Conte
 		Watches(&source.Kind{Type: &clusterv1beta2.PlacementDecision{}}, handler.EnqueueRequestsFromMapFunc(func(o client.Object) []reconcile.Request {
 			// kinda want to get the old and new object here and only queue if the clusters have changed
 			// queue up gateways in this namespace
+			log.V(3).Info("enqueuing gateways based on placementdecision change ", " namespace", o.GetNamespace())
 			req := []reconcile.Request{}
 			l := &gatewayv1beta1.GatewayList{}
 			if err := mgr.GetClient().List(ctx, l, &client.ListOptions{Namespace: o.GetNamespace()}); err != nil {
@@ -431,12 +429,17 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager, ctx context.Conte
 			}
 			return req
 		})).
+		Watches(&source.Kind{
+			Type: &corev1.Secret{},
+		}, &ClusterEventHandler{client: r.Client}).
 		WithEventFilter(predicate.NewPredicateFuncs(func(object client.Object) bool {
 			gateway, ok := object.(*gatewayv1beta1.Gateway)
-			if !ok {
-				return true
+			if ok {
+				shouldReconcile := slice.ContainsString(getSupportedClasses(), string(gateway.Spec.GatewayClassName))
+				log.V(3).Info(" should reconcile", "gateway", gateway.Name, "with class ", gateway.Spec.GatewayClassName, "should ", shouldReconcile)
+				return slice.ContainsString(getSupportedClasses(), string(gateway.Spec.GatewayClassName))
 			}
-			return slice.ContainsString(getSupportedClasses(), string(gateway.Spec.GatewayClassName))
+			return true
 		})).
 		Owns(&kuadrantapi.RateLimitPolicy{}).
 		Complete(r)
