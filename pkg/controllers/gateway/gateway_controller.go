@@ -114,7 +114,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	upstreamGateway := previous.DeepCopy()
-
+	log.V(3).Info("reconciling gateway", "classname", upstreamGateway.Spec.GatewayClassName)
 	if !controllerutil.ContainsFinalizer(upstreamGateway, GatewayFinalizer) && !isDeleting(upstreamGateway) {
 		controllerutil.AddFinalizer(upstreamGateway, GatewayFinalizer)
 		if err = r.Update(ctx, upstreamGateway); err != nil {
@@ -151,7 +151,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, nil
 	}
 	if err != nil && !IsInvalidParamsError(err) {
-		return ctrl.Result{}, err
+		return ctrl.Result{}, fmt.Errorf("gateway class err %s ", err)
 	}
 	requeue, programmedStatus, clusters, reconcileErr := r.reconcileDownstreamGateway(ctx, upstreamGateway, params)
 	// gateway now in expected state, place gateway and its associated objects in correct places. Update gateway spec/metadata
@@ -392,6 +392,15 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager, ctx context.Conte
 	//TODO need to trigger gatway reconcile when gatewayclass params changes
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gatewayv1beta1.Gateway{}).
+		WithEventFilter(predicate.NewPredicateFuncs(func(object client.Object) bool {
+			gateway, ok := object.(*gatewayv1beta1.Gateway)
+			if !ok {
+				return false
+			}
+			shouldReconcile := slice.ContainsString(getSupportedClasses(), string(gateway.Spec.GatewayClassName))
+			log.V(3).Info(" should reconcile", "gateway", gateway.Name, "with class ", gateway.Spec.GatewayClassName, "should ", shouldReconcile)
+			return slice.ContainsString(getSupportedClasses(), string(gateway.Spec.GatewayClassName))
+		})).
 		Watches(&source.Kind{
 			Type: &corev1.Secret{},
 		}, &ClusterEventHandler{client: r.Client}).
@@ -430,13 +439,6 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager, ctx context.Conte
 				})
 			}
 			return req
-		})).
-		WithEventFilter(predicate.NewPredicateFuncs(func(object client.Object) bool {
-			gateway, ok := object.(*gatewayv1beta1.Gateway)
-			if !ok {
-				return true
-			}
-			return slice.ContainsString(getSupportedClasses(), string(gateway.Spec.GatewayClassName))
 		})).
 		Owns(&kuadrantapi.RateLimitPolicy{}).
 		Complete(r)
