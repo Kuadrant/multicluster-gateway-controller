@@ -204,7 +204,7 @@ So what about DNS how do we bring traffic to these gateways?
 We only configure DNS once a HTTPRoute has been attached to a listener in the gateway. Using the following command in the hub cluster, you will see we currently have no DNSRecord resources 
 
 ```
-k get dnsrecord -A
+kubectl get dnsrecord -A
 No resources found
 ```
 
