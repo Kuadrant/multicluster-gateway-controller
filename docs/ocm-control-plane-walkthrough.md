@@ -10,6 +10,8 @@ We will start with a single cluster and move to multiple clusters to illustrate 
 
 - Kind
 - AWS account with Route 53 enabled
+- https://github.com/chipmk/docker-mac-net-connect (for macos users)
+
 
 **Note:** this walkthrough will setup a zone in your AWS account and make changes to it for DNS purposes
 
