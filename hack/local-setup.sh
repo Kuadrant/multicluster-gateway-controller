@@ -227,7 +227,7 @@ deployOCMHub(){
     clusterName=kind-${KIND_CLUSTER_CONTROL_PLANE}
     echo "Found single cluster installing hub and spoke on the one cluster (${clusterName})"
     join=$(${CLUSTERADM_BIN} get token --context ${clusterName} |  grep -o  'clusteradm.*--cluster-name')
-    ${join} ${clusterName} --force-internal-endpoint-lookup --context ${clusterName} | grep clusteradm
+    ${BIN_DIR}/${join} ${clusterName} --force-internal-endpoint-lookup --context ${clusterName} | grep clusteradm
     echo "accepting OCM spoke cluster invite"
   
     max_retry=18
@@ -251,7 +251,7 @@ deployOCMSpoke(){
   kubectl config use-context kind-${KIND_CLUSTER_CONTROL_PLANE}
   join=$(${CLUSTERADM_BIN} get token --context kind-${KIND_CLUSTER_CONTROL_PLANE} |  grep -o  'clusteradm.*--cluster-name')
   kubectl config use-context kind-${clusterName}
-  ${join} kind-${clusterName} --force-internal-endpoint-lookup --context kind-${clusterName} | grep clusteradm
+  ${BIN_DIR}/${join} kind-${clusterName} --force-internal-endpoint-lookup --context kind-${clusterName} | grep clusteradm
   echo "accepting OCM spoke cluster invite"
   kubectl config use-context kind-${KIND_CLUSTER_CONTROL_PLANE}
   
