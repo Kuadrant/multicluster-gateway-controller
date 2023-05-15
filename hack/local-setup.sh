@@ -221,7 +221,7 @@ deployOCMHub(){
   clusterName=${1}
   echo "installing the hub cluster in kind-(${clusterName}) "
 
-  clusteradm init --wait --context kind-${clusterName} 
+  ${CLUSTERADM_BIN} init --wait --context kind-${clusterName}
   echo "checking if cluster is single or multi"
   if [[ -n "${OCM_SINGLE}" ]]; then
     clusterName=kind-${KIND_CLUSTER_CONTROL_PLANE}
