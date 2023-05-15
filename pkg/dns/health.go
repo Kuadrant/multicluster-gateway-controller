@@ -3,6 +3,7 @@ package dns
 import (
 	"context"
 	"reflect"
+	"sync"
 
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1alpha1"
 )
@@ -66,7 +67,7 @@ type CachedHealthCheckReconciler struct {
 	reconciler HealthCheckReconciler
 	provider   Provider
 
-	cache map[string]HealthCheckSpec
+	syncCache *sync.Map
 }
 
 var _ HealthCheckReconciler = &CachedHealthCheckReconciler{}
@@ -75,7 +76,7 @@ func NewCachedHealthCheckReconciler(provider Provider, reconciler HealthCheckRec
 	return &CachedHealthCheckReconciler{
 		reconciler: reconciler,
 		provider:   provider,
-		cache:      map[string]HealthCheckSpec{},
+		syncCache:  &sync.Map{},
 	}
 }
 
@@ -86,7 +87,7 @@ func (r *CachedHealthCheckReconciler) Delete(ctx context.Context, endpoint *v1al
 		return NewHealthCheckResult(HealthCheckNoop, ""), nil
 	}
 
-	defer delete(r.cache, id)
+	defer r.syncCache.Delete(id)
 	return r.reconciler.Delete(ctx, endpoint)
 }
 
@@ -98,18 +99,16 @@ func (r *CachedHealthCheckReconciler) Reconcile(ctx context.Context, spec Health
 	}
 
 	// Update the cache with the new spec
-	defer func() {
-		r.cache[id] = spec
-	}()
+	defer r.syncCache.Store(id, spec)
 
 	// If the health heck is not cached, delegate the reconciliation
-	existingSpec, ok := r.cache[id]
+	existingSpec, ok := r.syncCache.Load(id)
 	if !ok {
 		return r.reconciler.Reconcile(ctx, spec, endpoint)
 	}
 
 	// If the spec is unchanged, return Noop
-	if reflect.DeepEqual(spec, existingSpec) {
+	if reflect.DeepEqual(spec, existingSpec.(HealthCheckSpec)) {
 		return NewHealthCheckResult(HealthCheckNoop, "Spec unchanged"), nil
 	}
 
