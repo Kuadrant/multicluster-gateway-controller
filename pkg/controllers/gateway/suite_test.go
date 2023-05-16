@@ -35,10 +35,15 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	clusterv1beta2 "open-cluster-management.io/api/cluster/v1beta1"
-	workv1 "open-cluster-management.io/api/work/v1"
+	"encoding/json"
+	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	ocmclusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
+	ocmworkv1 "open-cluster-management.io/api/work/v1"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/placement"
@@ -50,11 +55,15 @@ import (
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
 
 var (
-	cfg       *rest.Config
-	k8sClient client.Client
-	testEnv   *envtest.Environment
-	ctx       context.Context
-	cancel    context.CancelFunc
+	cfg              *rest.Config
+	k8sClient        client.Client
+	testEnv          *envtest.Environment
+	ctx              context.Context
+	cancel           context.CancelFunc
+	nsSpoke1Name     = "test-spoke-cluster-1"
+	nsSpoke2Name     = "test-spoke-cluster-2"
+	defaultNS        = "default"
+	gatewayFinalizer = "kuadrant.io/gateway"
 )
 
 const (
@@ -71,7 +80,6 @@ func TestAPIs(t *testing.T) {
 var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 	ctx, cancel = context.WithCancel(context.TODO())
-
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
@@ -98,10 +106,10 @@ var _ = BeforeSuite(func() {
 	err = certman.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
-	err = workv1.AddToScheme(scheme.Scheme)
+	err = ocmworkv1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
-	err = clusterv1beta2.AddToScheme(scheme.Scheme)
+	err = ocmclusterv1beta1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 	//+kubebuilder:scaffold:scheme
 
@@ -125,8 +133,11 @@ var _ = BeforeSuite(func() {
 	dnsProvider := &dns.FakeProvider{}
 
 	certificates := tls.NewService(k8sManager.GetClient(), "glbc-ca")
+
 	dns := dns.NewService(k8sManager.GetClient(), dns.NewSafeHostResolver(dns.NewDefaultHostResolver()), dnsProvider)
+
 	plc := placement.NewOCMPlacer(k8sManager.GetClient())
+
 	err = (&GatewayReconciler{
 		Client:       k8sManager.GetClient(),
 		Scheme:       k8sManager.GetScheme(),
@@ -134,6 +145,8 @@ var _ = BeforeSuite(func() {
 		Host:         dns,
 		Placement:    plc,
 	}).SetupWithManager(k8sManager, ctx)
+	Expect(err).ToNot(HaveOccurred())
+	
 	Expect(err).ToNot(HaveOccurred())
 
 	go func() {
@@ -262,234 +275,336 @@ var _ = Describe("GatewayClassController", func() {
 	})
 })
 
-// var _ = Describe("GatewayController", func() {
-// 	Context("testing gateway controller", func() {
-// 		var gateway *gatewayv1beta1.Gateway
-// 		var gatewayclass *gatewayv1beta1.GatewayClass
-// 		var managedZone *v1alpha1.ManagedZone
-// 		// var cluster1 *corev1.Secret
-// 		BeforeEach(func() {
-// 			// Create a test GatewayClass for test Gateways to reference
-// 			gatewayclass = &gatewayv1beta1.GatewayClass{
-// 				ObjectMeta: metav1.ObjectMeta{
-// 					Name:      "kuadrant-multi-cluster-gateway-instance-per-cluster",
-// 					Namespace: "default",
-// 				},
-// 				Spec: gatewayv1beta1.GatewayClassSpec{
-// 					ControllerName: "kuadrant.io/mgc-gw-controller",
-// 				},
-// 			}
-// 			Expect(k8sClient.Create(ctx, gatewayclass)).To(BeNil())
+var _ = Describe("GatewayController", func() {
+	Context("testing gateway controller", func() {
+		var gateway *gatewayv1beta1.Gateway
+		var gatewayclass *gatewayv1beta1.GatewayClass
+		var managedZone *v1alpha1.ManagedZone
+		var manifest1 *ocmworkv1.ManifestWork
+		var manifest2 *ocmworkv1.ManifestWork
+		var nsSpoke1 *corev1.Namespace
+		var nsSpoke2 *corev1.Namespace
+		var placementDecision *ocmclusterv1beta1.PlacementDecision
+		var tlsSecrets *corev1.Secret
+		var hostnametest gatewayv1beta1.Hostname
+		var stringified string
 
-// 			// Create a test ManagedZone for test Gateway listeners to use
-// 			managedZone = &v1alpha1.ManagedZone{
-// 				ObjectMeta: metav1.ObjectMeta{
-// 					Name:      "example.com",
-// 					Namespace: "default",
-// 				},
-// 				Spec: v1alpha1.ManagedZoneSpec{
-// 					ID:          "1234",
-// 					DomainName:  "example.com",
-// 					Description: "example.com",
-// 				},
-// 			}
-// 			Expect(k8sClient.Create(ctx, managedZone)).To(BeNil())
+		//Kicks off before the tests run, used to create resources we need in multiple tests,were created in a diff function that we are not testing but need the output, or things a user may have to do.
+		BeforeEach(func() {
+			// Before: Create GatewayClass for the gateway
+			gatewayclass = &gatewayv1beta1.GatewayClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "kuadrant-multi-cluster-gateway-instance-per-cluster",
+					Namespace: defaultNS,
+				},
+				Spec: gatewayv1beta1.GatewayClassSpec{
+					ControllerName: "kuadrant.io/mctc-gw-controller",
+				},
+			}
+			Expect(k8sClient.Create(ctx, gatewayclass)).To(BeNil())
 
-// 			// Stub Gateway for tests
-// 			hostname := gatewayv1beta1.Hostname("test.example.com")
-// 			gateway = &gatewayv1beta1.Gateway{
-// 				ObjectMeta: metav1.ObjectMeta{
-// 					Name:      "test-gw-1",
-// 					Namespace: "default",
-// 					Annotations: map[string]string{
-// 						"kuadrant.io/gateway-cluster-label-selector": "type=test",
-// 					},
-// 				},
-// 				Spec: gatewayv1beta1.GatewaySpec{
-// 					GatewayClassName: "kuadrant-multi-cluster-gateway-instance-per-cluster",
-// 					Listeners: []gatewayv1beta1.Listener{
-// 						{
-// 							Name:     "default",
-// 							Port:     8443,
-// 							Protocol: gatewayv1beta1.HTTPSProtocolType,
-// 							Hostname: &hostname,
-// 						},
-// 					},
-// 				},
-// 			}
-// 		})
+			// Before: Create a test ManagedZone for test Gateway listeners to use
+			managedZone = &v1alpha1.ManagedZone{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "example.com",
+					Namespace: defaultNS,
+				},
+				Spec: v1alpha1.ManagedZoneSpec{
+					ID:          "1234",
+					DomainName:  "example.com",
+					Description: "example.com",
+				},
+			}
 
-// 		AfterEach(func() {
-// 			// Clean up Gateways
-// 			gatewayList := &gatewayv1beta1.GatewayList{}
-// 			err := k8sClient.List(ctx, gatewayList, client.InNamespace("default"))
-// 			Expect(err).NotTo(HaveOccurred())
-// 			for _, gateway := range gatewayList.Items {
-// 				err = k8sClient.Delete(ctx, &gateway)
-// 				Expect(err).NotTo(HaveOccurred())
-// 			}
+			Expect(k8sClient.Create(ctx, managedZone)).To(BeNil())
 
-// 			// Clean up GatewayClasses
-// 			gatewayclassList := &gatewayv1beta1.GatewayClassList{}
-// 			err = k8sClient.List(ctx, gatewayclassList, client.InNamespace("default"))
-// 			Expect(err).NotTo(HaveOccurred())
-// 			for _, gatewayclass := range gatewayclassList.Items {
-// 				err = k8sClient.Delete(ctx, &gatewayclass)
-// 				Expect(err).NotTo(HaveOccurred())
-// 			}
+			//Before: Create placement decision
 
-// 			// Clean up ManagedZones
-// 			managedZoneList := &v1alpha1.ManagedZoneList{}
-// 			err = k8sClient.List(ctx, managedZoneList, client.InNamespace("default"))
-// 			Expect(err).NotTo(HaveOccurred())
-// 			for _, managedZone := range managedZoneList.Items {
-// 				err = k8sClient.Delete(ctx, &managedZone)
-// 				Expect(err).NotTo(HaveOccurred())
-// 			}
+			placementDecision = &ocmclusterv1beta1.PlacementDecision{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-placement",
+					Namespace: defaultNS,
+					Labels: map[string]string{
+						"cluster.open-cluster-management.io/placement": "true",
+					},
+				},
+			}
 
-// 		})
+			Expect(k8sClient.Create(ctx, placementDecision)).To(BeNil())
 
-// 		It("should reconcile a gateway", func() {
-// 			Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
-// 			createdGateway := &gatewayv1beta1.Gateway{}
-// 			gatewayType := types.NamespacedName{Name: gateway.Name, Namespace: gateway.Namespace}
+			// Before: Update the statsus of theplacement decision to include the clusters we want to place as OCM would usually do this
+			placementDecision.Status = ocmclusterv1beta1.PlacementDecisionStatus{
+				Decisions: []ocmclusterv1beta1.ClusterDecision{
+					{
+						ClusterName: nsSpoke1Name,
+						Reason:      "test",
+					},
+					{
+						ClusterName: nsSpoke2Name,
+						Reason:      "test",
+					},
+				},
+			}
+			Expect(k8sClient.Status().Update(ctx, placementDecision)).To(BeNil())
+			//Before: Stub Gateway for tests but not creating it here
+			hostname := gatewayv1beta1.Hostname("test.example.com")
+			gateway = &gatewayv1beta1.Gateway{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-gw-1",
+					Namespace: defaultNS,
+					Labels: map[string]string{
+						"cluster.open-cluster-management.io/placement": "true",
+					},
+				},
+				Spec: gatewayv1beta1.GatewaySpec{
+					GatewayClassName: "kuadrant-multi-cluster-gateway-instance-per-cluster",
+					Listeners: []gatewayv1beta1.Listener{
+						{
+							Name:     "default",
+							Port:     8443,
+							Protocol: gatewayv1beta1.HTTPSProtocolType,
+							Hostname: &hostname,
+						},
+					},
+				},
+			}
+			// Before: Create namespace 1 to mock a spoke cluster
+			nsSpoke1 = &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: nsSpoke1Name,
+				},
+			}
+			err := k8sClient.Create(ctx, nsSpoke1)
+			if err != nil && !k8serrors.IsAlreadyExists(err) {
+				Expect(err).ToNot(HaveOccurred())
 
-// 			// Exists
-// 			Eventually(func() bool {
-// 				err := k8sClient.Get(ctx, gatewayType, createdGateway)
-// 				return err == nil
-// 			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			}
+			//Before: Create namespace 2 to mock a 2nd spoke cluster
+			nsSpoke2 = &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: nsSpoke2Name,
+				},
+			}
 
-// 			// Accepted is True
-// 			var acceptedCondition *metav1.Condition
-// 			Eventually(func() bool {
-// 				err := k8sClient.Get(ctx, gatewayType, createdGateway)
-// 				if err != nil {
-// 					// explicitly fail as we should be passed the point of any errors
-// 					log.Log.Error(err, "No errors expected")
-// 					Fail("No errors expected")
-// 				}
-// 				acceptedCondition = conditions.GetConditionByType(createdGateway.Status.Conditions, string(gatewayv1beta1.GatewayConditionAccepted))
-// 				log.Log.Info("acceptedCondition", "acceptedCondition", acceptedCondition)
-// 				Expect(acceptedCondition).ToNot(BeNil())
-// 				return acceptedCondition.Status == metav1.ConditionTrue
-// 			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
-// 			Expect(acceptedCondition.Message).To(BeEquivalentTo("Handled by kuadrant.io/mgc-gw-controller"))
+			err = k8sClient.Create(ctx, nsSpoke2)
+			if err != nil && !k8serrors.IsAlreadyExists(err) {
+				Expect(err).ToNot(HaveOccurred())
+			}
+			// Before: Stub for a tls secret but dont create it until further down
+			tlsSecrets = &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test.example.com",
+					Namespace: "default",
+				},
+				StringData: map[string]string{
+					"tls.key": "some_value",
+				},
+			}
 
-// 			// Programmed is Unknown for now
-// 			var programmedCondition *metav1.Condition
-// 			Eventually(func() bool {
-// 				err := k8sClient.Get(ctx, gatewayType, createdGateway)
-// 				if err != nil {
-// 					// explicitly fail as we should be passed the point of any errors
-// 					log.Log.Error(err, "No errors expected")
-// 					Fail("No errors expected")
-// 				}
-// 				programmedCondition = conditions.GetConditionByType(createdGateway.Status.Conditions, string(gatewayv1beta1.GatewayConditionProgrammed))
-// 				log.Log.Info("programmedCondition", "programmedCondition", programmedCondition)
-// 				Expect(programmedCondition).ToNot(BeNil())
-// 				return programmedCondition.Status == metav1.ConditionUnknown
-// 			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+		})
+		// Occurs after the test is complete
+		AfterEach(func() {
+			// Clean: Gateways
+			gatewayList := &gatewayv1beta1.GatewayList{}
+			err := k8sClient.List(ctx, gatewayList, client.InNamespace("default"))
+			Expect(err).NotTo(HaveOccurred())
+			for _, gateway := range gatewayList.Items {
+				err = k8sClient.Delete(ctx, &gateway)
+				Expect(err).NotTo(HaveOccurred())
+			}
 
-// 			// create a certificate secret, mimicking what cert-manager would do at this point
-// 			tlsSecret := &corev1.Secret{
-// 				ObjectMeta: metav1.ObjectMeta{
-// 					Name:      "test.example.com",
-// 					Namespace: "default",
-// 				},
-// 				StringData: map[string]string{
-// 					"tls.key": "some_value",
-// 				},
-// 			}
-// 			err := k8sClient.Create(ctx, tlsSecret)
-// 			if err != nil {
-// 				// explicitly fail as we should be passed the point of any errors
-// 				Fail("Error creating mock certificate secret")
-// 			}
+			// Clean: GatewayClasses
+			gatewayclassList := &gatewayv1beta1.GatewayClassList{}
+			err = k8sClient.List(ctx, gatewayclassList, client.InNamespace("default"))
+			Expect(err).NotTo(HaveOccurred())
+			for _, gatewayclass := range gatewayclassList.Items {
+				err = k8sClient.Delete(ctx, &gatewayclass)
+				Expect(err).NotTo(HaveOccurred())
+			}
 
-// 			// update syncer status annoation, mimicking the status from the data plane Gateway
-// 			err = k8sClient.Get(ctx, gatewayType, createdGateway)
-// 			if err != nil {
-// 				Fail("Error reading gateway")
-// 			}
-// 			annotations := createdGateway.GetAnnotations()
-// 			annotations[fmt.Sprintf("%s%s", status.SyncerClusterStatusAnnotationPrefix, "test_cluster_one")] = "{\"addresses\":[{\"type\":\"IPAddress\",\"value\":\"172.32.200.0\"}],\"listeners\":[{\"attachedRoutes\":1,\"name\":\"default\"}]}"
-// 			createdGateway.SetAnnotations(annotations)
-// 			err = k8sClient.Update(ctx, createdGateway)
-// 			if err != nil {
-// 				Fail("Error updating gateway")
-// 			}
+			// Clean: ManagedZones
+			managedZoneList := &v1alpha1.ManagedZoneList{}
+			err = k8sClient.List(ctx, managedZoneList, client.InNamespace("default"))
+			Expect(err).NotTo(HaveOccurred())
+			for _, managedZone := range managedZoneList.Items {
+				err = k8sClient.Delete(ctx, &managedZone)
+				Expect(err).NotTo(HaveOccurred())
+			}
+			// Clean: Placement decisions
+			placementDecisionList := &ocmclusterv1beta1.PlacementDecisionList{}
+			err = k8sClient.List(ctx, placementDecisionList, client.InNamespace("default"))
+			Expect(err).NotTo(HaveOccurred())
+			for _, placementDecision := range placementDecisionList.Items {
+				err = k8sClient.Delete(ctx, &placementDecision)
+				Expect(err).NotTo(HaveOccurred())
+			}
 
-// 			// Programmed is True
-// 			Eventually(func() bool {
-// 				err := k8sClient.Get(ctx, gatewayType, createdGateway)
-// 				if err != nil {
-// 					// explicitly fail as we should be passed the point of any errors
-// 					log.Log.Error(err, "No errors expected")
-// 					Fail("No errors expected")
-// 				}
-// 				programmedCondition = conditions.GetConditionByType(createdGateway.Status.Conditions, string(gatewayv1beta1.GatewayConditionProgrammed))
-// 				log.Log.Info("programmedCondition", "programmedCondition", programmedCondition)
-// 				Expect(programmedCondition).ToNot(BeNil())
-// 				return programmedCondition.Status == metav1.ConditionTrue
-// 			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
-// 			Expect(programmedCondition.Message).To(BeEquivalentTo("Gateway configured in data plane cluster(s) - [test_cluster_one]"))
+		})
 
-// 			// sync annotation is set
-// 			syncAnnotation := createdGateway.Annotations[fmt.Sprintf("%s%s", syncer.MGC_SYNC_ANNOTATION_PREFIX, syncer.MGC_SYNC_ANNOTATION_WILDCARD)]
-// 			Expect(syncAnnotation).To(BeEquivalentTo("true"))
+		// This tests the full reconcile of a gateway from start to finish
+		It("should reconcile a gateway", func() {
+			Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
+			upstreamGateway := &gatewayv1beta1.Gateway{}
+			upstreamGatewayType := types.NamespacedName{Name: gateway.Name, Namespace: gateway.Namespace}
+			manifest1 = &ocmworkv1.ManifestWork{}
+			manifest2 = &ocmworkv1.ManifestWork{}
 
-// 			// TLS config added to listener
-// 			listener := createdGateway.Spec.Listeners[0]
-// 			Expect(listener.Name).To(BeEquivalentTo("default"))
-// 			Expect(listener.TLS).ToNot(BeNil())
-// 			certificateRef := listener.TLS.CertificateRefs[0]
-// 			Expect(certificateRef.Name).To(BeEquivalentTo("test.example.com"))
-// 		})
+			// Test: Passes if it gets the gateway
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, upstreamGatewayType, upstreamGateway)
+				return err == nil
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 
-// 		It("should NOT match any clusters", func() {
-// 			gateway.Annotations["kuadrant.io/gateway-cluster-label-selector"] = "type=prod"
-// 			Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
-// 			createdGateway := &gatewayv1beta1.Gateway{}
-// 			gatewayType := types.NamespacedName{Name: gateway.Name, Namespace: gateway.Namespace}
+			// Test: Passes if the gateway contains a finalizer
+			Eventually(func() bool {
+				if err := k8sClient.Get(ctx, upstreamGatewayType, upstreamGateway); err != nil {
+					return false
+				}
+				return controllerutil.ContainsFinalizer(upstreamGateway, gatewayFinalizer)
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 
-// 			// Exists
-// 			Eventually(func() bool {
-// 				err := k8sClient.Get(ctx, gatewayType, createdGateway)
-// 				return err == nil
-// 			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			// Mock: adding the placement label to the gateway
+			upstreamGateway.Labels = map[string]string{
+				"cluster.open-cluster-management.io/placement": "true",
+			}
 
-// 			// Accepted is True
-// 			var acceptedCondition *metav1.Condition
-// 			Eventually(func() bool {
-// 				err := k8sClient.Get(ctx, gatewayType, createdGateway)
-// 				if err != nil {
-// 					// explicitly fail as we should be passed the point of any errors
-// 					log.Log.Error(err, "No errors expected")
-// 					Fail("No errors expected")
-// 				}
-// 				acceptedCondition = conditions.GetConditionByType(createdGateway.Status.Conditions, string(gatewayv1beta1.GatewayConditionAccepted))
-// 				log.Log.Info("acceptedCondition", "acceptedCondition", acceptedCondition)
-// 				Expect(acceptedCondition).ToNot(BeNil())
-// 				return acceptedCondition.Status == metav1.ConditionTrue
-// 			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
-// 			Expect(acceptedCondition.Message).To(BeEquivalentTo("Handled by kuadrant.io/mgc-gw-controller"))
+			// Test: Passes if the gateway has the correct label
+			Eventually(func() bool {
+				if err := k8sClient.Get(ctx, upstreamGatewayType, gateway); err != nil {
+					return false
+				}
+				return gateway.Labels["kuadarant.io/managed"] == "true"
 
-// 			// Pending is False
-// 			var programmedCondition *metav1.Condition
-// 			Eventually(func() bool {
-// 				err := k8sClient.Get(ctx, gatewayType, createdGateway)
-// 				if err != nil {
-// 					// explicitly fail as we should be passed the point of any errors
-// 					log.Log.Error(err, "No errors expected")
-// 					Fail("No errors expected")
-// 				}
-// 				programmedCondition = conditions.GetConditionByType(createdGateway.Status.Conditions, string(gatewayv1beta1.GatewayConditionProgrammed))
-// 				log.Log.Info("programmedCondition", "programmedCondition", programmedCondition)
-// 				Expect(programmedCondition).ToNot(BeNil())
-// 				return programmedCondition.Status == metav1.ConditionFalse
-// 			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
-// 			Expect(programmedCondition.Message).To(BeEquivalentTo("No clusters match selection"))
-// 		})
-// 	})
-// })
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+
+			// Mock: Creating tls cert manager would have created
+			err := k8sClient.Create(ctx, tlsSecrets)
+			if err != nil && !k8serrors.IsAlreadyExists(err) {
+				Expect(err).ToNot(HaveOccurred())
+
+			}
+
+			// Test: Passes when manifest1 is found in Namespace test-spoke-cluster-1 and contains the hostname from the gateway
+			Eventually(func() bool {
+				if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: nsSpoke1Name, Name: "gateway-default-test-gw-1"}, manifest1); err != nil {
+					log.Log.Error(err, "error getting ManifestWork")
+
+					return false
+				}
+				// decoding the raw format in the manifest 1 into a readable variable that can be compared
+				rawBytes := manifest1.Spec.Workload.Manifests[0].Raw
+				gateway := &gatewayv1beta1.Gateway{}
+				err := json.Unmarshal(rawBytes, gateway)
+				if err != nil {
+					return false
+				}
+				hostnametest = *gateway.Spec.Listeners[0].Hostname
+				stringified = string(hostnametest)
+				return err == nil
+
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			//Comparing the hostname
+			Expect(stringified).To(Equal("test.example.com"))
+
+			// Test: Passes when manifest2 is found in Namespace test-spoke-cluster-2 and contains the hostname from the gateway
+
+			Eventually(func() bool {
+				if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: nsSpoke2Name, Name: "gateway-default-test-gw-1"}, manifest2); err != nil {
+					log.Log.Error(err, "error getting ManifestWork")
+					return false
+				}
+				// decoding the raw format in the manifest 1 into a readable variable that can be compared
+
+				rawBytes := manifest2.Spec.Workload.Manifests[0].Raw
+				gateway := &gatewayv1beta1.Gateway{}
+				err := json.Unmarshal(rawBytes, gateway)
+				if err != nil {
+					return false
+				}
+				hostnametest = *gateway.Spec.Listeners[0].Hostname
+				stringified = string(hostnametest)
+				return err == nil
+
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+
+			//Comparing the hostname
+			Expect(stringified).To(Equal("test.example.com"))
+
+			//Mock: Make the manifestwork status in manifest 1 be "applied". OCM usually does it when the resources have been applied
+			manifest1.Status = ocmworkv1.ManifestWorkStatus{
+				Conditions: []metav1.Condition{
+					{
+						Type:               "Applied",
+						Status:             "True",
+						LastTransitionTime: metav1.Now(),
+						Reason:             "AppliedManifestComplete",
+						Message:            "Apply manifest complete",
+					},
+				},
+			}
+
+			Expect(k8sClient.Status().Update(ctx, manifest1)).To(BeNil())
+
+			//Mock: Make the manifestwork status in manifest 2 be "applied". OCM usually does it when the resources have been applied
+			manifest2.Status = ocmworkv1.ManifestWorkStatus{
+				Conditions: []metav1.Condition{
+					{
+						Type:               "Applied",
+						Status:             "True",
+						LastTransitionTime: metav1.Now(),
+						Reason:             "AppliedManifestComplete",
+						Message:            "Apply manifest complete",
+					},
+				},
+			}
+
+			Expect(k8sClient.Status().Update(ctx, manifest2)).To(BeNil())
+
+			// Test that the Programmed condition is True
+			var programmedCondition *metav1.Condition
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, upstreamGatewayType, upstreamGateway)
+				if err != nil {
+					// explicitly fail as we should be passed the point of any errors
+					log.Log.Error(err, "No errors expected")
+					Fail("No errors expected")
+				}
+				programmedCondition = conditions.GetConditionByType(upstreamGateway.Status.Conditions, string(gatewayv1beta1.GatewayConditionProgrammed))
+				log.Log.Info("programmedCondition", "programmedCondition", programmedCondition)
+				Expect(programmedCondition).ToNot(BeNil())
+				return programmedCondition.Status == metav1.ConditionTrue
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+
+		})
+		// Tests if the placement label isnt present no manifest should be created
+		It("shouldnt place a gateway", func() {
+
+			Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
+			upstreamGateway := &gatewayv1beta1.Gateway{}
+			upstreamGatewayType := types.NamespacedName{Name: gateway.Name, Namespace: gateway.Namespace}
+			manifest1 = &ocmworkv1.ManifestWork{}
+			manifest2 = &ocmworkv1.ManifestWork{}
+
+			// Passes if it gets the gateway
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, upstreamGatewayType, upstreamGateway)
+				return err == nil
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+
+			// Passes if the gateway contains a finalizer
+			Eventually(func() bool {
+				if err := k8sClient.Get(ctx, upstreamGatewayType, upstreamGateway); err != nil {
+					return false
+				}
+				return controllerutil.ContainsFinalizer(upstreamGateway, gatewayFinalizer)
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+
+			// Test: Passes if no manifest was gotten
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, types.NamespacedName{Namespace: nsSpoke1Name, Name: "gateway-default-test-gw-1"}, manifest1)
+				return err == nil
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeFalse())
+
+		})
+	})
+})
