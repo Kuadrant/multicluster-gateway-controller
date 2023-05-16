@@ -24,7 +24,7 @@ import (
 
 const (
 	labelRecordID                  = "kuadrant.io/record-id"
-	labelGatewayReference          = "kuadrant.io/gateway-uid"
+	LabelGatewayReference          = "kuadrant.io/gateway-uid"
 	PATCH_ANNOTATION_PREFIX string = "MCTC_PATCH_"
 )
 
@@ -159,7 +159,7 @@ func (s *Service) GetDNSRecord(ctx context.Context, subDomain string, managedZon
 		}
 		return nil, err
 	}
-	if dnsRecord.GetLabels()[labelGatewayReference] != string(owner.GetUID()) {
+	if dnsRecord.GetLabels()[LabelGatewayReference] != string(owner.GetUID()) {
 		return nil, fmt.Errorf("attempting to get a DNSrecord for a host already in use by a different traffic object. Host: %s", managedHost)
 	}
 	return dnsRecord, nil
