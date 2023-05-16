@@ -52,7 +52,7 @@ const (
 )
 
 type HostService interface {
-	CreateDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone, gatewayReference string) (*v1alpha1.DNSRecord, error)
+	CreateDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone, owner traffic.Interface) (*v1alpha1.DNSRecord, error)
 	GetDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone, owner traffic.Interface) (*v1alpha1.DNSRecord, error)
 	GetManagedZoneForHost(ctx context.Context, domain string, t traffic.Interface) (*v1alpha1.ManagedZone, string, error)
 	AddEndpoints(ctx context.Context, t traffic.Interface, dnsRecord *v1alpha1.DNSRecord) error
@@ -244,7 +244,7 @@ func (r *GatewayReconciler) reconcileGateway(ctx context.Context, previous gatew
 			return metav1.ConditionUnknown, clusters, false, err
 		}
 		if dnsRecord == nil {
-			dnsRecord, err = r.Host.CreateDNSRecord(ctx, subDomain, managedZone, string(gateway.GetUID()))
+			dnsRecord, err = r.Host.CreateDNSRecord(ctx, subDomain, managedZone, trafficAccessor)
 			if err != nil {
 				log.Error(err, "failed to create DNSRecord", "subDomain", subDomain)
 				return metav1.ConditionUnknown, clusters, false, err

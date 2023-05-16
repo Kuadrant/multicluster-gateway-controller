@@ -236,7 +236,7 @@ func (s *Service) EnsureManagedHost(ctx context.Context, t traffic.Interface) ([
 	if managedZone == nil {
 		return dnsRecords, fmt.Errorf("no managed zone available to use")
 	}
-	record, err := s.CreateDNSRecord(ctx, hostKey, managedZone, string(t.GetUID()))
+	record, err := s.CreateDNSRecord(ctx, hostKey, managedZone, t)
 	if err != nil {
 		log.Log.Error(err, "failed to register host ")
 		return dnsRecords, err
@@ -275,7 +275,8 @@ func (s *Service) GetManagedZone(ctx context.Context, t traffic.Interface) (*v1a
 }
 
 // CreateDNSRecord creates a new DNSRecord, if one does not already exist, in the given managed zone with the given subdomain.
-func (s *Service) CreateDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone, gatewayReference string) (*v1alpha1.DNSRecord, error) {
+// Needs traffic.Interface owner to block other traffic objects from accessing this record
+func (s *Service) CreateDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone, owner traffic.Interface) (*v1alpha1.DNSRecord, error) {
 	managedHost := strings.ToLower(fmt.Sprintf("%s.%s", subDomain, managedZone.Spec.DomainName))
 
 	dnsRecord := v1alpha1.DNSRecord{
@@ -284,7 +285,7 @@ func (s *Service) CreateDNSRecord(ctx context.Context, subDomain string, managed
 			Namespace: managedZone.Namespace,
 			Labels: map[string]string{
 				labelRecordID:         subDomain,
-				labelGatewayReference: gatewayReference,
+				labelGatewayReference: string(owner.GetUID()),
 			},
 		},
 		Spec: v1alpha1.DNSRecordSpec{
@@ -330,7 +331,7 @@ func (s *Service) GetDNSRecord(ctx context.Context, subDomain string, managedZon
 		return nil, err
 	}
 	if dnsRecord.GetLabels()[labelGatewayReference] != string(owner.GetUID()) {
-		return nil, fmt.Errorf("attempting to get a DNSrecord for a host already in use by a different trafficObject. Host: %s", managedHost)
+		return nil, fmt.Errorf("attempting to get a DNSrecord for a host already in use by a different traffic object. Host: %s", managedHost)
 	}
 	return dnsRecord, nil
 }
