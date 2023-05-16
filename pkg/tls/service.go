@@ -3,20 +3,18 @@ package tls
 import (
 	"context"
 	"fmt"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/traffic"
-	v12 "k8s.io/api/networking/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	"reflect"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 	"time"
 
 	certman "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
 	cmmeta "github.com/jetstack/cert-manager/pkg/apis/meta/v1"
 	v1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/traffic"
 )
 
 const (
@@ -59,31 +57,21 @@ func (s *Service) GetCertificateSecret(ctx context.Context, host string, namespa
 	return tlsSecret, nil
 }
 
-func (s *Service) CleanupCertificates(ctx context.Context, owner interface{}) error {
-	gateway, ok := owner.(*gatewayv1beta1.Gateway)
-	if ok {
-		// get names of hosts for traffic object being deleted
-		trafficAccessor := traffic.NewGateway(gateway)
-		for _, host := range trafficAccessor.GetHosts() {
-			secret := &v1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      host,
-					Namespace: gateway.Namespace,
-				},
-			}
-			err := s.controlClient.Delete(ctx, secret)
-			if err != nil && !k8serrors.IsNotFound(err) {
-				return fmt.Errorf("error deleting cert secret: %s", err)
-			}
+func (s *Service) CleanupCertificates(ctx context.Context, owner traffic.Interface) error {
+	for _, host := range owner.GetHosts() {
+		secret := &v1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      host,
+				Namespace: owner.GetNamespace(),
+			},
 		}
-		return nil
+		err := s.controlClient.Delete(ctx, secret)
+		if err != nil && !k8serrors.IsNotFound(err) {
+			return fmt.Errorf("error deleting cert secret: %s", err)
+		}
 	}
-	// TODO ingress case
-	_, ok = owner.(*v12.Ingress)
-	if ok {
-		return nil
-	}
-	return fmt.Errorf("uknkown object type for a certificate deletion: %s", reflect.TypeOf(owner))
+	return nil
+
 }
 
 func (s *Service) certificate(host, issuer, controlNS string) *certman.Certificate {
@@ -108,7 +96,7 @@ func (s *Service) certificate(host, issuer, controlNS string) *certman.Certifica
 				Duration: time.Hour * 24 * 90, // cert lasts for 90 days
 			},
 			RenewBefore: &metav1.Duration{
-				Duration: time.Hour * 24 * 15, // cert is renewed 15 days before hand
+				Duration: time.Hour * 24 * 15, // cert is renewed 15 days beforehand
 			},
 			PrivateKey: &certman.CertificatePrivateKey{
 				Algorithm: certman.RSAKeyAlgorithm,

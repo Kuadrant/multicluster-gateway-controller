@@ -52,18 +52,18 @@ const (
 )
 
 type HostService interface {
-	CreateDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone) (*v1alpha1.DNSRecord, error)
-	GetDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone) (*v1alpha1.DNSRecord, error)
+	CreateDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone, gatewayReference string) (*v1alpha1.DNSRecord, error)
+	GetDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone, owner traffic.Interface) (*v1alpha1.DNSRecord, error)
 	GetManagedZoneForHost(ctx context.Context, domain string, t traffic.Interface) (*v1alpha1.ManagedZone, string, error)
 	AddEndpoints(ctx context.Context, t traffic.Interface, dnsRecord *v1alpha1.DNSRecord) error
-	CleanupDNSRecords(ctx context.Context, owner interface{}) error
+	CleanupDNSRecords(ctx context.Context, owner traffic.Interface) error
 	GetDNSRecordsFor(ctx context.Context, t traffic.Interface) ([]*v1alpha1.DNSRecord, error)
 }
 
 type CertificateService interface {
 	EnsureCertificate(ctx context.Context, host string, owner metav1.Object) error
 	GetCertificateSecret(ctx context.Context, host string, namespace string) (*corev1.Secret, error)
-	CleanupCertificates(ctx context.Context, owner interface{}) error
+	CleanupCertificates(ctx context.Context, owner traffic.Interface) error
 }
 
 type GatewayHelper interface {
@@ -106,13 +106,13 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if previous.GetDeletionTimestamp() != nil && !previous.GetDeletionTimestamp().IsZero() {
 		log.Info("Deleting gateway", "gateway", previous.Name, "namespace", previous.Namespace)
 		//delete dnsRecord
-		err := r.Host.CleanupDNSRecords(ctx, previous)
+		err := r.Host.CleanupDNSRecords(ctx, traffic.NewGateway(previous))
 		if err != nil {
 			log.Error(err, "Error deleting DNS record")
 		}
 
 		// Cleanup certificates
-		err = r.Certificates.CleanupCertificates(ctx, previous)
+		err = r.Certificates.CleanupCertificates(ctx, traffic.NewGateway(previous))
 		if err != nil {
 			log.Error(err, "Error deleting certs")
 		}
@@ -239,12 +239,12 @@ func (r *GatewayReconciler) reconcileGateway(ctx context.Context, previous gatew
 
 		// Get an existing DNSRecord or create a new one, but no endpoint yet.
 		// Endpoints created later when routes are attached.
-		dnsRecord, err := r.Host.GetDNSRecord(ctx, subDomain, managedZone)
+		dnsRecord, err := r.Host.GetDNSRecord(ctx, subDomain, managedZone, trafficAccessor)
 		if err != nil && !k8serrors.IsNotFound(err) {
 			return metav1.ConditionUnknown, clusters, false, err
 		}
 		if dnsRecord == nil {
-			dnsRecord, err = r.Host.CreateDNSRecord(ctx, subDomain, managedZone)
+			dnsRecord, err = r.Host.CreateDNSRecord(ctx, subDomain, managedZone, string(gateway.GetUID()))
 			if err != nil {
 				log.Error(err, "failed to create DNSRecord", "subDomain", subDomain)
 				return metav1.ConditionUnknown, clusters, false, err
