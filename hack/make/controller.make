@@ -15,7 +15,7 @@ run-controller: manifests generate fmt vet  install
 	    --zap-log-level=$(LOG_LEVEL)
 
 .PHONY: docker-build-controller
-docker-build-controller: test ## Build docker image with the controller.
+docker-build-controller: ## Build docker image with the controller.
 	docker build --target controller -t ${CONTROLLER_IMG} .
 	docker image prune -f --filter label=stage=mctc-builder
 
