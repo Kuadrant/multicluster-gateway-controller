@@ -24,6 +24,16 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/source"
+	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/conditions"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/metadata"
@@ -33,33 +43,27 @@ import (
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/traffic"
 	kuadrantapi "github.com/kuadrant/kuadrant-operator/api/v1beta1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
-	"sigs.k8s.io/controller-runtime/pkg/source"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
 const (
 	ClusterSyncerAnnotation               = "clustersync.kuadrant.io"
 	GatewayClusterLabelSelectorAnnotation = "kuadrant.io/gateway-cluster-label-selector"
+	GatewayFinalizer                      = "kuadrant.io/gateway"
 )
 
 type HostService interface {
-	CreateDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone) (*v1alpha1.DNSRecord, error)
-	GetDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone) (*v1alpha1.DNSRecord, error)
+	CreateDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone, owner traffic.Interface) (*v1alpha1.DNSRecord, error)
+	GetDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone, owner traffic.Interface) (*v1alpha1.DNSRecord, error)
 	GetManagedZoneForHost(ctx context.Context, domain string, t traffic.Interface) (*v1alpha1.ManagedZone, string, error)
 	AddEndpoints(ctx context.Context, t traffic.Interface, dnsRecord *v1alpha1.DNSRecord) error
+	CleanupDNSRecords(ctx context.Context, owner traffic.Interface) error
 	GetDNSRecordsFor(ctx context.Context, t traffic.Interface) ([]*v1alpha1.DNSRecord, error)
 }
 
 type CertificateService interface {
 	EnsureCertificate(ctx context.Context, host string, owner metav1.Object) error
 	GetCertificateSecret(ctx context.Context, host string, namespace string) (*corev1.Secret, error)
+	CleanupCertificates(ctx context.Context, owner traffic.Interface) error
 }
 
 type GatewayHelper interface {
@@ -100,10 +104,33 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	if previous.GetDeletionTimestamp() != nil && !previous.GetDeletionTimestamp().IsZero() {
-		// TODO: Do we need to remove dns records and/or endpoints?
-		//       Will ownerRefs be sufficient
-		log.Info("Gateway is deleting", "gateway", previous.Name, "namespace", previous.Namespace)
+		log.Info("Deleting gateway", "gateway", previous.Name, "namespace", previous.Namespace)
+		//delete dnsRecord
+		err := r.Host.CleanupDNSRecords(ctx, traffic.NewGateway(previous))
+		if err != nil {
+			log.Error(err, "Error deleting DNS record")
+		}
+
+		// Cleanup certificates
+		err = r.Certificates.CleanupCertificates(ctx, traffic.NewGateway(previous))
+		if err != nil {
+			log.Error(err, "Error deleting certs")
+		}
+		controllerutil.RemoveFinalizer(previous, GatewayFinalizer)
+		err = r.Update(ctx, previous)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
 		return ctrl.Result{}, nil
+
+	}
+
+	if !controllerutil.ContainsFinalizer(previous, GatewayFinalizer) && previous.GetDeletionTimestamp().IsZero() {
+		controllerutil.AddFinalizer(previous, GatewayFinalizer)
+		err = r.Update(ctx, previous)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 
 	// Check if the class name is one of ours
@@ -212,12 +239,12 @@ func (r *GatewayReconciler) reconcileGateway(ctx context.Context, previous gatew
 
 		// Get an existing DNSRecord or create a new one, but no endpoint yet.
 		// Endpoints created later when routes are attached.
-		dnsRecord, err := r.Host.GetDNSRecord(ctx, subDomain, managedZone)
+		dnsRecord, err := r.Host.GetDNSRecord(ctx, subDomain, managedZone, trafficAccessor)
 		if err != nil && !k8serrors.IsNotFound(err) {
 			return metav1.ConditionUnknown, clusters, false, err
 		}
 		if dnsRecord == nil {
-			dnsRecord, err = r.Host.CreateDNSRecord(ctx, subDomain, managedZone)
+			dnsRecord, err = r.Host.CreateDNSRecord(ctx, subDomain, managedZone, trafficAccessor)
 			if err != nil {
 				log.Error(err, "failed to create DNSRecord", "subDomain", subDomain)
 				return metav1.ConditionUnknown, clusters, false, err

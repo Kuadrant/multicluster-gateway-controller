@@ -55,7 +55,7 @@ type RateLimitPolicyReconciler struct {
 //+kubebuilder:rbac:groups=kuadrant.io,resources=ratelimitpolicies/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=kuadrant.io,resources=ratelimitpolicies/finalizers,verbs=update
 
-//+kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;update
+//+kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;update;delete
 //+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch
 //+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways/status,verbs=get;update;patch

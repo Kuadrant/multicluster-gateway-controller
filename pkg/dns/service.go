@@ -9,6 +9,7 @@ import (
 	"github.com/lithammer/shortuuid/v4"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/json"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -23,6 +24,7 @@ import (
 
 const (
 	labelRecordID                  = "kuadrant.io/record-id"
+	labelGatewayReference          = "kuadrant.io/gateway-uid"
 	PATCH_ANNOTATION_PREFIX string = "MCTC_PATCH_"
 )
 
@@ -112,7 +114,7 @@ func (s *Service) GetDNSRecordsFor(ctx context.Context, trafficAccessor traffic.
 			return nil, nil
 		}
 
-		return s.GetDNSRecord(ctx, subdomain, managedZone)
+		return s.GetDNSRecord(ctx, subdomain, managedZone, trafficAccessor)
 	})
 }
 
@@ -234,7 +236,7 @@ func (s *Service) EnsureManagedHost(ctx context.Context, t traffic.Interface) ([
 	if managedZone == nil {
 		return dnsRecords, fmt.Errorf("no managed zone available to use")
 	}
-	record, err := s.CreateDNSRecord(ctx, hostKey, managedZone)
+	record, err := s.CreateDNSRecord(ctx, hostKey, managedZone, t)
 	if err != nil {
 		log.Log.Error(err, "failed to register host ")
 		return dnsRecords, err
@@ -273,14 +275,18 @@ func (s *Service) GetManagedZone(ctx context.Context, t traffic.Interface) (*v1a
 }
 
 // CreateDNSRecord creates a new DNSRecord, if one does not already exist, in the given managed zone with the given subdomain.
-func (s *Service) CreateDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone) (*v1alpha1.DNSRecord, error) {
+// Needs traffic.Interface owner to block other traffic objects from accessing this record
+func (s *Service) CreateDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone, owner traffic.Interface) (*v1alpha1.DNSRecord, error) {
 	managedHost := strings.ToLower(fmt.Sprintf("%s.%s", subDomain, managedZone.Spec.DomainName))
 
 	dnsRecord := v1alpha1.DNSRecord{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      managedHost,
 			Namespace: managedZone.Namespace,
-			Labels:    map[string]string{labelRecordID: subDomain},
+			Labels: map[string]string{
+				labelRecordID:         subDomain,
+				labelGatewayReference: string(owner.GetUID()),
+			},
 		},
 		Spec: v1alpha1.DNSRecordSpec{
 			ManagedZoneRef: &v1alpha1.ManagedZoneReference{
@@ -307,8 +313,9 @@ func (s *Service) CreateDNSRecord(ctx context.Context, subDomain string, managed
 	return &dnsRecord, nil
 }
 
-// GetDNSRecord returns a DNSRecord, if one exists, for the given subdomain in the given managed zone.
-func (s *Service) GetDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone) (*v1alpha1.DNSRecord, error) {
+// GetDNSRecord returns a v1alpha1.DNSRecord, if one exists, for the given subdomain in the given v1alpha1.ManagedZone.
+// It needs a reference string to enforce DNS record serving a single traffic.Interface owner
+func (s *Service) GetDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone, owner traffic.Interface) (*v1alpha1.DNSRecord, error) {
 	managedHost := strings.ToLower(fmt.Sprintf("%s.%s", subDomain, managedZone.Spec.DomainName))
 
 	dnsRecord := &v1alpha1.DNSRecord{
@@ -322,6 +329,9 @@ func (s *Service) GetDNSRecord(ctx context.Context, subDomain string, managedZon
 			log.Log.V(10).Info("no dnsrecord found for host ", "host", dnsRecord.Name)
 		}
 		return nil, err
+	}
+	if dnsRecord.GetLabels()[labelGatewayReference] != string(owner.GetUID()) {
+		return nil, fmt.Errorf("attempting to get a DNSrecord for a host already in use by a different traffic object. Host: %s", managedHost)
 	}
 	return dnsRecord, nil
 }
@@ -444,6 +454,22 @@ func (s *Service) PatchTargets(ctx context.Context, targets, hosts []string, clu
 
 		err = s.controlClient.Update(ctx, dnsRecord)
 		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// CleanupDNSRecords removes all DNS records that were created for a provided traffic.Interface object
+func (s *Service) CleanupDNSRecords(ctx context.Context, owner traffic.Interface) error {
+	recordsToCleaunup := &v1alpha1.DNSRecordList{}
+	selector, _ := labels.Parse(fmt.Sprintf("%s=%s", labelGatewayReference, owner.GetUID()))
+
+	if err := s.controlClient.List(ctx, recordsToCleaunup, &client.ListOptions{LabelSelector: selector}); err != nil {
+		return err
+	}
+	for _, record := range recordsToCleaunup.Items {
+		if err := s.controlClient.Delete(ctx, &record); err != nil {
 			return err
 		}
 	}

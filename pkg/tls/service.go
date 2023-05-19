@@ -2,15 +2,19 @@ package tls
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	certman "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
 	cmmeta "github.com/jetstack/cert-manager/pkg/apis/meta/v1"
 	v1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/traffic"
 )
 
 const (
@@ -53,6 +57,23 @@ func (s *Service) GetCertificateSecret(ctx context.Context, host string, namespa
 	return tlsSecret, nil
 }
 
+func (s *Service) CleanupCertificates(ctx context.Context, owner traffic.Interface) error {
+	for _, host := range owner.GetHosts() {
+		secret := &v1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      host,
+				Namespace: owner.GetNamespace(),
+			},
+		}
+		err := s.controlClient.Delete(ctx, secret)
+		if err != nil && !k8serrors.IsNotFound(err) {
+			return fmt.Errorf("error deleting cert secret: %s", err)
+		}
+	}
+	return nil
+
+}
+
 func (s *Service) certificate(host, issuer, controlNS string) *certman.Certificate {
 	// this will be created in the control plane
 	annotations := map[string]string{TlsIssuerAnnotation: issuer}
@@ -75,7 +96,7 @@ func (s *Service) certificate(host, issuer, controlNS string) *certman.Certifica
 				Duration: time.Hour * 24 * 90, // cert lasts for 90 days
 			},
 			RenewBefore: &metav1.Duration{
-				Duration: time.Hour * 24 * 15, // cert is renewed 15 days before hand
+				Duration: time.Hour * 24 * 15, // cert is renewed 15 days beforehand
 			},
 			PrivateKey: &certman.CertificatePrivateKey{
 				Algorithm: certman.RSAKeyAlgorithm,
