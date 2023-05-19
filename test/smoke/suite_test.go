@@ -26,8 +26,4 @@ var _ = BeforeSuite(func() {
 
 })
 
-var _ = AfterSuite(func() {
-	// By("tearing down the test environment")
-	// err := testEnv.Stop()
-	// Expect(err).NotTo(HaveOccurred())
-})
+var _ = AfterSuite(func() {})

@@ -2,6 +2,7 @@ package smoke
 
 import (
 	"context"
+	"net"
 	"strings"
 	"time"
 
@@ -170,7 +171,7 @@ var _ = Describe("Gateway single target cluster", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		FIt("sets the 'Programmed' condition to true", func() {
+		It("sets the 'Programmed' condition to true", func() {
 			gw := &gatewayapi.Gateway{}
 			Eventually(func() bool {
 				if err := tconfig.ControlPlaneClient().Get(ctx, types.NamespacedName{Name: gwname, Namespace: tconfig.TenantNamespace()}, gw); err != nil {
@@ -180,8 +181,11 @@ var _ = Describe("Gateway single target cluster", func() {
 			}, 600*time.Second, 5*time.Second).Should(BeTrue())
 		})
 
-		It("makes available a hostname that resolves to the dataplate Gateway", func() {
-			// TODO
+		It("makes available a hostname that can be resolved", func() {
+			Eventually(func() bool {
+				IPs, err := net.LookupIP(string(hostname))
+				return err == nil && len(IPs) > 0
+			}, 600*time.Second, 5*time.Second).Should(BeTrue())
 		})
 
 		It("makes available a hostname that is reachable by https", func() {
