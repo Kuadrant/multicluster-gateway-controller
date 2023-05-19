@@ -114,7 +114,7 @@ func (s *Service) GetDNSRecordsFor(ctx context.Context, trafficAccessor traffic.
 			return nil, nil
 		}
 
-		return s.GetDNSRecord(ctx, subdomain, managedZone)
+		return s.GetDNSRecord(ctx, subdomain, managedZone, trafficAccessor)
 	})
 }
 
