@@ -15,8 +15,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/metadata"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/slice"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1alpha1"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns/aws"
+
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/traffic"
 )
 
@@ -40,10 +41,12 @@ type Service struct {
 	defaultCtrlNS string
 
 	hostResolver HostResolver
+
+	provider Provider
 }
 
-func NewService(controlClient client.Client, hostResolv HostResolver, defaultCtrlNS string) *Service {
-	return &Service{controlClient: controlClient, defaultCtrlNS: defaultCtrlNS, hostResolver: hostResolv}
+func NewService(controlClient client.Client, hostResolv HostResolver, provider Provider, defaultCtrlNS string) *Service {
+	return &Service{controlClient: controlClient, defaultCtrlNS: defaultCtrlNS, provider: provider, hostResolver: hostResolv}
 }
 
 func (s *Service) resolveIPS(ctx context.Context, t traffic.Interface) ([]string, error) {
@@ -95,6 +98,22 @@ func (s *Service) GetDNSRecords(ctx context.Context, traffic traffic.Interface) 
 		records = append(records, record)
 	}
 	return records, nil
+}
+
+func (s *Service) GetDNSRecordsFor(ctx context.Context, trafficAccessor traffic.Interface) ([]*v1alpha1.DNSRecord, error) {
+	allHosts := trafficAccessor.GetHosts()
+
+	return slice.MapErr(allHosts, func(host string) (*v1alpha1.DNSRecord, error) {
+		managedZone, subdomain, err := s.GetManagedZoneForHost(ctx, host, trafficAccessor)
+		if err != nil {
+			return nil, err
+		}
+		if managedZone == nil {
+			return nil, nil
+		}
+
+		return s.GetDNSRecord(ctx, subdomain, managedZone)
+	})
 }
 
 // AddEndPoints adds endpoints to the DNSRecord for hosts in the traffic object.
@@ -149,7 +168,7 @@ func (s *Service) AddEndPoints(ctx context.Context, traffic traffic.Interface, e
 			totalIPs += len(e.Targets)
 		}
 		for _, e := range r.Spec.Endpoints {
-			e.SetProviderSpecific(aws.ProviderSpecificWeight, awsEndpointWeight(totalIPs))
+			e.SetProviderSpecific(s.provider.ProviderSpecific().Weight, awsEndpointWeight(totalIPs))
 		}
 
 		return s.controlClient.Update(ctx, r, &client.UpdateOptions{})
@@ -351,7 +370,7 @@ func (s *Service) AddEndpoints(ctx context.Context, traffic traffic.Interface, d
 		totalIPs += len(e.Targets)
 	}
 	for _, e := range dnsRecord.Spec.Endpoints {
-		e.SetProviderSpecific(aws.ProviderSpecificWeight, awsEndpointWeight(totalIPs))
+		e.SetProviderSpecific(s.provider.ProviderSpecific().Weight, awsEndpointWeight(totalIPs))
 	}
 
 	return s.controlClient.Update(ctx, dnsRecord, &client.UpdateOptions{})

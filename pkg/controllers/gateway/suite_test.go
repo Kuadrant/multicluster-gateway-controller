@@ -122,8 +122,10 @@ var _ = BeforeSuite(func() {
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 
+	dnsProvider := &dns.FakeProvider{}
+
 	certificates := tls.NewService(k8sManager.GetClient(), "default", "glbc-ca")
-	dns := dns.NewService(k8sManager.GetClient(), dns.NewSafeHostResolver(dns.NewDefaultHostResolver()), "default")
+	dns := dns.NewService(k8sManager.GetClient(), dns.NewSafeHostResolver(dns.NewDefaultHostResolver()), dnsProvider, "default")
 	err = (&GatewayReconciler{
 		Client:       k8sManager.GetClient(),
 		Scheme:       k8sManager.GetScheme(),

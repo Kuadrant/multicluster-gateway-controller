@@ -29,7 +29,7 @@ type DNSPolicySpec struct {
 	TargetRef gatewayapiv1alpha2.PolicyTargetReference `json:"targetRef"`
 
 	// +optional
-	HealthCheck HealthCheckSpec `json:"healthCheck,omitempty"`
+	HealthCheck *HealthCheckSpec `json:"healthCheck,omitempty"`
 }
 
 // DNSPolicyStatus defines the observed state of DNSPolicy
@@ -47,6 +47,8 @@ type DNSPolicyStatus struct {
 	// recorded in the status condition
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
+	HealthCheck *HealthCheckStatus `json:"healthCheck,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -79,6 +81,10 @@ type HealthCheckSpec struct {
 	Port             *int            `json:"port,omitempty"`
 	Protocol         *HealthProtocol `json:"protocol,omitempty"`
 	FailureThreshold *int            `json:"failureThreshold,omitempty"`
+}
+
+type HealthCheckStatus struct {
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 type DNSRecordRef struct {

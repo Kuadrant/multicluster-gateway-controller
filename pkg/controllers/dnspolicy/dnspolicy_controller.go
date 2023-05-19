@@ -20,9 +20,13 @@ import (
 	"context"
 
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/gateway"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns"
+	"k8s.io/apimachinery/pkg/api/equality"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 const (
@@ -32,6 +36,9 @@ const (
 // DNSPolicyReconciler reconciles a DNSPolicy object
 type DNSPolicyReconciler struct {
 	Client client.Client
+
+	DNSProvider dns.Provider
+	HostService gateway.HostService
 }
 
 //+kubebuilder:rbac:groups=kuadrant.io,resources=dnspolicies,verbs=get;list;watch;create;update;patch;delete
@@ -51,9 +58,16 @@ func (r *DNSPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	dnsPolicy := previous.DeepCopy()
-	log.V(3).Info("DNSPolicyReconciler Reconcile", "dnsPolicy", dnsPolicy, "dnsRecord", dnsPolicy)
+	log.V(3).Info("DNSPolicyReconciler Reconcile", "dnsPolicy", dnsPolicy)
 
-	// TODO: Reconciliation logic
+	if err := r.ReconcileHealthChecks(ctx, log, dnsPolicy); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	if !equality.Semantic.DeepEqual(previous.Status, dnsPolicy.Status) {
+		err := r.Client.Status().Update(ctx, dnsPolicy)
+		return ctrl.Result{}, err
+	}
 
 	return ctrl.Result{}, nil
 }
@@ -61,5 +75,11 @@ func (r *DNSPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 func (r *DNSPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.DNSPolicy{}).
+		Watches(&source.Kind{
+			Type: &v1alpha1.DNSRecord{},
+		}, &DNSRecordEventHandler{
+			client:      r.Client,
+			hostService: r.HostService,
+		}).
 		Complete(r)
 }

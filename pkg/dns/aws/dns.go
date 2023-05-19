@@ -33,6 +33,7 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns"
 )
 
 const (
@@ -50,13 +51,11 @@ const (
 type Route53DNSProvider struct {
 	client *InstrumentedRoute53
 	logger logr.Logger
+
+	healthCheckReconciler dns.HealthCheckReconciler
 }
 
-type ManagedZoneOutput struct {
-	ID          string
-	NameServers []*string
-	RecordCount int64
-}
+var _ dns.Provider = &Route53DNSProvider{}
 
 // NewDNSProvider returns a Route53DNSProvider instance configured for the AWS Route 53 service using the credentials provided
 func NewDNSProvider(route53Config v1alpha1.DNSProviderConfigRoute53) (*Route53DNSProvider, error) {
@@ -107,7 +106,7 @@ func (p *Route53DNSProvider) Delete(record *v1alpha1.DNSRecord, managedZone *v1a
 	return p.change(record, managedZone, deleteAction)
 }
 
-func (p *Route53DNSProvider) EnsureManagedZone(zone *v1alpha1.ManagedZone) (ManagedZoneOutput, error) {
+func (p *Route53DNSProvider) EnsureManagedZone(zone *v1alpha1.ManagedZone) (dns.ManagedZoneOutput, error) {
 	var zoneID string
 	if zone.Spec.ID != "" {
 		zoneID = zone.Spec.ID
@@ -115,7 +114,7 @@ func (p *Route53DNSProvider) EnsureManagedZone(zone *v1alpha1.ManagedZone) (Mana
 		zoneID = zone.Status.ID
 	}
 
-	var managedZoneOutput ManagedZoneOutput
+	var managedZoneOutput dns.ManagedZoneOutput
 
 	if zoneID != "" {
 		getResp, err := p.client.GetHostedZone(&route53.GetHostedZoneInput{
@@ -173,6 +172,24 @@ func (p *Route53DNSProvider) DeleteManagedZone(zone *v1alpha1.ManagedZone) error
 		return err
 	}
 	return nil
+}
+
+func (p *Route53DNSProvider) HealthCheckReconciler() dns.HealthCheckReconciler {
+	if p.healthCheckReconciler == nil {
+		p.healthCheckReconciler = dns.NewCachedHealthCheckReconciler(
+			p,
+			NewRoute53HealthCheckReconciler(p.client.route53),
+		)
+	}
+
+	return p.healthCheckReconciler
+}
+
+func (*Route53DNSProvider) ProviderSpecific() dns.ProviderSpecificLabels {
+	return dns.ProviderSpecificLabels{
+		Weight:        ProviderSpecificWeight,
+		HealthCheckID: ProviderSpecificHealthCheckID,
+	}
 }
 
 func (p *Route53DNSProvider) change(record *v1alpha1.DNSRecord, managedZone *v1alpha1.ManagedZone, action action) error {

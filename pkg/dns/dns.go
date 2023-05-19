@@ -18,7 +18,6 @@ package dns
 
 import (
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1alpha1"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns/aws"
 )
 
 // Provider knows how to manage DNS zones only as pertains to routing.
@@ -30,23 +29,48 @@ type Provider interface {
 	Delete(record *v1alpha1.DNSRecord, managedZone *v1alpha1.ManagedZone) error
 
 	// Ensure will create or update a managed zone, returns an array of NameServers for that zone.
-	EnsureManagedZone(managedZone *v1alpha1.ManagedZone) (aws.ManagedZoneOutput, error)
+	EnsureManagedZone(managedZone *v1alpha1.ManagedZone) (ManagedZoneOutput, error)
 
 	// Delete will delete a managed zone.
 	DeleteManagedZone(managedZone *v1alpha1.ManagedZone) error
+
+	// Get an instance of HealthCheckReconciler for this provider
+	HealthCheckReconciler() HealthCheckReconciler
+
+	ProviderSpecific() ProviderSpecificLabels
+}
+
+type ProviderSpecificLabels struct {
+	Weight        string
+	HealthCheckID string
+}
+
+type ManagedZoneOutput struct {
+	ID          string
+	NameServers []*string
+	RecordCount int64
 }
 
 var _ Provider = &FakeProvider{}
 
 type FakeProvider struct{}
 
-func (_ *FakeProvider) Ensure(dnsRecord *v1alpha1.DNSRecord, managedZone *v1alpha1.ManagedZone) error {
+func (*FakeProvider) Ensure(dnsRecord *v1alpha1.DNSRecord, managedZone *v1alpha1.ManagedZone) error {
 	return nil
 }
-func (_ *FakeProvider) Delete(dnsRecord *v1alpha1.DNSRecord, managedZone *v1alpha1.ManagedZone) error {
+func (*FakeProvider) Delete(dnsRecord *v1alpha1.DNSRecord, managedZone *v1alpha1.ManagedZone) error {
 	return nil
 }
-func (_ *FakeProvider) EnsureManagedZone(managedZone *v1alpha1.ManagedZone) (aws.ManagedZoneOutput, error) {
-	return aws.ManagedZoneOutput{}, nil
+func (*FakeProvider) EnsureManagedZone(managedZone *v1alpha1.ManagedZone) (ManagedZoneOutput, error) {
+	return ManagedZoneOutput{}, nil
 }
-func (_ *FakeProvider) DeleteManagedZone(managedZone *v1alpha1.ManagedZone) error { return nil }
+func (*FakeProvider) DeleteManagedZone(managedZone *v1alpha1.ManagedZone) error { return nil }
+func (*FakeProvider) HealthCheckReconciler() HealthCheckReconciler {
+	return &FakeHealthCheckReconciler{}
+}
+func (*FakeProvider) ProviderSpecific() ProviderSpecificLabels {
+	return ProviderSpecificLabels{
+		Weight:        "fake/weight",
+		HealthCheckID: "fake/health-check-id",
+	}
+}
