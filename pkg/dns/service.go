@@ -14,6 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/slice"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1alpha1"
 
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/traffic"
@@ -25,12 +26,6 @@ const (
 	labelGatewayReference          = "kuadrant.io/gateway-uid"
 	PATCH_ANNOTATION_PREFIX string = "MCTC_PATCH_"
 )
-
-type Patch struct {
-	OP    string      `json:"op"`
-	Path  string      `json:"path"`
-	Value interface{} `json:"value"`
-}
 
 var ErrAlreadyAssigned = fmt.Errorf("managed host already assigned")
 

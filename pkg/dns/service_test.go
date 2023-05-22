@@ -98,9 +98,9 @@ func TestDNS_GetDNSRecords(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
-
+			fp := &dns.FakeProvider{}
 			f := fake.NewClientBuilder().WithScheme(scheme).WithObjects(tc.DNSRecord).Build()
-			s := dns.NewService(f, tc.Resolver())
+			s := dns.NewService(f, tc.Resolver(), fp)
 			record, err := s.GetDNSRecord(context.TODO(), tc.SubDomain, tc.MZ())
 			tc.Assert(t, record, err)
 		})

@@ -21,10 +21,8 @@ import (
 	"fmt"
 	"strings"
 
-	jsonpatch "github.com/evanphx/json-patch/v5"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/json"
 	"k8s.io/utils/clock"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -32,7 +30,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/conditions"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/metadata"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns"
 )
@@ -91,10 +88,6 @@ func (r *DNSRecordReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			return ctrl.Result{}, err
 		}
 	}
-	err = r.applyPatches(dnsRecord)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
 
 	var reason, message string
 	status := metav1.ConditionTrue
@@ -124,65 +117,6 @@ func (r *DNSRecordReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	return ctrl.Result{}, nil
-}
-
-func (r *DNSRecordReconciler) applyPatches(dnsRecord *v1alpha1.DNSRecord) error {
-	//get patches
-	patchStrings := metadata.GetAnnotationsByPrefix(dnsRecord, dns.PATCH_ANNOTATION_PREFIX)
-
-	//no patches to apply
-	if len(patchStrings) <= 0 {
-		log.Log.V(3).Info("no dns record patches found", "dns record", dnsRecord.Name)
-		return nil
-	}
-
-	patches := []jsonpatch.Patch{}
-	for _, patchString := range patchStrings {
-		patch, err := jsonpatch.DecodePatch([]byte(patchString))
-		if err != nil {
-			return err
-		}
-		patches = append(patches, patch)
-	}
-
-	//we have patches to apply, so first reset the spec endpoints
-	dnsRecord.Spec.Endpoints = []*v1alpha1.Endpoint{
-		{
-			DNSName: dnsRecord.Name,
-			Targets: []string{
-				"dummy",
-				/*
-					dummy is required for json patching silliness:
-						omitempty makes the array not exist unless there's a value in it.
-						jsonpatch will only add an element to the array if the array exists.
-				*/
-			},
-			RecordType: "A",
-			RecordTTL:  60,
-		},
-	}
-
-	//apply the patches
-	dnsRecordBytes, err := json.Marshal(dnsRecord)
-	if err != nil {
-		return err
-	}
-
-	for _, patch := range patches {
-		dnsRecordBytes, err = patch.Apply(dnsRecordBytes)
-		if err != nil {
-			return err
-		}
-	}
-
-	err = json.Unmarshal(dnsRecordBytes, dnsRecord)
-	if err != nil {
-		return err
-	}
-	//remove the dummy, see above comment on why the dummy is required
-	dnsRecord.Spec.Endpoints[0].Targets = dnsRecord.Spec.Endpoints[0].Targets[1:]
-
-	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
