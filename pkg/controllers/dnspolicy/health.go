@@ -53,6 +53,7 @@ func (r *DNSPolicyReconciler) ReconcileHealthChecks(ctx context.Context, log log
 				return err
 			}
 		} else {
+			log.Info("reconciling health checks")
 			results, err = r.reconcileHealthChecks(ctx, log, dnsRecord, policy, config)
 			if err != nil {
 				return err
@@ -66,7 +67,9 @@ func (r *DNSPolicyReconciler) ReconcileHealthChecks(ctx context.Context, log log
 		}
 	}
 
-	return r.reconcileHealthCheckStatus(allResults, policy)
+	result := r.reconcileHealthCheckStatus(allResults, policy)
+	log.Info("reconciling health check status", "result", result, "policy status", policy.Status)
+	return result
 }
 
 func (r *DNSPolicyReconciler) reconcileHealthChecks(ctx context.Context, log logr.Logger, dnsRecord *v1alpha1.DNSRecord, policy *v1alpha1.DNSPolicy, config *healthChecksConfig) ([]dns.HealthCheckResult, error) {
@@ -75,9 +78,9 @@ func (r *DNSPolicyReconciler) reconcileHealthChecks(ctx context.Context, log log
 	results := []dns.HealthCheckResult{}
 
 	for _, dnsEndpoint := range dnsRecord.Spec.Endpoints {
-		ok := false
-		if _, ok = dnsEndpoint.GetAddress(); !ok {
-			// TODO: Log
+		log.Info("reconciling DNS Record health checks", "endpoint", dnsEndpoint)
+		if a, ok := dnsEndpoint.GetAddress(); !ok {
+			log.Info("address not ok", "address", a)
 			continue
 		}
 
@@ -103,6 +106,7 @@ func (r *DNSPolicyReconciler) reconcileHealthChecks(ctx context.Context, log log
 		results = append(results, result)
 	}
 
+	log.Info("returning health checks", "count", len(results))
 	return results, nil
 }
 
@@ -112,9 +116,8 @@ func (r *DNSPolicyReconciler) reconcileHealthCheckStatus(results []dns.HealthChe
 			continue
 		}
 
-		if policy.Status.HealthCheck == nil {
-			policy.Status.HealthCheck = &v1alpha1.HealthCheckStatus{}
-		}
+		//reset health check status
+		policy.Status.HealthCheck = &v1alpha1.HealthCheckStatus{}
 
 		status := metav1.ConditionTrue
 		if result.Result == dns.HealthCheckFailed {
