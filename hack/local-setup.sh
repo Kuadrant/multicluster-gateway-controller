@@ -175,6 +175,9 @@ deployDashboard() {
 
   kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.7.0/aio/deploy/recommended.yaml
   ${KUSTOMIZE_BIN} build config/dashboard | kubectl apply -f -
+
+  kubectl wait --timeout=-30s --for=condition=Available deployment kubernetes-dashboard -n kubernetes-dashboard
+
   token=$(kubectl get secret/admin-user-token -n kubernetes-dashboard -o go-template="{{.data.token | base64decode}}")
 
   port=$((proxyPort + portOffset))
