@@ -16,6 +16,8 @@ import (
 )
 
 func TestClusterEventHandler(t *testing.T) {
+	testHostName := gatewayv1beta1.Hostname("test.listener.com")
+	testNS := gatewayv1beta1.Namespace("test-ns")
 	cases := []struct {
 		name string
 
@@ -34,6 +36,22 @@ func TestClusterEventHandler(t *testing.T) {
 							GatewayClusterLabelSelectorAnnotation: "type=test",
 						},
 					},
+					Spec: gatewayv1beta1.GatewaySpec{
+						Listeners: []gatewayv1beta1.Listener{
+							{
+								Hostname: &testHostName,
+								Protocol: gatewayv1beta1.HTTPSProtocolType,
+								TLS: &gatewayv1beta1.GatewayTLSConfig{
+									CertificateRefs: []gatewayv1beta1.SecretObjectReference{
+										{
+											Name:      gatewayv1beta1.ObjectName("test.listener.com"),
+											Namespace: &testNS,
+										},
+									},
+								},
+							},
+						},
+					},
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{
@@ -50,7 +68,7 @@ func TestClusterEventHandler(t *testing.T) {
 					Labels: map[string]string{
 						clusterSecret.CLUSTER_SECRET_LABEL: clusterSecret.CLUSTER_SECRET_LABEL_VALUE,
 					},
-					Name:      "cluster",
+					Name:      "test.listener.com",
 					Namespace: "test-ns",
 				},
 				Data: map[string][]byte{

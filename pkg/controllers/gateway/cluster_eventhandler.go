@@ -67,7 +67,7 @@ func (eh *ClusterEventHandler) enqueueForObject(obj v1.Object, q workqueue.RateL
 func (eh *ClusterEventHandler) getGatewaysFor(secret *corev1.Secret) ([]gatewayv1beta1.Gateway, error) {
 
 	gateways := &gatewayv1beta1.GatewayList{}
-	if err := eh.client.List(context.TODO(), gateways); err != nil {
+	if err := eh.client.List(context.TODO(), gateways, &client.ListOptions{Namespace: secret.Namespace}); err != nil {
 		return nil, err
 	}
 
@@ -78,7 +78,7 @@ func (eh *ClusterEventHandler) getGatewaysFor(secret *corev1.Secret) ([]gatewayv
 			}
 
 			for _, ts := range l.TLS.CertificateRefs {
-				if ts.Name == gatewayv1beta1.ObjectName(secret.Name) && ts.Namespace == (*gatewayv1beta1.Namespace)(&secret.Namespace) {
+				if ts.Name == gatewayv1beta1.ObjectName(secret.Name) && *ts.Namespace == gatewayv1beta1.Namespace(secret.Namespace) {
 					return true
 				}
 			}
