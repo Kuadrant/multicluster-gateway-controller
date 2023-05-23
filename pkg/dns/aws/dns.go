@@ -32,6 +32,7 @@ import (
 
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns"
+	kerrors "k8s.io/apimachinery/pkg/util/errors"
 )
 
 const (
@@ -333,5 +334,10 @@ func (p *Route53DNSProvider) changeForEndpoint(endpoint *v1alpha1.Endpoint, acti
 // validateServiceEndpoints validates that provider clients can communicate with
 // associated API endpoints by having each client make a list/describe/get call.
 func validateServiceEndpoints(provider *Route53DNSProvider) error {
-	return nil
+	var errs []error
+	zoneInput := route53.ListHostedZonesInput{MaxItems: aws.String("1")}
+	if _, err := provider.client.ListHostedZones(&zoneInput); err != nil {
+		errs = append(errs, fmt.Errorf("failed to list route53 hosted zones: %v", err))
+	}
+	return kerrors.NewAggregate(errs)
 }
