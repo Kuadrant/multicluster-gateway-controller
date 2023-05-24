@@ -24,14 +24,11 @@ const (
 
 type Service struct {
 	controlClient client.Client
-	// this is temporary setting the tenant ns in the control plane.
-	// will be removed when we have auth that can map to a given ctrl plane ns
-	defaultCtrlNS string
 	defaultIssuer string
 }
 
-func NewService(controlClient client.Client, defaultCtrlNS, defaultIssuer string) *Service {
-	return &Service{controlClient: controlClient, defaultCtrlNS: defaultCtrlNS, defaultIssuer: defaultIssuer}
+func NewService(controlClient client.Client, defaultIssuer string) *Service {
+	return &Service{controlClient: controlClient, defaultIssuer: defaultIssuer}
 }
 
 func (s *Service) EnsureCertificate(ctx context.Context, host string, owner metav1.Object) error {

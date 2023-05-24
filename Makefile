@@ -71,7 +71,7 @@ test: manifests generate fmt vet envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -coverprofile cover.out
 
 .PHONY: local-setup
-local-setup: kind kustomize helm yq dev-tls istioctl ## Setup multi cluster traffic controller locally using kind.
+local-setup: kind kustomize helm yq dev-tls istioctl operator-sdk clusteradm  ## Setup multi cluster traffic controller locally using kind.
 	./hack/local-setup.sh
 
 .PHONY: local-cleanup
@@ -80,7 +80,7 @@ local-cleanup: kind ## Cleanup resources created by local-setup
 	$(MAKE) clean
 
 .PHONY: build
-build: build-controller build-syncer## Build all binaries.
+build: build-controller ## Build all binaries.
 
 ##@ Deployment
 ifndef ignore-not-found

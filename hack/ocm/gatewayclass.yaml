@@ -1,0 +1,6 @@
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: GatewayClass
+metadata:
+  name: kuadrant-multi-cluster-gateway-instance-per-cluster
+spec:
+  controllerName: "kuadrant.io/mctc-gw-controller"

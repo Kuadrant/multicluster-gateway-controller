@@ -38,7 +38,7 @@ const (
 )
 
 func getSupportedClasses() []string {
-	return []string{"mctc-gw-istio-external-instance-per-cluster"}
+	return []string{"kuadrant-multi-cluster-gateway-instance-per-cluster"}
 }
 
 // GatewayClassReconciler reconciles a GatewayClass object
@@ -65,14 +65,14 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	if gatewayClassIsAccepted(previous) {
-		log.Info("GatewayClass already Accepted")
+		log.V(3).Info("GatewayClass already Accepted", "class", previous.Name)
 		return ctrl.Result{}, nil
 	}
 
 	gatewayclass := previous.DeepCopy()
 	supportedClasses := getSupportedClasses()
 
-	_, err = getParams(ctx, r.Client, previous)
+	_, err = getParams(ctx, r.Client, previous.Name)
 
 	if !slice.ContainsString(supportedClasses, previous.Name) {
 		gatewayclass.Status = gatewayv1beta1.GatewayClassStatus{

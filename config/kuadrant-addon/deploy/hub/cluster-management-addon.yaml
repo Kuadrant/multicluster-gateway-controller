@@ -1,0 +1,10 @@
+apiVersion: addon.open-cluster-management.io/v1alpha1
+kind: ClusterManagementAddOn
+metadata:
+ name: kuadrant-addon
+spec:
+ addOnMeta:
+   displayName: kuadrant Addon
+   description: "kuadrant operator"
+
+   

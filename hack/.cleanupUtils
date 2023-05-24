@@ -19,7 +19,7 @@ stopProxies() {
   if [[ -f /tmp/dashboard_pids ]]; then
     echo "Stopping existing proxies"
     while read p; do
-      kill $p
+      kill $p || true
     done </tmp/dashboard_pids
     rm /tmp/dashboard_pids
   fi

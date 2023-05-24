@@ -181,7 +181,7 @@ var _ = Describe("RateLimitPolicyController", func() {
 		// Create a test GatewayClass for test Gateways to reference
 		gatewayclass = &gatewayv1beta1.GatewayClass{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "mctc-gw-istio-external-instance-per-cluster",
+				Name:      "kuadrant-multi-cluster-gateway-instance-per-cluster",
 				Namespace: "default",
 			},
 			Spec: gatewayv1beta1.GatewayClassSpec{
@@ -262,7 +262,7 @@ var _ = Describe("RateLimitPolicyController", func() {
 				},
 			},
 			Spec: gatewayv1beta1.GatewaySpec{
-				GatewayClassName: "mctc-gw-istio-external-instance-per-cluster",
+				GatewayClassName: "kuadrant-multi-cluster-gateway-instance-per-cluster",
 				Listeners: []gatewayv1beta1.Listener{
 					{
 						Name:     "default",
@@ -321,7 +321,7 @@ var _ = Describe("RateLimitPolicyController", func() {
 					},
 				},
 				Spec: gatewayv1beta1.GatewaySpec{
-					GatewayClassName: "mctc-gw-istio-external-instance-per-cluster",
+					GatewayClassName: "kuadrant-multi-cluster-gateway-instance-per-cluster",
 					Listeners: []gatewayv1beta1.Listener{
 						{
 							Name:     "default",
@@ -417,7 +417,7 @@ var _ = Describe("RateLimitPolicyController", func() {
 					},
 				},
 				Spec: gatewayv1beta1.GatewaySpec{
-					GatewayClassName: "mctc-gw-istio-external-instance-per-cluster",
+					GatewayClassName: "kuadrant-multi-cluster-gateway-instance-per-cluster",
 					Listeners: []gatewayv1beta1.Listener{
 						{
 							Name:     "default",

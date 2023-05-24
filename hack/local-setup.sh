@@ -47,7 +47,7 @@ deployIngressController () {
   echo "Deploying Ingress controller to ${clusterName}"
   ${KUSTOMIZE_BIN} build ${INGRESS_NGINX_KUSTOMIZATION_DIR} --enable-helm --helm-command ${HELM_BIN} | kubectl apply -f -
   echo "Waiting for deployments to be ready ..."
-  kubectl -n ingress-nginx wait --timeout=300s --for=condition=Available deployments --all
+  kubectl -n ingress-nginx wait --timeout=600s --for=condition=Available deployments --all
 }
 
 deployMetalLB () {
@@ -144,6 +144,15 @@ installGatewayAPI() {
   ${KUSTOMIZE_BIN} build ${GATEWAY_API_KUSTOMIZATION_DIR} | kubectl apply -f -
 }
 
+deployOLM(){
+  clusterName=${1}
+  
+  kubectl config use-context kind-${clusterName}
+  echo "Installing OLM in ${clusterName}"
+  
+  ${OPERATOR_SDK_BIN} olm install --timeout 6m0s
+}
+
 deployKuadrant(){
   clusterName=${1}
 
@@ -211,6 +220,56 @@ deployAgentSecret() {
   kubectl apply -f -
 }
 
+deployOCMHub(){
+  clusterName=${1}
+  echo "installing the hub cluster in kind-(${clusterName}) "
+
+  ${CLUSTERADM_BIN} init --wait --context kind-${clusterName}
+  echo "checking if cluster is single or multi"
+  if [[ -n "${OCM_SINGLE}" ]]; then
+    clusterName=kind-${KIND_CLUSTER_CONTROL_PLANE}
+    echo "Found single cluster installing hub and spoke on the one cluster (${clusterName})"
+    join=$(${CLUSTERADM_BIN} get token --context ${clusterName} |  grep -o  'clusteradm.*--cluster-name')
+    ${BIN_DIR}/${join} ${clusterName} --force-internal-endpoint-lookup --context ${clusterName} | grep clusteradm
+    echo "accepting OCM spoke cluster invite"
+  
+    max_retry=18
+    counter=0
+    until ${CLUSTERADM_BIN} accept --clusters ${clusterName}
+    do
+      sleep 10
+      [[ counter -eq $max_retry ]] && echo "Failed!" && exit 1
+      echo "Trying again. Try #$counter"
+      ((counter++))
+    done
+    deployOLM ${KIND_CLUSTER_CONTROL_PLANE}
+    deployIstio ${KIND_CLUSTER_CONTROL_PLANE}
+  fi
+  
+}
+deployOCMSpoke(){
+  
+  clusterName=${1}
+  echo "joining the spoke cluster to the hub cluster kind-(${KIND_CLUSTER_CONTROL_PLANE}),"
+  kubectl config use-context kind-${KIND_CLUSTER_CONTROL_PLANE}
+  join=$(${CLUSTERADM_BIN} get token --context kind-${KIND_CLUSTER_CONTROL_PLANE} |  grep -o  'clusteradm.*--cluster-name')
+  kubectl config use-context kind-${clusterName}
+  ${BIN_DIR}/${join} kind-${clusterName} --force-internal-endpoint-lookup --context kind-${clusterName} | grep clusteradm
+  echo "accepting OCM spoke cluster invite"
+  kubectl config use-context kind-${KIND_CLUSTER_CONTROL_PLANE}
+  
+  max_retry=18
+  counter=0
+  until ${CLUSTERADM_BIN} accept --clusters kind-${clusterName}
+  do
+     sleep 10
+     [[ counter -eq $max_retry ]] && echo "Failed!" && exit 1
+     echo "Trying again. Try #$counter"
+     ((counter++))
+  done
+
+}
+
 initController() {
     clusterName=${1}
     kubectl config use-context kind-${clusterName}
@@ -260,6 +319,11 @@ argocdAddCluster ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_CONTROL_PLANE}
 #8. Initialize local dev setup for the controller on the control-plane cluster
 initController ${KIND_CLUSTER_CONTROL_PLANE}
 
+# 9. Deploy OCM hub
+deployOCMHub ${KIND_CLUSTER_CONTROL_PLANE}
+
+deployMetalLB ${KIND_CLUSTER_CONTROL_PLANE} ${metalLBSubnetStart}
+
 #9. Add workload clusters if MCTC_WORKLOAD_CLUSTERS_COUNT environment variable is set
 if [[ -n "${MCTC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
   for ((i = 1; i <= ${MCTC_WORKLOAD_CLUSTERS_COUNT}; i++)); do
@@ -267,19 +331,20 @@ if [[ -n "${MCTC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
     deployIstio ${KIND_CLUSTER_WORKLOAD}-${i}
     installGatewayAPI ${KIND_CLUSTER_WORKLOAD}-${i}
     deployIngressController ${KIND_CLUSTER_WORKLOAD}-${i}
-    deployMetalLB ${KIND_CLUSTER_WORKLOAD}-${i} $((${metalLBSubnetStart} + ${i} - 1))
-    deployKuadrant ${KIND_CLUSTER_WORKLOAD}-${i}
+    deployMetalLB ${KIND_CLUSTER_WORKLOAD}-${i} $((${metalLBSubnetStart} + ${i}))
+    deployOLM ${KIND_CLUSTER_WORKLOAD}-${i}
     deployDashboard ${KIND_CLUSTER_WORKLOAD}-${i} ${i}
     argocdAddCluster ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_WORKLOAD}-${i}
     deployAgentSecret ${KIND_CLUSTER_WORKLOAD}-${i} "true"
     deployAgentSecret ${KIND_CLUSTER_WORKLOAD}-${i} "false"
+    deployOCMSpoke ${KIND_CLUSTER_WORKLOAD}-${i}
   done
 fi
 
-#10. Ensure the current context points to the control plane cluster
+# 10. Ensure the current context points to the control plane cluster
 kubectl config use-context kind-${KIND_CLUSTER_CONTROL_PLANE}
 
  # Create configmap with gateway parameters for clusters
 kubectl create configmap gateway-params \
   --from-file=params=config/samples/gatewayclass_params.json \
-  -n multi-cluster-traffic-controller-system
+  -n multi-cluster-gateways

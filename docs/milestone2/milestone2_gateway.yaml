@@ -5,7 +5,7 @@ metadata:
   annotations:
     kuadrant.io/gateway-cluster-label-selector: type=test
 spec:
-  gatewayClassName: mctc-gw-istio-external-instance-per-cluster
+  gatewayClassName: kuadrant-multi-cluster-gateway-instance-per-cluster
   listeners:
   - name: default
     port: 443

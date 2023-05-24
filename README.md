@@ -21,6 +21,7 @@ When deploying the multicluster gateway controller using the make targets, the f
 * openssl>=3
     * On macos a later version is available with `brew install openssl`. You'll need to update your PATH as macos provides an older version via libressl as well
     * On fedora use `dnf install openssl`
+* go >= 1.20
 
 ### 1. Running the controller in the cluster:
 1. Create env files:
@@ -44,7 +45,7 @@ When deploying the multicluster gateway controller using the make targets, the f
 
 1. (Optional) View the logs of the deployed controller
     ```sh
-    kubectl logs -f $(kubectl get pods -n multi-cluster-traffic-controller-system | grep "mctc-" | awk '{print $1}') -n multi-cluster-traffic-controller-system
+    kubectl logs -f $(kubectl get pods -n multi-cluster-gateways | grep "mctc-" | awk '{print $1}') -n multi-cluster-gateways
     ```
 
 ## 2. Running the controller locally:

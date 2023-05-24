@@ -29,6 +29,10 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o ag
 FROM builder as syncer_builder
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o syncer cmd/syncer/main.go
 
+FROM builder as ocm_builder
+RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o ocm cmd/ocm/main.go
+
+
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
 FROM gcr.io/distroless/static:nonroot as controller
@@ -49,9 +53,9 @@ ENTRYPOINT ["/agent"]
 
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
-FROM gcr.io/distroless/static:nonroot as syncer
+FROM gcr.io/distroless/static:nonroot as ocm
 WORKDIR /
-COPY --from=syncer_builder /workspace/syncer .
+COPY --from=ocm_builder /workspace/ocm .
 USER 65532:65532
 
-ENTRYPOINT ["/syncer"]
+ENTRYPOINT ["/ocm"]

@@ -20,27 +20,31 @@ import (
 	"context"
 	"fmt"
 	"reflect"
-	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/client-go/tools/cache"
+	clusterv1beta2 "open-cluster-management.io/api/cluster/v1beta1"
+	workv1 "open-cluster-management.io/api/work/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/conditions"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/metadata"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/slice"
-	syncutils "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/sync"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1alpha1"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/traffic"
 	kuadrantapi "github.com/kuadrant/kuadrant-operator/api/v1beta1"
 )
@@ -49,15 +53,18 @@ const (
 	ClusterSyncerAnnotation               = "clustersync.kuadrant.io"
 	GatewayClusterLabelSelectorAnnotation = "kuadrant.io/gateway-cluster-label-selector"
 	GatewayFinalizer                      = "kuadrant.io/gateway"
+	ManagedLabel                          = "kuadarant.io/managed"
 )
 
 type HostService interface {
 	CreateDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone, owner traffic.Interface) (*v1alpha1.DNSRecord, error)
 	GetDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone, owner traffic.Interface) (*v1alpha1.DNSRecord, error)
 	GetManagedZoneForHost(ctx context.Context, domain string, t traffic.Interface) (*v1alpha1.ManagedZone, string, error)
-	AddEndpoints(ctx context.Context, t traffic.Interface, dnsRecord *v1alpha1.DNSRecord) error
-	CleanupDNSRecords(ctx context.Context, owner traffic.Interface) error
+	SetEndpoints(ctx context.Context, endpoints []gatewayv1beta1.GatewayAddress, dnsRecord *v1alpha1.DNSRecord) error
 	GetDNSRecordsFor(ctx context.Context, t traffic.Interface) ([]*v1alpha1.DNSRecord, error)
+	CleanupDNSRecords(ctx context.Context, owner traffic.Interface) error
+	// GetManagedHosts will return the list of hosts in this gateways listeners that are associated with a managedzone managed by this controller
+	GetManagedHosts(ctx context.Context, traffic traffic.Interface) ([]v1alpha1.ManagedHost, error)
 }
 
 type CertificateService interface {
@@ -66,11 +73,27 @@ type CertificateService interface {
 	CleanupCertificates(ctx context.Context, owner traffic.Interface) error
 }
 
-type GatewayHelper interface {
-	GetGatewayStatuses(ctx context.Context) []gatewayv1beta1.GatewayStatus
-	GetListenerByHost(host string) *gatewayv1beta1.Listener
-	GetListenerStatusesByListenerName(ctx context.Context, listenerName string) []gatewayv1beta1.ListenerStatus
+type GatewayPlacer interface {
+	//Place will use the placement logic to create the needed resources and ensure the objects are synced to the targeted clusters
+	// it will return the set of clusters it has targeted
+	Place(ctx context.Context, upstream *gatewayv1beta1.Gateway, downstream *gatewayv1beta1.Gateway, children ...metav1.Object) (sets.Set[string], error)
+	// gets the clusters the gateway has actually been placed on
+	GetPlacedClusters(ctx context.Context, gateway *gatewayv1beta1.Gateway) (sets.Set[string], error)
+	//GetClusters returns the clusters decided on by the placement logic
+	GetClusters(ctx context.Context, gateway *gatewayv1beta1.Gateway) (sets.Set[string], error)
+	// ListenerTotalAttachedRoutes returns the total attached routes for a listener from the downstream gateways
+	ListenerTotalAttachedRoutes(ctx context.Context, gateway *gatewayv1beta1.Gateway, listenerName string, downstream string) (int, error)
+	// GetAddresses will look at the downstream view of the gateway and return the LB addresses used for these gateways
+	GetAddresses(ctx context.Context, gateway *gatewayv1beta1.Gateway, downstream string) ([]gatewayv1beta1.GatewayAddress, error)
 }
+
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways/finalizers,verbs=update
+// +kubebuilder:rbac:groups=work.open-cluster-management.io,resources=manifestworks,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=cluster.open-cluster-management.io,resources=placementdecisions,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
+// +kubebuilder:rbac:groups="cert-manager.io",resources=certificates,verbs=get;list;watch;create;update;patch;delete
 
 // GatewayReconciler reconciles a Gateway object
 type GatewayReconciler struct {
@@ -78,48 +101,29 @@ type GatewayReconciler struct {
 	Scheme       *runtime.Scheme
 	Certificates CertificateService
 	Host         HostService
+	Placement    GatewayPlacer
 }
 
-type ManagedHost struct {
-	host        string
-	managedZone *v1alpha1.ManagedZone
-	dnsRecord   *v1alpha1.DNSRecord
+func isDeleting(g *gatewayv1beta1.Gateway) bool {
+	return g.GetDeletionTimestamp() != nil && !g.GetDeletionTimestamp().IsZero()
 }
-
-//+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways/finalizers,verbs=update
 
 func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
-
 	previous := &gatewayv1beta1.Gateway{}
 	err := r.Client.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: req.Name}, previous)
 	if err != nil {
 		if err := client.IgnoreNotFound(err); err != nil {
-			log.Error(err, "Unable to fetch Gateway")
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, nil
 	}
-
-	if previous.GetDeletionTimestamp() != nil && !previous.GetDeletionTimestamp().IsZero() {
-		log.Info("Deleting gateway", "gateway", previous.Name, "namespace", previous.Namespace)
-		//delete dnsRecord
-		err := r.Host.CleanupDNSRecords(ctx, traffic.NewGateway(previous))
-		if err != nil {
-			log.Error(err, "Error deleting DNS record")
-		}
-
-		// Cleanup certificates
-		err = r.Certificates.CleanupCertificates(ctx, traffic.NewGateway(previous))
-		if err != nil {
-			log.Error(err, "Error deleting certs")
-		}
-		controllerutil.RemoveFinalizer(previous, GatewayFinalizer)
-		err = r.Update(ctx, previous)
-		if err != nil {
-			return ctrl.Result{}, err
+	upstreamGateway := previous.DeepCopy()
+	log.V(3).Info("reconciling gateway", "classname", upstreamGateway.Spec.GatewayClassName)
+	if !controllerutil.ContainsFinalizer(upstreamGateway, GatewayFinalizer) && !isDeleting(upstreamGateway) {
+		controllerutil.AddFinalizer(upstreamGateway, GatewayFinalizer)
+		if err = r.Update(ctx, upstreamGateway); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to add finalizer to gateway : %s", err)
 		}
 		return ctrl.Result{}, nil
 
@@ -133,67 +137,49 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 	}
 
-	// Check if the class name is one of ours
-	// TODO: If the gateway class is a supported class, but the GatewayClass resource doesn't exist,
-	//       just create it anyways as we know we can support it.
-	//       Con: Use case for an admin to only allow certain supported GatewayClasses to be used?
-	gatewayClass := &gatewayv1beta1.GatewayClass{}
-	err = r.Client.Get(ctx, client.ObjectKey{Name: string(previous.Spec.GatewayClassName)}, gatewayClass)
-	if err != nil {
-		if err := client.IgnoreNotFound(err); err != nil {
-			log.Error(err, "Unable to fetch GatewayClass")
+	if isDeleting(upstreamGateway) {
+		log.Info("gateway being deleted ", "gateway", upstreamGateway.Name, "namespace", upstreamGateway.Namespace)
+		if _, _, _, err := r.reconcileDownstreamFromUpstreamGateway(ctx, upstreamGateway, nil); err != nil {
 			return ctrl.Result{}, err
 		}
-		// Ignore as class can't be retrieved
-		log.Info("GatewayClass not found", "gatewayclass", previous.Spec.GatewayClassName)
+		controllerutil.RemoveFinalizer(previous, GatewayFinalizer)
+		if err := r.Update(ctx, upstreamGateway); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to remove finalizer from gateway : %s", err)
+		}
 		return ctrl.Result{}, nil
 	}
 
-	params, err := getParams(ctx, r.Client, gatewayClass)
-
 	// If the GatewayClass parametrers are invalid, update the status
 	// and stop reconciling
+	params, err := getParams(ctx, r.Client, string(upstreamGateway.Spec.GatewayClassName))
 	if err != nil && IsInvalidParamsError(err) {
-		gateway := previous.DeepCopy()
-		conditions.SetCondition(gateway.Status.Conditions, previous.Generation, string(gatewayv1beta1.GatewayConditionProgrammed), metav1.ConditionFalse, string(gatewayv1beta1.GatewayReasonPending), fmt.Sprintf("Invalid parameters in gateway class: %s", err.Error()))
+		conditions.SetCondition(upstreamGateway.Status.Conditions, previous.Generation, string(gatewayv1beta1.GatewayConditionProgrammed), metav1.ConditionFalse, string(gatewayv1beta1.GatewayReasonPending), fmt.Sprintf("Invalid parameters in gateway class: %s", err.Error()))
 
-		if !reflect.DeepEqual(gateway, previous) {
-			err = r.Status().Update(ctx, gateway)
+		if !reflect.DeepEqual(upstreamGateway, previous) {
+			err = r.Status().Update(ctx, upstreamGateway)
 			if err != nil {
-				log.Error(err, "Error updating Gateway status")
 				return ctrl.Result{}, err
 			}
 		}
 
 		return ctrl.Result{}, nil
 	}
-
 	if err != nil && !IsInvalidParamsError(err) {
-		return ctrl.Result{}, err
+		return ctrl.Result{}, fmt.Errorf("gateway class err %s ", err)
+	}
+	requeue, programmedStatus, clusters, reconcileErr := r.reconcileDownstreamFromUpstreamGateway(ctx, upstreamGateway, params)
+	// gateway now in expected state, place gateway and its associated objects in correct places. Update gateway spec/metadata
+	if reconcileErr != nil {
+		log.Error(fmt.Errorf("gateway reconcile failed %s", reconcileErr), "gateway failed to reconcile", "gateway", upstreamGateway.Name)
+	}
+	if reconcileErr == nil && !reflect.DeepEqual(upstreamGateway, previous) {
+		return reconcile.Result{}, r.Update(ctx, upstreamGateway)
 	}
 
-	gateway := previous.DeepCopy()
-	acceptedStatus := metav1.ConditionTrue
-	programmedStatus, clusters, requeue, reconcileErr := r.reconcileGateway(ctx, *previous, gateway, params)
-
-	// Update gateway spec/metadata
-	if !reflect.DeepEqual(gateway, previous) {
-		log.Info("Updating Gateway Spec", "gatewaySpec", gateway.Spec, "previousSpec", previous.Spec)
-		log.Info("Updating Gateway ObjectMeta", "gatewayObjectMeta", gateway.ObjectMeta, "previousObjectMeta", previous.ObjectMeta)
-		err = r.Update(ctx, gateway)
-		if err != nil {
-			log.Error(err, "Error updating Gateway")
-		}
-	}
-
-	// Update status
-	gateway.Status.Conditions = buildStatusConditions(gateway.Status, previous.Generation, clusters, acceptedStatus, programmedStatus)
-	if !reflect.DeepEqual(gateway.Status, previous.Status) {
-		log.Info("Updating Gateway status", "gatewaystatus", gateway.Status, "previousstatus", previous.Status)
-		err = r.Status().Update(ctx, gateway)
-		if err != nil {
-			log.Error(err, "Error updating Gateway status")
-		}
+	upstreamGateway.Status.Conditions = buildAcceptedCondition(upstreamGateway.Status, upstreamGateway.Generation, metav1.ConditionTrue)
+	upstreamGateway.Status.Conditions = buildProgrammedStatus(upstreamGateway.Status, upstreamGateway.Generation, clusters, programmedStatus, err)
+	if !isDeleting(upstreamGateway) && !reflect.DeepEqual(upstreamGateway.Status, previous.Status) {
+		return reconcile.Result{}, r.Status().Update(ctx, upstreamGateway)
 	}
 
 	if requeue {
@@ -202,293 +188,332 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	return ctrl.Result{}, reconcileErr
 }
 
-// Configures Gateway tls & dns for each cluster it targets.
-// Returns the programmed status, a list of clusters that were programmed, if the gateway should be requeued, and any error
-func (r *GatewayReconciler) reconcileGateway(ctx context.Context, previous gatewayv1beta1.Gateway, gateway *gatewayv1beta1.Gateway, params *Params) (metav1.ConditionStatus, []string, bool, error) {
+// reconcileDownstreamGateway takes the upstream definition and transforms it as needed to apply it to the downstream spokes
+func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.Context, upstreamGateway *gatewayv1beta1.Gateway, params *Params) (bool, metav1.ConditionStatus, []string, error) {
 	log := log.FromContext(ctx)
+	clusters := []string{}
+	downstream := upstreamGateway.DeepCopy()
+	downstreamNS := fmt.Sprintf("%s-%s", "kuadrant", downstream.Namespace)
+	downstream.Status = gatewayv1beta1.GatewayStatus{}
 
-	clusters := selectClusters(*gateway)
-	// Don't do anything else until at least 1 cluster matches.
-	if len(clusters) == 0 {
-		// TODO: Handle any cleanup if there were previously clusters
-		return metav1.ConditionFalse, clusters, false, nil
+	// reset this for the sync as we don't want control plane level UID, creation etc etc
+	downstream.ObjectMeta = metav1.ObjectMeta{
+		Name:        upstreamGateway.Name,
+		Namespace:   downstreamNS,
+		Labels:      upstreamGateway.Labels,
+		Annotations: upstreamGateway.Annotations,
 	}
-	trafficAccessor := traffic.NewGateway(gateway)
-	gatewayHelper := trafficAccessor.(GatewayHelper)
-	allHosts := trafficAccessor.GetHosts()
-	managedHosts := []ManagedHost{}
-
-	if err := r.reconcileParams(ctx, gateway, params); err != nil {
-		return metav1.ConditionUnknown, clusters, false, err
+	if downstream.Labels == nil {
+		downstream.Labels = map[string]string{}
 	}
-
-	// Create a list of managed hosts.
-	// Find a suitable managed zone for each host, if one exists, ensure a DNSRecord exists for it.
-	for _, host := range allHosts {
-		log.V(2).Info("getting managed zone", "host", host)
-		managedZone, subDomain, err := r.Host.GetManagedZoneForHost(ctx, host, trafficAccessor)
+	downstream.Labels[ManagedLabel] = "true"
+	accessor := traffic.NewGateway(downstream)
+	if isDeleting(downstream) {
+		log.Info("deleting downstream gateways owned by upstream gateway ", "name", downstream.Name, "namespace", downstream.Namespace)
+		targets, err := r.Placement.Place(ctx, upstreamGateway, downstream)
 		if err != nil {
-			return metav1.ConditionUnknown, clusters, false, err
+			return false, metav1.ConditionFalse, clusters, err
 		}
-		if managedZone == nil {
-			log.Info("no managed zone available to use")
-			continue
-		}
-		// TODO: ownerRefs e.g.
-		// err = controllerutil.SetControllerReference(parentZone, nsRecord, r.Scheme)
-
-		// Get an existing DNSRecord or create a new one, but no endpoint yet.
-		// Endpoints created later when routes are attached.
-		dnsRecord, err := r.Host.GetDNSRecord(ctx, subDomain, managedZone, trafficAccessor)
-		if err != nil && !k8serrors.IsNotFound(err) {
-			return metav1.ConditionUnknown, clusters, false, err
-		}
-		if dnsRecord == nil {
-			dnsRecord, err = r.Host.CreateDNSRecord(ctx, subDomain, managedZone, trafficAccessor)
-			if err != nil {
-				log.Error(err, "failed to create DNSRecord", "subDomain", subDomain)
-				return metav1.ConditionUnknown, clusters, false, err
-			}
-			log.Info("DNSRecord created", "dnsRecord", dnsRecord)
+		if err := r.Host.CleanupDNSRecords(ctx, accessor); err != nil {
+			log.Error(err, "Error deleting DNS record")
+			return false, metav1.ConditionFalse, clusters, err
 		}
 
-		managedHost := ManagedHost{
-			host:        host,
-			managedZone: managedZone,
-			dnsRecord:   dnsRecord,
+		// Cleanup certificates
+		err = r.Certificates.CleanupCertificates(ctx, accessor)
+		if err != nil {
+			log.Error(err, "Error deleting certs")
+			return false, metav1.ConditionFalse, clusters, err
 		}
-
-		managedHosts = append(managedHosts, managedHost)
+		return false, metav1.ConditionTrue, targets.UnsortedList(), nil
 	}
 
-	// Generate certificates for managed hosts
-	for _, mh := range managedHosts {
+	upstreamAccessor := traffic.NewGateway(upstreamGateway)
+	managedHosts, err := r.Host.GetManagedHosts(ctx, upstreamAccessor)
+	if err != nil {
+		return false, metav1.ConditionFalse, clusters, err
+	}
+	// ensure tls is set up first before doing anything else. TLS is not affectd by placement changes
+	tlsSecrets, err := r.reconcileTLS(ctx, upstreamGateway, downstream, managedHosts)
+	if err != nil {
+		return true, metav1.ConditionFalse, clusters, err
+	}
+	log.Info("TLS reconciled for downstream gatway ", "gateway", downstream.Name, "namespace", downstream.Namespace)
 
+	// some of this should be pulled from gateway class params
+	if err := r.reconcileParams(ctx, downstream, params); err != nil {
+		return false, metav1.ConditionUnknown, clusters, err
+	}
+
+	// ensure the gatways are placed into the right target clusters and removed from any that are no longer targeted
+	targets, err := r.Placement.Place(ctx, upstreamGateway, downstream, tlsSecrets...)
+	if err != nil {
+		return true, metav1.ConditionFalse, clusters, err
+	}
+
+	log.Info("Gateway Placed ", "gateway", upstreamGateway.Name, "namespace", upstreamGateway.Namespace, "targets", targets.UnsortedList())
+	//get updatd list of clusters where this gateway has been successfully placed
+	placed, err := r.Placement.GetPlacedClusters(ctx, upstreamGateway)
+	if err != nil {
+		return false, metav1.ConditionUnknown, targets.UnsortedList(), err
+	}
+	//update the cluster set
+	clusters = placed.UnsortedList()
+	//update dns for listeners on the placed gateway
+	if err := r.reconcileDNSEndpoints(ctx, upstreamGateway, clusters, managedHosts); err != nil {
+		return true, metav1.ConditionFalse, clusters, err
+	}
+	log.Info("DNS Reconciled ", "gateway", upstreamGateway.Name, "namespace", upstreamGateway.Namespace)
+	if placed.Equal(targets) {
+		return false, metav1.ConditionTrue, clusters, nil
+	}
+	log.Info("Gateway Reconciled Successfully ", "gateway", upstreamGateway.Name, "namespace", upstreamGateway.Namespace)
+	return false, metav1.ConditionUnknown, clusters, nil
+}
+
+func (r *GatewayReconciler) reconcileTLS(ctx context.Context, upstreamGateway *gatewayv1beta1.Gateway, gateway *gatewayv1beta1.Gateway, managedHosts []v1alpha1.ManagedHost) ([]metav1.Object, error) {
+	log := log.FromContext(ctx)
+	tlsSecrets := []metav1.Object{}
+	accessor := traffic.NewGateway(gateway)
+
+	for _, mh := range managedHosts {
 		// Only generate cert for https listeners
-		listener := gatewayHelper.GetListenerByHost(mh.host)
-		if listener.Protocol != gatewayv1beta1.HTTPSProtocolType {
+		listener := getListenerByHost(gateway, mh.Host)
+		if listener == nil || listener.Protocol != gatewayv1beta1.HTTPSProtocolType {
 			continue
 		}
 
 		// create certificate resource for assigned host
-		if err := r.Certificates.EnsureCertificate(ctx, mh.host, gateway); err != nil && !k8serrors.IsAlreadyExists(err) {
-			log.Error(err, "Error ensuring certificate")
-			return metav1.ConditionUnknown, clusters, false, err
+		if err := r.Certificates.EnsureCertificate(ctx, mh.Host, upstreamGateway); err != nil && !k8serrors.IsAlreadyExists(err) {
+			return tlsSecrets, err
 		}
 
 		// Check if certificate secret is ready
-		secret, err := r.Certificates.GetCertificateSecret(ctx, mh.host, trafficAccessor.GetNamespace())
+		secret, err := r.Certificates.GetCertificateSecret(ctx, mh.Host, upstreamGateway.Namespace)
 		if err != nil && !k8serrors.IsNotFound(err) {
-			log.Error(err, "Error getting certificate secret")
-			return metav1.ConditionUnknown, clusters, false, err
+			return tlsSecrets, err
 		}
 		if err != nil {
-			log.Info("tls secret does not exist yet for host " + mh.host + " requeue")
-			return metav1.ConditionUnknown, clusters, true, err
+			log.V(3).Info("tls secret does not exist yet for host " + mh.Host + " requeue")
+			return tlsSecrets, nil
 		}
-		log.Info("certificate exists for host", "host", mh.host)
 
 		//sync secret to clusters
 		if secret != nil {
-			updatedSecret := secret.DeepCopy()
-			syncObjectToAllClusters(updatedSecret)
-			if !reflect.DeepEqual(updatedSecret, secret) {
-				log.Info("Updating Certificate secret annotations", "secret", secret.Name)
-				err = r.Update(ctx, updatedSecret)
-				if err != nil {
-					return metav1.ConditionUnknown, clusters, false, err
-				}
-			}
-			trafficAccessor.AddTLS(mh.host, secret)
-		}
-		// Secrets don't have a status, so we can't say for sure if it's synced OK. Optimism here.
-		log.Info("certificate secret in place for host. Adding dns endpoints", "host", mh.host)
-	}
-
-	// Add endpoints for attached routes
-	gatewayHasAttachedRoutes := false
-	for _, mh := range managedHosts {
-		// Only consider host for dns if there's at least 1 attached route to the listener for this host in *any* gateway
-		listener := gatewayHelper.GetListenerByHost(mh.host)
-		listenerStatuses := gatewayHelper.GetListenerStatusesByListenerName(ctx, string(listener.Name))
-		hostHasAttachedRoutes := false
-		for _, listenerStatus := range listenerStatuses {
-			if listenerStatus.AttachedRoutes > 0 {
-				hostHasAttachedRoutes = true
-				break
-			}
-		}
-		log.Info("hostHasAttachedRoutes", "host", mh.host, "hostHasAttachedRoutes", hostHasAttachedRoutes)
-
-		if hostHasAttachedRoutes {
-			gatewayHasAttachedRoutes = true
-			err := r.Host.AddEndpoints(ctx, trafficAccessor, mh.dnsRecord)
-			if err != nil {
-				log.Error(err, "Error adding endpoints", "host", mh.host)
-				return metav1.ConditionUnknown, clusters, false, err
-			}
+			downstreamSecret := secret.DeepCopy()
+			downstreamSecret.ObjectMeta = metav1.ObjectMeta{}
+			downstreamSecret.Name = secret.Name
+			downstreamSecret.Namespace = gateway.Namespace
+			downstreamSecret.Labels = secret.Labels
+			downstreamSecret.Annotations = secret.Annotations
+			accessor.AddTLS(mh.Host, downstreamSecret)
+			tlsSecrets = append(tlsSecrets, downstreamSecret)
 		}
 	}
-	syncObjectToAllClusters(gateway)
-
-	if !gatewayHasAttachedRoutes {
-		log.Info("no hosts have any attached routes in any gateway yet")
-		return metav1.ConditionUnknown, clusters, true, nil
-	}
-
-	return metav1.ConditionTrue, clusters, false, nil
+	return tlsSecrets, nil
 }
 
-func (r *GatewayReconciler) reconcileParams(ctx context.Context, gateway *gatewayv1beta1.Gateway, params *Params) error {
-	clusters, err := r.getClustersFromAnnotations(ctx, gateway)
-	if err != nil {
-		return err
+func (r *GatewayReconciler) reconcileDNSEndpoints(ctx context.Context, gateway *gatewayv1beta1.Gateway, placed []string, managedHosts []v1alpha1.ManagedHost) error {
+	log := log.Log
+	log.V(3).Info("checking gateway for attached routes ", "gateway", gateway.Name, "clusters", placed, "managed hosts", len(managedHosts))
+	if len(placed) == 0 {
+		//nothing to do
+		log.V(3).Info("reconcileDNSEndpoints gateway has not been placed on to any downstream clusters nothing to do")
+		return nil
 	}
+	for _, mh := range managedHosts {
+		endpoints := []gatewayv1beta1.GatewayAddress{}
+		for _, downstreamCluster := range placed {
+			// Only consider host for dns if there's at least 1 attached route to the listener for this host in *any* gateway
+			listener := getListenerByHost(gateway, mh.Host)
+			attached, err := r.Placement.ListenerTotalAttachedRoutes(ctx, gateway, string(listener.Name), downstreamCluster)
+			if err != nil {
+				log.Error(err, "failed to get total attached routes for listener ", "listner", listener.Name)
+				continue
+			}
+			if attached == 0 {
+				log.V(3).Info("no attached routes for ", "listner", listener.Name, "cluster ", downstreamCluster)
+				continue
+			}
+			log.V(3).Info("hostHasAttachedRoutes", "host", mh.Host, "hostHasAttachedRoutes", attached)
+			addresses, err := r.Placement.GetAddresses(ctx, gateway, downstreamCluster)
+			if err != nil {
+				return err
+			}
+			endpoints = append(endpoints, addresses...)
+		}
 
-	downstreamClass := params.GetDownstreamClass()
-
-	// Set the annotations to sync the class name from the parameters
-	for _, cluster := range clusters {
-		if err := syncutils.SetPatchAnnotation(func(g *gatewayv1beta1.Gateway) {
-			g.Spec.GatewayClassName = gatewayv1beta1.ObjectName(downstreamClass)
-		}, cluster.Name, gateway); err != nil {
+		if len(endpoints) == 0 {
+			// delete record
+			if mh.DnsRecord != nil {
+				if err := r.Delete(ctx, mh.DnsRecord); err != nil {
+					return fmt.Errorf("failed to delete dns record %s", err)
+				}
+			}
+			return nil
+		}
+		gatewayAccessor := traffic.NewGateway(gateway)
+		var dnsRecord, err = r.Host.CreateDNSRecord(ctx, mh.Subdomain, mh.ManagedZone, gatewayAccessor)
+		if err := client.IgnoreAlreadyExists(err); err != nil {
 			return err
+		}
+		if k8serrors.IsAlreadyExists(err) {
+			dnsRecord, err = r.Host.GetDNSRecord(ctx, mh.Subdomain, mh.ManagedZone, gatewayAccessor)
+			if err != nil {
+				return err
+			}
+		}
+
+		log.Info("setting dns endpoints for gateway listener", "listener", dnsRecord.Name, "values", endpoints)
+
+		if err := r.Host.SetEndpoints(ctx, endpoints, dnsRecord); err != nil {
+			return fmt.Errorf("failed to set dns record endpoints %s %v", err, endpoints)
 		}
 	}
 
 	return nil
 }
 
-// getAllClusters returns an array of all cluster secrets available.
-func (r *GatewayReconciler) getAllClusters(ctx context.Context) ([]corev1.Secret, error) {
-	clusterList := &corev1.SecretList{}
-	listOptions := client.MatchingLabels{
-		"argocd.argoproj.io/secret-type": "cluster",
-	}
-	err := r.Client.List(ctx, clusterList, listOptions)
-	if err := client.IgnoreNotFound(err); err != nil {
-		log.Log.Error(err, "Unable to fetch cluster Secrets")
-		return clusterList.Items, err
-	}
-	return clusterList.Items, nil
+func (r *GatewayReconciler) reconcileParams(ctx context.Context, gateway *gatewayv1beta1.Gateway, params *Params) error {
+
+	downstreamClass := params.GetDownstreamClass()
+
+	// Set the annotations to sync the class name from the parameters
+
+	gateway.Spec.GatewayClassName = gatewayv1beta1.ObjectName(downstreamClass)
+
+	return nil
 }
 
-// getClustersFromAnnotations returns an array of cluster secrets based on the given objects sync annotations.
-// If the wildcard `all` annotation is present, all cluster secrets available are returned.
-func (r *GatewayReconciler) getClustersFromAnnotations(ctx context.Context, obj metav1.Object) ([]corev1.Secret, error) {
-	clusters := []corev1.Secret{}
-
-	allClusters, err := r.getAllClusters(ctx)
+func buildProgrammedStatus(gatewayStatus gatewayv1beta1.GatewayStatus, generation int64, placed []string, programmedStatus metav1.ConditionStatus, err error) []metav1.Condition {
+	errorMsg := ""
 	if err != nil {
-		return clusters, err
+		errorMsg = err.Error()
 	}
+	message := "waiting for gateway to placed on clusters %v %s"
+	if programmedStatus == metav1.ConditionTrue {
+		message = "gateway placed on clusters %v %s"
+	}
+	if programmedStatus == metav1.ConditionFalse {
+		message = "gateway failed to be placed on all clusters %v error %s"
+	}
+	if programmedStatus == metav1.ConditionUnknown {
+		message = "current state of the gateway is unknown error %s"
+	}
+	return conditions.SetCondition(gatewayStatus.Conditions, generation, string(gatewayv1beta1.GatewayConditionProgrammed), programmedStatus, string(gatewayv1beta1.GatewayReasonProgrammed), fmt.Sprintf(message, placed, errorMsg))
 
-	if metadata.HasAnnotation(obj, syncer.MCTC_SYNC_ANNOTATION_PREFIX+syncer.MCTC_SYNC_ANNOTATION_WILDCARD) {
-		return allClusters, nil
-	}
-
-	clustersMap := map[string]corev1.Secret{}
-	for _, cluster := range allClusters {
-		clustersMap[cluster.Name] = cluster
-	}
-	for annKey := range obj.GetAnnotations() {
-		if strings.HasPrefix(annKey, syncer.MCTC_SYNC_ANNOTATION_PREFIX) {
-			_, clusterName, found := strings.Cut(annKey, syncer.MCTC_SYNC_ANNOTATION_PREFIX)
-			if found {
-				if cluster, exists := clustersMap[clusterName]; exists {
-					clusters = append(clusters, cluster)
-				}
-			}
-		}
-	}
-	return clusters, nil
 }
 
-func buildStatusConditions(gatewayStatus gatewayv1beta1.GatewayStatus, generation int64, clusters []string, acceptedStatus metav1.ConditionStatus, programmedStatus metav1.ConditionStatus) []metav1.Condition {
+func buildAcceptedCondition(gatewayStatus gatewayv1beta1.GatewayStatus, generation int64, acceptedStatus metav1.ConditionStatus) []metav1.Condition {
 	statusConditions := []metav1.Condition{}
+	message := fmt.Sprintf("Handled by %s", ControllerName)
 
-	acceptedCondition := conditions.GetConditionByType(gatewayStatus.Conditions, string(gatewayv1beta1.GatewayConditionAccepted))
-	if (acceptedCondition == nil) || (acceptedCondition.Status != acceptedStatus) || (acceptedCondition.ObservedGeneration != generation) {
-		// State has changed
-		statusConditions = conditions.SetCondition(statusConditions, generation, string(gatewayv1beta1.GatewayConditionAccepted), metav1.ConditionTrue, string(gatewayv1beta1.GatewayConditionAccepted), fmt.Sprintf("Handled by %s", ControllerName))
-	} else {
-		statusConditions = append(statusConditions, *acceptedCondition)
-	}
+	// State has changed
+	return conditions.SetCondition(statusConditions, generation, string(gatewayv1beta1.GatewayConditionAccepted), metav1.ConditionTrue, string(gatewayv1beta1.GatewayConditionAccepted), message)
 
-	programmedCondition := conditions.GetConditionByType(gatewayStatus.Conditions, string(gatewayv1beta1.GatewayConditionProgrammed))
-	if (programmedCondition == nil) || (programmedCondition.Status != programmedStatus) || (programmedCondition.ObservedGeneration != generation) {
-		// State has changed
-		if programmedStatus == metav1.ConditionFalse {
-			statusConditions = conditions.SetCondition(statusConditions, generation, string(gatewayv1beta1.GatewayConditionProgrammed), metav1.ConditionFalse, string(gatewayv1beta1.GatewayReasonPending), "No clusters match selection")
-		} else if programmedStatus == metav1.ConditionTrue {
-			statusConditions = conditions.SetCondition(statusConditions, generation, string(gatewayv1beta1.GatewayConditionProgrammed), metav1.ConditionTrue, string(gatewayv1beta1.GatewayConditionProgrammed), fmt.Sprintf("Gateway configured in data plane cluster(s) - [%v]", strings.Join(clusters, ",")))
-		} else {
-			// assume condition unknown i.e. programming is pending
-			statusConditions = conditions.SetCondition(statusConditions, generation, string(gatewayv1beta1.GatewayConditionProgrammed), metav1.ConditionUnknown, string(gatewayv1beta1.GatewayReasonPending), "Waiting for controller")
-		}
-	} else {
-		statusConditions = append(statusConditions, *programmedCondition)
-	}
-
-	return statusConditions
-}
-
-// func syncObjectToClusters(obj metav1.Object, clusters []string) {
-// 	annotations := obj.GetAnnotations()
-// 	if len(annotations) == 0 {
-// 		annotations = map[string]string{}
-// 	}
-// 	for _, cluster := range clusters {
-// 		annotations[fmt.Sprintf("%s/%s", syncer.MCTC_SYNC_ANNOTATION_PREFIX, cluster)] = "true"
-// 	}
-// 	obj.SetAnnotations(annotations)
-// }
-
-// TODO: Remove. This is a hack to enable simple 'all' placement of a resource
-//
-//		 in lieu of cluster representation in control plane.
-//	     Use the above commented function instead.
-func syncObjectToAllClusters(obj metav1.Object) {
-	annotations := obj.GetAnnotations()
-	if len(annotations) == 0 {
-		annotations = map[string]string{}
-	}
-	annotations[fmt.Sprintf("%s%s", syncer.MCTC_SYNC_ANNOTATION_PREFIX, syncer.MCTC_SYNC_ANNOTATION_WILDCARD)] = "true"
-	obj.SetAnnotations(annotations)
-}
-
-func selectClusters(gateway gatewayv1beta1.Gateway) []string {
-	if gateway.Annotations == nil {
-		return []string{}
-	}
-
-	selector := gateway.Annotations[GatewayClusterLabelSelectorAnnotation]
-	log.Log.Info("selectClusters", "selector", selector)
-
-	// TODO: Lookup clusters and select based on gateway cluster label selector annotation
-	// HARDCODED IMPLEMENTATION
-	// Issue: https://github.com/Kuadrant/multi-cluster-traffic-controller/issues/52
-	if selector == "type=test" {
-		return []string{"test_cluster_one"}
-	}
-	return []string{}
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager, ctx context.Context) error {
+	log := log.FromContext(ctx)
+	//TODO need to trigger gatway reconcile when gatewayclass params changes
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gatewayv1beta1.Gateway{}).
+		Watches(&source.Kind{Type: &workv1.ManifestWork{}}, handler.EnqueueRequestsFromMapFunc(func(o client.Object) []reconcile.Request {
+			log.V(3).Info("enqueuing gateways based on manifest work change ", "work namespace", o.GetNamespace())
+			requests := []reconcile.Request{}
+			annotations := o.GetAnnotations()
+			if annotations == nil {
+				log.V(3).Info("no parent or anotations on manifest work ", "work ns", o.GetNamespace(), "name", o.GetName())
+				return requests
+			}
+			key := annotations["kuadrant.io/parent"]
+			ns, name, err := cache.SplitMetaNamespaceKey(key)
+			if err != nil {
+				log.Error(err, "failed to parse namespace and name from maifiest work")
+				return requests
+			}
+			log.Info("requeuing gateway ", "namespace", ns, "name", name)
+			requests = append(requests, reconcile.Request{
+				NamespacedName: types.NamespacedName{Namespace: ns, Name: name},
+			})
+			return requests
+		}), builder.OnlyMetadata).
+		Watches(&source.Kind{Type: &clusterv1beta2.PlacementDecision{}}, handler.EnqueueRequestsFromMapFunc(func(o client.Object) []reconcile.Request {
+			// kinda want to get the old and new object here and only queue if the clusters have changed
+			// queue up gateways in this namespace
+			log.V(3).Info("enqueuing gateways based on placementdecision change ", " namespace", o.GetNamespace())
+			req := []reconcile.Request{}
+			l := &gatewayv1beta1.GatewayList{}
+			if err := mgr.GetClient().List(ctx, l, &client.ListOptions{Namespace: o.GetNamespace()}); err != nil {
+				log.Error(err, "failed to list gateways to requeue")
+				return req
+			}
+			for _, g := range l.Items {
+				req = append(req, reconcile.Request{
+					NamespacedName: client.ObjectKeyFromObject(&g),
+				})
+			}
+			return req
+		})).
 		Watches(&source.Kind{
 			Type: &corev1.Secret{},
 		}, &ClusterEventHandler{client: r.Client}).
+		Watches(&source.Kind{Type: &workv1.ManifestWork{}}, handler.EnqueueRequestsFromMapFunc(func(o client.Object) []reconcile.Request {
+			log.V(3).Info("enqueuing gateways based on manifest work change ", "work namespace", o.GetNamespace())
+			requests := []reconcile.Request{}
+			annotations := o.GetAnnotations()
+			if annotations == nil {
+				log.V(3).Info("no parent or anotations on manifest work ", "work ns", o.GetNamespace(), "name", o.GetName())
+				return requests
+			}
+			key := annotations["kuadrant.io/parent"]
+			ns, name, err := cache.SplitMetaNamespaceKey(key)
+			if err != nil {
+				log.Error(err, "failed to parse namespace and name from maifiest work")
+				return requests
+			}
+			log.Info("requeuing gateway ", "namespace", ns, "name", name)
+			requests = append(requests, reconcile.Request{
+				NamespacedName: types.NamespacedName{Namespace: ns, Name: name},
+			})
+			return requests
+		}), builder.OnlyMetadata).
+		Watches(&source.Kind{Type: &clusterv1beta2.PlacementDecision{}}, handler.EnqueueRequestsFromMapFunc(func(o client.Object) []reconcile.Request {
+			// kinda want to get the old and new object here and only queue if the clusters have changed
+			// queue up gateways in this namespace
+			req := []reconcile.Request{}
+			l := &gatewayv1beta1.GatewayList{}
+			if err := mgr.GetClient().List(ctx, l, &client.ListOptions{Namespace: o.GetNamespace()}); err != nil {
+				log.Error(err, "failed to list gateways to requeue")
+				return req
+			}
+			for _, g := range l.Items {
+				req = append(req, reconcile.Request{
+					NamespacedName: client.ObjectKeyFromObject(&g),
+				})
+			}
+			return req
+		})).
 		WithEventFilter(predicate.NewPredicateFuncs(func(object client.Object) bool {
 			gateway, ok := object.(*gatewayv1beta1.Gateway)
-			if !ok {
-				return true
+			if ok {
+				shouldReconcile := slice.ContainsString(getSupportedClasses(), string(gateway.Spec.GatewayClassName))
+				log.V(3).Info(" should reconcile", "gateway", gateway.Name, "with class ", gateway.Spec.GatewayClassName, "should ", shouldReconcile)
+				return slice.ContainsString(getSupportedClasses(), string(gateway.Spec.GatewayClassName))
 			}
-
-			return slice.ContainsString(getSupportedClasses(), string(gateway.Spec.GatewayClassName))
+			return true
 		})).
 		Owns(&kuadrantapi.RateLimitPolicy{}).
 		Complete(r)
+}
+
+// This is very specific to gateways so not in traffic interface
+func getListenerByHost(g *gatewayv1beta1.Gateway, host string) *gatewayv1beta1.Listener {
+	for _, listener := range g.Spec.Listeners {
+		if *(*string)(listener.Hostname) == host {
+			return &listener
+		}
+	}
+	return nil
 }

@@ -30,10 +30,9 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	kerrors "k8s.io/apimachinery/pkg/util/errors"
-
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns"
+	kerrors "k8s.io/apimachinery/pkg/util/errors"
 )
 
 const (
@@ -194,6 +193,9 @@ func (*Route53DNSProvider) ProviderSpecific() dns.ProviderSpecificLabels {
 
 func (p *Route53DNSProvider) change(record *v1alpha1.DNSRecord, managedZone *v1alpha1.ManagedZone, action action) error {
 	// Configure records.
+	if len(record.Spec.Endpoints) == 0 {
+		return nil
+	}
 	err := p.updateRecord(record, managedZone.Status.ID, string(action))
 	if err != nil {
 		return fmt.Errorf("failed to update record in route53 hosted zone %s: %v", managedZone.Status.ID, err)

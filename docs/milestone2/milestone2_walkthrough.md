@@ -118,7 +118,7 @@ Check that DNS has been setup.
 
 ```bash
 export KUBECONFIG=./tmp/kubeconfigs/mctc-control-plane.kubeconfig
-kubectl wait --for=condition=Ready dnsrecord ${MYAPP_HOST} -n multi-cluster-traffic-controller-system
+kubectl wait --for=condition=Ready dnsrecord ${MYAPP_HOST} -n multi-cluster-gateways
 ```
 
 ## Application Verification
