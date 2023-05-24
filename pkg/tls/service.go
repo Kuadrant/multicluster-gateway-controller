@@ -14,7 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/traffic"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/traffic"
 )
 
 const (

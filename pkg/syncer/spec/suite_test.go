@@ -42,9 +42,9 @@ import (
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 	//+kubebuilder:scaffold:imports
 
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/metadata"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer/mutator"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/metadata"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/syncer"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/syncer/mutator"
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to

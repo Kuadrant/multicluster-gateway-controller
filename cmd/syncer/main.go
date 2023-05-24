@@ -39,12 +39,12 @@ import (
 
 	//+kubebuilder:scaffold:imports
 
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/clusterSecret"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/env"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer/mutator"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer/spec"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer/status"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/clusterSecret"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/env"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/syncer"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/syncer/mutator"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/syncer/spec"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/syncer/status"
 )
 
 var (

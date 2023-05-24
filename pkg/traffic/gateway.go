@@ -15,9 +15,9 @@ import (
 	"k8s.io/utils/strings/slices"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/slice"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1alpha1"
-	status "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer/status"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	status "github.com/Kuadrant/multicluster-gateway-controller/pkg/syncer/status"
 )
 
 func NewGateway(g *gatewayv1beta1.Gateway) Interface {

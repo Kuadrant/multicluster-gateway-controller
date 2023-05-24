@@ -6,8 +6,8 @@ metadata:
     app.kubernetes.io/name: clusterrole
     app.kubernetes.io/instance: managedzone-viewer-role
     app.kubernetes.io/component: rbac
-    app.kubernetes.io/created-by: multi-cluster-traffic-controller
-    app.kubernetes.io/part-of: multi-cluster-traffic-controller
+    app.kubernetes.io/created-by: multicluster-gateway-controller
+    app.kubernetes.io/part-of: multicluster-gateway-controller
     app.kubernetes.io/managed-by: kustomize
   name: managedzone-viewer-role
 rules:

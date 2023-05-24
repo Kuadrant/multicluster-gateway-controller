@@ -15,7 +15,7 @@ spec:
     spec:
       project: default
       source:
-        repoURL: 'https://github.com/Kuadrant/multi-cluster-traffic-controller.git'
+        repoURL: 'https://github.com/Kuadrant/multicluster-gateway-controller.git'
         targetRevision: HEAD
         path: samples/echo-service
       destination:

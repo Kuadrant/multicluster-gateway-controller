@@ -8,7 +8,7 @@ import (
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 
-	hub "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/ocm/hub"
+	hub "github.com/Kuadrant/multicluster-gateway-controller/pkg/ocm/hub"
 	kuadrantv1beta1 "github.com/kuadrant/kuadrant-operator/api/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"

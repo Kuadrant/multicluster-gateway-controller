@@ -19,14 +19,15 @@ package dnspolicy
 import (
 	"context"
 
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1alpha1"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/gateway"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns"
 	"k8s.io/apimachinery/pkg/api/equality"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/source"
+
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 )
 
 const (

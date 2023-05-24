@@ -1,4 +1,4 @@
-module github.com/Kuadrant/multi-cluster-traffic-controller
+module github.com/Kuadrant/multicluster-gateway-controller
 
 go 1.19
 

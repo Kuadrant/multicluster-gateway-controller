@@ -35,9 +35,9 @@ import (
 	kuadrantapi "github.com/kuadrant/kuadrant-operator/api/v1beta1"
 	kuadrantcommon "github.com/kuadrant/kuadrant-operator/pkg/common"
 
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/clusterSecret"
-	syncutils "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/sync"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/clusterSecret"
+	syncutils "github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/sync"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/syncer"
 )
 
 const (

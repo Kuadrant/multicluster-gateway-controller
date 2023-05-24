@@ -8,7 +8,7 @@
 resources:
   - ../../default
 
-namespace: multi-cluster-traffic-controller-system
+namespace: multicluster-gateway-controller-system
 
 generatorOptions:
   disableNameSuffixHash: true

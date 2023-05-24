@@ -3,12 +3,13 @@ package dnspolicy
 import (
 	"context"
 
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1alpha1"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/gateway"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/traffic"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/traffic"
 )
 
 func getGateway(ctx context.Context, apiClient client.Client, policy *v1alpha1.DNSPolicy) (*gatewayv1beta1.Gateway, error) {
