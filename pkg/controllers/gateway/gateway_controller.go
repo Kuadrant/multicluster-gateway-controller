@@ -56,8 +56,8 @@ const (
 )
 
 type HostService interface {
-	CreateDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone, owner traffic.Interface) (*v1alpha1.DNSRecord, error)
-	GetDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone, owner traffic.Interface) (*v1alpha1.DNSRecord, error)
+	CreateDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone, owner metav1.Object) (*v1alpha1.DNSRecord, error)
+	GetDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone, owner metav1.Object) (*v1alpha1.DNSRecord, error)
 	GetManagedZoneForHost(ctx context.Context, domain string, t traffic.Interface) (*v1alpha1.ManagedZone, string, error)
 	SetEndpoints(ctx context.Context, endpoints []gatewayv1beta1.GatewayAddress, dnsRecord *v1alpha1.DNSRecord) error
 	GetDNSRecordsFor(ctx context.Context, t traffic.Interface) ([]*v1alpha1.DNSRecord, error)
@@ -125,7 +125,6 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		if _, _, _, err := r.reconcileDownstreamFromUpstreamGateway(ctx, upstreamGateway, nil); err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to reconcile downstream gateway after upstream gateway deleted: %s ", err)
 		}
-		fmt.Println("upstream post reconcile ", upstreamGateway.UID, upstreamGateway.ResourceVersion)
 		controllerutil.RemoveFinalizer(upstreamGateway, GatewayFinalizer)
 		if err := r.Update(ctx, upstreamGateway); err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to remove finalizer from gateway : %s", err)
@@ -226,39 +225,39 @@ func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.C
 	upstreamAccessor := traffic.NewGateway(upstreamGateway)
 	managedHosts, err := r.Host.GetManagedHosts(ctx, upstreamAccessor)
 	if err != nil {
-		return false, metav1.ConditionFalse, clusters, err
+		return false, metav1.ConditionFalse, clusters, fmt.Errorf("failed to get managed hosts : %s", err)
 	}
 	// ensure tls is set up first before doing anything else. TLS is not affectd by placement changes
 	tlsSecrets, err := r.reconcileTLS(ctx, upstreamGateway, downstream, managedHosts)
 	if err != nil {
-		return true, metav1.ConditionFalse, clusters, err
+		return true, metav1.ConditionFalse, clusters, fmt.Errorf("failed to reconcle tls : %s", err)
 	}
 	log.Info("TLS reconciled for downstream gatway ", "gateway", downstream.Name, "namespace", downstream.Namespace)
 
 	// some of this should be pulled from gateway class params
 	if params != nil {
 		if err := r.reconcileParams(ctx, downstream, params); err != nil {
-			return false, metav1.ConditionUnknown, clusters, err
+			return false, metav1.ConditionUnknown, clusters, fmt.Errorf("failed to get reconcileParams : %s", err)
 		}
 	}
 
 	// ensure the gatways are placed into the right target clusters and removed from any that are no longer targeted
 	targets, err := r.Placement.Place(ctx, upstreamGateway, downstream, tlsSecrets...)
 	if err != nil {
-		return true, metav1.ConditionFalse, clusters, err
+		return true, metav1.ConditionFalse, clusters, fmt.Errorf("failed to get place gateway : %s", err)
 	}
 
 	log.Info("Gateway Placed ", "gateway", upstreamGateway.Name, "namespace", upstreamGateway.Namespace, "targets", targets.UnsortedList())
 	//get updatd list of clusters where this gateway has been successfully placed
 	placed, err := r.Placement.GetPlacedClusters(ctx, upstreamGateway)
 	if err != nil {
-		return false, metav1.ConditionUnknown, targets.UnsortedList(), err
+		return false, metav1.ConditionUnknown, targets.UnsortedList(), fmt.Errorf("failed to get placed clusters : %s", err)
 	}
 	//update the cluster set
 	clusters = placed.UnsortedList()
 	//update dns for listeners on the placed gateway
 	if err := r.reconcileDNSEndpoints(ctx, upstreamGateway, clusters, managedHosts); err != nil {
-		return true, metav1.ConditionFalse, clusters, err
+		return true, metav1.ConditionFalse, clusters, fmt.Errorf("failed to reconcile dns endpoints : %s", err)
 	}
 	log.Info("DNS Reconciled ", "gateway", upstreamGateway.Name, "namespace", upstreamGateway.Namespace)
 	if placed.Equal(targets) {
@@ -318,11 +317,18 @@ func (r *GatewayReconciler) reconcileDNSEndpoints(ctx context.Context, gateway *
 		log.V(3).Info("reconcileDNSEndpoints gateway has not been placed on to any downstream clusters nothing to do")
 		return nil
 	}
+
 	for _, mh := range managedHosts {
+		log.V(3).Info("dns for ", "host", mh.Host)
 		endpoints := []gatewayv1beta1.GatewayAddress{}
 		for _, downstreamCluster := range placed {
 			// Only consider host for dns if there's at least 1 attached route to the listener for this host in *any* gateway
 			listener := getListenerByHost(gateway, mh.Host)
+			if listener == nil {
+				log.V(3).Info("no downstream listener found", "host ", mh.Host)
+				continue
+			}
+			log.V(3).Info("checking downstream", "listener ", listener.Name)
 			attached, err := r.Placement.ListenerTotalAttachedRoutes(ctx, gateway, string(listener.Name), downstreamCluster)
 			if err != nil {
 				log.Error(err, "failed to get total attached routes for listener ", "listner", listener.Name)
@@ -335,29 +341,29 @@ func (r *GatewayReconciler) reconcileDNSEndpoints(ctx context.Context, gateway *
 			log.V(3).Info("hostHasAttachedRoutes", "host", mh.Host, "hostHasAttachedRoutes", attached)
 			addresses, err := r.Placement.GetAddresses(ctx, gateway, downstreamCluster)
 			if err != nil {
-				return err
+				return fmt.Errorf("get addresses failed: %s", err)
 			}
 			endpoints = append(endpoints, addresses...)
 		}
 
 		if len(endpoints) == 0 {
 			// delete record
+			log.V(3).Info("no endpoints deleting DNS record", " for host ", mh.Host)
 			if mh.DnsRecord != nil {
-				if err := r.Delete(ctx, mh.DnsRecord); err != nil {
-					return fmt.Errorf("failed to delete dns record %s", err)
+				if err := r.Delete(ctx, mh.DnsRecord); client.IgnoreNotFound(err) != nil {
+					return fmt.Errorf("failed to deleted dns record for managed host %s : %s", mh.Host, err)
 				}
 			}
-			return nil
+			continue
 		}
-		gatewayAccessor := traffic.NewGateway(gateway)
-		var dnsRecord, err = r.Host.CreateDNSRecord(ctx, mh.Subdomain, mh.ManagedZone, gatewayAccessor)
+		var dnsRecord, err = r.Host.CreateDNSRecord(ctx, mh.Subdomain, mh.ManagedZone, gateway)
 		if err := client.IgnoreAlreadyExists(err); err != nil {
-			return err
+			return fmt.Errorf("failed to create dns record for host %s : %s ", mh.Host, err)
 		}
 		if k8serrors.IsAlreadyExists(err) {
-			dnsRecord, err = r.Host.GetDNSRecord(ctx, mh.Subdomain, mh.ManagedZone, gatewayAccessor)
+			dnsRecord, err = r.Host.GetDNSRecord(ctx, mh.Subdomain, mh.ManagedZone, gateway)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to get dns record for host %s : %s ", mh.Host, err)
 			}
 		}
 
@@ -367,7 +373,6 @@ func (r *GatewayReconciler) reconcileDNSEndpoints(ctx context.Context, gateway *
 			return fmt.Errorf("failed to set dns record endpoints %s %v", err, endpoints)
 		}
 	}
-
 	return nil
 }
 

@@ -116,8 +116,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 
 	certificates := tls.NewService(k8sManager.GetClient(), "glbc-ca")
-	plc, err := placement.NewOCMPlacer(k8sManager.GetConfig())
-	Expect(err).ToNot(HaveOccurred())
+	plc := placement.NewOCMPlacer(k8sManager.GetClient())
 	err = (&gateway.GatewayReconciler{
 		Client:       k8sManager.GetClient(),
 		Scheme:       k8sManager.GetScheme(),

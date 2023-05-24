@@ -47,6 +47,7 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/aws"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/placement"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/tls"
+	workv1 "open-cluster-management.io/api/work/v1"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -61,6 +62,7 @@ func init() {
 	utilruntime.Must(certmanv1.AddToScheme(scheme.Scheme))
 	utilruntime.Must(gatewayapi.AddToScheme(scheme.Scheme))
 	utilruntime.Must(clusterv1beta2.AddToScheme(scheme.Scheme))
+	utilruntime.Must(workv1.AddToScheme(scheme.Scheme))
 
 	//+kubebuilder:scaffold:scheme
 }
@@ -113,12 +115,8 @@ func main() {
 		setupLog.Error(err, "unable to create dns provider client")
 		os.Exit(1)
 	}
-	placement, err := placement.NewOCMPlacer(mgr.GetConfig())
 
-	if err != nil {
-		setupLog.Error(err, "unable to create placement provider")
-		os.Exit(1)
-	}
+	placement := placement.NewOCMPlacer(mgr.GetClient())
 
 	if err = (&dnsrecord.DNSRecordReconciler{
 		Client:      mgr.GetClient(),
