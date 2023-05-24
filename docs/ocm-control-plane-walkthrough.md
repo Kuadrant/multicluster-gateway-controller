@@ -162,7 +162,7 @@ EOF
 
 ### Place the gateway
 
-In the hub cluster there will be a single gateway definition but no actuall gateway for handling traffic yet.
+In the hub cluster there will be a single gateway definition but no actual gateway for handling traffic yet.
 
 This is because we haven't placed the gateway yet onto any of our ingress clusters (in this case the hub and ingress cluster are the same)
 
@@ -223,7 +223,7 @@ spec:
     name: prod-web
     namespace: kuadrant-multi-cluster-gateways
   hostnames:
-  - "api.cb.hcpapps.net"  
+  - "sub.replace.this"  
   rules:
   - backendRefs:
     - name: echo

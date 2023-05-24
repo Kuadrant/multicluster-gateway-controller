@@ -243,15 +243,6 @@ func (s *Service) GetManagedZoneForHost(ctx context.Context, host string, t traf
 		return &managedZones.Items[0], subDomain, nil
 	}
 
-	if err := s.controlClient.List(ctx, &managedZones, client.InNamespace(t.GetNamespace()), client.MatchingFields{"spec.domainName": parentDomain}); err != nil {
-		log.FromContext(ctx).Error(err, "unable to list managed zones in default Ctrl NS")
-		return nil, "", err
-	}
-
-	if len(managedZones.Items) > 0 {
-		return &managedZones.Items[0], subDomain, nil
-	}
-
 	return nil, "", fmt.Errorf("no managed zone found for host : %s on traffic resource : %s", host, t.GetName())
 }
 
