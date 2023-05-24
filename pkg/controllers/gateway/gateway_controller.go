@@ -120,33 +120,27 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 	upstreamGateway := previous.DeepCopy()
 	log.V(3).Info("reconciling gateway", "classname", upstreamGateway.Spec.GatewayClassName)
-	if !controllerutil.ContainsFinalizer(upstreamGateway, GatewayFinalizer) && !isDeleting(upstreamGateway) {
+	if isDeleting(upstreamGateway) {
+		log.Info("gateway being deleted ", "gateway", upstreamGateway.Name, "namespace", upstreamGateway.Namespace)
+		if _, _, _, err := r.reconcileDownstreamFromUpstreamGateway(ctx, upstreamGateway, nil); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to reconcile downstream gateway after upstream gateway deleted: %s ", err)
+		}
+		fmt.Println("upstream post reconcile ", upstreamGateway.UID, upstreamGateway.ResourceVersion)
+		controllerutil.RemoveFinalizer(upstreamGateway, GatewayFinalizer)
+		if err := r.Update(ctx, upstreamGateway); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to remove finalizer from gateway : %s", err)
+		}
+		log.Info("gateway being deleted finalizer removed ", "gateway", upstreamGateway.Name, "namespace", upstreamGateway.Namespace)
+		return ctrl.Result{}, nil
+	}
+
+	if !controllerutil.ContainsFinalizer(upstreamGateway, GatewayFinalizer) {
 		controllerutil.AddFinalizer(upstreamGateway, GatewayFinalizer)
 		if err = r.Update(ctx, upstreamGateway); err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to add finalizer to gateway : %s", err)
 		}
 		return ctrl.Result{}, nil
 
-	}
-
-	if !controllerutil.ContainsFinalizer(previous, GatewayFinalizer) && previous.GetDeletionTimestamp().IsZero() {
-		controllerutil.AddFinalizer(previous, GatewayFinalizer)
-		err = r.Update(ctx, previous)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-	}
-
-	if isDeleting(upstreamGateway) {
-		log.Info("gateway being deleted ", "gateway", upstreamGateway.Name, "namespace", upstreamGateway.Namespace)
-		if _, _, _, err := r.reconcileDownstreamFromUpstreamGateway(ctx, upstreamGateway, nil); err != nil {
-			return ctrl.Result{}, err
-		}
-		controllerutil.RemoveFinalizer(previous, GatewayFinalizer)
-		if err := r.Update(ctx, upstreamGateway); err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to remove finalizer from gateway : %s", err)
-		}
-		return ctrl.Result{}, nil
 	}
 
 	// If the GatewayClass parametrers are invalid, update the status
@@ -207,13 +201,14 @@ func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.C
 		downstream.Labels = map[string]string{}
 	}
 	downstream.Labels[ManagedLabel] = "true"
-	accessor := traffic.NewGateway(downstream)
-	if isDeleting(downstream) {
+	accessor := traffic.NewGateway(upstreamGateway)
+	if isDeleting(upstreamGateway) {
 		log.Info("deleting downstream gateways owned by upstream gateway ", "name", downstream.Name, "namespace", downstream.Namespace)
 		targets, err := r.Placement.Place(ctx, upstreamGateway, downstream)
 		if err != nil {
 			return false, metav1.ConditionFalse, clusters, err
 		}
+		log.V(3).Info("cleaning up associated DNSRecords")
 		if err := r.Host.CleanupDNSRecords(ctx, accessor); err != nil {
 			log.Error(err, "Error deleting DNS record")
 			return false, metav1.ConditionFalse, clusters, err
@@ -241,8 +236,10 @@ func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.C
 	log.Info("TLS reconciled for downstream gatway ", "gateway", downstream.Name, "namespace", downstream.Namespace)
 
 	// some of this should be pulled from gateway class params
-	if err := r.reconcileParams(ctx, downstream, params); err != nil {
-		return false, metav1.ConditionUnknown, clusters, err
+	if params != nil {
+		if err := r.reconcileParams(ctx, downstream, params); err != nil {
+			return false, metav1.ConditionUnknown, clusters, err
+		}
 	}
 
 	// ensure the gatways are placed into the right target clusters and removed from any that are no longer targeted
