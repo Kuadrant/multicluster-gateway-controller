@@ -42,7 +42,7 @@ func TestSetPatchAnnotation(t *testing.T) {
 			downstreamTarget: "test-cluster",
 			assertion: and(
 				noError,
-				assertAnnotation("mctc-syncer-patch/test-cluster", doesNotExist),
+				assertAnnotation("mgc-syncer-patch/test-cluster", doesNotExist),
 			),
 		},
 		{
@@ -55,7 +55,7 @@ func TestSetPatchAnnotation(t *testing.T) {
 			downstreamTarget: "test-cluster",
 			assertion: and(
 				noError,
-				assertAnnotation("mctc-syncer-patch/test-cluster",
+				assertAnnotation("mgc-syncer-patch/test-cluster",
 					annotationEquals(`[{"op":"replace","path":"/spec/gatewayClassName","value":"test"}]`),
 				),
 			),

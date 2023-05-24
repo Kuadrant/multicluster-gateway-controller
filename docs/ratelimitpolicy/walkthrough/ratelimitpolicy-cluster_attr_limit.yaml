@@ -12,6 +12,6 @@ spec:
       - hosts: [ "myapp.mn.hcpapps.net" ]
       limits:
         - conditions:
-            - 'kuadrant_gateway_cluster == "mctc-workload-1"'
+            - 'kuadrant_gateway_cluster == "mgc-workload-1"'
           maxValue: 1
           seconds: 10

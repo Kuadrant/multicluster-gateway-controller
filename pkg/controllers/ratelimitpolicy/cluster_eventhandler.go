@@ -94,7 +94,7 @@ func (eh *ClusterEventHandler) getRateLimitPoliciesFor(secret *corev1.Secret) ([
 	}
 
 	return slice.Filter(rlps.Items, func(rlp kuadrantapi.RateLimitPolicy) bool {
-		return metadata.HasAnnotation(&rlp, syncer.MCTC_SYNC_ANNOTATION_PREFIX+syncer.MCTC_SYNC_ANNOTATION_WILDCARD) ||
-			metadata.HasAnnotation(&rlp, syncer.MCTC_SYNC_ANNOTATION_PREFIX+clusterConfig.Name)
+		return metadata.HasAnnotation(&rlp, syncer.MGC_SYNC_ANNOTATION_PREFIX+syncer.MGC_SYNC_ANNOTATION_WILDCARD) ||
+			metadata.HasAnnotation(&rlp, syncer.MGC_SYNC_ANNOTATION_PREFIX+clusterConfig.Name)
 	}), nil
 }

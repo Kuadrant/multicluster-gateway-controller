@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	MCTC_ATTRIBUTE_ANNOTATION_PREFIX = "kuadrant.io/attribute-"
+	MGC_ATTRIBUTE_ANNOTATION_PREFIX = "kuadrant.io/attribute-"
 )
 
 type ClusterSecret struct {
@@ -47,8 +47,8 @@ func ToClusterSecrets(secrets []corev1.Secret) []ClusterSecret {
 func (cs *ClusterSecret) GetAttributes() map[string]string {
 	attrs := map[string]string{}
 	for annKey, annValue := range cs.GetAnnotations() {
-		if strings.HasPrefix(annKey, MCTC_ATTRIBUTE_ANNOTATION_PREFIX) {
-			_, key, found := strings.Cut(annKey, MCTC_ATTRIBUTE_ANNOTATION_PREFIX)
+		if strings.HasPrefix(annKey, MGC_ATTRIBUTE_ANNOTATION_PREFIX) {
+			_, key, found := strings.Cut(annKey, MGC_ATTRIBUTE_ANNOTATION_PREFIX)
 			if found {
 				attrs[key] = annValue
 			}

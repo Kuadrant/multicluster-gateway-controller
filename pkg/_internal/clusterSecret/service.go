@@ -45,7 +45,7 @@ func (s *Service) GetClusterSecretsFromAnnotations(ctx context.Context, obj meta
 		return clusters, err
 	}
 
-	if metadata.HasAnnotation(obj, syncer.MCTC_SYNC_ANNOTATION_PREFIX+syncer.MCTC_SYNC_ANNOTATION_WILDCARD) {
+	if metadata.HasAnnotation(obj, syncer.MGC_SYNC_ANNOTATION_PREFIX+syncer.MGC_SYNC_ANNOTATION_WILDCARD) {
 		return allClusters, nil
 	}
 
@@ -54,8 +54,8 @@ func (s *Service) GetClusterSecretsFromAnnotations(ctx context.Context, obj meta
 		clustersMap[cluster.Config.Name] = cluster
 	}
 	for annKey := range obj.GetAnnotations() {
-		if strings.HasPrefix(annKey, syncer.MCTC_SYNC_ANNOTATION_PREFIX) {
-			_, clusterName, found := strings.Cut(annKey, syncer.MCTC_SYNC_ANNOTATION_PREFIX)
+		if strings.HasPrefix(annKey, syncer.MGC_SYNC_ANNOTATION_PREFIX) {
+			_, clusterName, found := strings.Cut(annKey, syncer.MGC_SYNC_ANNOTATION_PREFIX)
 			if found {
 				if cluster, exists := clustersMap[clusterName]; exists {
 					clusters = append(clusters, cluster)

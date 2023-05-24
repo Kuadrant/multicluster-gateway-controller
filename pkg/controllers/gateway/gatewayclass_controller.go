@@ -34,7 +34,7 @@ import (
 )
 
 const (
-	ControllerName = "kuadrant.io/mctc-gw-controller"
+	ControllerName = "kuadrant.io/mgc-gw-controller"
 )
 
 func getSupportedClasses() []string {

@@ -58,8 +58,8 @@ var (
 	cancel         context.CancelFunc
 	clusterID      = "test-cluster"
 	GVRs           = []string{"gateways.v1beta1.gateway.networking.k8s.io", "secrets.v1"}
-	controlPlaneNS = "mctc-tenant"
-	dataPlaneNS    = "mctc-downstream"
+	controlPlaneNS = "mgc-tenant"
+	dataPlaneNS    = "mgc-downstream"
 )
 
 const (
@@ -242,12 +242,12 @@ var _ = Describe("Spec Syncer", func() {
 			Expect(apierrors.IsNotFound(k8sClient.Get(ctx, types.NamespacedName{Namespace: dataPlaneNS, Name: secretNamespacedName.Name}, createdSecret))).To(BeTrue())
 		})
 		It("should delete downstream when deleted upstream", func() {
-			metadata.AddAnnotation(gateway, syncer.MCTC_SYNC_ANNOTATION_PREFIX+clusterID, "true")
+			metadata.AddAnnotation(gateway, syncer.MGC_SYNC_ANNOTATION_PREFIX+clusterID, "true")
 			Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
 			createdGateway := &gatewayv1beta1.Gateway{}
 			gatewayNamespacedName := types.NamespacedName{Name: gateway.Name, Namespace: controlPlaneNS}
 
-			metadata.AddAnnotation(secret, syncer.MCTC_SYNC_ANNOTATION_PREFIX+clusterID, "true")
+			metadata.AddAnnotation(secret, syncer.MGC_SYNC_ANNOTATION_PREFIX+clusterID, "true")
 			Expect(k8sClient.Create(ctx, secret)).To(BeNil())
 			createdSecret := &v1.Secret{}
 			secretNamespacedName := types.NamespacedName{Name: secret.Name, Namespace: controlPlaneNS}
@@ -296,12 +296,12 @@ var _ = Describe("Spec Syncer", func() {
 
 		})
 		It("should ignore an annotated gateway and secret for another cluster", func() {
-			metadata.AddAnnotation(gateway, syncer.MCTC_SYNC_ANNOTATION_PREFIX+"different-cluster-id", "true")
+			metadata.AddAnnotation(gateway, syncer.MGC_SYNC_ANNOTATION_PREFIX+"different-cluster-id", "true")
 			Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
 			createdGateway := &gatewayv1beta1.Gateway{}
 			gatewayNamespacedName := types.NamespacedName{Name: gateway.Name, Namespace: controlPlaneNS}
 
-			metadata.AddAnnotation(secret, syncer.MCTC_SYNC_ANNOTATION_PREFIX+"different-cluster-id", "true")
+			metadata.AddAnnotation(secret, syncer.MGC_SYNC_ANNOTATION_PREFIX+"different-cluster-id", "true")
 			Expect(k8sClient.Create(ctx, secret)).To(BeNil())
 			createdSecret := &v1.Secret{}
 			secretNamespacedName := types.NamespacedName{Name: secret.Name, Namespace: controlPlaneNS}
@@ -323,7 +323,7 @@ var _ = Describe("Spec Syncer", func() {
 		})
 
 		It("should apply correctly annotated json mutations to a gateway and secret", func() {
-			metadata.AddAnnotation(gateway, syncer.MCTC_SYNC_ANNOTATION_PREFIX+clusterID, "true")
+			metadata.AddAnnotation(gateway, syncer.MGC_SYNC_ANNOTATION_PREFIX+clusterID, "true")
 			metadata.AddAnnotation(gateway, mutator.JSONPatchAnnotationPrefix+clusterID, `[
 			  {"op": "replace", "path": "/spec/gatewayClassName", "value": "istio"},
 			  {"op": "replace", "path": "/spec/listeners/0/name", "value": "test"}

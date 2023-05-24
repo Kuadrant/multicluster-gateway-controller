@@ -1,7 +1,7 @@
 #!/bin/bash
 
 ### Usage
-### export KUBECONFIG=$(pwd)/tmp/kubeconfigs/mctc-control-plane.kubeconfig
+### export KUBECONFIG=$(pwd)/tmp/kubeconfigs/mgc-control-plane.kubeconfig
 ### register-cluster.sh <PATH TO CONTROL CLUSTER KUBECONFIG> <PATH TO TENANT CLUSTER KUBECONFIG> <TENANT NAMESPACE> <NAME OF THE TENANT CLUSTER> > agent-manifests.yaml
 ###
 ### Outputs the manifests to deploy the syncer in the tenant cluster
@@ -39,8 +39,8 @@ export saToken=$(kubectl get secret/syncer-token -n $tenantNs -o go-template="{{
 
 
 # Create secret to access control cluster in workload cluster
-makeSecretForKubeconfig $controlClusterKubeconfig kind-mctc-control-plane $clusterName |
-setNamespacedName mctc-system control-plane-cluster-internal |
+makeSecretForKubeconfig $controlClusterKubeconfig kind-mgc-control-plane $clusterName |
+setNamespacedName mgc-system control-plane-cluster-internal |
 setLabel argocd.argoproj.io/secret-type cluster |
 setConfig '.bearerToken=strenv(saToken)' > ${LOCAL_SETUP_DIR}/../config/syncer/secret.yaml
 

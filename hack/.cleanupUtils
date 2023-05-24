@@ -11,8 +11,8 @@ cleanClusters() {
 
 cleanNetwork() {
   # Delete the network
-  echo "Deleting mctc network"
-  docker network rm mctc || true
+  echo "Deleting mgc network"
+  docker network rm mgc || true
 }
 
 stopProxies() {

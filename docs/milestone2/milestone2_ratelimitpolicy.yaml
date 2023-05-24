@@ -1,13 +1,13 @@
 apiVersion: kuadrant.io/v1beta1
 kind: RateLimitPolicy
 metadata:
-  name: mctc-demo
-  namespace: mctc-demo
+  name: mgc-demo
+  namespace: mgc-demo
 spec:
   targetRef:
     group: gateway.networking.k8s.io
     kind: HTTPRoute
-    name: mctc-demo
+    name: mgc-demo
   rateLimits:
    - rules:
         - hosts: ["$MYAPP_HOST"]

@@ -16,7 +16,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: mctc-argocd-server
+                name: mgc-argocd-server
                 port:
                   number: 80
     - host: argocd.172.32.0.2.nip.io
@@ -26,6 +26,6 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: mctc-argocd-server
+                name: mgc-argocd-server
                 port:
                   number: 80

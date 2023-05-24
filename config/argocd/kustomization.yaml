@@ -10,5 +10,5 @@ helmCharts:
   - name: argo-cd
     repo: https://argoproj.github.io/argo-helm
     version: v5.16.9
-    releaseName: mctc
+    releaseName: mgc
     namespace: argocd

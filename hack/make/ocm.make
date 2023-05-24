@@ -12,11 +12,11 @@ run-ocm: manifests generate fmt vet  install
 .PHONY: docker-build-ocm
 docker-build-ocm: ## Build docker image with the ocm.
 	docker build --target ocm -t ${OCM_ADDON_IMG} .
-	docker image prune -f --filter label=stage=mctc-builder
+	docker image prune -f --filter label=stage=mgc-builder
 
 .PHONY: kind-load-ocm
 kind-load-ocm: docker-build-ocm
-	kind load docker-image ${OCM_ADDON_IMG} --name mctc-control-plane  --nodes mctc-control-plane-control-plane
+	kind load docker-image ${OCM_ADDON_IMG} --name mgc-control-plane  --nodes mgc-control-plane-control-plane
 
 .PHONY: docker-push-ocm
 docker-push-ocm: ## Push docker image with the ocm.

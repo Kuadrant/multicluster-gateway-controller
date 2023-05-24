@@ -39,20 +39,20 @@ AWS_REGION=eu-west-1
 ```
 
 
-- run `make local-setup OCM_SINGLE=true MCTC_WORKLOAD_CLUSTERS_COUNT=1`
+- run `make local-setup OCM_SINGLE=true MGC_WORKLOAD_CLUSTERS_COUNT=1`
 
 
 Once this is completed your kubeconfig context should be set to the hub cluster. If you need to reset this run
 
 ```
-kind export kubeconfig --name=mctc-control-plane --kubeconfig=$(pwd)/local/kube/control-plane.yaml && export KUBECONFIG=$(pwd)/local/kube/control-plane.yaml
+kind export kubeconfig --name=mgc-control-plane --kubeconfig=$(pwd)/local/kube/control-plane.yaml && export KUBECONFIG=$(pwd)/local/kube/control-plane.yaml
 ```
 
 In the hub cluster we are going to label the control plane managed cluster as an ingress cluster
 
 
 ```
-kubectl label managedcluster kind-mctc-control-plane ingress-cluster=true
+kubectl label managedcluster kind-mgc-control-plane ingress-cluster=true
 
 ```
 
@@ -132,7 +132,7 @@ export KUBECONFIG=$(pwd)/local/kube/control-plane.yaml
 kubectl get managedzone -n multi-cluster-gateways
 
 NAME          DOMAIN NAME      ID                                  RECORD COUNT   NAMESERVERS                                                                                        READY
-mctc-dev-mz   replace.this   /hostedzone/Z08224701SVEG4XHW89W0   7              ["ns-1414.awsdns-48.org","ns-1623.awsdns-10.co.uk","ns-684.awsdns-21.net","ns-80.awsdns-10.com"]   True
+mgc-dev-mz   replace.this   /hostedzone/Z08224701SVEG4XHW89W0   7              ["ns-1414.awsdns-48.org","ns-1623.awsdns-10.co.uk","ns-684.awsdns-21.net","ns-80.awsdns-10.com"]   True
 
 ```
 
@@ -302,7 +302,7 @@ So now we have a working gateway with DNS and TLS configured. Let place this gat
 First add the second cluster to the clusterset
 
 ```
-kubectl label managedcluster kind-mctc-workload-1 ingress-cluster=true
+kubectl label managedcluster kind-mgc-workload-1 ingress-cluster=true
 
 ```
 
@@ -317,7 +317,7 @@ under the spec change the numberOfClusters to be 2 and save it
 In a new terminal window execute the following to see the gateway on the workload-1 cluster
 
 ```
-kind export kubeconfig --name=mctc-workload-1 --kubeconfig=$(pwd)/local/kube/workload1.yaml && export KUBECONFIG=$(pwd)/local/kube/workload1.yaml
+kind export kubeconfig --name=mgc-workload-1 --kubeconfig=$(pwd)/local/kube/workload1.yaml && export KUBECONFIG=$(pwd)/local/kube/workload1.yaml
 kubectl get gateways -A
 
 

@@ -1,5 +1,5 @@
 # Adds namespace to all resources.
-namespace: mctc-system
+namespace: mgc-system
 resources:
 - role.yaml
 - serviceaccount.yaml

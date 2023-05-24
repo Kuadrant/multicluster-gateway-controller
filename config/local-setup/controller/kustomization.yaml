@@ -1,6 +1,6 @@
 namespace: multi-cluster-gateways
 
-namePrefix: mctc-
+namePrefix: mgc-
 
 resources:
   - namespace.yaml
@@ -28,7 +28,7 @@ replacements:
     targets:
       - select:
           kind: ManagedZone
-          name: mctc-dev-mz
+          name: mgc-dev-mz
         fieldPaths:
           - spec.id
   - source:
@@ -39,6 +39,6 @@ replacements:
     targets:
       - select:
           kind: ManagedZone
-          name: mctc-dev-mz
+          name: mgc-dev-mz
         fieldPaths:
           - spec.domainName

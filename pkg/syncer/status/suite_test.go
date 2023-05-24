@@ -58,8 +58,8 @@ var (
 	cancel         context.CancelFunc
 	clusterID      = "test-cluster"
 	GVRs           = []string{"gateways.v1beta1.gateway.networking.k8s.io", "secrets.v1"}
-	controlPlaneNS = "mctc-tenant"
-	dataPlaneNS    = "mctc-downstream"
+	controlPlaneNS = "mgc-tenant"
+	dataPlaneNS    = "mgc-downstream"
 )
 
 const (

@@ -24,8 +24,8 @@ import (
 )
 
 const (
-	controllerName                      = "mctc-status-syncing-controller"
-	SyncerClusterStatusAnnotationPrefix = "mctc-status-syncer-status-"
+	controllerName                      = "mgc-status-syncing-controller"
+	SyncerClusterStatusAnnotationPrefix = "mgc-status-syncer-status-"
 	NUM_THREADS                         = 8
 )
 

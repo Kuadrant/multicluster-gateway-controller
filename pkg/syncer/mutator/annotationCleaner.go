@@ -18,7 +18,7 @@ func (m *AnnotationCleaner) GetName() string {
 func (m *AnnotationCleaner) Mutate(cfg syncer.MutatorConfig, obj *unstructured.Unstructured) error {
 	annotationPrefixes := []string{
 		JSONPatchAnnotationPrefix,
-		syncer.MCTC_SYNC_ANNOTATION_PREFIX,
+		syncer.MGC_SYNC_ANNOTATION_PREFIX,
 		status.SyncerClusterStatusAnnotationPrefix,
 		"kubectl.kubernetes.io/last-applied-configuration",
 	}

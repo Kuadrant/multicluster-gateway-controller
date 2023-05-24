@@ -25,10 +25,10 @@ import (
 )
 
 const (
-	controllerName                      = "mctc-spec-syncing-controller"
-	SyncerFinalizerNamePrefix           = "mctc-spec-syncer-finalizer/"
-	SyncerDeletionAnnotationPrefix      = "mctc-spec-syncer-deletion-timestamp-"
-	SyncerClusterStatusAnnotationPrefix = "mctc-spec-syncer-status-"
+	controllerName                      = "mgc-spec-syncing-controller"
+	SyncerFinalizerNamePrefix           = "mgc-spec-syncer-finalizer/"
+	SyncerDeletionAnnotationPrefix      = "mgc-spec-syncer-deletion-timestamp-"
+	SyncerClusterStatusAnnotationPrefix = "mgc-spec-syncer-status-"
 	syncerApplyManager                  = "syncer"
 	NUM_THREADS                         = 8
 )

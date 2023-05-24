@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	JSONPatchAnnotationPrefix = "mctc-syncer-patch/"
+	JSONPatchAnnotationPrefix = "mgc-syncer-patch/"
 )
 
 type JSONPatch struct {
