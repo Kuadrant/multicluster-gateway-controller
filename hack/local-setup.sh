@@ -240,7 +240,7 @@ deployOCMHub(){
       sleep 10
       [[ counter -eq $max_retry ]] && echo "Failed!" && exit 1
       echo "Trying again. Try #$counter"
-      ((counter++))
+      ((++counter))
     done
     deployOLM ${KIND_CLUSTER_CONTROL_PLANE}
     deployIstio ${KIND_CLUSTER_CONTROL_PLANE}
@@ -265,7 +265,7 @@ deployOCMSpoke(){
      sleep 10
      [[ counter -eq $max_retry ]] && echo "Failed!" && exit 1
      echo "Trying again. Try #$counter"
-     ((counter++))
+     ((++counter))
   done
 
 }
