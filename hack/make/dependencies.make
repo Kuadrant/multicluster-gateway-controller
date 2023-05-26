@@ -28,6 +28,7 @@ HELM_VERSION ?= v3.10.0
 YQ_VERSION ?= v4.30.8
 ISTIOVERSION ?= 1.17.0
 OPERATOR_SDK_VERSION ?= 1.28.0
+CLUSTERADM_VERSION ?= 0.5.1
 
 
 KUSTOMIZE_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"
@@ -89,5 +90,5 @@ $(ISTIOCTL):
 .PHONY: clusteradm
 clusteradm: $(CLUSTERADM)
 $(CLUSTERADM):
-	test -s $(LOCALBIN)/clusteradm || GOBIN=$(LOCALBIN) GO111MODULE=off go get -u open-cluster-management.io/clusteradm/...
+	test -s $(LOCALBIN)/clusteradm || curl -sL https://raw.githubusercontent.com/open-cluster-management-io/clusteradm/main/install.sh | INSTALL_DIR=bin bash -s -- $(CLUSTERADM_VERSION)
 
