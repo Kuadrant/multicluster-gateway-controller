@@ -277,8 +277,6 @@ initController() {
 
     # Add the mgc CRDs
     ${KUSTOMIZE_BIN} build config/crd | kubectl apply -f -
-    # Add the kuadrant.io ratelimitpolicies CRD
-    ${KUSTOMIZE_BIN} build config/kuadrant/crd | kubectl apply -f -
     # Create the mgc ns and dev managed zone
     ${KUSTOMIZE_BIN} --reorder none --load-restrictor LoadRestrictionsNone build config/local-setup/controller | kubectl apply -f -
 }

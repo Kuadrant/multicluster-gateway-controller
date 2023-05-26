@@ -16,7 +16,6 @@ run-syncer: manifests generate fmt vet install
 	    --control-plane-config-name=control-plane-cluster \
 	    --control-plane-config-namespace=mgc-system \
 	    --synced-resources=gateways.v1beta1.gateway.networking.k8s.io \
-	    --synced-resources=ratelimitpolicies.v1beta1.kuadrant.io \
 	    --synced-resources=secrets.v1
 
 .PHONY: docker-build-syncer
