@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/metadata"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer/mutator"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/metadata"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/syncer/mutator"
 	"gomodules.xyz/jsonpatch/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// SetPatchAnnotation sets the mctc-syncer-patch annotation in obj with the
+// SetPatchAnnotation sets the mgc-syncer-patch annotation in obj with the
 // resulting patch of applying mutation to obj
 func SetPatchAnnotation[T client.Object](mutation func(T), downstreamTarget string, obj T) error {
 	patch, err := PatchFor(mutation, obj)

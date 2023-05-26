@@ -6,11 +6,12 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1alpha1"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 )
 
 // healthChecksConfig represents the user configuration for the health checks

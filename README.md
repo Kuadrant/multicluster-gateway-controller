@@ -30,11 +30,11 @@ When deploying the multicluster gateway controller using the make targets, the f
 
 1. Setup your local environment 
     ```sh
-    make local-setup MCTC_WORKLOAD_CLUSTERS_COUNT=<NUMBER_WORKLOAD_CLUSTER>
+    make local-setup MGC_WORKLOAD_CLUSTERS_COUNT=<NUMBER_WORKLOAD_CLUSTER>
     ```  
 1. Build the controller image and load it into the control plane
     ```sh
-   kubectl config use-context kind-mctc-control-plane 
+   kubectl config use-context kind-mgc-control-plane 
    make kind-load-controller
     ```
 
@@ -45,7 +45,7 @@ When deploying the multicluster gateway controller using the make targets, the f
 
 1. (Optional) View the logs of the deployed controller
     ```sh
-    kubectl logs -f $(kubectl get pods -n multi-cluster-gateways | grep "mctc-" | awk '{print $1}') -n multi-cluster-gateways
+    kubectl logs -f $(kubectl get pods -n multi-cluster-gateways | grep "mgc-" | awk '{print $1}') -n multi-cluster-gateways
     ```
 
 ## 2. Running the controller locally:
@@ -56,19 +56,19 @@ When deploying the multicluster gateway controller using the make targets, the f
 1.  Setup your local environment 
 
     ```sh
-    make local_setup MCTC_WORKLOAD_CLUSTERS_COUNT=<NUMBER_WORKLOAD_CLUSTER>
+    make local_setup MGC_WORKLOAD_CLUSTERS_COUNT=<NUMBER_WORKLOAD_CLUSTER>
     ```
 
 1. Run the controller locally:
     ```sh
-    kubectl config use-context kind-mctc-control-plane 
+    kubectl config use-context kind-mgc-control-plane 
     (export $(cat ./controller-config.env | xargs) && export $(cat ./aws-credentials.env | xargs) && make build-controller install run-controller)
     ```
 
 ## 3. Running the agent in the cluster:
 1. Build the agent image and load it into the workload cluster
     ```sh
-    kubectl config use-context kind-mctc-workload-1 
+    kubectl config use-context kind-mgc-workload-1 
     make kind-load-agent
     ```
 
@@ -80,7 +80,7 @@ When deploying the multicluster gateway controller using the make targets, the f
 ## 4. Running the agent locally
 1. Target the workload cluster you wish to run on:
 ```sh
-export KUBECONFIG=./tmp/kubeconfigs/mctc-workload-1.kubeconfig
+export KUBECONFIG=./tmp/kubeconfigs/mgc-workload-1.kubeconfig
 ```
 1. Run the agent locally:
 ```sh

@@ -4,9 +4,9 @@ metadata:
   labels:
     app.kubernetes.io/name: dnsrecord-ns
     app.kubernetes.io/instance: dnsrecord-sample
-    app.kubernetes.io/part-of: multi-cluster-traffic-controller
+    app.kubernetes.io/part-of: multicluster-gateway-controller
     app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/created-by: multi-cluster-traffic-controller
+    app.kubernetes.io/created-by: multicluster-gateway-controller
   name: dnsrecord-ns
 spec:
   endpoints:

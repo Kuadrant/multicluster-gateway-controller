@@ -19,10 +19,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1alpha1"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/placement"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/tls"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -43,6 +39,11 @@ import (
 	clusterv1beta2 "open-cluster-management.io/api/cluster/v1beta1"
 	workv1 "open-cluster-management.io/api/work/v1"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/placement"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/tls"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -176,7 +177,7 @@ var _ = Describe("GatewayClassController", func() {
 					Namespace: "default",
 				},
 				Spec: gatewayv1beta1.GatewayClassSpec{
-					ControllerName: "kuadrant.io/mctc-gw-controller",
+					ControllerName: "kuadrant.io/mgc-gw-controller",
 				},
 			}
 		})
@@ -292,7 +293,7 @@ var _ = Describe("GatewayClassController", func() {
 // 					Namespace: "default",
 // 				},
 // 				Spec: gatewayv1beta1.GatewayClassSpec{
-// 					ControllerName: "kuadrant.io/mctc-gw-controller",
+// 					ControllerName: "kuadrant.io/mgc-gw-controller",
 // 				},
 // 			}
 // 			Expect(k8sClient.Create(ctx, gatewayclass)).To(BeNil())
@@ -390,7 +391,7 @@ var _ = Describe("GatewayClassController", func() {
 // 				Expect(acceptedCondition).ToNot(BeNil())
 // 				return acceptedCondition.Status == metav1.ConditionTrue
 // 			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
-// 			Expect(acceptedCondition.Message).To(BeEquivalentTo("Handled by kuadrant.io/mctc-gw-controller"))
+// 			Expect(acceptedCondition.Message).To(BeEquivalentTo("Handled by kuadrant.io/mgc-gw-controller"))
 
 // 			// Programmed is Unknown for now
 // 			var programmedCondition *metav1.Condition
@@ -452,7 +453,7 @@ var _ = Describe("GatewayClassController", func() {
 // 			Expect(programmedCondition.Message).To(BeEquivalentTo("Gateway configured in data plane cluster(s) - [test_cluster_one]"))
 
 // 			// sync annotation is set
-// 			syncAnnotation := createdGateway.Annotations[fmt.Sprintf("%s%s", syncer.MCTC_SYNC_ANNOTATION_PREFIX, syncer.MCTC_SYNC_ANNOTATION_WILDCARD)]
+// 			syncAnnotation := createdGateway.Annotations[fmt.Sprintf("%s%s", syncer.MGC_SYNC_ANNOTATION_PREFIX, syncer.MGC_SYNC_ANNOTATION_WILDCARD)]
 // 			Expect(syncAnnotation).To(BeEquivalentTo("true"))
 
 // 			// TLS config added to listener
@@ -489,7 +490,7 @@ var _ = Describe("GatewayClassController", func() {
 // 				Expect(acceptedCondition).ToNot(BeNil())
 // 				return acceptedCondition.Status == metav1.ConditionTrue
 // 			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
-// 			Expect(acceptedCondition.Message).To(BeEquivalentTo("Handled by kuadrant.io/mctc-gw-controller"))
+// 			Expect(acceptedCondition.Message).To(BeEquivalentTo("Handled by kuadrant.io/mgc-gw-controller"))
 
 // 			// Pending is False
 // 			var programmedCondition *metav1.Condition

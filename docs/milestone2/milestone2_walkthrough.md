@@ -39,36 +39,36 @@ AWS_DNS_PUBLIC_ZONE_ID=<my.hosted.zone.id>
 Start the local clusters (1 control plane & 2 data plane workload clusters)
 
 ```bash
-MCTC_WORKLOAD_CLUSTERS_COUNT=2 make local-setup
+MGC_WORKLOAD_CLUSTERS_COUNT=2 make local-setup
 ```
 
 Run the controller in the control plane with the configuration from the env files.
 
 ```bash
-export KUBECONFIG=./tmp/kubeconfigs/mctc-control-plane.kubeconfig
+export KUBECONFIG=./tmp/kubeconfigs/mgc-control-plane.kubeconfig
 (export $(cat ./controller-config.env | xargs) && export $(cat ./aws-credentials.env | xargs) && make build-controller install run-controller)
 ```
 
 In a new terminal, create the multi cluster Gateway Class and tenant namespace
 
 ```bash
-export KUBECONFIG=./tmp/kubeconfigs/mctc-control-plane.kubeconfig
+export KUBECONFIG=./tmp/kubeconfigs/mgc-control-plane.kubeconfig
 kubectl apply -f config/samples/gatewayclass.yaml
-kubectl create namespace mctc-tenant
+kubectl create namespace mgc-tenant
 ```
 
 Start the syncer component in both workload clusters
 
 ```bash
-export KUBECONFIG=./tmp/kubeconfigs/mctc-workload-1.kubeconfig
+export KUBECONFIG=./tmp/kubeconfigs/mgc-workload-1.kubeconfig
 make kind-load-syncer
 make deploy-syncer
-kubectl wait --for=condition=Available deployment sync-agent -n mctc-system
+kubectl wait --for=condition=Available deployment sync-agent -n mgc-system
 
-export KUBECONFIG=./tmp/kubeconfigs/mctc-workload-2.kubeconfig
-kind load docker-image syncer:latest --name mctc-workload-2 --nodes mctc-workload-2-control-plane
+export KUBECONFIG=./tmp/kubeconfigs/mgc-workload-2.kubeconfig
+kind load docker-image syncer:latest --name mgc-workload-2 --nodes mgc-workload-2-control-plane
 make deploy-syncer
-kubectl wait --for=condition=Available deployment sync-agent -n mctc-system
+kubectl wait --for=condition=Available deployment sync-agent -n mgc-system
 ```
 
 ## Gateway Setup
@@ -84,17 +84,17 @@ envsubst < docs/milestone2_gateway.yaml > gateway.yaml
 Create the Gateway in the control plane.
 
 ```bash
-export KUBECONFIG=./tmp/kubeconfigs/mctc-control-plane.kubeconfig
-kubectl apply -n mctc-tenant -f ./gateway.yaml
+export KUBECONFIG=./tmp/kubeconfigs/mgc-control-plane.kubeconfig
+kubectl apply -n mgc-tenant -f ./gateway.yaml
 ```
 
 The Gateway should now be running in both workload clusters
 
 ```bash
-export KUBECONFIG=./tmp/kubeconfigs/mctc-workload-1.kubeconfig
-kubectl get gateway example-gateway -n mctc-downstream
-export KUBECONFIG=./tmp/kubeconfigs/mctc-workload-2.kubeconfig
-kubectl get gateway example-gateway -n mctc-downstream
+export KUBECONFIG=./tmp/kubeconfigs/mgc-workload-1.kubeconfig
+kubectl get gateway example-gateway -n mgc-downstream
+export KUBECONFIG=./tmp/kubeconfigs/mgc-workload-2.kubeconfig
+kubectl get gateway example-gateway -n mgc-downstream
 ```
 
 ## Application Setup
@@ -108,16 +108,16 @@ envsubst < docs/milestone2_application.yaml > application.yaml
 Create the Application in both workload clusters
 
 ```bash
-export KUBECONFIG=./tmp/kubeconfigs/mctc-workload-1.kubeconfig
+export KUBECONFIG=./tmp/kubeconfigs/mgc-workload-1.kubeconfig
 kubectl apply -f ./application.yaml
-export KUBECONFIG=./tmp/kubeconfigs/mctc-workload-2.kubeconfig
+export KUBECONFIG=./tmp/kubeconfigs/mgc-workload-2.kubeconfig
 kubectl apply -f ./application.yaml
 ```
 
 Check that DNS has been setup.
 
 ```bash
-export KUBECONFIG=./tmp/kubeconfigs/mctc-control-plane.kubeconfig
+export KUBECONFIG=./tmp/kubeconfigs/mgc-control-plane.kubeconfig
 kubectl wait --for=condition=Ready dnsrecord ${MYAPP_HOST} -n multi-cluster-gateways
 ```
 
@@ -136,9 +136,9 @@ while true; do curl -k -s -o /dev/null -w "%{http_code}\n"  https://${MYAPP_HOST
 Deploy Kuadrant to both workload clusters
 
 ```bash
-export KUBECONFIG=./tmp/kubeconfigs/mctc-workload-1.kubeconfig
+export KUBECONFIG=./tmp/kubeconfigs/mgc-workload-1.kubeconfig
 kubectl apply -f config/samples/kuadrant.yaml
-export KUBECONFIG=./tmp/kubeconfigs/mctc-workload-2.kubeconfig
+export KUBECONFIG=./tmp/kubeconfigs/mgc-workload-2.kubeconfig
 kubectl apply -f config/samples/kuadrant.yaml
 ```
 
@@ -151,19 +151,19 @@ envsubst < docs/milestone2_ratelimitpolicy.yaml > ratelimitpolicy.yaml
 Create the RateLimitPolicy in both workload clusters
 
 ```bash
-export KUBECONFIG=./tmp/kubeconfigs/mctc-workload-1.kubeconfig
+export KUBECONFIG=./tmp/kubeconfigs/mgc-workload-1.kubeconfig
 kubectl apply -f ./ratelimitpolicy.yaml
-export KUBECONFIG=./tmp/kubeconfigs/mctc-workload-2.kubeconfig
+export KUBECONFIG=./tmp/kubeconfigs/mgc-workload-2.kubeconfig
 kubectl apply -f ./ratelimitpolicy.yaml
 ```
 
 Check that the RateLimitPolicy has been reconciled by the Kuadrant Operator
 
 ```bash
-export KUBECONFIG=./tmp/kubeconfigs/mctc-workload-1.kubeconfig
-kubectl wait --for=condition=Available ratelimitpolicy mctc-demo -n mctc-demo
-export KUBECONFIG=./tmp/kubeconfigs/mctc-workload-2.kubeconfig
-kubectl wait --for=condition=Available ratelimitpolicy mctc-demo -n mctc-demo
+export KUBECONFIG=./tmp/kubeconfigs/mgc-workload-1.kubeconfig
+kubectl wait --for=condition=Available ratelimitpolicy mgc-demo -n mgc-demo
+export KUBECONFIG=./tmp/kubeconfigs/mgc-workload-2.kubeconfig
+kubectl wait --for=condition=Available ratelimitpolicy mgc-demo -n mgc-demo
 ```
 
 ## RateLimitPolicy Verifcation

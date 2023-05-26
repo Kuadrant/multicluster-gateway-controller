@@ -23,7 +23,7 @@ source "${LOCAL_SETUP_DIR}"/.clusterUtils
 source "${LOCAL_SETUP_DIR}"/.argocdUtils
 source "${LOCAL_SETUP_DIR}"/.cleanupUtils
 
-KIND_CLUSTER_PREFIX="mctc-"
+KIND_CLUSTER_PREFIX="mgc-"
 KIND_CLUSTER_CONTROL_PLANE="${KIND_CLUSTER_PREFIX}control-plane"
 KIND_CLUSTER_WORKLOAD="${KIND_CLUSTER_PREFIX}workload"
 
@@ -88,8 +88,8 @@ deployCertManager() {
   echo "Waiting for Cert Manager deployments to be ready..."
   kubectl -n cert-manager wait --timeout=300s --for=condition=Available deployments --all
 
-  kubectl delete validatingWebhookConfiguration mctc-cert-manager-webhook
-  kubectl delete mutatingWebhookConfiguration mctc-cert-manager-webhook
+  kubectl delete validatingWebhookConfiguration mgc-cert-manager-webhook
+  kubectl delete mutatingWebhookConfiguration mgc-cert-manager-webhook
   # Apply the default glbc-ca issuer
   kubectl create -n cert-manager -f ./config/default/issuer.yaml
 }
@@ -156,8 +156,8 @@ deployOLM(){
 deployKuadrant(){
   clusterName=${1}
 
-  kubectl config use-context kind-mctc-control-plane
-  echo "Installing Redis in kind-mctc-control-plane"
+  kubectl config use-context kind-mgc-control-plane
+  echo "Installing Redis in kind-mgc-control-plane"
   ${KUSTOMIZE_BIN} build ${REDIS_KUSTOMIZATION_DIR} | kubectl apply -f -
 
   kubectl config use-context kind-${clusterName}
@@ -171,7 +171,7 @@ deployKuadrant(){
   ${KUSTOMIZE_BIN} build config/kuadrant/cr | kubectl apply -f -
   # This is adding the kuadrant CR before any gateways are created which is currently a known issue with kuadrant.
   # After adding a gateway is will necessary to force a reconcile of the kuadrant CR, this can be done by running:
-  # kubectl annotate kuadrant/mctc -n kuadrant-system updateme=`date +%s` --overwrite
+  # kubectl annotate kuadrant/mgc -n kuadrant-system updateme=`date +%s` --overwrite
 }
 
 deployDashboard() {
@@ -212,10 +212,10 @@ deployAgentSecret() {
 
   kubectl config use-context kind-${clusterName}
 
-  kubectl create namespace mctc-system || true
+  kubectl create namespace mgc-system || true
 
   makeSecretForCluster $KIND_CLUSTER_CONTROL_PLANE $clusterName $localAccess |
-  setNamespacedName mctc-system ${secretName} |
+  setNamespacedName mgc-system ${secretName} |
   setLabel argocd.argoproj.io/secret-type cluster |
   kubectl apply -f -
 }
@@ -275,11 +275,11 @@ initController() {
     kubectl config use-context kind-${clusterName}
     echo "Initialize local dev setup for the controller on ${clusterName}"
 
-    # Add the mctc CRDs
+    # Add the mgc CRDs
     ${KUSTOMIZE_BIN} build config/crd | kubectl apply -f -
     # Add the kuadrant.io ratelimitpolicies CRD
     ${KUSTOMIZE_BIN} build config/kuadrant/crd | kubectl apply -f -
-    # Create the mctc ns and dev managed zone
+    # Create the mgc ns and dev managed zone
     ${KUSTOMIZE_BIN} --reorder none --load-restrictor LoadRestrictionsNone build config/local-setup/controller | kubectl apply -f -
 }
 
@@ -291,7 +291,7 @@ proxyPort=9200
 metalLBSubnetStart=200
 
 # Create network for the clusters
-docker network create -d bridge --subnet 172.32.0.0/16 mctc --gateway 172.32.0.1 \
+docker network create -d bridge --subnet 172.32.0.0/16 mgc --gateway 172.32.0.1 \
   -o "com.docker.network.bridge.enable_ip_masquerade"="true" \
   -o "com.docker.network.driver.mtu"="1500"
 
@@ -324,9 +324,9 @@ deployOCMHub ${KIND_CLUSTER_CONTROL_PLANE}
 
 deployMetalLB ${KIND_CLUSTER_CONTROL_PLANE} ${metalLBSubnetStart}
 
-#9. Add workload clusters if MCTC_WORKLOAD_CLUSTERS_COUNT environment variable is set
-if [[ -n "${MCTC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
-  for ((i = 1; i <= ${MCTC_WORKLOAD_CLUSTERS_COUNT}; i++)); do
+#9. Add workload clusters if MGC_WORKLOAD_CLUSTERS_COUNT environment variable is set
+if [[ -n "${MGC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
+  for ((i = 1; i <= ${MGC_WORKLOAD_CLUSTERS_COUNT}; i++)); do
     kindCreateCluster ${KIND_CLUSTER_WORKLOAD}-${i} $((${port80} + ${i})) $((${port443} + ${i}))
     deployIstio ${KIND_CLUSTER_WORKLOAD}-${i}
     installGatewayAPI ${KIND_CLUSTER_WORKLOAD}-${i}

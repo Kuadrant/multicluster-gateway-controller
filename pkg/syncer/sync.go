@@ -14,13 +14,13 @@ import (
 	"k8s.io/utils/strings/slices"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/metadata"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/slice"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/metadata"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
 )
 
 const (
-	MCTC_SYNC_ANNOTATION_PREFIX   = "mctc-sync-agent/"
-	MCTC_SYNC_ANNOTATION_WILDCARD = "all"
+	MGC_SYNC_ANNOTATION_PREFIX   = "mgc-sync-agent/"
+	MGC_SYNC_ANNOTATION_WILDCARD = "all"
 )
 
 type Syncer interface {
@@ -104,10 +104,10 @@ func InformerForAnnotatedGVR(cfg Config, informer informers.GenericInformer, gvr
 			if !slices.Contains(cfg.UpstreamNamespaces, metaAccessor.GetNamespace()) {
 				return
 			}
-			value := metadata.GetAnnotation(metaAccessor, MCTC_SYNC_ANNOTATION_PREFIX+cfg.ClusterID)
+			value := metadata.GetAnnotation(metaAccessor, MGC_SYNC_ANNOTATION_PREFIX+cfg.ClusterID)
 			if value != "true" {
 				// no specific annotation for this cluster, is a wildcard annotation present?
-				value = metadata.GetAnnotation(metaAccessor, MCTC_SYNC_ANNOTATION_PREFIX+MCTC_SYNC_ANNOTATION_WILDCARD)
+				value = metadata.GetAnnotation(metaAccessor, MGC_SYNC_ANNOTATION_PREFIX+MGC_SYNC_ANNOTATION_WILDCARD)
 				if value != "true" {
 					return
 				}
@@ -124,10 +124,10 @@ func InformerForAnnotatedGVR(cfg Config, informer informers.GenericInformer, gvr
 			if !slices.Contains(cfg.UpstreamNamespaces, metaAccessor.GetNamespace()) {
 				return
 			}
-			value := metadata.GetAnnotation(metaAccessor, MCTC_SYNC_ANNOTATION_PREFIX+cfg.ClusterID)
+			value := metadata.GetAnnotation(metaAccessor, MGC_SYNC_ANNOTATION_PREFIX+cfg.ClusterID)
 			if value != "true" {
 				// no specific annotation for this cluster, is a wildcard annotation present?
-				value = metadata.GetAnnotation(metaAccessor, MCTC_SYNC_ANNOTATION_PREFIX+MCTC_SYNC_ANNOTATION_WILDCARD)
+				value = metadata.GetAnnotation(metaAccessor, MGC_SYNC_ANNOTATION_PREFIX+MGC_SYNC_ANNOTATION_WILDCARD)
 				if value != "true" {
 					return
 				}
@@ -142,10 +142,10 @@ func InformerForAnnotatedGVR(cfg Config, informer informers.GenericInformer, gvr
 			if !slices.Contains(cfg.UpstreamNamespaces, metaAccessor.GetNamespace()) {
 				return
 			}
-			value := metadata.GetAnnotation(metaAccessor, MCTC_SYNC_ANNOTATION_PREFIX+cfg.ClusterID)
+			value := metadata.GetAnnotation(metaAccessor, MGC_SYNC_ANNOTATION_PREFIX+cfg.ClusterID)
 			if value != "true" {
 				// no specific annotation for this cluster, is a wildcard annotation present?
-				value = metadata.GetAnnotation(metaAccessor, MCTC_SYNC_ANNOTATION_PREFIX+MCTC_SYNC_ANNOTATION_WILDCARD)
+				value = metadata.GetAnnotation(metaAccessor, MGC_SYNC_ANNOTATION_PREFIX+MGC_SYNC_ANNOTATION_WILDCARD)
 				if value != "true" {
 					return
 				}

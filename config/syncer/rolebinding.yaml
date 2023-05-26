@@ -9,4 +9,4 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: sync-agent
-  namespace: mctc-system
+  namespace: mgc-system

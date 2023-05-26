@@ -20,12 +20,12 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/syncer"
 )
 
 const (
-	controllerName                      = "mctc-status-syncing-controller"
-	SyncerClusterStatusAnnotationPrefix = "mctc-status-syncer-status-"
+	controllerName                      = "mgc-status-syncing-controller"
+	SyncerClusterStatusAnnotationPrefix = "mgc-status-syncer-status-"
 	NUM_THREADS                         = 8
 )
 

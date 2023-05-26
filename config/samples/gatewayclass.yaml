@@ -3,7 +3,7 @@ kind: GatewayClass
 metadata:
   name: kuadrant-multi-cluster-gateway-instance-per-cluster
 spec:
-  controllerName: "kuadrant.io/mctc-gw-controller"
+  controllerName: "kuadrant.io/mgc-gw-controller"
   parametersRef:
     group: ""
     kind: "ConfigMap"

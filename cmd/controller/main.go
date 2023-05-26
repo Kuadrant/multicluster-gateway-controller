@@ -40,17 +40,17 @@ import (
 
 	kuadrantapi "github.com/kuadrant/kuadrant-operator/api/v1beta1"
 
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/clusterSecret"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1alpha1"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/dnspolicy"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/dnsrecord"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/gateway"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/managedzone"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/ratelimitpolicy"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns/aws"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/placement"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/tls"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/clusterSecret"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnspolicy"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnsrecord"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/managedzone"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/ratelimitpolicy"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/aws"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/placement"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/tls"
 	//+kubebuilder:scaffold:imports
 )
 

@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/slice"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1alpha1"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/dns"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/route53"
 	"github.com/aws/aws-sdk-go/service/route53/route53iface"
+
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 )
 
 func TestHealthCheckReconcile(t *testing.T) {

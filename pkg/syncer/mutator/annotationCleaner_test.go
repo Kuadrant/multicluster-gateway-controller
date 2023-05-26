@@ -9,9 +9,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	gatewayapi "sigs.k8s.io/gateway-api/apis/v1beta1"
 
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/metadata"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer/status"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/metadata"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/syncer"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/syncer/status"
 )
 
 func Test_AnnotationCleaner(t *testing.T) {
@@ -31,7 +31,7 @@ func Test_AnnotationCleaner(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
 						JSONPatchAnnotationPrefix + config.ClusterID:                  "test",
-						syncer.MCTC_SYNC_ANNOTATION_PREFIX + config.ClusterID:         "test",
+						syncer.MGC_SYNC_ANNOTATION_PREFIX + config.ClusterID:          "test",
 						status.SyncerClusterStatusAnnotationPrefix + config.ClusterID: "test",
 						"kubectl.kubernetes.io/last-applied-configuration":            "test",
 					},
@@ -101,8 +101,8 @@ func verifyNoMctcAnnotations(obj *unstructured.Unstructured, config syncer.Mutat
 	if metadata.HasAnnotation(obj, JSONPatchAnnotationPrefix+config.ClusterID) {
 		t.Fatalf("found annotation '%v' expected absent", JSONPatchAnnotationPrefix+config.ClusterID)
 	}
-	if metadata.HasAnnotation(obj, syncer.MCTC_SYNC_ANNOTATION_PREFIX+config.ClusterID) {
-		t.Fatalf("found annotation '%v' expected absent", syncer.MCTC_SYNC_ANNOTATION_PREFIX+config.ClusterID)
+	if metadata.HasAnnotation(obj, syncer.MGC_SYNC_ANNOTATION_PREFIX+config.ClusterID) {
+		t.Fatalf("found annotation '%v' expected absent", syncer.MGC_SYNC_ANNOTATION_PREFIX+config.ClusterID)
 	}
 	if metadata.HasAnnotation(obj, status.SyncerClusterStatusAnnotationPrefix+config.ClusterID) {
 		t.Fatalf("found annotation '%v' expected absent", status.SyncerClusterStatusAnnotationPrefix+config.ClusterID)

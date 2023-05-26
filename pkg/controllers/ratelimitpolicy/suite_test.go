@@ -42,11 +42,11 @@ import (
 	gatewayapiv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/clusterSecret"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/metadata"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1alpha1"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer/mutator"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/clusterSecret"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/metadata"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/syncer"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/syncer/mutator"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -185,7 +185,7 @@ var _ = Describe("RateLimitPolicyController", func() {
 				Namespace: "default",
 			},
 			Spec: gatewayv1beta1.GatewayClassSpec{
-				ControllerName: "kuadrant.io/mctc-gw-controller",
+				ControllerName: "kuadrant.io/mgc-gw-controller",
 			},
 		}
 		Expect(k8sClient.Create(ctx, gatewayclass)).To(BeNil())
@@ -317,7 +317,7 @@ var _ = Describe("RateLimitPolicyController", func() {
 					Namespace: "default",
 					Annotations: map[string]string{
 						"kuadrant.io/gateway-cluster-label-selector": "type=test",
-						"mctc-sync-agent/all":                        "true",
+						"mgc-sync-agent/all":                         "true",
 					},
 				},
 				Spec: gatewayv1beta1.GatewaySpec{
@@ -355,12 +355,12 @@ var _ = Describe("RateLimitPolicyController", func() {
 					return false
 				}
 				// Check cluster 1
-				annotationKey := fmt.Sprintf("%s%s", syncer.MCTC_SYNC_ANNOTATION_PREFIX, "test-cluster-1")
+				annotationKey := fmt.Sprintf("%s%s", syncer.MGC_SYNC_ANNOTATION_PREFIX, "test-cluster-1")
 				if hasAnnotation := metadata.HasAnnotation(createdRlp, annotationKey); !hasAnnotation {
 					return false
 				}
 				// Check cluster 2
-				annotationKey = fmt.Sprintf("%s%s", syncer.MCTC_SYNC_ANNOTATION_PREFIX, "test-cluster-2")
+				annotationKey = fmt.Sprintf("%s%s", syncer.MGC_SYNC_ANNOTATION_PREFIX, "test-cluster-2")
 				return metadata.HasAnnotation(createdRlp, annotationKey)
 			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 
@@ -413,7 +413,7 @@ var _ = Describe("RateLimitPolicyController", func() {
 					Namespace: "default",
 					Annotations: map[string]string{
 						"kuadrant.io/gateway-cluster-label-selector": "type=test",
-						"mctc-sync-agent/test-cluster-1":             "true",
+						"mgc-sync-agent/test-cluster-1":              "true",
 					},
 				},
 				Spec: gatewayv1beta1.GatewaySpec{
@@ -450,7 +450,7 @@ var _ = Describe("RateLimitPolicyController", func() {
 					return false
 				}
 				// Check cluster 1
-				annotationKey := fmt.Sprintf("%s%s", syncer.MCTC_SYNC_ANNOTATION_PREFIX, "test-cluster-1")
+				annotationKey := fmt.Sprintf("%s%s", syncer.MGC_SYNC_ANNOTATION_PREFIX, "test-cluster-1")
 				return metadata.HasAnnotation(createdRlp, annotationKey)
 			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 		})
@@ -483,7 +483,7 @@ var _ = Describe("RateLimitPolicyController", func() {
 				if err := k8sClient.Get(ctx, rlpType, createdRlp); err != nil {
 					return false
 				}
-				annotationKey := fmt.Sprintf("%s%s", syncer.MCTC_SYNC_ANNOTATION_PREFIX, "test-cluster-2")
+				annotationKey := fmt.Sprintf("%s%s", syncer.MGC_SYNC_ANNOTATION_PREFIX, "test-cluster-2")
 				return !metadata.HasAnnotation(createdRlp, annotationKey)
 			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 		})

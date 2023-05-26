@@ -20,15 +20,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/slice"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/syncer"
 )
 
 const (
-	controllerName                      = "mctc-spec-syncing-controller"
-	SyncerFinalizerNamePrefix           = "mctc-spec-syncer-finalizer/"
-	SyncerDeletionAnnotationPrefix      = "mctc-spec-syncer-deletion-timestamp-"
-	SyncerClusterStatusAnnotationPrefix = "mctc-spec-syncer-status-"
+	controllerName                      = "mgc-spec-syncing-controller"
+	SyncerFinalizerNamePrefix           = "mgc-spec-syncer-finalizer/"
+	SyncerDeletionAnnotationPrefix      = "mgc-spec-syncer-deletion-timestamp-"
+	SyncerClusterStatusAnnotationPrefix = "mgc-spec-syncer-status-"
 	syncerApplyManager                  = "syncer"
 	NUM_THREADS                         = 8
 )

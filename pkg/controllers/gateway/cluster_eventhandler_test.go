@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/clusterSecret"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -13,6 +12,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/clusterSecret"
 )
 
 func TestClusterEventHandler(t *testing.T) {

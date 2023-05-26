@@ -1,13 +1,13 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: mctc-demo
+  name: mgc-demo
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: mctc-demo
-  namespace: mctc-demo
+  name: mgc-demo
+  namespace: mgc-demo
 spec:
   ports:
     - name: http-port
@@ -15,25 +15,25 @@ spec:
       targetPort: http-port
       protocol: TCP
   selector:
-    app: mctc-demo
+    app: mgc-demo
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: mctc-demo
-  namespace: mctc-demo
+  name: mgc-demo
+  namespace: mgc-demo
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: mctc-demo
+      app: mgc-demo
   template:
     metadata:
       labels:
-        app: mctc-demo
+        app: mgc-demo
     spec:
       containers:
-        - name: mctc-demo
+        - name: mgc-demo
           image: docker.io/jmalloc/echo-server
           ports:
             - name: http-port
@@ -43,8 +43,8 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
-  name: mctc-demo
-  namespace: mctc-demo
+  name: mgc-demo
+  namespace: mgc-demo
 spec:
   hostnames:
   - "$MYAPP_HOST"
@@ -52,12 +52,12 @@ spec:
   - group: gateway.networking.k8s.io
     kind: Gateway
     name: example-gateway
-    namespace: mctc-downstream
+    namespace: mgc-downstream
   rules:
   - backendRefs:
     - group: ""
       kind: Service
-      name: mctc-demo
+      name: mgc-demo
       port: 80
       weight: 1
     matches:

@@ -17,7 +17,7 @@ limitations under the License.
 package dns
 
 import (
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 )
 
 // Provider knows how to manage DNS zones only as pertains to routing.

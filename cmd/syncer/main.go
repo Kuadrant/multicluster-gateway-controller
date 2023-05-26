@@ -39,12 +39,12 @@ import (
 
 	//+kubebuilder:scaffold:imports
 
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/clusterSecret"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/env"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer/mutator"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer/spec"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer/status"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/clusterSecret"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/env"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/syncer"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/syncer/mutator"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/syncer/spec"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/syncer/status"
 )
 
 var (
@@ -86,10 +86,10 @@ func main() {
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.StringVar(&controlPlaneConfigSecretName, "control-plane-config-name", "control-plane-cluster", "The name of the secret with the control plane client configuration")
-	flag.StringVar(&controlPlaneConfigSecretNamespace, "control-plane-config-namespace", "mctc-system", "The namespace containing the secret with the control plane client configuration")
+	flag.StringVar(&controlPlaneConfigSecretNamespace, "control-plane-config-namespace", "mgc-system", "The namespace containing the secret with the control plane client configuration")
 	flag.Var(&syncedResources, "synced-resources", "A list of GVRs to sync (e.g. ingresses.v1.networking.k8s.io)")
-	flag.StringVar(&controlPlaneNS, "control-plane-namespace", "mctc-tenant", "The name of the upstream namespace to sync resources from")
-	flag.StringVar(&dataPlaneNS, "data-plane-namespace", env.GetEnvString("DATAPLANE_NAMESPACE", "mctc-downstream"), "The namespace in the data plane to sync resources to")
+	flag.StringVar(&controlPlaneNS, "control-plane-namespace", "mgc-tenant", "The name of the upstream namespace to sync resources from")
+	flag.StringVar(&dataPlaneNS, "data-plane-namespace", env.GetEnvString("DATAPLANE_NAMESPACE", "mgc-downstream"), "The namespace in the data plane to sync resources to")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")

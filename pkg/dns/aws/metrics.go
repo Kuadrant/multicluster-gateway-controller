@@ -35,8 +35,8 @@ var (
 	// concurrent inflight requests to Route53.
 	route53RequestCount = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "mctc_aws_route53_inflight_request_count",
-			Help: "MCTC AWS Route53 inflight request count",
+			Name: "mgc_aws_route53_inflight_request_count",
+			Help: "MGC AWS Route53 inflight request count",
 		},
 		[]string{operationLabel},
 	)
@@ -45,8 +45,8 @@ var (
 	// number of requests to Route53.
 	route53RequestTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "mctc_aws_route53_request_total",
-			Help: "MCTC AWS Route53 total number of requests",
+			Name: "mgc_aws_route53_request_total",
+			Help: "MGC AWS Route53 total number of requests",
 		},
 		[]string{operationLabel, returnCodeLabel},
 	)
@@ -55,8 +55,8 @@ var (
 	// number of failed requests to Route53.
 	route53RequestErrors = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "mctc_aws_route53_request_errors_total",
-			Help: "MCTC AWS Route53 total number of errors",
+			Name: "mgc_aws_route53_request_errors_total",
+			Help: "MGC AWS Route53 total number of errors",
 		},
 		[]string{operationLabel, returnCodeLabel},
 	)
@@ -65,8 +65,8 @@ var (
 	// of the requests to Route53.
 	route53RequestDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name: "mctc_aws_route53_request_duration_seconds",
-			Help: "MCTC AWS Route53 request duration",
+			Name: "mgc_aws_route53_request_duration_seconds",
+			Help: "MGC AWS Route53 request duration",
 			Buckets: []float64{
 				0.005, 0.01, 0.025, 0.05, 0.1,
 				0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45,

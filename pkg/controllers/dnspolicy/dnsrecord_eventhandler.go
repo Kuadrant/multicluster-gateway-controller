@@ -3,9 +3,6 @@ package dnspolicy
 import (
 	"context"
 
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/slice"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/apis/v1alpha1"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/controllers/gateway"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -13,6 +10,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
 )
 
 type DNSRecordEventHandler struct {

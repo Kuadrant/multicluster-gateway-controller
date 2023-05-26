@@ -35,9 +35,9 @@ import (
 	kuadrantapi "github.com/kuadrant/kuadrant-operator/api/v1beta1"
 	kuadrantcommon "github.com/kuadrant/kuadrant-operator/pkg/common"
 
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/clusterSecret"
-	syncutils "github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/sync"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/clusterSecret"
+	syncutils "github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/sync"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/syncer"
 )
 
 const (
@@ -164,13 +164,13 @@ func setSyncAnnotationsForClusters(obj metav1.Object, clusters []clusterSecret.C
 	annotations := map[string]string{}
 	// keep all non sync related annotations
 	for annKey, annValue := range obj.GetAnnotations() {
-		if !strings.HasPrefix(annKey, syncer.MCTC_SYNC_ANNOTATION_PREFIX) {
+		if !strings.HasPrefix(annKey, syncer.MGC_SYNC_ANNOTATION_PREFIX) {
 			annotations[annKey] = annValue
 		}
 	}
 	// add all sync annotations
 	for _, cluster := range clusters {
-		annotations[syncer.MCTC_SYNC_ANNOTATION_PREFIX+cluster.Config.Name] = "true"
+		annotations[syncer.MGC_SYNC_ANNOTATION_PREFIX+cluster.Config.Name] = "true"
 	}
 
 	obj.SetAnnotations(annotations)
@@ -179,7 +179,7 @@ func setSyncAnnotationsForClusters(obj metav1.Object, clusters []clusterSecret.C
 // setPatchAnnotationsForClusters adds patch annotations to the given RateLimitPolicy for each cluster.
 // Adds a patch annotation to the RLP that injects an Action with a generic key (key: "kuadrant_gateway_cluster", value: <cluster name>) which
 // can then be used in limit conditions.
-// Also adds an Action with generic key for any attributes added to the cluster using the MCTC_ATTRIBUTE_ANNOTATION_PREFIX
+// Also adds an Action with generic key for any attributes added to the cluster using the MGC_ATTRIBUTE_ANNOTATION_PREFIX
 // i.e. kuadrant.io/attribute-cloud=aws = (key: "cloud", value: "aws").
 func setPatchAnnotationsForClusters(rlp *kuadrantapi.RateLimitPolicy, clusters []clusterSecret.ClusterSecret) {
 	// add all patch annotations

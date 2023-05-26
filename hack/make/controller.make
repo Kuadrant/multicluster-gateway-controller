@@ -17,11 +17,11 @@ run-controller: manifests generate fmt vet  install
 .PHONY: docker-build-controller
 docker-build-controller: ## Build docker image with the controller.
 	docker build --target controller -t ${CONTROLLER_IMG} .
-	docker image prune -f --filter label=stage=mctc-builder
+	docker image prune -f --filter label=stage=mgc-builder
 
 .PHONY: kind-load-controller
 kind-load-controller: docker-build-controller
-	kind load docker-image ${CONTROLLER_IMG} --name mctc-control-plane  --nodes mctc-control-plane-control-plane
+	kind load docker-image ${CONTROLLER_IMG} --name mgc-control-plane  --nodes mgc-control-plane-control-plane
 
 .PHONY: docker-push-controller
 docker-push-controller: ## Push docker image with the controller.

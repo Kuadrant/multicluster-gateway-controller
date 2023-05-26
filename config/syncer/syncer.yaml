@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: sync-agent
-  namespace: mctc-system
+  namespace: mgc-system
 spec:
   selector:
     matchLabels:
@@ -19,7 +19,7 @@ spec:
       - command:
         - /syncer
         args:
-        - -control-plane-config-namespace=mctc-system
+        - -control-plane-config-namespace=mgc-system
         - -control-plane-config-name=control-plane-cluster-internal
         - -synced-resources=gateways.v1beta1.gateway.networking.k8s.io
         - -synced-resources=ratelimitpolicies.v1beta1.kuadrant.io

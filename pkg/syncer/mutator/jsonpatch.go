@@ -6,14 +6,14 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/json"
 
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/metadata"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer"
-
 	jsonpatch "github.com/evanphx/json-patch/v5"
+
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/metadata"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/syncer"
 )
 
 const (
-	JSONPatchAnnotationPrefix = "mctc-syncer-patch/"
+	JSONPatchAnnotationPrefix = "mgc-syncer-patch/"
 )
 
 type JSONPatch struct {

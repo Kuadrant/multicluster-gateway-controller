@@ -29,12 +29,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/conditions"
-	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/slice"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
 )
 
 const (
-	ControllerName = "kuadrant.io/mctc-gw-controller"
+	ControllerName = "kuadrant.io/mgc-gw-controller"
 )
 
 func getSupportedClasses() []string {
