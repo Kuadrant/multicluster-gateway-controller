@@ -1,80 +1,84 @@
 package testutil
 
 import (
+	"context"
 	"crypto/rand"
 	"fmt"
+	"log"
 	"math/big"
 	"os"
 	"strconv"
 
 	"github.com/goombaio/namegenerator"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	mgcv1alpha1 "github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	ocm_cluster_v1beta1 "open-cluster-management.io/api/cluster/v1beta1"
+	ocm_cluster_v1beta2 "open-cluster-management.io/api/cluster/v1beta2"
 	gatewayapi "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
 const (
-	GatewayClassName          = "mctc-gw-istio-external-instance-per-cluster"
-	ClusterSelectorLabelKey   = "kuadrant.io/gateway-cluster-label-selector"
-	ClusterSelectorLabelValue = "type=test"
+	GatewayClassName      = "kuadrant-multi-cluster-gateway-instance-per-cluster"
+	ManagedClusterSetName = "gateway-clusters"
+	PlacementLabel        = "cluster.open-cluster-management.io/placement"
 
 	// configuration environment variables
-	tenantNamespaceEnvvar          = "TEST_TENANT_NAMESPACE"
-	managedZoneEnvvar              = "TEST_MANAGED_ZONE"
-	controlplaneContextEnvvar      = "TEST_CONTROLPLANE_CONTEXT"
-	dataplaneContextPrefixEnvvar   = "TEST_DATAPLANE_CONTEXT_PREFIX"
-	dataplaneClusterCountEnvvar    = "TEST_DATAPLANE_CLUSTER_COUNT"
-	dataplaneConfigNamespaceEnvvar = "TEST_DATAPLANE_CONFIG_NAMESPACE"
+	tenantNamespaceEnvvar        = "TEST_TENANT_NAMESPACE"
+	managedZoneEnvvar            = "TEST_MANAGED_ZONE"
+	hubKubeContextEnvvar         = "TEST_HUB_KUBE_CONTEXT"
+	spokeKubeContextPrefixEnvvar = "TEST_SPOKE_KUBE_CONTEXT_PREFIX"
+	spokeClusterCountEnvvar      = "TEST_SPOKE_CLUSTER_COUNT"
 )
 
 type SuiteConfig struct {
-	cpClient                 client.Client
-	dpClients                []client.Client
-	nameGenerator            namegenerator.Generator
-	tenantNamespace          string
-	managedZone              string
-	dataplaneConfigNamespace string
+	cpClient     client.Client
+	dpClients    []client.Client
+	hubNamespace string
+	managedZone  string
+	listCreated  []client.Object
 }
 
 func (cfg *SuiteConfig) Build() error {
 
 	// Load test suite configuration from the environment
-	if cfg.tenantNamespace = os.Getenv(tenantNamespaceEnvvar); cfg.tenantNamespace == "" {
+	if cfg.hubNamespace = os.Getenv(tenantNamespaceEnvvar); cfg.hubNamespace == "" {
 		return fmt.Errorf("env variable '%s' must be set", tenantNamespaceEnvvar)
 	}
 	if cfg.managedZone = os.Getenv(managedZoneEnvvar); cfg.managedZone == "" {
 		return fmt.Errorf("env variable '%s' must be set", managedZoneEnvvar)
 	}
-	if cfg.dataplaneConfigNamespace = os.Getenv(dataplaneConfigNamespaceEnvvar); cfg.dataplaneConfigNamespace == "" {
-		return fmt.Errorf("env variable '%s' must be set", dataplaneConfigNamespaceEnvvar)
-	}
 
-	var dataplaneClustersCount int
-	var dataplaneContextPrefix string
-	if count := os.Getenv(dataplaneClusterCountEnvvar); count == "" {
-		dataplaneClustersCount = 0
+	var spokeClustersCount int
+	var spokeKubeContextPrefix string
+	if count := os.Getenv(spokeClusterCountEnvvar); count == "" {
+		spokeClustersCount = 0
 	} else {
 		var err error
-		if dataplaneClustersCount, err = strconv.Atoi(count); err != nil {
-			return fmt.Errorf("'%s' should be a number", dataplaneClusterCountEnvvar)
+		if spokeClustersCount, err = strconv.Atoi(count); err != nil {
+			return fmt.Errorf("'%s' should be a number", spokeClusterCountEnvvar)
 		}
 	}
 
-	if dataplaneClustersCount != 0 {
-		if dataplaneContextPrefix = os.Getenv(dataplaneContextPrefixEnvvar); dataplaneContextPrefix == "" {
-			return fmt.Errorf("'%s' should be set if '%s' is greater than zero", dataplaneContextPrefixEnvvar, dataplaneClusterCountEnvvar)
+	if spokeClustersCount != 0 {
+		if spokeKubeContextPrefix = os.Getenv(spokeKubeContextPrefixEnvvar); spokeKubeContextPrefix == "" {
+			return fmt.Errorf("'%s' should be set if '%s' is greater than zero", spokeKubeContextPrefixEnvvar, spokeClusterCountEnvvar)
 		}
 	}
 
-	var controlplaneContext string
-	if controlplaneContext = os.Getenv(controlplaneContextEnvvar); controlplaneContext == "" {
-		return fmt.Errorf("env variable '%s' must be set", controlplaneContextEnvvar)
+	var hubKubeContext string
+	if hubKubeContext = os.Getenv(hubKubeContextEnvvar); hubKubeContext == "" {
+		return fmt.Errorf("env variable '%s' must be set", hubKubeContextEnvvar)
 	}
 
 	// Create controlplane cluster client
-	restcfg, err := loadKubeconfig(controlplaneContext)
+	restcfg, err := loadKubeconfig(hubKubeContext)
 	if err != nil {
 		return err
 	}
@@ -82,16 +86,30 @@ func (cfg *SuiteConfig) Build() error {
 	if err != nil {
 		return err
 	}
-	cfg.cpClient, err = client.New(restcfg, client.Options{Scheme: scheme.Scheme})
+	err = ocm_cluster_v1beta1.AddToScheme(scheme.Scheme)
+	if err != nil {
+		return err
+	}
+	err = ocm_cluster_v1beta2.AddToScheme(scheme.Scheme)
+	if err != nil {
+		return err
+	}
+	err = mgcv1alpha1.AddToScheme(scheme.Scheme)
 	if err != nil {
 		return err
 	}
 
+	cfg.cpClient, err = client.New(restcfg, client.Options{Scheme: scheme.Scheme})
+	if err != nil {
+		log.Fatal(err)
+		return err
+	}
+
 	// Create dataplane cluster clients
-	if dataplaneClustersCount > 0 {
-		cfg.dpClients = make([]client.Client, dataplaneClustersCount)
-		for i := 0; i < dataplaneClustersCount; i++ {
-			restcfg, err := loadKubeconfig(fmt.Sprintf("%s-%d", dataplaneContextPrefix, i+1))
+	if spokeClustersCount > 0 {
+		cfg.dpClients = make([]client.Client, spokeClustersCount)
+		for i := 0; i < spokeClustersCount; i++ {
+			restcfg, err := loadKubeconfig(fmt.Sprintf("%s-%d", spokeKubeContextPrefix, i+1))
 			if err != nil {
 				return err
 			}
@@ -101,30 +119,32 @@ func (cfg *SuiteConfig) Build() error {
 			}
 		}
 	} else {
+		// use the hub cluster as spoke if not standalone spoke
+		// clusters have been configured
 		cfg.dpClients = []client.Client{cfg.cpClient}
 	}
-
-	// Create a randomized name generator
-	nBig, err := rand.Int(rand.Reader, big.NewInt(1000000))
-	if err != nil {
-		return err
-	}
-	cfg.nameGenerator = namegenerator.NewNameGenerator(nBig.Int64())
 
 	return nil
 }
 
-func (cfg *SuiteConfig) ControlPlaneClient() client.Client { return cfg.cpClient }
+func (cfg *SuiteConfig) HubClient() client.Client { return cfg.cpClient }
 
-func (cfg *SuiteConfig) DataPlaneClient(idx int) client.Client { return cfg.dpClients[idx] }
+func (cfg *SuiteConfig) SpokeClient(idx int) client.Client { return cfg.dpClients[idx] }
 
-func (cfg *SuiteConfig) GenerateName() string { return cfg.nameGenerator.Generate() }
+func (cfg *SuiteConfig) GenerateName() string {
+	nBig, _ := rand.Int(rand.Reader, big.NewInt(1000000))
+	return namegenerator.NewNameGenerator(nBig.Int64()).Generate()
+}
 
 func (cfg *SuiteConfig) ManagedZone() string { return cfg.managedZone }
 
-func (cfg *SuiteConfig) TenantNamespace() string { return cfg.tenantNamespace }
+func (cfg *SuiteConfig) HubNamespace() string { return cfg.hubNamespace }
 
-func (cfg *SuiteConfig) DataplaneConfigNamespace() string { return cfg.dataplaneConfigNamespace }
+func (cfg *SuiteConfig) SpokeNamespace() string { return "kuadrant-" + cfg.hubNamespace }
+
+func (cfg *SuiteConfig) ApplicationNamespace() string { return "kuadrant-" + cfg.hubNamespace }
+
+func (cfg *SuiteConfig) ManagedClusterSet() string { return ManagedClusterSetName }
 
 func loadKubeconfig(context string) (*rest.Config, error) {
 	cfg, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
@@ -136,4 +156,139 @@ func loadKubeconfig(context string) (*rest.Config, error) {
 	}
 
 	return cfg, nil
+}
+
+func (cfg *SuiteConfig) InstallPrerequisites(ctx context.Context) error {
+	cfg.listCreated = []client.Object{}
+
+	// TODO: label the managedcluster
+
+	// ensure Namespace
+	{
+		namespace := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: cfg.HubNamespace()}}
+		created, err := cfg.Ensure(ctx, namespace)
+		if err != nil {
+			return err
+		}
+
+		if created {
+			cfg.listCreated = append(cfg.listCreated, namespace)
+		}
+	}
+
+	// TODO ensure ManagedZone
+	// {
+	// 	managedzone := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: cfg.ManagedZone()}}
+	// 	created, err := cfg.Ensure(ctx, managedzone)
+	// 	if err != nil {
+	// 		return listCreated, err
+	// 	}
+
+	// 	if created {
+	// 		listCreated = append(listCreated, managedzone)
+	// 	}
+	// }
+
+	// ensure ManagedClusterSet
+	{
+		managedclusterset := &ocm_cluster_v1beta2.ManagedClusterSet{
+			ObjectMeta: metav1.ObjectMeta{Name: ManagedClusterSetName},
+			Spec: ocm_cluster_v1beta2.ManagedClusterSetSpec{
+				ClusterSelector: ocm_cluster_v1beta2.ManagedClusterSelector{
+					SelectorType: ocm_cluster_v1beta2.LabelSelector,
+					LabelSelector: &metav1.LabelSelector{
+						MatchLabels: map[string]string{
+							"ingress-cluster": "true",
+						},
+					},
+				},
+			},
+		}
+		created, err := cfg.Ensure(ctx, managedclusterset)
+		if err != nil {
+			return err
+		}
+
+		if created {
+			cfg.listCreated = append(cfg.listCreated, managedclusterset)
+		}
+	}
+
+	// ensure ManagedClusterSetBinding
+	{
+		managedclustersetbinding := &ocm_cluster_v1beta2.ManagedClusterSetBinding{
+			ObjectMeta: metav1.ObjectMeta{Name: ManagedClusterSetName, Namespace: cfg.HubNamespace()},
+			Spec: ocm_cluster_v1beta2.ManagedClusterSetBindingSpec{
+				ClusterSet: ManagedClusterSetName,
+			},
+		}
+		created, err := cfg.Ensure(ctx, managedclustersetbinding)
+		if err != nil {
+			return err
+		}
+
+		if created {
+			cfg.listCreated = append(cfg.listCreated, managedclustersetbinding)
+		}
+	}
+
+	// ensure GatewayClass
+	{
+		gatewayclass := &gatewayapi.GatewayClass{
+			ObjectMeta: metav1.ObjectMeta{Name: GatewayClassName},
+			Spec:       gatewayapi.GatewayClassSpec{ControllerName: "kuadrant.io/mgc-gw-controller"},
+		}
+
+		created, err := cfg.Ensure(ctx, gatewayclass)
+		if err != nil {
+			return err
+		}
+
+		if created {
+			cfg.listCreated = append(cfg.listCreated, gatewayclass)
+		}
+	}
+
+	return nil
+}
+
+func (cfg *SuiteConfig) Cleanup(ctx context.Context) error {
+
+	for _, o := range cfg.listCreated {
+		// Don't check for errors so all objects are deleted. Errors can be returned if for example the
+		// namespace is deleted first, but we don't care
+		cfg.HubClient().Delete(ctx, o, client.PropagationPolicy(metav1.DeletePropagationBackground))
+	}
+
+	return nil
+}
+
+func (cfg *SuiteConfig) Exists(ctx context.Context, o client.Object) (bool, error) {
+
+	if err := cfg.HubClient().Get(ctx, client.ObjectKeyFromObject(o), o); err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		} else {
+			return false, err
+		}
+	}
+	return true, nil
+}
+
+func (cfg *SuiteConfig) Ensure(ctx context.Context, o client.Object) (bool, error) {
+
+	exists, err := cfg.Exists(ctx, o)
+	if err != nil {
+		return false, err
+	}
+
+	if exists {
+		return false, nil
+	}
+
+	if err := cfg.HubClient().Create(ctx, o); err != nil {
+		return false, err
+	}
+
+	return true, err
 }

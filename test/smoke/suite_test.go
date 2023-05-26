@@ -17,13 +17,18 @@ func TestAPIs(t *testing.T) {
 	RunSpecs(t, "Smoke Tests Suite")
 }
 
-var _ = BeforeSuite(func() {
+var _ = BeforeSuite(func(ctx SpecContext) {
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
 	tconfig = SuiteConfig{}
 	err := tconfig.Build()
 	Expect(err).NotTo(HaveOccurred())
 
+	err = tconfig.InstallPrerequisites(ctx)
+	Expect(err).NotTo(HaveOccurred())
+
 })
 
-var _ = AfterSuite(func() {})
+var _ = AfterSuite(func(ctx SpecContext) {
+	tconfig.Cleanup(ctx)
+})
