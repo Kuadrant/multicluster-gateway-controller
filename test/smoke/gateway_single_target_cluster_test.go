@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	. "github.com/Kuadrant/multi-cluster-traffic-controller/test/util"
+	. "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
