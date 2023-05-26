@@ -224,13 +224,13 @@ deployOCMHub(){
   clusterName=${1}
   echo "installing the hub cluster in kind-(${clusterName}) "
 
-  ${CLUSTERADM_BIN} init --wait --context kind-${clusterName}
+  ${CLUSTERADM_BIN} init --bundle-version='0.10.0' --wait --context kind-${clusterName}
   echo "checking if cluster is single or multi"
   if [[ -n "${OCM_SINGLE}" ]]; then
     clusterName=kind-${KIND_CLUSTER_CONTROL_PLANE}
     echo "Found single cluster installing hub and spoke on the one cluster (${clusterName})"
     join=$(${CLUSTERADM_BIN} get token --context ${clusterName} |  grep -o  'clusteradm.*--cluster-name')
-    ${BIN_DIR}/${join} ${clusterName} --force-internal-endpoint-lookup --context ${clusterName} | grep clusteradm
+    ${BIN_DIR}/${join} ${clusterName} --bundle-version='0.10.0' --force-internal-endpoint-lookup --context ${clusterName} | grep clusteradm
     echo "accepting OCM spoke cluster invite"
   
     max_retry=18
