@@ -29,8 +29,4 @@ resources:
   group: gateway.networking.k8s.io
   kind: Gateway
   version: v1beta1
-- controller: true
-  group: kuadrant.io
-  kind: RateLimitPolicy
-  version: v1beta1
 version: "3"
