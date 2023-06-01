@@ -103,7 +103,7 @@ func (s *Service) GetDNSRecordsFor(ctx context.Context, trafficAccessor traffic.
 
 // CreateDNSRecord creates a new DNSRecord, if one does not already exist, in the given managed zone with the given subdomain.
 // Needs traffic.Interface owner to block other traffic objects from accessing this record
-func (s *Service) CreateDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone, owner traffic.Interface) (*v1alpha1.DNSRecord, error) {
+func (s *Service) CreateDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone, owner metav1.Object) (*v1alpha1.DNSRecord, error) {
 	managedHost := strings.ToLower(fmt.Sprintf("%s.%s", subDomain, managedZone.Spec.DomainName))
 
 	dnsRecord := v1alpha1.DNSRecord{
@@ -120,6 +120,9 @@ func (s *Service) CreateDNSRecord(ctx context.Context, subDomain string, managed
 				Name: managedZone.Name,
 			},
 		},
+	}
+	if err := controllerutil.SetOwnerReference(owner, &dnsRecord, s.controlClient.Scheme()); err != nil {
+		return nil, err
 	}
 	err := controllerutil.SetControllerReference(managedZone, &dnsRecord, s.controlClient.Scheme())
 	if err != nil {
@@ -142,7 +145,7 @@ func (s *Service) CreateDNSRecord(ctx context.Context, subDomain string, managed
 
 // GetDNSRecord returns a v1alpha1.DNSRecord, if one exists, for the given subdomain in the given v1alpha1.ManagedZone.
 // It needs a reference string to enforce DNS record serving a single traffic.Interface owner
-func (s *Service) GetDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone, owner traffic.Interface) (*v1alpha1.DNSRecord, error) {
+func (s *Service) GetDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone, owner metav1.Object) (*v1alpha1.DNSRecord, error) {
 	managedHost := strings.ToLower(fmt.Sprintf("%s.%s", subDomain, managedZone.Spec.DomainName))
 
 	dnsRecord := &v1alpha1.DNSRecord{

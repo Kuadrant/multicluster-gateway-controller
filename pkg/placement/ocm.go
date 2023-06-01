@@ -13,57 +13,46 @@ import (
 	k8smeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
-	clusterclient "open-cluster-management.io/api/client/cluster/clientset/versioned"
-	workclient "open-cluster-management.io/api/client/work/clientset/versioned"
+	placement "open-cluster-management.io/api/cluster/v1beta1"
 	workv1 "open-cluster-management.io/api/work/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
 )
 
-func init() {
-	utilruntime.Must(workv1.AddToScheme(scheme.Scheme))
-}
-
 const (
 	OCMPlacementLabel = "cluster.open-cluster-management.io/placement"
 	rbacName          = "open-cluster-management:klusterlet-work:gateway"
 	rbacManifest      = "gateway-rbac"
+	WorkManifestLabel = "kuadrant.io/manifestKey"
 )
 
 type ocmPlacer struct {
-	workClient      workclient.Interface
-	placementClient clusterclient.Interface
+	c client.Client
 }
 
-func NewOCMPlacer(restConfig *rest.Config) (*ocmPlacer, error) {
-	wc, err := workclient.NewForConfig(restConfig)
-	if err != nil {
-		return nil, err
-	}
-	cc, err := clusterclient.NewForConfig(restConfig)
-	if err != nil {
-		return nil, err
-	}
+func NewOCMPlacer(c client.Client) *ocmPlacer {
 
 	return &ocmPlacer{
-		placementClient: cc,
-		workClient:      wc,
-	}, nil
+		c: c,
+	}
 }
 
 func (op *ocmPlacer) GetAddresses(ctx context.Context, gateway *gatewayv1beta1.Gateway, downstream string) ([]gatewayv1beta1.GatewayAddress, error) {
-	workname := workName(gateway)
+	workname := WorkName(gateway)
 	addresses := []gatewayv1beta1.GatewayAddress{}
 	rootMeta, _ := k8smeta.Accessor(gateway)
-	mw, err := op.workClient.WorkV1().ManifestWorks(downstream).Get(ctx, workname, metav1.GetOptions{})
-	if err != nil {
+	mw := &workv1.ManifestWork{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      workname,
+			Namespace: downstream,
+		},
+	}
+	if err := op.c.Get(ctx, client.ObjectKeyFromObject(mw), mw, &client.GetOptions{}); err != nil {
 		return addresses, err
 	}
 	for _, m := range mw.Status.ResourceStatus.Manifests {
@@ -83,10 +72,15 @@ func (op *ocmPlacer) GetAddresses(ctx context.Context, gateway *gatewayv1beta1.G
 }
 
 func (op *ocmPlacer) ListenerTotalAttachedRoutes(ctx context.Context, gateway *gatewayv1beta1.Gateway, listenerName string, downstream string) (int, error) {
-	workname := workName(gateway)
+	workname := WorkName(gateway)
 	rootMeta, _ := k8smeta.Accessor(gateway)
-	mw, err := op.workClient.WorkV1().ManifestWorks(downstream).Get(ctx, workname, metav1.GetOptions{})
-	if err != nil {
+	mw := &workv1.ManifestWork{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      workname,
+			Namespace: downstream,
+		},
+	}
+	if err := op.c.Get(ctx, client.ObjectKeyFromObject(mw), mw, &client.GetOptions{}); err != nil {
 		return 0, err
 	}
 	for _, m := range mw.Status.ResourceStatus.Manifests {
@@ -103,20 +97,18 @@ func (op *ocmPlacer) ListenerTotalAttachedRoutes(ctx context.Context, gateway *g
 
 }
 
-func workName(rootObj runtime.Object) string {
+func WorkName(rootObj runtime.Object) string {
 	kind := rootObj.GetObjectKind().GroupVersionKind().Kind
 	rootMeta, _ := k8smeta.Accessor(rootObj)
 	return strings.ToLower(fmt.Sprintf("%s-%s-%s", kind, rootMeta.GetNamespace(), rootMeta.GetName()))
 }
 
-// TODO (we will need the gateway controller to be triggered by a placement change)
-// find the placement decision. create/update the manifestwork
-// return the clusters it knows the gateway is placed on
+// Place ensures the gateway is placed onto the chosen clusters by creating the required manifestwork resources
 func (op *ocmPlacer) Place(ctx context.Context, upStreamGateway *gatewayv1beta1.Gateway, downStreamGateway *gatewayv1beta1.Gateway, children ...metav1.Object) (sets.Set[string], error) {
 	//PoC currently each object is put into its own manifestwork. This shouldn't be needed but would require finding the manifest work and replacing the existing object
 	log := log.Log
 	log.V(3).Info("placement: placing ", "gateway", upStreamGateway.Name, "gateway ns", upStreamGateway.Namespace)
-	workname := workName(upStreamGateway)
+	workname := WorkName(upStreamGateway)
 	emyptySet := sets.Set[string](sets.NewString())
 	// where the placement decision says to place the gateway
 	placementTargets, err := op.GetClusters(ctx, upStreamGateway)
@@ -137,8 +129,11 @@ func (op *ocmPlacer) Place(ctx context.Context, upStreamGateway *gatewayv1beta1.
 		log.V(3).Info("placement: ", "deleting gateway from ", existingClusters.UnsortedList(), "gateway", upStreamGateway.Name, "gateway ns", upStreamGateway.Namespace)
 		for _, cluster := range existingClusters.UnsortedList() {
 			// being deleted need to remove from clusters
-			if err := op.workClient.WorkV1().ManifestWorks(cluster).Delete(ctx, workname, metav1.DeleteOptions{}); err != nil {
-				// use a multi-error
+			w := &workv1.ManifestWork{ObjectMeta: metav1.ObjectMeta{
+				Name:      workname,
+				Namespace: cluster,
+			}}
+			if err := op.c.Delete(ctx, w, &client.DeleteOptions{}); client.IgnoreNotFound(err) != nil {
 				return existingClusters, err
 			}
 			existingClusters.Delete(cluster)
@@ -161,16 +156,27 @@ func (op *ocmPlacer) Place(ctx context.Context, upStreamGateway *gatewayv1beta1.
 		log.V(3).Info("placement: ", "added gateway to cluster ", cluster, "gateway", upStreamGateway.Name, "gateway ns", upStreamGateway.Namespace)
 		existingClusters.Insert(cluster)
 	}
-
 	// remove from remove
 	for _, cluster := range removeFrom.UnsortedList() {
 		log.V(3).Info("placement: ", "removing gateway from cluster ", cluster, "gateway", upStreamGateway.Name, "gateway ns", upStreamGateway.Namespace)
 		//todo remove rbac
-		if err := op.workClient.WorkV1().ManifestWorks(cluster).Delete(ctx, workname, metav1.DeleteOptions{}); err != nil && !k8serrors.IsNotFound(err) {
+		w := &workv1.ManifestWork{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      workname,
+				Namespace: cluster,
+			},
+		}
+		if err := op.c.Delete(ctx, w, &client.DeleteOptions{}); client.IgnoreNotFound(err) != nil {
 			// use a multi-error
 			return existingClusters, err
 		}
-		if err := op.workClient.WorkV1().ManifestWorks(cluster).Delete(ctx, rbacManifest, metav1.DeleteOptions{}); err != nil && !k8serrors.IsNotFound(err) {
+		rbac := &workv1.ManifestWork{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: cluster,
+				Name:      rbacManifest,
+			},
+		}
+		if err := op.c.Delete(ctx, rbac, &client.DeleteOptions{}); client.IgnoreNotFound(err) != nil {
 			// use a multi-error
 			return existingClusters, err
 		}
@@ -180,11 +186,14 @@ func (op *ocmPlacer) Place(ctx context.Context, upStreamGateway *gatewayv1beta1.
 	return existingClusters, nil
 }
 
+// GetPlacedClusters will return the list of clusters this gateway has been successfully placed on
 func (op *ocmPlacer) GetPlacedClusters(ctx context.Context, gateway *gatewayv1beta1.Gateway) (sets.Set[string], error) {
-	selector := fmt.Sprintf("kuadrant.io/manifestKey=%s", workName(gateway))
-	existing, err := op.workClient.WorkV1().ManifestWorks("").List(ctx, metav1.ListOptions{LabelSelector: selector})
+	existing := &workv1.ManifestWorkList{}
+	listOptions := client.MatchingLabels{
+		WorkManifestLabel: WorkName(gateway),
+	}
 	existingClusters := sets.Set[string](sets.NewString())
-	if err != nil {
+	if err := op.c.List(ctx, existing, listOptions); err != nil {
 		return existingClusters, err
 	}
 	//where the gateway currently exists
@@ -198,6 +207,7 @@ func (op *ocmPlacer) GetPlacedClusters(ctx context.Context, gateway *gatewayv1be
 	return existingClusters, nil
 }
 
+// GetClusters will return the set of clusters this gateway is targeted to be placed on. It does not check the placement has happened
 func (op *ocmPlacer) GetClusters(ctx context.Context, gateway *gatewayv1beta1.Gateway) (sets.Set[string], error) {
 	rootMeta, _ := k8smeta.Accessor(gateway)
 	labels := rootMeta.GetLabels()
@@ -208,9 +218,16 @@ func (op *ocmPlacer) GetClusters(ctx context.Context, gateway *gatewayv1beta1.Ga
 	}
 
 	// find the placement decsion
-	pdList, err := op.placementClient.ClusterV1beta1().PlacementDecisions(rootMeta.GetNamespace()).List(ctx, metav1.ListOptions{LabelSelector: metav1.FormatLabelSelector(&metav1.LabelSelector{MatchLabels: map[string]string{OCMPlacementLabel: selectedPlacement}})})
-	if err != nil {
+	pdList := &placement.PlacementDecisionList{}
+	labelSelector := client.MatchingLabels{
+		OCMPlacementLabel: selectedPlacement,
+	}
+
+	if err := op.c.List(ctx, pdList, &client.ListOptions{Namespace: rootMeta.GetNamespace()}, labelSelector); err != nil {
 		return targetClusters, err
+	}
+	if len(pdList.Items) == 0 {
+		return targetClusters, fmt.Errorf("no placemement decisions found for placement selector %s", selectedPlacement)
 	}
 	for _, pd := range pdList.Items {
 		for _, d := range pd.Status.Decisions {
@@ -220,7 +237,7 @@ func (op *ocmPlacer) GetClusters(ctx context.Context, gateway *gatewayv1beta1.Ga
 	return targetClusters, nil
 }
 
-func (op *ocmPlacer) createUpdateClusterManifests(ctx context.Context, manifestName string, upstream metav1.Object, downstream metav1.Object, cluster string, obj ...metav1.Object) error {
+func (op *ocmPlacer) createUpdateClusterManifests(ctx context.Context, manifestName string, upstream *gatewayv1beta1.Gateway, downstream *gatewayv1beta1.Gateway, cluster string, obj ...metav1.Object) error {
 	log := log.Log
 	// set up gateway manifest
 	key, err := cache.MetaNamespaceKeyFunc(upstream)
@@ -231,7 +248,7 @@ func (op *ocmPlacer) createUpdateClusterManifests(ctx context.Context, manifestN
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      manifestName,
 			Namespace: cluster,
-			Labels:    map[string]string{"kuadrant.io": "managed", "kuadrant.io/manifestKey": manifestName},
+			Labels:    map[string]string{"kuadrant.io": "managed", WorkManifestLabel: manifestName},
 			// this is crap, there has to be a better way to map to the parent object perhaps using cache
 			// there is also a resource https://github.com/open-cluster-management-io/api/blob/main/work/v1alpha1/types_manifestworkreplicaset.go that we may migrate to which would solve this
 			Annotations: map[string]string{"kuadrant.io/parent": key},
@@ -255,27 +272,28 @@ func (op *ocmPlacer) createUpdateClusterManifests(ctx context.Context, manifestN
 				Name:      downstream.GetName(),
 				Namespace: downstream.GetNamespace(),
 			},
-			FeedbackRules: []workv1.FeedbackRule{
-				{
-					JsonPaths: []workv1.JsonPath{
-						{
-							Name: "addresses",
-							Path: ".status.addresses[?(@.type==\"IPAddress\")].value",
-						},
-						{
-							Name: "listenerTestAttachedRoutes",
-							Path: ".status.listeners[?(@.name==\"test\")].attachedRoutes",
-						},
-						{
-							Name: "listenerAPIAttachedRoutes",
-							Path: ".status.listeners[?(@.name==\"api\")].attachedRoutes",
-						},
-					},
-					Type: workv1.JSONPathsType,
-				},
-			},
 		},
 	}
+	// using 0 index as there is only one config here
+	work.Spec.ManifestConfigs[0].FeedbackRules = []workv1.FeedbackRule{
+		{Type: workv1.JSONPathsType},
+	}
+
+	jsonPaths := []workv1.JsonPath{
+		{
+			Name: "addresses",
+			Path: ".status.addresses[?(@.type==\"IPAddress\")].value",
+		},
+	}
+	for _, l := range upstream.Spec.Listeners {
+		jsonPaths = append(jsonPaths, workv1.JsonPath{
+			Name: fmt.Sprintf("listener%sAttachedRoutes", l.Name),
+			Path: fmt.Sprintf(".status.listeners[?(@.name==\"%s\")].attachedRoutes", l.Name),
+		})
+	}
+
+	work.Spec.ManifestConfigs[0].FeedbackRules[0].JsonPaths = jsonPaths
+	log.V(3).Info("feedback rules set ", "feedback ", work.Spec.ManifestConfigs[0].FeedbackRules)
 	log.V(3).Info("placement: creating updating maniftests for ", "cluster", cluster)
 	return op.createUpdateManifest(ctx, cluster, work)
 
@@ -379,24 +397,30 @@ func (op *ocmPlacer) defaultRBAC(ctx context.Context, clusterName string) error 
 }
 
 func (op *ocmPlacer) createUpdateManifest(ctx context.Context, cluster string, m workv1.ManifestWork) error {
-	mw, err := op.workClient.WorkV1().ManifestWorks(cluster).Get(ctx, m.Name, metav1.GetOptions{})
-	if err != nil && k8serrors.IsNotFound(err) {
-		log.Log.V(3).Info("placement: manifest not found creating it ")
-		if _, err := op.workClient.WorkV1().ManifestWorks(cluster).Create(ctx, &m, metav1.CreateOptions{}); err != nil {
-			log.Log.V(3).Info("placement:  creating manifest ", "error", err)
-			return err
-		}
-		return nil
+	mw := &workv1.ManifestWork{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      m.Name,
+			Namespace: m.Namespace,
+		},
 	}
+	if err := op.c.Get(ctx, client.ObjectKeyFromObject(mw), mw, &client.GetOptions{}); err != nil {
+		if k8serrors.IsNotFound(err) {
+			log.Log.V(3).Info("placement: manifest not found creating it ", "cluster", mw.Namespace)
+			if err := op.c.Create(ctx, &m, &client.CreateOptions{}); err != nil {
+				return err
+			}
+			return nil
+		}
+	}
+
 	if !equality.Semantic.DeepEqual(mw.Spec, m.Spec) {
 		log.Log.V(3).Info("placment: manifest found updating it ")
 		mw.Spec = m.Spec
-		if _, err := op.workClient.WorkV1().ManifestWorks(cluster).Update(ctx, mw, metav1.UpdateOptions{}); err != nil {
+		if err := op.c.Update(ctx, mw, &client.UpdateOptions{}); err != nil {
 			log.Log.V(3).Info("placement:  updating manifest ", "error", err)
 			return err
 		}
 	}
 
 	return nil
-
 }
