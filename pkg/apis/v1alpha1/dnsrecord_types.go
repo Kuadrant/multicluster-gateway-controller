@@ -198,21 +198,15 @@ func (endpoint *Endpoint) GetAddress() (string, bool) {
 }
 
 func (endpoint *Endpoint) SetProviderSpecific(name, value string) {
-	var property *ProviderSpecificProperty
-
 	if endpoint.ProviderSpecific == nil {
 		endpoint.ProviderSpecific = ProviderSpecific{}
 	}
 
-	for _, pair := range endpoint.ProviderSpecific {
+	for i, pair := range endpoint.ProviderSpecific {
 		if pair.Name == name {
-			property = &pair
+			endpoint.ProviderSpecific[i].Value = value
+			return
 		}
-	}
-
-	if property != nil {
-		property.Value = value
-		return
 	}
 
 	endpoint.ProviderSpecific = append(endpoint.ProviderSpecific, ProviderSpecificProperty{
