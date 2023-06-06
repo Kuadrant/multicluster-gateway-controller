@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"golang.org/x/net/publicsuffix"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -224,28 +225,46 @@ func (s *Service) SetEndpoints(ctx context.Context, addresses []gatewayv1beta1.G
 
 // GetManagedZoneForHost returns a ManagedZone and subDomain for the given host if one exists.
 //
-// Currently, this returns the first matching ManagedZone found in the traffic resources own namespace, or if none is found,
-// it looks for the first matching one listed in the default ctrl namespace.
+// Currently, this returns the first matching ManagedZone found in the traffic resources own namespace
 func (s *Service) GetManagedZoneForHost(ctx context.Context, host string, t traffic.Interface) (*v1alpha1.ManagedZone, string, error) {
-	hostParts := strings.SplitN(host, ".", 2)
-	if len(hostParts) < 2 {
-		return nil, "", fmt.Errorf("unable to parse host : %s on traffic resource : %s", host, t.GetName())
-	}
-	subDomain := hostParts[0]
-	parentDomain := hostParts[1]
-
 	var managedZones v1alpha1.ManagedZoneList
-
-	if err := s.controlClient.List(ctx, &managedZones, client.InNamespace(t.GetNamespace()), client.MatchingFields{"spec.domainName": parentDomain}); err != nil {
+	if err := s.controlClient.List(ctx, &managedZones, client.InNamespace(t.GetNamespace())); err != nil {
 		log.FromContext(ctx).Error(err, "unable to list managed zones in traffic resource NS")
 		return nil, "", err
 	}
+	return FindMatchingManagedZone(host, host, managedZones.Items)
+}
 
-	if len(managedZones.Items) > 0 {
-		return &managedZones.Items[0], subDomain, nil
+func FindMatchingManagedZone(originalHost, host string, zones []v1alpha1.ManagedZone) (*v1alpha1.ManagedZone, string, error) {
+	if len(zones) == 0 {
+		return nil, "", fmt.Errorf("no managed zone found for host : %s", host)
+	}
+	host = strings.ToLower(host)
+	hostParts := strings.SplitN(host, ".", 2)
+	if len(hostParts) < 2 {
+		return nil, "", fmt.Errorf("unable to parse host : %s", host)
 	}
 
-	return nil, "", fmt.Errorf("no managed zone found for host : %s on traffic resource : %s", host, t.GetName())
+	//get the TLD from this host
+	tld, _ := publicsuffix.PublicSuffix(host)
+
+	//The host is just the TLD, or the detected TLD is not an ICANN TLD
+	if host == tld {
+		return nil, "", fmt.Errorf("no valid zone found for host: %v", originalHost)
+	}
+
+	zone, ok := slice.Find(zones, func(zone v1alpha1.ManagedZone) bool {
+		return strings.ToLower(zone.Spec.DomainName) == host
+	})
+
+	if ok {
+		subdomain := strings.Replace(strings.ToLower(originalHost), "."+strings.ToLower(zone.Spec.DomainName), "", 1)
+		return &zone, subdomain, nil
+	} else {
+		parentDomain := hostParts[1]
+		return FindMatchingManagedZone(originalHost, parentDomain, zones)
+	}
+
 }
 
 // CleanupDNSRecords removes all DNS records that were created for a provided traffic.Interface object
