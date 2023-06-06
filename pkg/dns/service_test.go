@@ -161,3 +161,19 @@ func TestDNS_GetDNSRecords(t *testing.T) {
 	}
 
 }
+
+func TestSetProviderSpecific(t *testing.T) {
+	endpoint := &v1alpha1.Endpoint{
+		ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
+			{Name: "aws/weight", Value: "120"},
+		},
+	}
+
+	// Test updating an existing property
+	endpoint.SetProviderSpecific("aws/weight", "60")
+	for _, property := range endpoint.ProviderSpecific {
+		if property.Name == "aws/weight" && property.Value != "60" {
+			t.Errorf("Existing property was not updated. Got %s, expected 60", property.Value)
+		}
+	}
+}
