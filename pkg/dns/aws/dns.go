@@ -97,6 +97,18 @@ const (
 	deleteAction action = "DELETE"
 )
 
+func (p *Route53DNSProvider) AdjustEndpoints(dnsRecord *v1alpha1.DNSRecord, dnsPolicy *v1alpha1.DNSPolicy) error {
+	//dnsPolicy is not currently used, but will be once we add other routing strategies
+	totalIPs := 0
+	for _, e := range dnsRecord.Spec.Endpoints {
+		totalIPs += len(e.Targets)
+	}
+	for _, e := range dnsRecord.Spec.Endpoints {
+		e.SetProviderSpecific(ProviderSpecificWeight, awsEndpointWeight(totalIPs))
+	}
+	return nil
+}
+
 func (p *Route53DNSProvider) Ensure(record *v1alpha1.DNSRecord, managedZone *v1alpha1.ManagedZone) error {
 	return p.change(record, managedZone, upsertAction)
 }
@@ -340,4 +352,21 @@ func validateServiceEndpoints(provider *Route53DNSProvider) error {
 		errs = append(errs, fmt.Errorf("failed to list route53 hosted zones: %v", err))
 	}
 	return kerrors.NewAggregate(errs)
+}
+
+// awsEndpointWeight returns the weight Value for a single AWS record in a set of records where the traffic is split
+// evenly between a number of clusters/ingresses, each splitting traffic evenly to a number of IPs (numIPs)
+//
+// Divides the number of IPs by a known weight allowance for a cluster/ingress, note that this means:
+// * Will always return 1 after a certain number of ips is reached, 60 in the current case (maxWeight / 2)
+// * Will return values that don't add up to the total maxWeight when the number of ingresses is not divisible by numIPs
+//
+// The aws weight value must be an integer between 0 and 255.
+// https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/resource-record-sets-values-weighted.html#rrsets-values-weighted-weight
+func awsEndpointWeight(numIPs int) string {
+	maxWeight := 120
+	if numIPs > maxWeight {
+		numIPs = maxWeight
+	}
+	return strconv.Itoa(maxWeight / numIPs)
 }

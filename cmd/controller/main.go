@@ -28,6 +28,7 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	certmanv1 "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
@@ -46,6 +47,7 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/aws"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/placement"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/tls"
+	"github.com/kuadrant/kuadrant-operator/pkg/reconcilers"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -128,10 +130,19 @@ func main() {
 	dnsService := dns.NewService(mgr.GetClient(), dns.NewSafeHostResolver(dns.NewDefaultHostResolver()), dnsProvider)
 	certService := tls.NewService(mgr.GetClient(), certProvider)
 
+	dnsPolicyBaseReconciler := reconcilers.NewBaseReconciler(
+		mgr.GetClient(), mgr.GetScheme(), mgr.GetAPIReader(),
+		log.Log.WithName("dnspolicy"),
+		mgr.GetEventRecorderFor("DNSPolicy"),
+	)
+
 	if err = (&dnspolicy.DNSPolicyReconciler{
-		Client:      mgr.GetClient(),
+		TargetRefReconciler: reconcilers.TargetRefReconciler{
+			BaseReconciler: dnsPolicyBaseReconciler,
+		},
 		DNSProvider: dnsProvider,
 		HostService: dnsService,
+		Placement:   placement,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DNSPolicy")
 		os.Exit(1)

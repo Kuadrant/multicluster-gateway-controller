@@ -150,8 +150,6 @@ var _ = BeforeSuite(func() {
 	}).SetupWithManager(k8sManager, ctx)
 	Expect(err).ToNot(HaveOccurred())
 
-	Expect(err).ToNot(HaveOccurred())
-
 	go func() {
 		defer GinkgoRecover()
 		err = k8sManager.Start(ctx)
