@@ -88,3 +88,5 @@ controller-config*.env
 /application.yaml
 /ratelimitpolicy.yaml
 /echo_httproute.yaml
+
+cmd/controller/__debug_bin
