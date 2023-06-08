@@ -8,7 +8,9 @@ We will start with a single cluster and move to multiple clusters to illustrate 
 
 ## Requirements
 
-- Kind
+- [Kind](https://kind.sigs.k8s.io/)
+- go >= 1.20
+- openssl >= 3
 - AWS account with Route 53 enabled
 - https://github.com/chipmk/docker-mac-net-connect (for macos users)
 
@@ -23,7 +25,8 @@ We will start with a single cluster and move to multiple clusters to illustrate 
 ```bash
 # this sets up your default managed zone
 AWS_DNS_PUBLIC_ZONE_ID=<AWS ZONE ID>
-ZONE_ROOT_DOMAIN=<replace.this> # this is the doomain at the root of your zone (example.com)
+# this is the domain at the root of your zone (foo.example.com)
+ZONE_ROOT_DOMAIN=<replace.this>
 LOG_LEVEL=1
 ```   
 
@@ -51,6 +54,12 @@ To setup a local instance, in `T1`, run:
 ```bash
 make local-setup OCM_SINGLE=true MGC_WORKLOAD_CLUSTERS_COUNT=1
 ```
+
+> Note: Linux users may encounter the following error:
+> `ERROR: failed to create cluster: could not find a log line that matches "Reached target .*Multi-User System.*|detected cgroup v1"
+> make: *** [Makefile:75: local-setup] Error 1ERROR: failed to create cluster: could not find a log line that matches "Reached target .*Multi-User System.*|detected cgroup v1"
+> make: *** [Makefile:75: local-setup] Error 1` 
+> This is a known issue with Kind. [Follow the steps here](https://kind.sigs.k8s.io/docs/user/known-issues/#pod-errors-due-to-too-many-open-files) to resolve it.
 
 Once this is completed your kubeconfig context should be set to the hub cluster. 
 
@@ -137,7 +146,8 @@ Lets ensure our `managedzone` is present. In `T1`, run the following:
 ```bash
 export KUBECONFIG=$(pwd)/local/kube/control-plane.yaml
 kubectl get managedzone -n multi-cluster-gateways
-
+```
+```
 NAME          DOMAIN NAME      ID                                  RECORD COUNT   NAMESERVERS                                                                                        READY
 mgc-dev-mz   replace.this   /hostedzone/Z08224701SVEG4XHW89W0   7              ["ns-1414.awsdns-48.org","ns-1623.awsdns-10.co.uk","ns-684.awsdns-21.net","ns-80.awsdns-10.com"]   True
 ```
@@ -185,6 +195,8 @@ Now on the hub cluster you should find there is a configured gateway and instant
 
 ```bash
 kubectl get gateway -A
+```
+```
 kuadrant-multi-cluster-gateways   prod-web   istio                                         172.32.200.0                29s
 multi-cluster-gateways            prod-web   kuadrant-multi-cluster-gateway-instance-per-cluster                  True         2m42s
 ```
@@ -197,9 +209,9 @@ Additionally you should be able to see a secret containing a self signed certifi
 
 ```bash
 kubectl get secrets -n kuadrant-multi-cluster-gateways
-
+```
+```
 sub.replace.this   kubernetes.io/tls   3      4m33s
-
 ```
 
 The listener is configured to use this TLS secret also. So now our gateway has been placed and is running in the right locations with the right configuration and TLS has been setup for the HTTPS listeners.
@@ -213,6 +225,8 @@ We only configure DNS once a HTTPRoute has been attached to a listener in the ga
 
 ```bash
 kubectl get dnsrecord -A
+```
+```
 No resources found
 ```
 
@@ -278,10 +292,11 @@ Once this is done, the Kuadrant multi-cluster gateway controller will pick up th
 You should now see a DNSRecord resource in the hub cluster. In `T1`, run:
 
 ```bash
+```
+```
 kubectl get dnsrecord -A
 NAMESPACE                NAME                 READY
 multi-cluster-gateways   sub.replace.this   True
-
 ```
 
 You should also be able to see there is only 1 endpoint added which corresponds to address assigned to the gateway where the HTTPRoute was created. In `T1`, run:
@@ -326,11 +341,10 @@ In `T3` window execute the following to see the gateway on the workload-1 cluste
 ```bash
 kind export kubeconfig --name=mgc-workload-1 --kubeconfig=$(pwd)/local/kube/workload1.yaml && export KUBECONFIG=$(pwd)/local/kube/workload1.yaml
 kubectl get gateways -A
-
-
+```
+```
 NAMESPACE                         NAME       CLASS   ADDRESS        PROGRAMMED   AGE
 kuadrant-multi-cluster-gateways   prod-web   istio   172.32.201.0                90s
-
 ```
 
 So now we have second ingress cluster configured with the same Gateway. 
