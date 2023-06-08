@@ -17,15 +17,12 @@ limitations under the License.
 package main
 
 import (
-	"context"
 	"flag"
 	"os"
 
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -38,6 +35,8 @@ import (
 	clusterv1beta2 "open-cluster-management.io/api/cluster/v1beta1"
 	gatewayapi "sigs.k8s.io/gateway-api/apis/v1beta1"
 
+	workv1 "open-cluster-management.io/api/work/v1"
+
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnspolicy"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnsrecord"
@@ -47,7 +46,6 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/aws"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/placement"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/tls"
-	workv1 "open-cluster-management.io/api/work/v1"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -173,18 +171,6 @@ func main() {
 	}
 	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up ready check")
-		os.Exit(1)
-	}
-
-	if err := mgr.GetFieldIndexer().IndexField(
-		context.Background(),
-		&v1alpha1.ManagedZone{},
-		"spec.domainName",
-		func(obj client.Object) []string {
-			return []string{obj.(*v1alpha1.ManagedZone).Spec.DomainName}
-		},
-	); err != nil {
-		setupLog.Error(err, "unable to create index for managed zones")
 		os.Exit(1)
 	}
 

@@ -18,7 +18,7 @@ import (
 
 type fakeHostResolver struct{}
 
-func (fr *fakeHostResolver) LookupIPAddr(ctx context.Context, host string) ([]dns.HostAddress, error) {
+func (fr *fakeHostResolver) LookupIPAddr(_ context.Context, _ string) ([]dns.HostAddress, error) {
 	return nil, nil
 }
 
@@ -152,10 +152,10 @@ func TestDNS_GetDNSRecords(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
 			fp := &dns.FakeProvider{}
-			traffic := traffic.NewGateway(tc.Gateway)
+			gw := traffic.NewGateway(tc.Gateway)
 			f := fake.NewClientBuilder().WithScheme(scheme).WithObjects(tc.DNSRecord).Build()
 			s := dns.NewService(f, tc.Resolver(), fp)
-			record, err := s.GetDNSRecord(context.TODO(), tc.SubDomain, tc.MZ(), traffic)
+			record, err := s.GetDNSRecord(context.TODO(), tc.SubDomain, tc.MZ(), gw)
 			tc.Assert(t, record, err)
 		})
 	}
@@ -175,5 +175,187 @@ func TestSetProviderSpecific(t *testing.T) {
 		if property.Name == "aws/weight" && property.Value != "60" {
 			t.Errorf("Existing property was not updated. Got %s, expected 60", property.Value)
 		}
+	}
+}
+
+func TestDNS_findMatchingManagedZone(t *testing.T) {
+	cases := []struct {
+		Name   string
+		Host   string
+		Zones  []v1alpha1.ManagedZone
+		Assert func(zone *v1alpha1.ManagedZone, subdomain string, err error)
+	}{
+		{
+			Name: "finds the matching managed zone",
+			Host: "sub.domain.test.example.com",
+			Zones: []v1alpha1.ManagedZone{
+				{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "example.com",
+						Namespace: "test",
+					},
+					Spec: v1alpha1.ManagedZoneSpec{
+						DomainName: "example.com",
+					},
+				},
+			},
+			Assert: func(zone *v1alpha1.ManagedZone, subdomain string, err error) {
+				if err != nil {
+					t.Fatalf("expected no error, got %v", err)
+				}
+
+				if subdomain != "sub.domain.test" {
+					t.Fatalf("expected subdomain 'sub.domain.test', got '%v'", subdomain)
+				}
+				if zone.Spec.DomainName != "example.com" {
+					t.Fatalf("expected zone with domain name 'example.com' got %v", zone.Spec.DomainName)
+				}
+			},
+		},
+		{
+			Name: "finds the most exactly matching managed zone",
+			Host: "sub.domain.test.example.com",
+			Zones: []v1alpha1.ManagedZone{
+				{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "example.com",
+						Namespace: "test",
+					},
+					Spec: v1alpha1.ManagedZoneSpec{
+						DomainName: "example.com",
+					},
+				},
+				{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "test.example.com",
+						Namespace: "test",
+					},
+					Spec: v1alpha1.ManagedZoneSpec{
+						DomainName: "test.example.com",
+					},
+				},
+			},
+			Assert: func(zone *v1alpha1.ManagedZone, subdomain string, err error) {
+				if zone.Spec.DomainName != "test.example.com" {
+					t.Fatalf("expected found zone to be the longest matching zone, expected test.example.com, got %v", zone.Spec.DomainName)
+				}
+
+				if subdomain != "sub.domain" {
+					t.Fatalf("expected subdomain 'sub.domain', got '%v'", subdomain)
+				}
+			},
+		},
+		{
+			Name: "returns a single subdomain",
+			Host: "sub.test.example.com",
+			Zones: []v1alpha1.ManagedZone{
+				{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "test.example.com",
+						Namespace: "test",
+					},
+					Spec: v1alpha1.ManagedZoneSpec{
+						DomainName: "test.example.com",
+					},
+				},
+			},
+			Assert: func(zone *v1alpha1.ManagedZone, subdomain string, err error) {
+				if zone.Spec.DomainName != "test.example.com" {
+					t.Fatalf("expected found zone to be the longest matching zone, expected test.example.com, got %v", zone.Spec.DomainName)
+				}
+
+				if subdomain != "sub" {
+					t.Fatalf("expected subdomain 'sub', got '%v'", subdomain)
+				}
+			},
+		},
+		{
+			Name: "returns an error when nothing matches",
+			Host: "sub.test.example.com",
+			Zones: []v1alpha1.ManagedZone{
+				{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "testing.example.com",
+						Namespace: "test",
+					},
+					Spec: v1alpha1.ManagedZoneSpec{
+						DomainName: "testing.example.com",
+					},
+				},
+			},
+			Assert: func(zone *v1alpha1.ManagedZone, subdomain string, err error) {
+				if zone != nil {
+					t.Fatalf("expected no zone to match, got: %v", zone.Name)
+				}
+
+				if subdomain != "" {
+					t.Fatalf("expected subdomain '', got '%v'", subdomain)
+				}
+
+				if err == nil {
+					t.Fatal("expected an error, got nil")
+				}
+			},
+		},
+		{
+			Name: "handles TLD with a dot",
+			Host: "sub.domain.test.example.co.uk",
+			Zones: []v1alpha1.ManagedZone{
+				{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "example.co.uk",
+						Namespace: "test",
+					},
+					Spec: v1alpha1.ManagedZoneSpec{
+						DomainName: "example.co.uk",
+					},
+				},
+			},
+			Assert: func(zone *v1alpha1.ManagedZone, subdomain string, err error) {
+				if err != nil {
+					t.Fatalf("expected no error, got %v", err)
+				}
+
+				if subdomain != "sub.domain.test" {
+					t.Fatalf("expected subdomain 'sub.domain.test', got '%v'", subdomain)
+				}
+				if zone.Spec.DomainName != "example.co.uk" {
+					t.Fatalf("expected zone with domain name 'example.co.uk' got %v", zone.Spec.DomainName)
+				}
+			},
+		},
+		{
+			Name: "TLD with a . will not match against a managedzone of the TLD",
+			Host: "sub.domain.test.example.co.uk",
+			Zones: []v1alpha1.ManagedZone{
+				{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "co.uk",
+						Namespace: "test",
+					},
+					Spec: v1alpha1.ManagedZoneSpec{
+						DomainName: "co.uk",
+					},
+				},
+			},
+			Assert: func(zone *v1alpha1.ManagedZone, subdomain string, err error) {
+				if err == nil {
+					t.Fatalf("expected error, got %v", err)
+				}
+
+				if subdomain != "" {
+					t.Fatalf("expected subdomain '', got '%v'", subdomain)
+				}
+				if zone != nil {
+					t.Fatalf("expected zone to be nil, got %v", zone.Name)
+				}
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.Name, func(t *testing.T) {
+			tc.Assert(dns.FindMatchingManagedZone(tc.Host, tc.Host, tc.Zones))
+		})
 	}
 }
