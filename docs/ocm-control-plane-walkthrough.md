@@ -292,9 +292,9 @@ Once this is done, the Kuadrant multi-cluster gateway controller will pick up th
 You should now see a DNSRecord resource in the hub cluster. In `T1`, run:
 
 ```bash
-```
-```
 kubectl get dnsrecord -A
+```
+```
 NAMESPACE                NAME                 READY
 multi-cluster-gateways   sub.replace.this   True
 ```
