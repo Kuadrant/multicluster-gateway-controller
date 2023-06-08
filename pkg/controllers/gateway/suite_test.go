@@ -136,17 +136,6 @@ var _ = BeforeSuite(func() {
 	}).SetupWithManager(k8sManager, ctx)
 	Expect(err).ToNot(HaveOccurred())
 
-	// TODO: can we avoid duplicate set code here that also in controller/main.go?
-	err = k8sManager.GetFieldIndexer().IndexField(
-		context.Background(),
-		&v1alpha1.ManagedZone{},
-		"spec.domainName",
-		func(obj client.Object) []string {
-			return []string{obj.(*v1alpha1.ManagedZone).Spec.DomainName}
-		},
-	)
-	Expect(err).ToNot(HaveOccurred())
-
 	go func() {
 		defer GinkgoRecover()
 		err = k8sManager.Start(ctx)

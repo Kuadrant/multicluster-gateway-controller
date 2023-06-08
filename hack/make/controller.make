@@ -35,3 +35,7 @@ deploy-controller: manifests kustomize ## Deploy controller to the K8s cluster s
 .PHONY: undeploy-controller
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	$(KUSTOMIZE) build config/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
+
+.PHONY: restart-controller
+restart-controller:
+	kubectl rollout restart deployment mgc-controller-manager -n multicluster-gateway-controller-system
