@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"os"
 	"strconv"
+	"testing"
 
 	"github.com/goombaio/namegenerator"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -48,6 +49,12 @@ type SuiteConfig struct {
 	hubNamespace string
 	managedZone  string
 	cleanupList  []client.Object
+}
+
+func ConditionalTestSkip(t *testing.T) {
+	if os.Getenv(hubKubeContextEnvvar) == "" {
+		t.Skipf("%s envvar not set, skipping e2e tests", hubKubeContextEnvvar)
+	}
 }
 
 func (cfg *SuiteConfig) Build() error {
