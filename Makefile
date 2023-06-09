@@ -78,6 +78,10 @@ test-integration: manifests generate fmt vet envtest ## Run integration tests.
 test: manifests generate fmt vet envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -tags=integration,unit -coverprofile cover.out
 
+.PHONY: test-e2e
+test-e2e: ginkgo kind-load-controller deploy-controller
+	$(GINKGO)  -v ./test/...
+
 .PHONY: local-setup
 local-setup: kind kustomize helm yq dev-tls istioctl operator-sdk clusteradm subctl ## Setup multi cluster traffic controller locally using kind.
 	./hack/local-setup.sh
