@@ -49,7 +49,6 @@ var _ = Describe("Gateway single target cluster", func() {
 
 		By("creating a Gateway in the hub")
 		hostname = gatewayapi.Hostname(strings.Join([]string{testID, tconfig.ManagedZone()}, "."))
-		// hostname = gatewayapi.Hostname(strings.Join([]string{"test", tconfig.ManagedZone()}, "."))
 		gw = &gatewayapi.Gateway{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      testID,
@@ -86,11 +85,6 @@ var _ = Describe("Gateway single target cluster", func() {
 
 		err = tconfig.SpokeClient(0).Create(ctx, TestNamespace(key))
 		Expect(err).ToNot(HaveOccurred())
-		// n := &corev1.Namespace{}
-		// Eventually(func() bool {
-		// 	err := tconfig.SpokeClient(0).Get(context.Background(), types.NamespacedName{Name: key.Namespace}, n)
-		// 	return err == nil
-		// }, timeout, poll).Should(BeTrue())
 
 		err = tconfig.SpokeClient(0).Create(ctx, TestEchoDeployment(key))
 		Expect(err).ToNot(HaveOccurred())
