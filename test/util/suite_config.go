@@ -34,11 +34,12 @@ const (
 	ClusterSetLabelValue  = "true"
 
 	// configuration environment variables
-	tenantNamespaceEnvvar        = "TEST_TENANT_NAMESPACE"
 	managedZoneEnvvar            = "TEST_MANAGED_ZONE"
+	hubNamespaceEnvvar           = "TEST_HUB_NAMESPACE"
 	hubKubeContextEnvvar         = "TEST_HUB_KUBE_CONTEXT"
 	spokeKubeContextPrefixEnvvar = "TEST_SPOKE_KUBE_CONTEXT_PREFIX"
-	spokeClusterCountEnvvar      = "TEST_SPOKE_CLUSTER_COUNT"
+	spokeClusterCountEnvvar      = "MGC_WORKLOAD_CLUSTERS_COUNT"
+	ocmSingleEnvvar              = "OCM_SINGLE"
 )
 
 type SuiteConfig struct {
@@ -46,23 +47,31 @@ type SuiteConfig struct {
 	dpClients    []client.Client
 	hubNamespace string
 	managedZone  string
-	listCreated  []client.Object
+	cleanupList  []client.Object
 }
 
 func (cfg *SuiteConfig) Build() error {
 
 	// Load test suite configuration from the environment
-	if cfg.hubNamespace = os.Getenv(tenantNamespaceEnvvar); cfg.hubNamespace == "" {
-		return fmt.Errorf("env variable '%s' must be set", tenantNamespaceEnvvar)
+	if cfg.hubNamespace = os.Getenv(hubNamespaceEnvvar); cfg.hubNamespace == "" {
+		return fmt.Errorf("env variable '%s' must be set", hubNamespaceEnvvar)
 	}
 	if cfg.managedZone = os.Getenv(managedZoneEnvvar); cfg.managedZone == "" {
 		return fmt.Errorf("env variable '%s' must be set", managedZoneEnvvar)
+	}
+
+	var hubKubeContext string
+	if hubKubeContext = os.Getenv(hubKubeContextEnvvar); hubKubeContext == "" {
+		return fmt.Errorf("env variable '%s' must be set", hubKubeContextEnvvar)
 	}
 
 	var spokeClustersCount int
 	var spokeKubeContextPrefix string
 	if count := os.Getenv(spokeClusterCountEnvvar); count == "" {
 		spokeClustersCount = 0
+		if os.Getenv(hubNamespaceEnvvar) == "" {
+			return fmt.Errorf("%s must be set if %s is 0", ocmSingleEnvvar, spokeClusterCountEnvvar)
+		}
 	} else {
 		var err error
 		if spokeClustersCount, err = strconv.Atoi(count); err != nil {
@@ -74,11 +83,6 @@ func (cfg *SuiteConfig) Build() error {
 		if spokeKubeContextPrefix = os.Getenv(spokeKubeContextPrefixEnvvar); spokeKubeContextPrefix == "" {
 			return fmt.Errorf("'%s' should be set if '%s' is greater than zero", spokeKubeContextPrefixEnvvar, spokeClusterCountEnvvar)
 		}
-	}
-
-	var hubKubeContext string
-	if hubKubeContext = os.Getenv(hubKubeContextEnvvar); hubKubeContext == "" {
-		return fmt.Errorf("env variable '%s' must be set", hubKubeContextEnvvar)
 	}
 
 	// Create controlplane cluster client
@@ -113,7 +117,7 @@ func (cfg *SuiteConfig) Build() error {
 		return err
 	}
 
-	// Create dataplane cluster clients
+	// Create spoke cluster clients
 	if spokeClustersCount > 0 {
 		cfg.dpClients = make([]client.Client, spokeClustersCount)
 		for i := 0; i < spokeClustersCount; i++ {
@@ -127,7 +131,7 @@ func (cfg *SuiteConfig) Build() error {
 			}
 		}
 	} else {
-		// use the hub cluster as spoke if not standalone spoke
+		// use the hub cluster as spoke if no standalone spoke
 		// clusters have been configured
 		cfg.dpClients = []client.Client{cfg.cpClient}
 	}
@@ -167,7 +171,7 @@ func loadKubeconfig(context string) (*rest.Config, error) {
 }
 
 func (cfg *SuiteConfig) InstallPrerequisites(ctx context.Context) error {
-	cfg.listCreated = []client.Object{}
+	cfg.cleanupList = []client.Object{}
 
 	// label the managedclusters (at the moment we just label them all)
 	// NOTE: this action won't be reverted after the suite finishes
@@ -199,22 +203,11 @@ func (cfg *SuiteConfig) InstallPrerequisites(ctx context.Context) error {
 		}
 
 		if created {
-			cfg.listCreated = append(cfg.listCreated, namespace)
+			cfg.cleanupList = append(cfg.cleanupList, namespace)
 		}
 	}
 
 	// TODO ensure ManagedZone: right now this is added by local-setup
-	// {
-	// 	managedzone := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: cfg.ManagedZone()}}
-	// 	created, err := cfg.Ensure(ctx, managedzone)
-	// 	if err != nil {
-	// 		return listCreated, err
-	// 	}
-
-	// 	if created {
-	// 		listCreated = append(listCreated, managedzone)
-	// 	}
-	// }
 
 	// ensure ManagedClusterSet
 	{
@@ -237,7 +230,7 @@ func (cfg *SuiteConfig) InstallPrerequisites(ctx context.Context) error {
 		}
 
 		if created {
-			cfg.listCreated = append(cfg.listCreated, managedclusterset)
+			cfg.cleanupList = append(cfg.cleanupList, managedclusterset)
 		}
 	}
 
@@ -255,7 +248,7 @@ func (cfg *SuiteConfig) InstallPrerequisites(ctx context.Context) error {
 		}
 
 		if created {
-			cfg.listCreated = append(cfg.listCreated, managedclustersetbinding)
+			cfg.cleanupList = append(cfg.cleanupList, managedclustersetbinding)
 		}
 	}
 
@@ -272,7 +265,7 @@ func (cfg *SuiteConfig) InstallPrerequisites(ctx context.Context) error {
 		}
 
 		if created {
-			cfg.listCreated = append(cfg.listCreated, gatewayclass)
+			cfg.cleanupList = append(cfg.cleanupList, gatewayclass)
 		}
 	}
 
@@ -281,7 +274,7 @@ func (cfg *SuiteConfig) InstallPrerequisites(ctx context.Context) error {
 
 func (cfg *SuiteConfig) Cleanup(ctx context.Context) error {
 
-	for _, o := range cfg.listCreated {
+	for _, o := range cfg.cleanupList {
 		// Don't check for errors so all objects are deleted. Errors can be returned if for example the
 		// namespace is deleted first, but we don't care
 		cfg.HubClient().Delete(ctx, o, client.PropagationPolicy(metav1.DeletePropagationBackground))
