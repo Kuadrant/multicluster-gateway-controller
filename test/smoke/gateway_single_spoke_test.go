@@ -2,7 +2,9 @@ package smoke
 
 import (
 	"context"
+	"crypto/tls"
 	"net"
+	"net/http"
 	"strings"
 	"time"
 
@@ -149,14 +151,6 @@ var _ = Describe("Gateway single target cluster", func() {
 
 			BeforeEach(func(ctx SpecContext) {
 
-				// By("creating a test namespace in the spoke cluster")
-				// nsname := name + "-spoke" // to avoid collisions if hub and spoke run in the same cluster
-				// ns = &corev1.Namespace{
-				// 	ObjectMeta: metav1.ObjectMeta{Name: nsname},
-				// }
-				// err := tconfig.SpokeClient(0).Create(ctx, ns)
-				// Expect(err).ToNot(HaveOccurred())
-
 				By("attaching an HTTPRoute to the Gateway in the spoke cluster")
 
 				httproute = &gatewayapi.HTTPRoute{
@@ -177,10 +171,9 @@ var _ = Describe("Gateway single target cluster", func() {
 							BackendRefs: []gatewayapi.HTTPBackendRef{{
 								BackendRef: gatewayapi.BackendRef{
 									BackendObjectReference: gatewayapi.BackendObjectReference{
-										// Group: Pointer(gatewayapi.Group("")),
-										// Kind:  Pointer(gatewayapi.Kind("Service")),
+										Kind: Pointer(gatewayapi.Kind("Service")),
 										Name: "test",
-										Port: Pointer(gatewayapi.PortNumber(80)),
+										Port: Pointer(gatewayapi.PortNumber(8080)),
 									},
 								},
 							}},
@@ -197,10 +190,8 @@ var _ = Describe("Gateway single target cluster", func() {
 				Expect(err).ToNot(HaveOccurred())
 			})
 
-			It("makes available a hostname that can be resolved", func(ctx SpecContext) {
+			It("makes available a hostname that can be resolved and reachable through HTTPS", func(ctx SpecContext) {
 
-				// time.Sleep(1 * time.Minute)
-				// GinkgoWriter.Println("[debug] start DNS polling")
 				// Wait for the DNSrecord to exists: this shouldn't be necessary but I have found out that AWS dns servers
 				// cache the "no such host" response for a period of aprox 10-15 minutes, which makes the test run for a
 				// long time.
@@ -224,14 +215,14 @@ var _ = Describe("Gateway single target cluster", func() {
 				case <-time.After(30 * time.Second):
 				}
 
-				By("by ensuring the authoritative nameserver resolves the hostname")
+				By("ensuring the authoritative nameserver resolves the hostname")
 
 				// speed up things by using the authoritative nameserver
 				nameservers, err := net.LookupNS(tconfig.ManagedZone())
 				Expect(err).ToNot(HaveOccurred())
 				GinkgoWriter.Printf("[debug] authoritative nameserver used for DNS record resolution: %s\n", nameservers[0].Host)
 
-				r := &net.Resolver{
+				authoritativeResolver := &net.Resolver{
 					PreferGo: true,
 					Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
 						d := net.Dialer{Timeout: 10 * time.Second}
@@ -242,17 +233,39 @@ var _ = Describe("Gateway single target cluster", func() {
 				Eventually(func(ctx SpecContext) bool {
 					c, cancel := context.WithTimeout(ctx, 10*time.Second)
 					defer cancel()
-					IPs, err := r.LookupHost(c, string(hostname))
+					IPs, err := authoritativeResolver.LookupHost(c, string(hostname))
 					if err != nil {
 						GinkgoWriter.Printf("[debug] LooupHost error: '%s'\n", err)
 					}
 					return err == nil && len(IPs) > 0
 				}).WithTimeout(300 * time.Second).WithPolling(10 * time.Second).WithContext(ctx).Should(BeTrue())
+
+				By("performing a GET using HTTPS")
+				{
+					// use the authoritative nameservers
+					dialer := &net.Dialer{Resolver: authoritativeResolver}
+					dialContext := func(ctx context.Context, network, addr string) (net.Conn, error) {
+						return dialer.DialContext(ctx, network, addr)
+					}
+					http.DefaultTransport.(*http.Transport).DialContext = dialContext
+					http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+					httpClient := &http.Client{}
+
+					var resp *http.Response
+					Eventually(func(ctx SpecContext) error {
+						resp, err = httpClient.Get("https://" + string(hostname))
+						if err != nil {
+							GinkgoWriter.Printf("[debug] GET error: '%s'\n", err)
+							return err
+						}
+						return nil
+					}).WithTimeout(300 * time.Second).WithPolling(10 * time.Second).WithContext(ctx).ShouldNot(HaveOccurred())
+
+					defer resp.Body.Close()
+					Expect(resp.StatusCode).To(Equal(http.StatusOK))
+				}
 			})
 
-			// It("makes available a hostname that is reachable by https", func(ctx SpecContext) {
-			// 	// TODO
-			// })
 		})
 
 	})
