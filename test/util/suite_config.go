@@ -19,8 +19,10 @@ import (
 	mgcv1alpha1 "github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	ocm_cluster_v1 "open-cluster-management.io/api/cluster/v1"
 	ocm_cluster_v1beta1 "open-cluster-management.io/api/cluster/v1beta1"
 	ocm_cluster_v1beta2 "open-cluster-management.io/api/cluster/v1beta2"
+
 	gatewayapi "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
@@ -28,6 +30,8 @@ const (
 	GatewayClassName      = "kuadrant-multi-cluster-gateway-instance-per-cluster"
 	ManagedClusterSetName = "gateway-clusters"
 	PlacementLabel        = "cluster.open-cluster-management.io/placement"
+	ClusterSetLabelKey    = "test-ingress-cluster"
+	ClusterSetLabelValue  = "true"
 
 	// configuration environment variables
 	tenantNamespaceEnvvar        = "TEST_TENANT_NAMESPACE"
@@ -91,6 +95,10 @@ func (cfg *SuiteConfig) Build() error {
 		return err
 	}
 	err = ocm_cluster_v1beta2.AddToScheme(scheme.Scheme)
+	if err != nil {
+		return err
+	}
+	err = ocm_cluster_v1.AddToScheme(scheme.Scheme)
 	if err != nil {
 		return err
 	}
@@ -161,7 +169,26 @@ func loadKubeconfig(context string) (*rest.Config, error) {
 func (cfg *SuiteConfig) InstallPrerequisites(ctx context.Context) error {
 	cfg.listCreated = []client.Object{}
 
-	// TODO: label the managedcluster
+	// label the managedclusters (at the moment we just label them all)
+	// NOTE: this action won't be reverted after the suite finishes
+	clusterList := &ocm_cluster_v1.ManagedClusterList{}
+	if err := cfg.HubClient().List(ctx, clusterList); err != nil {
+		return err
+	}
+	if len(clusterList.Items) == 0 {
+		return fmt.Errorf("no managedclusters found in the Hub")
+	}
+	for _, cluster := range clusterList.Items {
+		patch := client.MergeFrom(cluster.DeepCopy())
+		if cluster.ObjectMeta.Labels != nil {
+			cluster.ObjectMeta.Labels[ClusterSetLabelKey] = ClusterSetLabelValue
+		} else {
+			cluster.ObjectMeta.Labels = map[string]string{ClusterSetLabelKey: ClusterSetLabelValue}
+		}
+		if err := cfg.HubClient().Patch(ctx, &cluster, patch); err != nil {
+			return err
+		}
+	}
 
 	// ensure Namespace
 	{
@@ -176,7 +203,7 @@ func (cfg *SuiteConfig) InstallPrerequisites(ctx context.Context) error {
 		}
 	}
 
-	// TODO ensure ManagedZone
+	// TODO ensure ManagedZone: right now this is added by local-setup
 	// {
 	// 	managedzone := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: cfg.ManagedZone()}}
 	// 	created, err := cfg.Ensure(ctx, managedzone)
@@ -198,7 +225,7 @@ func (cfg *SuiteConfig) InstallPrerequisites(ctx context.Context) error {
 					SelectorType: ocm_cluster_v1beta2.LabelSelector,
 					LabelSelector: &metav1.LabelSelector{
 						MatchLabels: map[string]string{
-							"ingress-cluster": "true",
+							ClusterSetLabelKey: ClusterSetLabelValue,
 						},
 					},
 				},
@@ -286,7 +313,7 @@ func (cfg *SuiteConfig) Ensure(ctx context.Context, o client.Object) (bool, erro
 		return false, nil
 	}
 
-	if err := cfg.HubClient().Create(ctx, o); err != nil {
+	if err := cfg.HubClient().Create(ctx, o); err != nil && !apierrors.IsAlreadyExists(err) {
 		return false, err
 	}
 
