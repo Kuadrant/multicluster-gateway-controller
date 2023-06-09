@@ -31,5 +31,7 @@ var _ = BeforeSuite(func(ctx SpecContext) {
 })
 
 var _ = AfterSuite(func(ctx SpecContext) {
-	tconfig.Cleanup(ctx)
+	err := tconfig.Cleanup(ctx)
+	Expect(err).ToNot(HaveOccurred())
+
 })

@@ -284,7 +284,7 @@ func (cfg *SuiteConfig) Cleanup(ctx context.Context) error {
 	for _, o := range cfg.cleanupList {
 		// Don't check for errors so all objects are deleted. Errors can be returned if for example the
 		// namespace is deleted first, but we don't care
-		cfg.HubClient().Delete(ctx, o, client.PropagationPolicy(metav1.DeletePropagationBackground))
+		_ = cfg.HubClient().Delete(ctx, o, client.PropagationPolicy(metav1.DeletePropagationBackground))
 	}
 
 	return nil
