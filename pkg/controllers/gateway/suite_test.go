@@ -146,7 +146,7 @@ var _ = BeforeSuite(func() {
 		Placement:    plc,
 	}).SetupWithManager(k8sManager, ctx)
 	Expect(err).ToNot(HaveOccurred())
-	
+
 	Expect(err).ToNot(HaveOccurred())
 
 	go func() {
@@ -278,6 +278,7 @@ var _ = Describe("GatewayClassController", func() {
 var _ = Describe("GatewayController", func() {
 	Context("testing gateway controller", func() {
 		var gateway *gatewayv1beta1.Gateway
+		var noLGateway *gatewayv1beta1.Gateway
 		var gatewayclass *gatewayv1beta1.GatewayClass
 		var managedZone *v1alpha1.ManagedZone
 		var manifest1 *ocmworkv1.ManifestWork
@@ -355,6 +356,24 @@ var _ = Describe("GatewayController", func() {
 					Labels: map[string]string{
 						"cluster.open-cluster-management.io/placement": "true",
 					},
+				},
+				Spec: gatewayv1beta1.GatewaySpec{
+					GatewayClassName: "kuadrant-multi-cluster-gateway-instance-per-cluster",
+					Listeners: []gatewayv1beta1.Listener{
+						{
+							Name:     "default",
+							Port:     8443,
+							Protocol: gatewayv1beta1.HTTPSProtocolType,
+							Hostname: &hostname,
+						},
+					},
+				},
+			}
+
+			noLGateway = &gatewayv1beta1.Gateway{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-gw-2",
+					Namespace: defaultNS,
 				},
 				Spec: gatewayv1beta1.GatewaySpec{
 					GatewayClassName: "kuadrant-multi-cluster-gateway-instance-per-cluster",
@@ -462,11 +481,6 @@ var _ = Describe("GatewayController", func() {
 				}
 				return controllerutil.ContainsFinalizer(upstreamGateway, gatewayFinalizer)
 			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
-
-			// Mock: adding the placement label to the gateway
-			upstreamGateway.Labels = map[string]string{
-				"cluster.open-cluster-management.io/placement": "true",
-			}
 
 			// Test: Passes if the gateway has the correct label
 			Eventually(func() bool {
@@ -576,32 +590,31 @@ var _ = Describe("GatewayController", func() {
 			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 
 		})
+
 		// Tests if the placement label isnt present no manifest should be created
 		It("shouldnt place a gateway", func() {
 
-			Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
-			upstreamGateway := &gatewayv1beta1.Gateway{}
-			upstreamGatewayType := types.NamespacedName{Name: gateway.Name, Namespace: gateway.Namespace}
-			manifest1 = &ocmworkv1.ManifestWork{}
-			manifest2 = &ocmworkv1.ManifestWork{}
+			Expect(k8sClient.Create(ctx, noLGateway)).To(BeNil())
+			noLabelGateway := &gatewayv1beta1.Gateway{}
+			noLabelUpstreamGatewayType := types.NamespacedName{Name: noLGateway.Name, Namespace: noLGateway.Namespace}
 
 			// Passes if it gets the gateway
 			Eventually(func() bool {
-				err := k8sClient.Get(ctx, upstreamGatewayType, upstreamGateway)
+				err := k8sClient.Get(ctx, noLabelUpstreamGatewayType, noLabelGateway)
 				return err == nil
 			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 
 			// Passes if the gateway contains a finalizer
 			Eventually(func() bool {
-				if err := k8sClient.Get(ctx, upstreamGatewayType, upstreamGateway); err != nil {
+				if err := k8sClient.Get(ctx, noLabelUpstreamGatewayType, noLabelGateway); err != nil {
 					return false
 				}
-				return controllerutil.ContainsFinalizer(upstreamGateway, gatewayFinalizer)
+				return controllerutil.ContainsFinalizer(noLabelGateway, gatewayFinalizer)
 			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 
 			// Test: Passes if no manifest was gotten
 			Eventually(func() bool {
-				err := k8sClient.Get(ctx, types.NamespacedName{Namespace: nsSpoke1Name, Name: "gateway-default-test-gw-1"}, manifest1)
+				err := k8sClient.Get(ctx, types.NamespacedName{Namespace: nsSpoke1Name, Name: "gateway-default-test-gw-2"}, manifest1)
 				return err == nil
 			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeFalse())
 
