@@ -7,7 +7,7 @@ require (
 	github.com/evanphx/json-patch/v5 v5.6.0
 	github.com/go-logr/logr v1.2.3
 	github.com/jetstack/cert-manager v1.7.1
-	github.com/kuadrant/kuadrant-operator v0.1.1-0.20230323151616-58593d01833a
+	github.com/kuadrant/kuadrant-operator v0.1.1-0.20230610083330-41281635dfe5
 	github.com/miekg/dns v1.1.50
 	github.com/onsi/ginkgo/v2 v2.6.1
 	github.com/onsi/gomega v1.24.2
@@ -23,7 +23,7 @@ require (
 	k8s.io/utils v0.0.0-20221128185143-99ec85e7a448
 	open-cluster-management.io/addon-framework v0.6.1
 	open-cluster-management.io/api v0.10.1-0.20230216050312-b716d4a5c514
-	sigs.k8s.io/controller-runtime v0.14.4
+	sigs.k8s.io/controller-runtime v0.14.6
 	sigs.k8s.io/gateway-api v0.6.2
 )
 
@@ -72,9 +72,10 @@ require (
 	github.com/prometheus/client_model v0.3.0 // indirect
 	github.com/prometheus/common v0.37.0 // indirect
 	github.com/prometheus/procfs v0.8.0 // indirect
+	github.com/rogpeppe/go-internal v1.8.0 // indirect
 	github.com/shopspring/decimal v1.2.0 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
-	github.com/spf13/cast v1.4.1 // indirect
+	github.com/spf13/cast v1.5.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
