@@ -153,26 +153,21 @@ deployOLM(){
   ${OPERATOR_SDK_BIN} olm install --timeout 6m0s
 }
 
-deployKuadrant(){
+deployRedis(){
   clusterName=${1}
 
-  kubectl config use-context kind-mgc-control-plane
-  echo "Installing Redis in kind-mgc-control-plane"
-  ${KUSTOMIZE_BIN} build ${REDIS_KUSTOMIZATION_DIR} | kubectl apply -f -
-
   kubectl config use-context kind-${clusterName}
-  echo "Installing Kuadrant in ${clusterName}"
-  ${KUSTOMIZE_BIN} build config/kuadrant | kubectl apply -f -
-  echo "Configuring Limitador in ${clusterName}"
-  ${KUSTOMIZE_BIN} build ${LIMITADOR_KUSTOMIZATION_DIR} | kubectl apply -f -
-  echo "Waiting for Kuadrant deployments to be ready..."
-  kubectl -n kuadrant-system wait --timeout=300s --for=condition=Available deployments --all
-  echo "Adding Kuadrant CR in ${clusterName}"
-  ${KUSTOMIZE_BIN} build config/kuadrant/cr | kubectl apply -f -
-  # This is adding the kuadrant CR before any gateways are created which is currently a known issue with kuadrant.
-  # After adding a gateway is will necessary to force a reconcile of the kuadrant CR, this can be done by running:
-  # kubectl annotate kuadrant/mgc -n kuadrant-system updateme=`date +%s` --overwrite
+  echo "Installing Redis in kind-${clusterName}"
+  ${KUSTOMIZE_BIN} build ${REDIS_KUSTOMIZATION_DIR} | kubectl apply -f -
 }
+
+# configureLimitador(){
+#   clusterName=${1}
+
+#   kubectl config use-context kind-${clusterName}
+#   echo "Configuring Limitador in ${clusterName}"
+#   ${KUSTOMIZE_BIN} build ${LIMITADOR_KUSTOMIZATION_DIR} | kubectl apply -f -
+# }
 
 deployDashboard() {
   clusterName=${1}
@@ -245,6 +240,8 @@ deployOCMHub(){
     deployOLM ${KIND_CLUSTER_CONTROL_PLANE}
     deployIstio ${KIND_CLUSTER_CONTROL_PLANE}
   fi
+  echo "Installing Redis in kind-mgc-control-plane"
+  ${KUSTOMIZE_BIN} build ${REDIS_KUSTOMIZATION_DIR} | kubectl apply -f -
   
 }
 deployOCMSpoke(){
@@ -320,9 +317,13 @@ initController ${KIND_CLUSTER_CONTROL_PLANE}
 # 9. Deploy OCM hub
 deployOCMHub ${KIND_CLUSTER_CONTROL_PLANE}
 
+#10. Deploy Redis
+deployRedis ${KIND_CLUSTER_CONTROL_PLANE}
+
+#11. Deploy MetalLb
 deployMetalLB ${KIND_CLUSTER_CONTROL_PLANE} ${metalLBSubnetStart}
 
-#9. Add workload clusters if MGC_WORKLOAD_CLUSTERS_COUNT environment variable is set
+#12. Add workload clusters if MGC_WORKLOAD_CLUSTERS_COUNT environment variable is set
 if [[ -n "${MGC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
   for ((i = 1; i <= ${MGC_WORKLOAD_CLUSTERS_COUNT}; i++)); do
     kindCreateCluster ${KIND_CLUSTER_WORKLOAD}-${i} $((${port80} + ${i})) $((${port443} + ${i}))

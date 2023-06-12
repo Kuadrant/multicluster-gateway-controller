@@ -3,7 +3,7 @@
 ## Introduction
 blah blah amazing and wonderful feature blah blah gateway blah blah DNS 
 
-## Prerequisities
+## Requirements
 * A computer
 * Electricity
 * Kind

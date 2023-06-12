@@ -4,6 +4,6 @@ secretGenerator:
   - name: redisconfig
     namespace: kuadrant-system
     literals:
-      -  URL=redis://172.32.0.2:30611
+      -  URL=redis://172.32.0.3:30611
     options:
       disableNameSuffixHash: true   
