@@ -5,7 +5,7 @@ build-ocm: manifests generate fmt vet ## Build ocm binary.
 	go build -o bin/ocm ./cmd/ocm/main.go
 
 .PHONY: run-ocm
-run-ocm: manifests generate fmt vet  install
+run-ocm: manifests generate fmt vet install
 	go run ./cmd/ocm/main.go 
 	   
 

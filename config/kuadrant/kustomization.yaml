@@ -1,7 +1,0 @@
-resources:
-- github.com/Kuadrant/kuadrant-operator/config/deploy?ref=gateway-api-v0.6.2
-
-images:
-  - name: quay.io/kuadrant/kuadrant-operator
-    newName: quay.io/kuadrant/kuadrant-operator
-    newTag: gateway-api-v0.6.2
