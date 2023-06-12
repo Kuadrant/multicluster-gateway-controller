@@ -1,3 +1,5 @@
+//go:build integration
+
 /*
 Copyright 2022 The MultiCluster Traffic Controller Authors.
 
