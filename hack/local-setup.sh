@@ -270,6 +270,20 @@ initController() {
     ${KUSTOMIZE_BIN} --reorder none --load-restrictor LoadRestrictionsNone build config/local-setup/controller | kubectl apply -f -
 }
 
+deploySubmarinerBroker() {
+  clusterName=${1}
+  if [[ -n "${SUBMARINER}" ]]; then
+    ${SUBCTL_BIN} deploy-broker --kubeconfig ./tmp/kubeconfigs/external/${clusterName}.kubeconfig
+  fi
+}
+
+joinSubmarinerBroker() {
+  clusterName=${1}
+  if [[ -n "${SUBMARINER}" ]]; then
+    ${SUBCTL_BIN} join --kubeconfig ./tmp/kubeconfigs/external/${clusterName}.kubeconfig broker-info.subm --clusterid ${clusterName} --natt=false --check-broker-certificate=false
+  fi
+}
+
 cleanup
 
 port80=9090
@@ -284,6 +298,12 @@ docker network create -d bridge --subnet 172.32.0.0/16 mgc --gateway 172.32.0.1 
 
 # Create Kind control plane cluster
 kindCreateCluster ${KIND_CLUSTER_CONTROL_PLANE} ${port80} ${port443}
+
+# Deploy the submariner broker to cluster 1
+deploySubmarinerBroker ${KIND_CLUSTER_CONTROL_PLANE}
+
+# Join cluster 1 to the submariner broker
+joinSubmarinerBroker ${KIND_CLUSTER_CONTROL_PLANE}
 
 # Install the Gateway API CRDs in the control cluster
 installGatewayAPI ${KIND_CLUSTER_CONTROL_PLANE}
@@ -318,7 +338,8 @@ deployMetalLB ${KIND_CLUSTER_CONTROL_PLANE} ${metalLBSubnetStart}
 # Add workload clusters if MGC_WORKLOAD_CLUSTERS_COUNT environment variable is set
 if [[ -n "${MGC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
   for ((i = 1; i <= ${MGC_WORKLOAD_CLUSTERS_COUNT}; i++)); do
-    kindCreateCluster ${KIND_CLUSTER_WORKLOAD}-${i} $((${port80} + ${i})) $((${port443} + ${i}))
+    kindCreateCluster ${KIND_CLUSTER_WORKLOAD}-${i} $((${port80} + ${i})) $((${port443} + ${i})) $((${i} + 1))
+    joinSubmarinerBroker ${KIND_CLUSTER_WORKLOAD}-${i}
     deployIstio ${KIND_CLUSTER_WORKLOAD}-${i}
     installGatewayAPI ${KIND_CLUSTER_WORKLOAD}-${i}
     deployIngressController ${KIND_CLUSTER_WORKLOAD}-${i}
