@@ -1,5 +1,8 @@
 # Debugging in VS code
 
+## Introduction
+The following document will show how to setup debugging for multi gateway controller.
+
 There is an included VSCode `launch.json`.
 
 ## Starting the controller

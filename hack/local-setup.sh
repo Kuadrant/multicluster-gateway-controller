@@ -153,25 +153,12 @@ deployOLM(){
   ${OPERATOR_SDK_BIN} olm install --timeout 6m0s
 }
 
-deployKuadrant(){
+deployRedis(){
   clusterName=${1}
 
-  kubectl config use-context kind-mgc-control-plane
-  echo "Installing Redis in kind-mgc-control-plane"
-  ${KUSTOMIZE_BIN} build ${REDIS_KUSTOMIZATION_DIR} | kubectl apply -f -
-
   kubectl config use-context kind-${clusterName}
-  echo "Installing Kuadrant in ${clusterName}"
-  ${KUSTOMIZE_BIN} build config/kuadrant | kubectl apply -f -
-  echo "Configuring Limitador in ${clusterName}"
-  ${KUSTOMIZE_BIN} build ${LIMITADOR_KUSTOMIZATION_DIR} | kubectl apply -f -
-  echo "Waiting for Kuadrant deployments to be ready..."
-  kubectl -n kuadrant-system wait --timeout=300s --for=condition=Available deployments --all
-  echo "Adding Kuadrant CR in ${clusterName}"
-  ${KUSTOMIZE_BIN} build config/kuadrant/cr | kubectl apply -f -
-  # This is adding the kuadrant CR before any gateways are created which is currently a known issue with kuadrant.
-  # After adding a gateway is will necessary to force a reconcile of the kuadrant CR, this can be done by running:
-  # kubectl annotate kuadrant/mgc -n kuadrant-system updateme=`date +%s` --overwrite
+  echo "Installing Redis in kind-${clusterName}"
+  ${KUSTOMIZE_BIN} build ${REDIS_KUSTOMIZATION_DIR} | kubectl apply -f -
 }
 
 deployDashboard() {
@@ -245,6 +232,8 @@ deployOCMHub(){
     deployOLM ${KIND_CLUSTER_CONTROL_PLANE}
     deployIstio ${KIND_CLUSTER_CONTROL_PLANE}
   fi
+  echo "Installing Redis in kind-mgc-control-plane"
+  ${KUSTOMIZE_BIN} build ${REDIS_KUSTOMIZATION_DIR} | kubectl apply -f -
   
 }
 deployOCMSpoke(){
@@ -293,36 +282,40 @@ docker network create -d bridge --subnet 172.32.0.0/16 mgc --gateway 172.32.0.1 
   -o "com.docker.network.bridge.enable_ip_masquerade"="true" \
   -o "com.docker.network.driver.mtu"="1500"
 
-#1. Create Kind control plane cluster
+# Create Kind control plane cluster
 kindCreateCluster ${KIND_CLUSTER_CONTROL_PLANE} ${port80} ${port443}
 
-#2. Install the Gateway API CRDs in the control cluster
+# Install the Gateway API CRDs in the control cluster
 installGatewayAPI ${KIND_CLUSTER_CONTROL_PLANE}
 
-#3. Deploy ingress controller
+# Deploy ingress controller
 deployIngressController ${KIND_CLUSTER_CONTROL_PLANE}
 
-#4. Deploy cert manager
+# Deploy cert manager
 deployCertManager ${KIND_CLUSTER_CONTROL_PLANE}
 
-#5. Deploy argo cd
+# Deploy argo cd
 deployArgoCD ${KIND_CLUSTER_CONTROL_PLANE}
 
-#6. Deploy Dashboard
+# Deploy Dashboard
 deployDashboard $KIND_CLUSTER_CONTROL_PLANE 0
 
-#7. Add the control plane cluster
+# Add the control plane cluster
 argocdAddCluster ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_CONTROL_PLANE}
 
-#8. Initialize local dev setup for the controller on the control-plane cluster
+# Initialize local dev setup for the controller on the control-plane cluster
 initController ${KIND_CLUSTER_CONTROL_PLANE}
 
-# 9. Deploy OCM hub
+# Deploy OCM hub
 deployOCMHub ${KIND_CLUSTER_CONTROL_PLANE}
 
+# Deploy Redis
+deployRedis ${KIND_CLUSTER_CONTROL_PLANE}
+
+# Deploy MetalLb
 deployMetalLB ${KIND_CLUSTER_CONTROL_PLANE} ${metalLBSubnetStart}
 
-#9. Add workload clusters if MGC_WORKLOAD_CLUSTERS_COUNT environment variable is set
+# Add workload clusters if MGC_WORKLOAD_CLUSTERS_COUNT environment variable is set
 if [[ -n "${MGC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
   for ((i = 1; i <= ${MGC_WORKLOAD_CLUSTERS_COUNT}; i++)); do
     kindCreateCluster ${KIND_CLUSTER_WORKLOAD}-${i} $((${port80} + ${i})) $((${port443} + ${i}))
@@ -339,10 +332,10 @@ if [[ -n "${MGC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
   done
 fi
 
-# 10. Ensure the current context points to the control plane cluster
+# Ensure the current context points to the control plane cluster
 kubectl config use-context kind-${KIND_CLUSTER_CONTROL_PLANE}
 
- # Create configmap with gateway parameters for clusters
+# Create configmap with gateway parameters for clusters
 kubectl create configmap gateway-params \
   --from-file=params=config/samples/gatewayclass_params.json \
   -n multi-cluster-gateways
