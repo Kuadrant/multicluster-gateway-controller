@@ -4,8 +4,7 @@
 The following walkthrough will show you how to install/setup the Kuadrant operator via OCM (Open cluster management addons)
 
 ## Prerequisites
-* Kind
-* OLM 
+* Kind 
 
 ## Open terminal sessions
 For this walkthrough, we're going to use multiple terminal sessions/windows, all using `multicluster-gateway-controller` as the `pwd`.
@@ -13,11 +12,12 @@ For this walkthrough, we're going to use multiple terminal sessions/windows, all
 Open 2 windows, which we'll refer to throughout this walkthrough as:
 
 * `T1` (Hub/control plane cluster, Where we'll run our controller locally)
-* `T2` (Spoke/workload cluster 1)
+* `T2` (Hub/control plane cluster)
+* `T3` (Spoke/workload cluster 1)
 
 ## Setup up local environment
 1. Clone this repo locally
-1. Run the following command to bring up the kind clusters. The number of spoke cluster you want is dictated by the env var `MGC_WORKLOAD_CLUSTERS_COUNT`
+1. In `T1` run the following command to bring up the kind clusters. The number of spoke cluster you want is dictated by the env var `MGC_WORKLOAD_CLUSTERS_COUNT`
 
     ```bash
     make local-setup MGC_WORKLOAD_CLUSTERS_COUNT=1
@@ -34,20 +34,19 @@ Open 2 windows, which we'll refer to throughout this walkthrough as:
 > **_NOTE:_** :exclamation: Your terminal should have the context of the Hub cluster or the control plane cluster. This is by default the context after you run the make local setup. To get the context run the following command
      `kind export kubeconfig --name=mgc-control-plane --kubeconfig=$(pwd)/local/kube/control-plane.yaml && export KUBECONFIG=$(pwd)/local/kube/control-plane.yaml`
 
-1. In the same terminal that you ran the local-setup command in run the following to bring up the controller.
+1. In `T1` run the following to bring up the controller.
     ```bash
     make run-ocm
     ```
-
-1. Update the managed cluster addon `namespace` to the spoke cluster name you want to deploy Kuadrant to e.g `kind-mgc-workload-1`. Then deploy it to the hub cluster
+1. Update the managed cluster addon `namespace` to the spoke cluster name you want to deploy Kuadrant to e.g `kind-mgc-workload-1`. Then in `T2` deploy it to the hub cluster
     ```bash
     kubectl apply -f config/kuadrant/deploy/hub
     ```  
-1. In the 2nd terminal change the context to the workload cluster via 
+1. In the `T3` change the context to the workload cluster via 
     ```bash
     kind export kubeconfig --name=mgc-workload-1 --kubeconfig=$(pwd)/local/kube/workload1.yaml && export KUBECONFIG=$(pwd)/local/kube/workload1.yaml`
     ```    
-1. Running the following:
+1. In `T3` Running the following:
     ```bash
     kubectl get pods -n kuadrant-system
     ```
