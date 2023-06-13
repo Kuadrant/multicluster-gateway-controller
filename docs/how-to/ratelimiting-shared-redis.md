@@ -18,12 +18,12 @@ For this walkthrough, we're going to be continuing on from a previous walkthroug
 
 Open three windows, which we'll refer to throughout this walkthrough as:
 
-* `T1` (Hub Cluster)
-* `T2` (Where we'll run our controller locally)
+* `T1` (Hub/Spoke Cluster)
+* `T2` (Hub Cluster Where we'll run our controller locally (needed for previous walkthrough))
 * `T3` (Workloads cluster)
 
 ## Configuring limitador in spoke clusters
-1. Get the ip address of your control-plane cluster using:
+1. In `T1` get the ip address of your control-plane cluster using:
     ``` bash
     kubectl get nodes -o wide
     ```
@@ -33,7 +33,7 @@ Open three windows, which we'll refer to throughout this walkthrough as:
     kustomize build config/kuadrant/limitador/ | kubectl apply -f -
     ```
 ## Configuring Rate Limit Policies
-1. In the clusters that have Kuadrant operator installed i.e `T1 & T3 both spoke clusters` run the following command to create a Rate Limit Policy for the HTTP route created in the walkthrough linked above called `Open Cluster Management and Multi-Cluster gateways`. The policy is limiting the route to have 8 successful requests in 10 seconds, these values can be changed to whatever you want.
+1. In `T1 & T3 both spoke clusters` run the following command to create a Rate Limit Policy for the HTTP route created in the walkthrough linked above called `Open Cluster Management and Multi-Cluster gateways`. The policy is limiting the route to have 8 successful requests in 10 seconds, these values can be changed to whatever you want.
 
     ```bash
     kubectl apply -f - <<EOF
@@ -61,7 +61,7 @@ Open three windows, which we'll refer to throughout this walkthrough as:
             seconds: 10
     EOF
     ```
-1. To test the RLP you can run the following command:
+1.  In `T1 and T3` test the RLP you can run the following command:
     ```bash
     while true; do curl -k -s -o /dev/null -w "%{http_code}\n"  replace.this.with.host && sleep 1; done
     ```
