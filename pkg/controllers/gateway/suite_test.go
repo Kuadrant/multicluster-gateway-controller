@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+	"encoding/json"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -35,7 +36,6 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	"encoding/json"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	ocmclusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
@@ -55,20 +55,20 @@ import (
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
 
 var (
-	cfg              *rest.Config
-	k8sClient        client.Client
-	testEnv          *envtest.Environment
-	ctx              context.Context
-	cancel           context.CancelFunc
-	nsSpoke1Name     = "test-spoke-cluster-1"
-	nsSpoke2Name     = "test-spoke-cluster-2"
-	defaultNS        = "default"
-	gatewayFinalizer = "kuadrant.io/gateway"
+	cfg       *rest.Config
+	k8sClient client.Client
+	testEnv   *envtest.Environment
+	ctx       context.Context
+	cancel    context.CancelFunc
 )
 
 const (
 	TestTimeoutMedium       = time.Second * 10
 	TestRetryIntervalMedium = time.Millisecond * 250
+	nsSpoke1Name            = "test-spoke-cluster-1"
+	nsSpoke2Name            = "test-spoke-cluster-2"
+	defaultNS               = "default"
+	gatewayFinalizer        = "kuadrant.io/gateway"
 )
 
 func TestAPIs(t *testing.T) {
@@ -326,7 +326,7 @@ var _ = Describe("GatewayController", func() {
 					Name:      "test-placement",
 					Namespace: defaultNS,
 					Labels: map[string]string{
-						"cluster.open-cluster-management.io/placement": "true",
+						"cluster.open-cluster-management.io/placement": "GatewayControllerTest",
 					},
 				},
 			}
@@ -354,7 +354,7 @@ var _ = Describe("GatewayController", func() {
 					Name:      "test-gw-1",
 					Namespace: defaultNS,
 					Labels: map[string]string{
-						"cluster.open-cluster-management.io/placement": "true",
+						"cluster.open-cluster-management.io/placement": "GatewayControllerTest",
 					},
 				},
 				Spec: gatewayv1beta1.GatewaySpec{
