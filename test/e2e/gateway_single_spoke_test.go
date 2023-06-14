@@ -1,6 +1,6 @@
 //go:build e2e
 
-package smoke
+package e2e
 
 import (
 	"context"
@@ -35,7 +35,7 @@ var _ = Describe("Gateway single target cluster", func() {
 	var placement *ocm_cluster_v1beta1.Placement
 
 	BeforeEach(func(ctx SpecContext) {
-		testID = "t-smoke-" + tconfig.GenerateName()
+		testID = "t-e2e-" + tconfig.GenerateName()
 
 		By("creating a Placement for the Gateway resource")
 		placement = &ocm_cluster_v1beta1.Placement{
@@ -55,7 +55,7 @@ var _ = Describe("Gateway single target cluster", func() {
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      testID,
 				Namespace: tconfig.HubNamespace(),
-				Labels:    map[string]string{"gw": "t-smoke"},
+				Labels:    map[string]string{"gw": "t-e2e"},
 			},
 			Spec: gatewayapi.GatewaySpec{
 				GatewayClassName: GatewayClassName,

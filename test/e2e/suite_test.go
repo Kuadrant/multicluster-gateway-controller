@@ -1,6 +1,6 @@
 //go:build e2e
 
-package smoke
+package e2e
 
 import (
 	"testing"
@@ -17,7 +17,7 @@ var tconfig SuiteConfig
 func TestAPIs(t *testing.T) {
 	ConditionalTestSkip(t)
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Smoke Tests Suite")
+	RunSpecs(t, "E2E Tests Suite")
 }
 
 var _ = BeforeSuite(func(ctx SpecContext) {
