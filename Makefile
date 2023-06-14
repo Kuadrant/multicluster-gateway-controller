@@ -80,7 +80,7 @@ test: manifests generate fmt vet envtest ## Run tests.
 
 .PHONY: test-e2e
 test-e2e: ginkgo kind-load-controller deploy-controller
-	$(GINKGO)  -v ./test/...
+	$(GINKGO) -tags=e2e -v ./test/...
 
 .PHONY: local-setup
 local-setup: kind kustomize helm yq dev-tls istioctl operator-sdk clusteradm subctl ## Setup multi cluster traffic controller locally using kind.
