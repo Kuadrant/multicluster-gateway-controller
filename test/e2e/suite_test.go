@@ -15,7 +15,6 @@ import (
 var tconfig SuiteConfig
 
 func TestAPIs(t *testing.T) {
-	ConditionalTestSkip(t)
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "E2E Tests Suite")
 }
