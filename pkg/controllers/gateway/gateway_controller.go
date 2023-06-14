@@ -460,42 +460,6 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager, ctx context.Conte
 		Watches(&source.Kind{
 			Type: &corev1.Secret{},
 		}, &ClusterEventHandler{client: r.Client}).
-		Watches(&source.Kind{Type: &workv1.ManifestWork{}}, handler.EnqueueRequestsFromMapFunc(func(o client.Object) []reconcile.Request {
-			log.V(3).Info("enqueuing gateways based on manifest work change ", "work namespace", o.GetNamespace())
-			requests := []reconcile.Request{}
-			annotations := o.GetAnnotations()
-			if annotations == nil {
-				log.V(3).Info("no parent or anotations on manifest work ", "work ns", o.GetNamespace(), "name", o.GetName())
-				return requests
-			}
-			key := annotations["kuadrant.io/parent"]
-			ns, name, err := cache.SplitMetaNamespaceKey(key)
-			if err != nil {
-				log.Error(err, "failed to parse namespace and name from maifiest work")
-				return requests
-			}
-			log.Info("requeuing gateway ", "namespace", ns, "name", name)
-			requests = append(requests, reconcile.Request{
-				NamespacedName: types.NamespacedName{Namespace: ns, Name: name},
-			})
-			return requests
-		}), builder.OnlyMetadata).
-		Watches(&source.Kind{Type: &clusterv1beta2.PlacementDecision{}}, handler.EnqueueRequestsFromMapFunc(func(o client.Object) []reconcile.Request {
-			// kinda want to get the old and new object here and only queue if the clusters have changed
-			// queue up gateways in this namespace
-			req := []reconcile.Request{}
-			l := &gatewayv1beta1.GatewayList{}
-			if err := mgr.GetClient().List(ctx, l, &client.ListOptions{Namespace: o.GetNamespace()}); err != nil {
-				log.Error(err, "failed to list gateways to requeue")
-				return req
-			}
-			for _, g := range l.Items {
-				req = append(req, reconcile.Request{
-					NamespacedName: client.ObjectKeyFromObject(&g),
-				})
-			}
-			return req
-		})).
 		WithEventFilter(predicate.NewPredicateFuncs(func(object client.Object) bool {
 			gateway, ok := object.(*gatewayv1beta1.Gateway)
 			if ok {
