@@ -81,21 +81,19 @@ jobs:
       - uses: actions/setup-go@v4
         with:
           go-version: "1.19"
-      - name: create controller-config.env
+      - name: Create controller-config.env
         run: |
           echo "AWS_DNS_PUBLIC_ZONE_ID=${{ secrets.AWS_DNS_PUBLIC_ZONE_ID }}" >> controller-config.env
           echo "ZONE_ROOT_DOMAIN=${{ secrets.AWS_DNS_PUBLIC_ZONE_NAME }}" >> controller-config.env
-      - name: create aws-credentials.env
+      - name: Create aws-credentials.env
         run: |
           echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> aws-credentials.env
           echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> aws-credentials.env
           echo "AWS_REGION=${{ env.AWS_REGION }}" >> aws-credentials.env
-      - name: configure e2e test suite
+      - name: Run suite
         run: |
           export OCM_SINGLE=1
           export TEST_HUB_NAMESPACE=multi-cluster-gateways
           export TEST_HUB_KUBE_CONTEXT=kind-mgc-control-plane
           export TEST_MANAGED_ZONE=${{ secrets.AWS_DNS_PUBLIC_ZONE_NAME }}
-      - name: Run suite
-        run: |
           make local-setup && make test-e2e
