@@ -3,6 +3,9 @@
 ## Introduction
 The following walkthrough will show you how to install/setup the Kuadrant operator via OCM (Open cluster management addons)
 
+**_NOTE:_** :exclamation: A good walkthrough to have done before this is [Open Cluster Management and Multi-Cluster gateways](ocm-control-plane-walkthrough.md)
+
+
 ## Prerequisites
 * Kind 
 
@@ -56,6 +59,11 @@ Open 2 windows, which we'll refer to throughout this walkthrough as:
 * kuadrant-operator-controller-manager-*value*
 * limitador-*value*
 * limitador-operator-controller-manager-*value*
+
+# Follow on Walkthroughs
+Some good follow on walkthroughs that build on this walkthrough
+
+* [Deploying/Configuring Redis, Limitador and Rate limit policies.](https://github.com/Kuadrant/multicluster-gateway-controller/blob/main/docs/how-to/ratelimiting-shared-redis.md)
 
 
 

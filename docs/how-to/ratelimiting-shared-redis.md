@@ -1,4 +1,4 @@
-# Deploying/Configuring Redis,Limitador and Rate limit policies.
+# Deploying/Configuring Redis, Limitador and Rate limit policies.
 
 ## Introduction
 The following document is going to show you how to deploy Redis as storage for Limitador, configure Limitador itself and how to configure and setup Rate Limit Policies against a `HTTP route` using Limitador .

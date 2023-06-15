@@ -424,3 +424,9 @@ Known weighting Issue https://github.com/Kuadrant/multicluster-gateway-controlle
 
 
 If you want you can use ```watch dig sub.replace.this ``` to see the DNS switching between the two addresses 
+
+## Follow on Walkthroughs
+Some good follow on walkthroughs that build on this walkthrough
+
+* [Installing the Kuadrant operator via OCM Addon](https://github.com/Kuadrant/multicluster-gateway-controller/blob/main/docs/how-to/kuadrant-addon-walkthrough.md)
+* [Deploying/Configuring Redis, Limitador and Rate limit policies.](https://github.com/Kuadrant/multicluster-gateway-controller/blob/main/docs/how-to/ratelimiting-shared-redis.md)

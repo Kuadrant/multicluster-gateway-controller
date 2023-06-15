@@ -9,6 +9,7 @@ blah blah amazing and wonderful feature blah blah gateway blah blah DNS
 * Kind
 * AWS Account
 * Route 53 enabled
+* Other Walkthroughs
 
 
  ## Installation and Setup
@@ -44,10 +45,14 @@ Open three windows, which we'll refer to throughout this walkthrough as:
 
 To setup a local instance, in `T1`, run:
 
-## Know bugs
+## Known bugs
 buzzzzz
 
-# Helpful symbols
+# Follow on Walkthroughs
+Some good follow on walkthroughs that build on this walkthrough
+
+
+# Helpful symbols (For dev use)
 :sos:
 :exclamation:
 * for more see https://gist.github.com/rxaviers/7360908
