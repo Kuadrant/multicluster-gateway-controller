@@ -72,7 +72,7 @@ spec:
 EOF
 ```
 
-### Create a placement for our gateways
+### Create a placement for our Gateways
 
 In order to place our Gateways onto clusters, we need to setup a placement resource. Again, in `T1`, run:
 
@@ -90,7 +90,7 @@ spec:
 EOF
 ```
 
-### Create the gateway class
+### Create the Gateway class
  
 Lastly, we will set up our multi-cluster GatewayClass. In `T1`, run:
 
@@ -132,7 +132,7 @@ spec:
 EOF
 ```
 
-### Place the gateway
+### Place the Gateway
 
 To place the Gateway, we need to add a placement label to Gateway resource to instruct the Gateway controller where we want this Gateway instantiated. In `T1`, run:
 
@@ -367,3 +367,5 @@ curl -Ik --resolve sub.replace.this:443:172.32.201.0 https://sub.replace.this
 At the time of writing, Istio does *not* support adding a ServiceImport as a backendRef directly as per the [Gateway API proposal - GEP-1748](https://gateway-api.sigs.k8s.io/geps/gep-1748/#serviceimport-as-a-backend).
 This is why the walkthrough uses a Service of type ExternalName to route to the clusterset host instead.
 There is an [issue](https://github.com/istio/istio/issues/44415) questioning the current state of support.
+
+The install of the `subctl` cli [fails on macs with arm architecture](https://github.com/submariner-io/get.submariner.io/issues/50). The error is `curl: (22) The requested URL returned error: 404`. A workaround for this is to download the amd64 darwin release manually [from the releases page](https://github.com/submariner-io/subctl/releases) and extract it to the `./bin` directory.

@@ -10,7 +10,7 @@ This provides a clusterset hostname for the service in the hub cluster e.g. echo
 The HttpRoute has a backendRef to a Service that points to this hostname.
 If the Service is unavailable in either workload cluster, it will be routed to the other workload cluster.
 
-<img src="submariner-poc-hub-gateway-diagram.png" alt="architecture" width="600"/>
+<img src="images/submariner-poc-hub-gateway-diagram.png" alt="architecture" width="600"/>
 
 ## Requirements
 
@@ -60,7 +60,7 @@ spec:
 EOF
 ```
 
-Next, in `T1` we need to bind this cluster set to our multi-cluster-gateways namespace so that we can use that cluster to place gateway on:
+Next, in `T1` we need to bind this cluster set to our multi-cluster-gateways namespace so that we can use that cluster to place Gateway on:
 
 ```bash
 kubectl apply -f - <<EOF
@@ -74,9 +74,9 @@ spec:
 EOF
 ```
 
-### Create a placement for our gateway
+### Create a placement for our Gateway
 
-In order to place our gateway onto the hub clusters, we need to setup a placement resource. Again, in `T1`, run:
+In order to place our Gateway onto the hub clusters, we need to setup a placement resource. Again, in `T1`, run:
 
 ```bash
 kubectl apply -f - <<EOF
@@ -92,7 +92,7 @@ spec:
 EOF
 ```
 
-### Create the gateway class
+### Create the GatewayClass
  
 Lastly, we will set up our multi-cluster GatewayClass. In `T1`, run:
 
@@ -338,3 +338,5 @@ curl -Ik --resolve sub.replace.this:443:172.32.200.0 https://sub.replace.this
 At the time of writing, Istio does *not* support adding a ServiceImport as a backendRef directly as per the [Gateway API proposal - GEP-1748](https://gateway-api.sigs.k8s.io/geps/gep-1748/#serviceimport-as-a-backend).
 This is why the walkthrough uses a Service of type ExternalName to route to the clusterset host instead.
 There is an [issue](https://github.com/istio/istio/issues/44415) questioning the current state of support.
+
+The install of the `subctl` cli [fails on macs with arm architecture](https://github.com/submariner-io/get.submariner.io/issues/50). The error is `curl: (22) The requested URL returned error: 404`. A workaround for this is to download the amd64 darwin release manually [from the releases page](https://github.com/submariner-io/subctl/releases) and extract it to the `./bin` directory.
