@@ -5,6 +5,7 @@ resources:
 - bases/kuadrant.io_dnsrecords.yaml
 - bases/kuadrant.io_dnspolicies.yaml
 - bases/kuadrant.io_managedzones.yaml
+- bases/kuadrant.io_dnsproviders.yaml
 #+kubebuilder:scaffold:crdkustomizeresource
 
 patchesStrategicMerge:

@@ -38,7 +38,7 @@ import (
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
+	// "github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -113,12 +113,12 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).ToNot(HaveOccurred())
 
-	dnsProvider := &dns.FakeProvider{}
+	// dnsProvider := &dns.FakeProvider{}
 
 	err = (&ManagedZoneReconciler{
-		Client:      k8sManager.GetClient(),
-		Scheme:      k8sManager.GetScheme(),
-		DNSProvider: dnsProvider,
+		Client: k8sManager.GetClient(),
+		Scheme: k8sManager.GetScheme(),
+		// DNSProvider: dnsProvider,
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 

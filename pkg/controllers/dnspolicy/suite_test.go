@@ -29,7 +29,6 @@ import (
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -101,8 +100,6 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).ToNot(HaveOccurred())
 
-	dnsProvider := &dns.FakeProvider{}
-	dns := dns.NewService(k8sManager.GetClient(), dns.NewSafeHostResolver(dns.NewDefaultHostResolver()))
 	plc := NewTestOCMPlacer()
 
 	dnsPolicyBaseReconciler := reconcilers.NewBaseReconciler(
@@ -115,9 +112,7 @@ var _ = BeforeSuite(func() {
 		TargetRefReconciler: reconcilers.TargetRefReconciler{
 			BaseReconciler: dnsPolicyBaseReconciler,
 		},
-		DNSProvider: dnsProvider,
-		HostService: dns,
-		Placement:   plc,
+		Placement: plc,
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 

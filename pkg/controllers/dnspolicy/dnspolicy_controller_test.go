@@ -29,6 +29,10 @@ func testBuildManagedZone(domainName, ns string) *v1alpha1.ManagedZone {
 			ID:          "1234",
 			DomainName:  domainName,
 			Description: domainName,
+			ProviderRef: &v1alpha1.ProviderRef{
+				Name:      "secretName",
+				Namespace: ns,
+			},
 		},
 	}
 }

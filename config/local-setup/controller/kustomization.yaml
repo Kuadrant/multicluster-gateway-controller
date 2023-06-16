@@ -5,24 +5,25 @@ namePrefix: mgc-
 resources:
   - namespace.yaml
   - managed_zone.yaml
+  - dnsprovider.yaml
 
 generatorOptions:
   disableNameSuffixHash: true
 
 configMapGenerator:
-  - name: controller-config
+  - name: provider-config
     envs:
-      - ../../../controller-config.env
+      - ../../../dns-provider-config.env
 
 secretGenerator:
-  - name: aws-credentials
+  - name: provider-credentials
     envs:
-      - ../../../aws-credentials.env
+      - ../../../provider-credentials.env
 
 replacements:
   - source:
       kind: ConfigMap
-      name: controller-config
+      name: provider-config
       version: v1
       fieldPath: data.AWS_DNS_PUBLIC_ZONE_ID
     targets:
@@ -33,7 +34,7 @@ replacements:
           - spec.id
   - source:
       kind: ConfigMap
-      name: controller-config
+      name: provider-config
       version: v1
       fieldPath: data.ZONE_ROOT_DOMAIN
     targets:
@@ -42,3 +43,16 @@ replacements:
           name: mgc-dev-mz
         fieldPaths:
           - spec.domainName
+  - source:
+        kind: ConfigMap
+        name: provider-config
+        version: v1
+        fieldPath: data.TYPE
+    targets:
+      - select:
+          kind: ManagedZone
+          name: mgc-dev-mz
+        fieldPaths:
+          - spec.provider.type
+
+            

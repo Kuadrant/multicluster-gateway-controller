@@ -56,8 +56,8 @@ type Route53DNSProvider struct {
 var _ dns.Provider = &Route53DNSProvider{}
 
 // NewDNSProvider returns a Route53DNSProvider instance configured for the AWS Route 53 service using the credentials provided
-func NewDNSProvider(route53Config v1alpha1.DNSProviderConfigRoute53) (*Route53DNSProvider, error) {
-	if route53Config.AccessKeyID == "" || route53Config.SecretAccessKey == "" {
+func NewDNSProvider(dnsProviderConfig v1alpha1.DNSProviderConfig) (*Route53DNSProvider, error) {
+	if dnsProviderConfig.Route53.AccessKeyID == "" || dnsProviderConfig.Route53.SecretAccessKey == "" {
 		return nil, fmt.Errorf("unable to construct route53 provider: both access and secret key must be provided")
 	}
 
@@ -66,15 +66,15 @@ func NewDNSProvider(route53Config v1alpha1.DNSProviderConfigRoute53) (*Route53DN
 		Config: *config,
 	}
 
-	sessionOpts.Config.Credentials = credentials.NewStaticCredentials(route53Config.AccessKeyID, route53Config.SecretAccessKey, "")
+	sessionOpts.Config.Credentials = credentials.NewStaticCredentials(dnsProviderConfig.Route53.AccessKeyID, dnsProviderConfig.Route53.SecretAccessKey, "")
 	sessionOpts.SharedConfigState = session.SharedConfigDisable
 
 	sess, err := session.NewSessionWithOptions(sessionOpts)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create aws session: %s", err)
 	}
-	if route53Config.Region != "" {
-		sess.Config.WithRegion(route53Config.Region)
+	if dnsProviderConfig.Route53.Region != "" {
+		sess.Config.WithRegion(dnsProviderConfig.Route53.Region)
 	}
 
 	p := &Route53DNSProvider{

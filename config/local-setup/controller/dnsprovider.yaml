@@ -1,0 +1,12 @@
+apiVersion: kuadrant.io/v1alpha1
+kind: DNSProvider
+metadata:
+  name: dns-provider
+  namespace: multi-cluster-gateways
+spec:
+  credentials:
+    namespace: multi-cluster-gateways
+    name: mgc-provider-credentials
+
+
+

@@ -22,7 +22,6 @@ func (r *DNSPolicyReconciler) reconcileDNSRecords(ctx context.Context, dnsPolicy
 		log.V(1).Info("reconcileDNSRecords: gateway with invalid policy ref", "key", gw.Key())
 		//ToDo Since gateways own DNSRecords I don't think there is anything to do here?
 	}
-
 	// Reconcile DNSRecords for each gateway directly referred by the policy (existing and new)
 	for _, gw := range append(gwDiffObj.GatewaysWithValidPolicyRef, gwDiffObj.GatewaysMissingPolicyRef...) {
 		log.V(1).Info("reconcileDNSRecords: gateway with valid and missing policy ref", "key", gw.Key())

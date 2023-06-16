@@ -16,7 +16,7 @@ We will start with a single cluster and move to multiple clusters to illustrate 
 
 ## Installation and Setup
 * Clone this repo locally 
-* Setup a `./controller-config.env` file in the root of the repo with the following key values
+* Setup a `./dns-provider-config.env` file in the root of the repo with the following key values
 
     ```bash
     # this sets up your default managed zone
@@ -24,6 +24,7 @@ We will start with a single cluster and move to multiple clusters to illustrate 
     # this is the domain at the root of your zone (foo.example.com)
     ZONE_ROOT_DOMAIN=test.hcpapps.net # replace this with your root domain
     LOG_LEVEL=1
+    TYPE=<DNS PROVIDER E.G AWS>
     ```   
 
 * setup a `./aws-credentials.env` with credentials to access route 53

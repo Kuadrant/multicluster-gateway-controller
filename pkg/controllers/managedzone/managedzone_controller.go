@@ -38,11 +38,18 @@ const (
 	ManagedZoneFinalizer = "kuadrant.io/managed-zone"
 )
 
+var DNSProvider dns.Provider
+
+type DNS interface {
+	//Creates a dnd provider based on credentials provided
+	CreateDNSProvider(ctx context.Context, managedZone *v1alpha1.ManagedZone) (dns.Provider, error)
+}
+
 // ManagedZoneReconciler reconciles a ManagedZone object
 type ManagedZoneReconciler struct {
 	client.Client
-	DNSProvider dns.Provider
-	Scheme      *runtime.Scheme
+	Scheme  *runtime.Scheme
+	DNSProv DNS
 }
 
 //+kubebuilder:rbac:groups=kuadrant.io,resources=managedzones,verbs=get;list;watch;create;update;patch;delete
@@ -51,7 +58,6 @@ type ManagedZoneReconciler struct {
 
 func (r *ManagedZoneReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
-
 	previous := &v1alpha1.ManagedZone{}
 	err := r.Client.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: req.Name}, previous)
 	if err != nil {
@@ -64,6 +70,11 @@ func (r *ManagedZoneReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	managedZone := previous.DeepCopy()
 
 	log.Log.V(3).Info("ManagedZoneReconciler Reconcile", "managedZone", managedZone)
+
+	DNSProvider, err = r.DNSProv.CreateDNSProvider(ctx, managedZone)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
 
 	if managedZone.DeletionTimestamp != nil && !managedZone.DeletionTimestamp.IsZero() {
 		if err := r.deleteParentZoneNSRecord(ctx, managedZone); err != nil {
@@ -163,7 +174,7 @@ func (r *ManagedZoneReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 func (r *ManagedZoneReconciler) publishManagedZone(ctx context.Context, managedZone *v1alpha1.ManagedZone) error {
 
-	mzResp, err := r.DNSProvider.EnsureManagedZone(managedZone)
+	mzResp, err := DNSProvider.EnsureManagedZone(managedZone)
 	if err != nil {
 		return err
 	}
@@ -181,7 +192,7 @@ func (r *ManagedZoneReconciler) deleteManagedZone(ctx context.Context, managedZo
 		return nil
 	}
 
-	err := r.DNSProvider.DeleteManagedZone(managedZone)
+	err := DNSProvider.DeleteManagedZone(managedZone)
 	if err != nil {
 		if strings.Contains(err.Error(), "was not found") {
 			log.Log.Info("ManagedZone was not found, continuing", "managedZone", managedZone.Name)

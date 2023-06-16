@@ -98,7 +98,7 @@ type GatewayReconciler struct {
 	client.Client
 	Scheme       *runtime.Scheme
 	Certificates CertificateService
-	Host         HostService
+	HostService  HostService
 	Placement    GatewayPlacer
 }
 
@@ -212,6 +212,7 @@ func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.C
 	downstream := upstreamGateway.DeepCopy()
 	downstreamNS := fmt.Sprintf("%s-%s", "kuadrant", downstream.Namespace)
 	downstream.Status = gatewayv1beta1.GatewayStatus{}
+	upstreamAccessor := traffic.NewGateway(upstreamGateway)
 
 	// reset this for the sync as we don't want control plane level UID, creation etc etc
 	downstream.ObjectMeta = metav1.ObjectMeta{
@@ -232,7 +233,7 @@ func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.C
 			return false, metav1.ConditionFalse, clusters, err
 		}
 		log.V(3).Info("cleaning up associated DNSRecords")
-		if err := r.Host.CleanupDNSRecords(ctx, accessor); err != nil {
+		if err := r.HostService.CleanupDNSRecords(ctx, accessor); err != nil {
 			log.Error(err, "Error deleting DNS record")
 			return false, metav1.ConditionFalse, clusters, err
 		}
@@ -246,8 +247,7 @@ func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.C
 		return false, metav1.ConditionTrue, targets.UnsortedList(), nil
 	}
 
-	upstreamAccessor := traffic.NewGateway(upstreamGateway)
-	managedHosts, err := r.Host.GetManagedHosts(ctx, upstreamAccessor)
+	managedHosts, err := r.HostService.GetManagedHosts(ctx, upstreamAccessor)
 	if err != nil {
 		return false, metav1.ConditionFalse, clusters, fmt.Errorf("failed to get managed hosts : %s", err)
 	}

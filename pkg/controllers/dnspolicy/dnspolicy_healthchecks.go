@@ -18,6 +18,8 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/traffic"
 )
 
+var DNSProvider dns.Provider
+
 // healthChecksConfig represents the user configuration for the health checks
 type healthChecksConfig struct {
 	Endpoint         string
@@ -71,8 +73,13 @@ func (r *DNSPolicyReconciler) reconcileGatewayHealthChecks(ctx context.Context, 
 		// Keep a copy of the DNSRecord to check if it needs to be updated after
 		// reconciling the health checks
 		dnsRecordOriginal := mh.DnsRecord.DeepCopy()
+		var managedzone *v1alpha1.ManagedZone
+		for _, host := range gatewayAccessor.GetHosts() {
 
-		results, err := r.reconcileDNSRecordHealthChecks(ctx, mh.DnsRecord, config)
+			managedzone, _, _ = r.HostService.GetManagedZoneForHost(ctx, host, gatewayAccessor)
+		}
+
+		results, err := r.reconcileDNSRecordHealthChecks(ctx, mh.DnsRecord, config, managedzone)
 		if err != nil {
 			return allResults, err
 		}
@@ -89,8 +96,14 @@ func (r *DNSPolicyReconciler) reconcileGatewayHealthChecks(ctx context.Context, 
 	return allResults, nil
 }
 
-func (r *DNSPolicyReconciler) reconcileDNSRecordHealthChecks(ctx context.Context, dnsRecord *v1alpha1.DNSRecord, config *healthChecksConfig) ([]dns.HealthCheckResult, error) {
-	healthCheckReconciler := r.DNSProvider.HealthCheckReconciler()
+func (r *DNSPolicyReconciler) reconcileDNSRecordHealthChecks(ctx context.Context, dnsRecord *v1alpha1.DNSRecord, config *healthChecksConfig, managedzone *v1alpha1.ManagedZone) ([]dns.HealthCheckResult, error) {
+
+	DNSProvider, err := r.DNSProv.CreateDNSProvider(ctx, managedzone)
+	if err != nil {
+		return nil, err
+	}
+
+	healthCheckReconciler := DNSProvider.HealthCheckReconciler()
 	results := []dns.HealthCheckResult{}
 
 	for _, endpoint := range dnsRecord.Spec.Endpoints {

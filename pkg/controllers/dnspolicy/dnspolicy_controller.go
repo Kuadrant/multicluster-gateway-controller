@@ -35,7 +35,7 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/managedzone"
 	"github.com/kuadrant/kuadrant-operator/pkg/reconcilers"
 )
 
@@ -54,7 +54,7 @@ func (c *DNSPolicyRefsConfig) PolicyRefsAnnotation() string {
 // DNSPolicyReconciler reconciles a DNSPolicy object
 type DNSPolicyReconciler struct {
 	reconcilers.TargetRefReconciler
-	DNSProvider dns.Provider
+	DNSProv     managedzone.DNS
 	HostService gateway.HostService
 	Placement   gateway.GatewayPlacer
 }

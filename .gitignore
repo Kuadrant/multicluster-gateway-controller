@@ -81,8 +81,9 @@ config/deploy/**/_*
 
 *__
 
-aws-credentials*.env
-controller-config*.env
+*.env
+
+creds*.yaml
 
 /gateway.yaml
 /application.yaml
