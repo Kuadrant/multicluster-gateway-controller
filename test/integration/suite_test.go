@@ -53,12 +53,15 @@ import (
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
 
 var (
-	cfg       *rest.Config
-	k8sClient client.Client
-	testEnv   *envtest.Environment
-	ctx       context.Context
-	cancel    context.CancelFunc
-	logger    logr.Logger
+	cfg             *rest.Config
+	k8sClient       client.Client
+	testEnv         *envtest.Environment
+	ctx             context.Context
+	cancel          context.CancelFunc
+	logger          logr.Logger
+	providerFactory = func(ctx context.Context, managedZone *v1alpha1.ManagedZone) (dns.Provider, error) {
+		return &dns.FakeProvider{}, nil
+	}
 )
 
 func testClient() client.Client { return k8sClient }
@@ -121,7 +124,6 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).ToNot(HaveOccurred())
 
-	dnsProvider := &dns.FakeProvider{}
 	certificates := tls.NewService(k8sManager.GetClient(), "glbc-ca")
 	dns := dns.NewService(k8sManager.GetClient())
 	plc := placement.NewOCMPlacer(k8sManager.GetClient())
@@ -137,7 +139,7 @@ var _ = BeforeSuite(func() {
 		TargetRefReconciler: reconcilers.TargetRefReconciler{
 			BaseReconciler: dnsPolicyBaseReconciler,
 		},
-		DNSProvider: dnsProvider,
+		DNSProvider: providerFactory,
 		HostService: dns,
 		Placement:   testPlc,
 	}).SetupWithManager(k8sManager)
@@ -153,7 +155,7 @@ var _ = BeforeSuite(func() {
 		Client:       k8sManager.GetClient(),
 		Scheme:       k8sManager.GetScheme(),
 		Certificates: certificates,
-		Host:         dns,
+		HostService:  dns,
 		Placement:    plc,
 	}).SetupWithManager(k8sManager, ctx)
 	Expect(err).ToNot(HaveOccurred())
@@ -161,7 +163,7 @@ var _ = BeforeSuite(func() {
 	err = (&ManagedZoneReconciler{
 		Client:      k8sManager.GetClient(),
 		Scheme:      k8sManager.GetScheme(),
-		DNSProvider: dnsProvider,
+		DNSProvider: providerFactory,
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 

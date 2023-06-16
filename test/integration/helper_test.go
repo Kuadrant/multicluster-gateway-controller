@@ -33,6 +33,7 @@ const (
 	nsSpoke2Name              = "test-spoke-cluster-2"
 	defaultNS                 = "default"
 	gatewayFinalizer          = "kuadrant.io/gateway"
+	providerCredential        = "secretname"
 )
 
 // FakeOCMPlacer has one gateway called `placedGatewayName` placed on one cluster called `placedClusterName` with one

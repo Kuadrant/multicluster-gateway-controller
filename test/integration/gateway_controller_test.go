@@ -192,6 +192,10 @@ var _ = Describe("GatewayController", func() {
 					ID:          "1234",
 					DomainName:  "example.com",
 					Description: "example.com",
+					SecretRef: &v1alpha1.SecretRef{
+						Name:      providerCredential,
+						Namespace: defaultNS,
+					},
 				},
 			}
 
@@ -666,6 +670,10 @@ var _ = Describe("GatewayController", func() {
 					ID:          "1234",
 					DomainName:  "example.com",
 					Description: "example.com",
+					SecretRef: &v1alpha1.SecretRef{
+						Name:      "secretName",
+						Namespace: "default",
+					},
 				},
 			}
 			hostname := gatewayv1beta1.Hostname("test.example.com")

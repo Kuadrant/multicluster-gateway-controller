@@ -121,6 +121,22 @@ func (h *FakeHostService) GetDNSRecord(ctx context.Context, subDomain string, ma
 	return record, nil
 }
 
+func (h *FakeHostService) GetDNSRecordManagedZone(ctx context.Context, dnsRecord *v1alpha1.DNSRecord) (*v1alpha1.ManagedZone, error) {
+
+	if dnsRecord.Spec.ManagedZoneRef == nil {
+		return nil, fmt.Errorf("no managed zone configured for : %s", dnsRecord.Name)
+	}
+
+	managedZone := &v1alpha1.ManagedZone{}
+
+	err := h.controlClient.Get(ctx, client.ObjectKey{Namespace: dnsRecord.Namespace, Name: dnsRecord.Spec.ManagedZoneRef.Name}, managedZone)
+	if err != nil {
+		return nil, err
+	}
+
+	return managedZone, nil
+}
+
 func (h *FakeHostService) GetManagedZoneForHost(ctx context.Context, host string, t traffic.Interface) (*v1alpha1.ManagedZone, string, error) {
 	hostParts := strings.SplitN(host, ".", 2)
 	if len(hostParts) < 2 {

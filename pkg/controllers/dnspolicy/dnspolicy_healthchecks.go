@@ -90,7 +90,17 @@ func (r *DNSPolicyReconciler) reconcileGatewayHealthChecks(ctx context.Context, 
 }
 
 func (r *DNSPolicyReconciler) reconcileDNSRecordHealthChecks(ctx context.Context, dnsRecord *v1alpha1.DNSRecord, config *healthChecksConfig) ([]dns.HealthCheckResult, error) {
-	healthCheckReconciler := r.DNSProvider.HealthCheckReconciler()
+
+	managedzone, err := r.HostService.GetDNSRecordManagedZone(ctx, dnsRecord)
+	if err != nil {
+		return nil, err
+	}
+	dnsProvider, err := r.DNSProvider(ctx, managedzone)
+	if err != nil {
+		return nil, err
+	}
+
+	healthCheckReconciler := dnsProvider.HealthCheckReconciler()
 	results := []dns.HealthCheckResult{}
 
 	for _, endpoint := range dnsRecord.Spec.Endpoints {

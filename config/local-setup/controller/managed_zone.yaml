@@ -6,3 +6,8 @@ spec:
   id: DUMMY_ID
   domainName: DUMMY_DOMAIN_NAME
   description: "Dev Managed Zone"
+  dnsProviderSecretRef:
+    name: mgc-aws-credentials
+    namespace: multi-cluster-gateways
+    type: AWS
+

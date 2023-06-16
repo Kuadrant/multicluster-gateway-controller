@@ -45,7 +45,7 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/managedzone"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/aws"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/dnsprovider"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/placement"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/tls"
 	"github.com/kuadrant/kuadrant-operator/pkg/reconcilers"
@@ -102,35 +102,20 @@ func main() {
 		os.Exit(1)
 	}
 
-	awsAccessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
-	awsSecretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
-	awsRegion := os.Getenv("AWS_REGION")
-	dnsProviderConfig := v1alpha1.DNSProviderConfig{
-		Route53: &v1alpha1.DNSProviderConfigRoute53{
-			AccessKeyID:     awsAccessKeyID,
-			SecretAccessKey: awsSecretAccessKey,
-			Region:          awsRegion,
-		},
-	}
-	dnsProvider, err := aws.NewDNSProvider(*dnsProviderConfig.Route53)
-	if err != nil {
-		setupLog.Error(err, "unable to create dns provider client")
-		os.Exit(1)
-	}
-
 	placement := placement.NewOCMPlacer(mgr.GetClient())
+	provider := dnsprovider.NewProvider(mgr.GetClient())
+	dnsService := dns.NewService(mgr.GetClient())
+	certService := tls.NewService(mgr.GetClient(), certProvider)
 
 	if err = (&dnsrecord.DNSRecordReconciler{
 		Client:      mgr.GetClient(),
 		Scheme:      mgr.GetScheme(),
-		DNSProvider: dnsProvider,
+		DNSProvider: provider.DNSProviderFactory,
+		HostService: dnsService,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DNSRecord")
 		os.Exit(1)
 	}
-
-	dnsService := dns.NewService(mgr.GetClient())
-	certService := tls.NewService(mgr.GetClient(), certProvider)
 
 	dnsPolicyBaseReconciler := reconcilers.NewBaseReconciler(
 		mgr.GetClient(), mgr.GetScheme(), mgr.GetAPIReader(),
@@ -142,7 +127,7 @@ func main() {
 		TargetRefReconciler: reconcilers.TargetRefReconciler{
 			BaseReconciler: dnsPolicyBaseReconciler,
 		},
-		DNSProvider: dnsProvider,
+		DNSProvider: provider.DNSProviderFactory,
 		HostService: dnsService,
 		Placement:   placement,
 	}).SetupWithManager(mgr); err != nil {
@@ -153,7 +138,7 @@ func main() {
 	if err = (&managedzone.ManagedZoneReconciler{
 		Client:      mgr.GetClient(),
 		Scheme:      mgr.GetScheme(),
-		DNSProvider: dnsProvider,
+		DNSProvider: provider.DNSProviderFactory,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ManagedZone")
 		os.Exit(1)
@@ -170,7 +155,7 @@ func main() {
 		Client:       mgr.GetClient(),
 		Scheme:       mgr.GetScheme(),
 		Certificates: certService,
-		Host:         dnsService, // implements the required interface
+		HostService:  dnsService,
 		Placement:    placement,
 	}).SetupWithManager(mgr, ctx); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Gateway")
