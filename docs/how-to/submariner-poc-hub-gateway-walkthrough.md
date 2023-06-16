@@ -94,7 +94,7 @@ EOF
 
 ### Create the gateway class
  
-Lastly, we will set up our multi-cluster gateway class. In `T1`, run:
+Lastly, we will set up our multi-cluster GatewayClass. In `T1`, run:
 
 ```bash
 kubectl create -f hack/ocm/gatewayclass.yaml
@@ -109,11 +109,11 @@ kind export kubeconfig --name=mgc-control-plane --kubeconfig=$(pwd)/local/kube/c
 (export $(cat ./controller-config.env | xargs) && export $(cat ./aws-credentials.env | xargs) && make build-controller install run-controller)
 ```
 
-### Create a gateway
+### Create a Gateway
 
-We know will create a multi-cluster gateway definition in the hub cluster. In `T1`, run the following: 
+We know will create a multi-cluster Gateway definition in the hub cluster. In `T1`, run the following: 
 
-**Important**: Make sure to replace `sub.replace.this` with a subdomain of your root domain.
+**Important**: :exclamation: Make sure to replace `sub.replace.this` with a subdomain of your root domain.
 
 ```bash
 kubectl apply -f - <<EOF
@@ -137,13 +137,13 @@ EOF
 
 ### Place the gateway
 
-To place the gateway, we need to add a placement label to gateway resource to instruct the gateway controller where we want this gateway instantiated. In `T1`, run:
+To place the Gateway, we need to add a placement label to Gateway resource to instruct the Gateway controller where we want this Gateway instantiated. In `T1`, run:
 
 ```bash
 kubectl label gateways.gateway.networking.k8s.io prod-web "cluster.open-cluster-management.io/placement"="http-gateway" -n multi-cluster-gateways
 ```
 
-Now on the hub cluster you should find there is a configured gateway and instantiated gateway. In `T1`, run:
+Now on the hub cluster you should find there is a configured Gateway and instantiated Gateway. In `T1`, run:
 
 ```bash
 kubectl get gateways.gateway.networking.k8s.io -A
@@ -309,9 +309,9 @@ spec:
 EOF
 ```
 
-Once this is done, the Kuadrant multi-cluster gateway controller will pick up that a HTTPRoute has been attached to the Gateway it is managing from the hub and it will setup a DNS record to start bringing traffic to that gateway for the host defined in that listener.
+Once this is done, the Kuadrant multi-cluster Gateway controller will pick up that a HTTPRoute has been attached to the Gateway it is managing from the hub and it will setup a DNS record to start bringing traffic to that Gateway for the host defined in that listener.
 
-You should now see a DNSRecord and only 1 endpoint added which corresponds to address assigned to the gateway where the HTTPRoute was created. In `T1`, run:
+You should now see a DNSRecord and only 1 endpoint added which corresponds to address assigned to the Gateway where the HTTPRoute was created. In `T1`, run:
 
 ```bash
 kubectl get dnsrecord -n multi-cluster-gateways -o=yaml
@@ -333,7 +333,7 @@ In that case you can force resolve the IP to the hub cluster and verify a 200 is
 curl -Ik --resolve sub.replace.this:443:172.32.200.0 https://sub.replace.this
 ```
 
-## Know issues
+## Known issues
 
 At the time of writing, Istio does *not* support adding a ServiceImport as a backendRef directly as per the [Gateway API proposal - GEP-1748](https://gateway-api.sigs.k8s.io/geps/gep-1748/#serviceimport-as-a-backend).
 This is why the walkthrough uses a Service of type ExternalName to route to the clusterset host instead.
