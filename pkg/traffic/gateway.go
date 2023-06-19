@@ -1,13 +1,7 @@
 package traffic
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
-	"net"
-	"strings"
-
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -16,8 +10,6 @@ import (
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
-	status "github.com/Kuadrant/multicluster-gateway-controller/pkg/syncer/status"
 )
 
 type GatewayInterface interface {
@@ -118,55 +110,6 @@ func (a *Gateway) String() string {
 	return fmt.Sprintf("kind: %v, namespace/name: %v", a.GetKind(), a.GetNamespaceName())
 }
 
-// GetDNSTargets will return the LB hosts and or IPs from the Gateway object associated with the cluster they came from
-func (a *Gateway) GetDNSTargets(ctx context.Context) ([]v1alpha1.Target, error) {
-	dnsTargets := []v1alpha1.Target{}
-
-	for _, gatewayStatus := range a.GetGatewayStatuses(ctx) {
-		if len(gatewayStatus.Addresses) == 0 {
-			continue
-		}
-		// TODO: Allow for more than 1 address
-		gwAddress := gatewayStatus.Addresses[0]
-		dnsTarget := v1alpha1.Target{}
-		if *gwAddress.Type == gatewayv1beta1.IPAddressType {
-			// workaround to detect hostnames incorrectly marked
-			// by istio with "Type: IPAddress"
-			// (see https://github.com/Kuadrant/multicluster-gateway-controller/pull/161#issuecomment-1520327276)
-			if host := net.ParseIP(gwAddress.Value); host != nil {
-				dnsTarget.TargetType = v1alpha1.TargetTypeIP
-			} else {
-				dnsTarget.TargetType = v1alpha1.TargetTypeHost
-			}
-		}
-		if *gwAddress.Type == gatewayv1beta1.HostnameAddressType {
-			dnsTarget.TargetType = v1alpha1.TargetTypeHost
-		}
-		dnsTarget.Value = gwAddress.Value
-		dnsTargets = append(dnsTargets, dnsTarget)
-	}
-
-	return dnsTargets, nil
-}
-
-func (a *Gateway) GetGatewayStatuses(ctx context.Context) []gatewayv1beta1.GatewayStatus {
-	logger := log.FromContext(ctx)
-	// Aggregated Gateway status from syncer
-	statuses := []gatewayv1beta1.GatewayStatus{}
-	for annotationName, annotationValue := range a.Annotations {
-		if strings.HasPrefix(annotationName, status.SyncerClusterStatusAnnotationPrefix) {
-			gatewayStatus := gatewayv1beta1.GatewayStatus{}
-			err := json.Unmarshal([]byte(annotationValue), &gatewayStatus)
-			if err != nil {
-				logger.Error(err, "Error unmarshalling gateway status from syncer annotation")
-			} else {
-				statuses = append(statuses, gatewayStatus)
-			}
-		}
-	}
-	return statuses
-}
-
 func (a *Gateway) GetListenerByHost(host string) *gatewayv1beta1.Listener {
 	for _, listener := range a.Spec.Listeners {
 		if *(*string)(listener.Hostname) == host {
@@ -174,19 +117,6 @@ func (a *Gateway) GetListenerByHost(host string) *gatewayv1beta1.Listener {
 		}
 	}
 	return nil
-}
-
-// Gather all listener statuses in all gateway statuses that match the given listener name
-func (a *Gateway) GetListenerStatusesByListenerName(ctx context.Context, listenerName string) []gatewayv1beta1.ListenerStatus {
-	listenerStatuses := []gatewayv1beta1.ListenerStatus{}
-	for _, gatewayStatus := range a.GetGatewayStatuses(ctx) {
-		for _, listenerStatus := range gatewayStatus.Listeners {
-			if string(listenerStatus.Name) == listenerName {
-				listenerStatuses = append(listenerStatuses, listenerStatus)
-			}
-		}
-	}
-	return listenerStatuses
 }
 
 func (a *Gateway) ExposesOwnController() bool {

@@ -23,12 +23,6 @@ COPY pkg/ pkg/
 FROM builder as controller_builder
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o controller cmd/controller/main.go
 
-FROM builder as agent_builder
-RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o agent cmd/agent/main.go
-
-FROM builder as syncer_builder
-RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o syncer cmd/syncer/main.go
-
 FROM builder as ocm_builder
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o ocm cmd/ocm/main.go
 
@@ -41,15 +35,6 @@ COPY --from=controller_builder /workspace/controller .
 USER 65532:65532
 
 ENTRYPOINT ["/controller"]
-
-# Use distroless as minimal base image to package the manager binary
-# Refer to https://github.com/GoogleContainerTools/distroless for more details
-FROM gcr.io/distroless/static:nonroot as agent
-WORKDIR /
-COPY --from=agent_builder /workspace/agent .
-USER 65532:65532
-
-ENTRYPOINT ["/agent"]
 
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details

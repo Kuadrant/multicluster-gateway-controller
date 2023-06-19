@@ -1,11 +1,5 @@
 #!/bin/bash
 
-### Usage
-### export KUBECONFIG=$(pwd)/tmp/kubeconfigs/mgc-control-plane.kubeconfig
-### register-cluster.sh <PATH TO CONTROL CLUSTER KUBECONFIG> <PATH TO TENANT CLUSTER KUBECONFIG> <TENANT NAMESPACE> <NAME OF THE TENANT CLUSTER> > agent-manifests.yaml
-###
-### Outputs the manifests to deploy the syncer in the tenant cluster
-
 LOCAL_SETUP_DIR="$(dirname "${BASH_SOURCE[0]}")"
 source "${LOCAL_SETUP_DIR}"/.setupEnv
 source "${LOCAL_SETUP_DIR}"/.clusterUtils
