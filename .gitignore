@@ -90,3 +90,6 @@ controller-config*.env
 /echo_httproute.yaml
 
 cmd/controller/__debug_bin
+
+# Submariner broker config
+/broker-info.subm*

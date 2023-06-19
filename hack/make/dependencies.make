@@ -18,6 +18,7 @@ HELM ?= $(LOCALBIN)/helm
 ISTIOCTL ?= $(LOCALBIN)/istioctl
 OPERATOR_SDK ?= $(LOCALBIN)/operator-sdk
 CLUSTERADM ?= $(LOCALBIN)/clusteradm
+SUBCTL ?= $(LOCALBIN)/subctl
 
 
 ## Tool Versions
@@ -29,6 +30,7 @@ YQ_VERSION ?= v4.30.8
 ISTIOVERSION ?= 1.17.0
 OPERATOR_SDK_VERSION ?= 1.28.0
 CLUSTERADM_VERSION ?= 0.5.1
+SUBCTL_VERSION ?= release-0.15
 
 
 KUSTOMIZE_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"
@@ -92,3 +94,7 @@ clusteradm: $(CLUSTERADM)
 $(CLUSTERADM):
 	test -s $(LOCALBIN)/clusteradm || curl -sL https://raw.githubusercontent.com/open-cluster-management-io/clusteradm/main/install.sh | INSTALL_DIR=bin bash -s -- $(CLUSTERADM_VERSION)
 
+.PHONY: subctl
+subctl: $(SUBCTL)
+$(SUBCTL):
+	test -s $(LOCALBIN)/subctl || curl https://get.submariner.io | DESTDIR=$(LOCALBIN) VERSION=$(SUBCTL_VERSION) bash

@@ -1,13 +1,35 @@
 # shellcheck shell=bash
 
+kindGenExternalKubeconfig() {
+  # Generate a kubeconfig that uses the docker bridge network IP address of the cluster
+  # This is required for using the subctl cmd (for submariner)
+  local master_ip
+  mkdir -p ./tmp/kubeconfigs/external/
+  EXTERNAL_KUBECONFIG=./tmp/kubeconfigs/external/${cluster}.kubeconfig
+  cp ./tmp/kubeconfigs/${cluster}.kubeconfig ${EXTERNAL_KUBECONFIG}
+  master_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "${cluster}-control-plane" | head -n 1)
+  yq -i ".clusters[0].cluster.server = \"https://${master_ip}:6443\"" "${EXTERNAL_KUBECONFIG}"
+  yq -i "(.. | select(. == \"kind-${cluster}\")) = \"${cluster}\"" "${EXTERNAL_KUBECONFIG}"
+  chmod a+r "${EXTERNAL_KUBECONFIG}"
+}
+
 kindCreateCluster() {
   local cluster=$1;
   local port80=$2;
   local port443=$3;
+  local idx=$4
+  # Each cluster should have a different service & pod network.
+  # This allows a flat network to be established if submariner is used
+  local pod_cidr="10.24${idx}.0.0/16"
+  local service_cidr="100.9${idx}.0.0/16"
+  local dns_domain="${cluster}.local"
   export KIND_EXPERIMENTAL_DOCKER_NETWORK=mgc
   cat <<EOF | ${KIND_BIN} create cluster --name ${cluster} --config=-
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
+networking:
+  podSubnet: ${pod_cidr}
+  serviceSubnet: ${service_cidr}
 nodes:
 - role: control-plane
   image: kindest/node:v1.26.0
@@ -17,6 +39,15 @@ nodes:
     nodeRegistration:
       kubeletExtraArgs:
         node-labels: "ingress-ready=true"
+  - |
+    apiVersion: kubeadm.k8s.io/v1beta2
+    kind: ClusterConfiguration
+    metadata:
+      name: config
+    networking:
+      podSubnet: ${pod_cidr}
+      serviceSubnet: ${service_cidr}
+      dnsDomain: ${dns_domain}
   extraPortMappings:
   - containerPort: 80
     hostPort: ${port80}
@@ -28,4 +59,5 @@ EOF
 mkdir -p ./tmp/kubeconfigs
 ${KIND_BIN} get kubeconfig --name ${cluster} > ./tmp/kubeconfigs/${cluster}.kubeconfig
 ${KIND_BIN} export kubeconfig --name ${cluster} --kubeconfig ./tmp/kubeconfigs/internal/${cluster}.kubeconfig --internal
+kindGenExternalKubeconfig
 }
