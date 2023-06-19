@@ -14,21 +14,19 @@ We will start with a single cluster and move to multiple clusters to illustrate 
 
 >**Note:** :exclamation: this walkthrough will setup a zone in your AWS account and make changes to it for DNS purposes
 
->**Note:** :exclamation: `replace.this` is a place holder that you will need to replace with your own domain
-
 ## Installation and Setup
-1. Clone this repo locally 
-1. Setup a `./controller-config.env` file in the root of the repo with the following key values
+* Clone this repo locally 
+* Setup a `./controller-config.env` file in the root of the repo with the following key values
 
     ```bash
     # this sets up your default managed zone
     AWS_DNS_PUBLIC_ZONE_ID=<AWS ZONE ID>
     # this is the domain at the root of your zone (foo.example.com)
-    ZONE_ROOT_DOMAIN=<replace.this>
+    ZONE_ROOT_DOMAIN=test.hcpapps.net # replace this with your root domain
     LOG_LEVEL=1
     ```   
 
-1. setup a `./aws-credentials.env` with credentials to access route 53
+* setup a `./aws-credentials.env` with credentials to access route 53
 
     For example:
     ```bash
@@ -36,6 +34,14 @@ We will start with a single cluster and move to multiple clusters to illustrate 
     AWS_SECRET_ACCESS_KEY=<secret_access_key>
     AWS_REGION=eu-west-1
     ```
+
+* We're going to use an environment variable, `MGC_SUB_DOMAIN`, throughout this walkthrough. Simply run the below in each window you create:
+
+```bash
+export MGC_SUB_DOMAIN=myapp.test.hcpapps.net # replace this
+```
+
+* Alternatively, to set a default, add the above environment variable to your `.zshrc` or `.bash_profile`. To override this as a once-off, simply `export MGC_SUB_DOMAIN`.
 
 ## Open terminal sessions
 
@@ -148,14 +154,12 @@ Open three windows, which we'll refer to throughout this walkthrough as:
 1. You should see the following:    
     ```
     NAME          DOMAIN NAME      ID                                  RECORD COUNT   NAMESERVERS                                                                                        READY
-    mgc-dev-mz   replace.this   /hostedzone/Z08224701SVEG4XHW89W0   7              ["ns-1414.awsdns-48.org","ns-1623.awsdns-10.co.uk","ns-684.awsdns-21.net","ns-80.awsdns-10.com"]   True
+    mgc-dev-mz   test.hcpapps.net   /hostedzone/Z08224701SVEG4XHW89W0   7              ["ns-1414.awsdns-48.org","ns-1623.awsdns-10.co.uk","ns-684.awsdns-21.net","ns-80.awsdns-10.com"]   True
     ```
 
 ### Create a gateway
 
 1. We know will create a multi-cluster gateway definition in the hub cluster. In `T1`, run the following: 
-
-**Important** :exclamation: Make sure to replace `sub.replace.this` with a subdomain of your root domain.
 
   ```bash
   kubectl apply -f - <<EOF
@@ -171,7 +175,7 @@ Open three windows, which we'll refer to throughout this walkthrough as:
         namespaces:
           from: All
       name: api
-      hostname: sub.replace.this
+      hostname: $MGC_SUB_DOMAIN
       port: 443
       protocol: HTTPS
   EOF
@@ -214,7 +218,7 @@ This is because we haven't placed the gateway yet onto any of our ingress cluste
     ```
     you'll see the following:
     ```
-    sub.replace.this   kubernetes.io/tls   3      4m33s
+    myapp.test.hcpapps.net   kubernetes.io/tls   3      4m33s
     ```
 
 The listener is configured to use this TLS secret also. So now our gateway has been placed and is running in the right locations with the right configuration and TLS has been setup for the HTTPS listeners.
@@ -249,7 +253,7 @@ We only configure DNS once a HTTPRoute has been attached to a listener in the ga
         name: prod-web
         namespace: kuadrant-multi-cluster-gateways
       hostnames:
-      - "sub.replace.this"  
+      - "$MGC_SUB_DOMAIN"  
       rules:
       - backendRefs:
         - name: echo
@@ -301,7 +305,7 @@ We only configure DNS once a HTTPRoute has been attached to a listener in the ga
     ```
     ```
     NAMESPACE                NAME                 READY
-    multi-cluster-gateways   sub.replace.this   True
+    multi-cluster-gateways   myapp.test.hcpapps.net   True
     ```
 
 1. You should also be able to see there is only 1 endpoint added which corresponds to address assigned to the gateway where the HTTPRoute was created. In `T1`, run:
@@ -313,12 +317,12 @@ We only configure DNS once a HTTPRoute has been attached to a listener in the ga
 1. Give DNS a minute or two to update. You should then be able to executethe following and get back the correct A record. 
 
     ```bash
-    dig sub.replace.this 
+    dig $MGC_SUB_DOMAIN
     ```
 1. You should also be able to curl that endpoint
 
     ```bash
-    curl -k https://sub.replace.this
+    curl -k https://$MGC_SUB_DOMAIN
 
     # Request served by echo-XXX-XXX
     ```
@@ -369,7 +373,7 @@ So now we have a working gateway with DNS and TLS configured. Let place this gat
         name: prod-web
         namespace: kuadrant-multi-cluster-gateways
       hostnames:
-      - "sub.replace.this"  
+      - "$MGC_SUB_DOMAIN"  
       rules:
       - backendRefs:
         - name: echo
@@ -419,11 +423,8 @@ So now we have a working gateway with DNS and TLS configured. Let place this gat
   kubectl get dnsrecord -n multi-cluster-gateways -o=yaml
   ```
 
-## Known bugs
-Known weighting Issue https://github.com/Kuadrant/multicluster-gateway-controller/issues/192
-
-
-If you want you can use ```watch dig sub.replace.this ``` to see the DNS switching between the two addresses 
+## Watching DNS changes
+If you want you can use ```watch dig $MGC_SUB_DOMAIN``` to see the DNS switching between the two addresses 
 
 ## Follow on Walkthroughs
 Some good follow on walkthroughs that build on this walkthrough
