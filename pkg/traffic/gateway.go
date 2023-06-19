@@ -20,7 +20,12 @@ import (
 	status "github.com/Kuadrant/multicluster-gateway-controller/pkg/syncer/status"
 )
 
-func NewGateway(g *gatewayv1beta1.Gateway) Interface {
+type GatewayInterface interface {
+	Interface
+	GetListenerByHost(host string) *gatewayv1beta1.Listener
+}
+
+func NewGateway(g *gatewayv1beta1.Gateway) GatewayInterface {
 	return &Gateway{Gateway: g}
 }
 

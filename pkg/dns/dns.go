@@ -22,6 +22,9 @@ import (
 
 // Provider knows how to manage DNS zones only as pertains to routing.
 type Provider interface {
+	// AdjustEndpoints adjusts endpoints to suit the specific provider.
+	AdjustEndpoints(dnsRecord *v1alpha1.DNSRecord, dnsPolicy *v1alpha1.DNSPolicy) error
+
 	// Ensure will create or update record.
 	Ensure(record *v1alpha1.DNSRecord, managedZone *v1alpha1.ManagedZone) error
 
@@ -54,6 +57,10 @@ type ManagedZoneOutput struct {
 var _ Provider = &FakeProvider{}
 
 type FakeProvider struct{}
+
+func (*FakeProvider) AdjustEndpoints(dnsRecord *v1alpha1.DNSRecord, dnsPolicy *v1alpha1.DNSPolicy) error {
+	return nil
+}
 
 func (*FakeProvider) Ensure(dnsRecord *v1alpha1.DNSRecord, managedZone *v1alpha1.ManagedZone) error {
 	return nil

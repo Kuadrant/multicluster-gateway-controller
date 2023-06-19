@@ -56,7 +56,7 @@ When deploying the multicluster gateway controller using the make targets, the f
 1.  Setup your local environment 
 
     ```sh
-    make local_setup MGC_WORKLOAD_CLUSTERS_COUNT=<NUMBER_WORKLOAD_CLUSTER>
+    make local-setup MGC_WORKLOAD_CLUSTERS_COUNT=<NUMBER_WORKLOAD_CLUSTER>
     ```
 
 1. Run the controller locally:

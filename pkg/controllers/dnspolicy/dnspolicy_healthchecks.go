@@ -6,12 +6,16 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	crlog "sigs.k8s.io/controller-runtime/pkg/log"
+	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+
+	"github.com/kuadrant/kuadrant-operator/pkg/reconcilers"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/traffic"
 )
 
 // healthChecksConfig represents the user configuration for the health checks
@@ -22,83 +26,101 @@ type healthChecksConfig struct {
 	Protocol         *dns.HealthCheckProtocol
 }
 
-func (r *DNSPolicyReconciler) ReconcileHealthChecks(ctx context.Context, log logr.Logger, policy *v1alpha1.DNSPolicy) error {
-	// Get the associated DNSRecord
-	dnsRecords, err := r.getDNSRecords(ctx, policy)
-	if err != nil {
-		return err
-	}
-	if len(dnsRecords) == 0 {
-		log.Info("No DNSRecord found matching policy", "policy", policy)
-		return nil
-	}
+func (r *DNSPolicyReconciler) reconcileHealthChecks(ctx context.Context, dnsPolicy *v1alpha1.DNSPolicy, gwDiffObj *reconcilers.GatewayDiff) error {
+	log := crlog.FromContext(ctx)
 
-	// Get the configuration for the health checks. If no configuration is
-	// set, ensure that the health checks are deleted
-	config := getHealthChecksConfig(policy)
-
-	var allResults []dns.HealthCheckResult
-
-	for _, dnsRecord := range dnsRecords {
-		// Keep a copy of the DNSRecord to check if it needs to be updated after
-		// reconciling the health checks
-		dnsRecordOriginal := dnsRecord.DeepCopy()
-
-		var results []dns.HealthCheckResult
-
-		if config == nil {
-			log.V(3).Info("No health check for DNSPolicy, ensuring deletion")
-			results, err = r.reconcileHealthCheckDeletion(ctx, dnsRecord, policy)
-			if err != nil {
-				return err
-			}
-		} else {
-			log.Info("reconciling health checks")
-			results, err = r.reconcileHealthChecks(ctx, log, dnsRecord, policy, config)
-			if err != nil {
-				return err
-			}
-		}
-
-		allResults = append(allResults, results...)
-
-		if err = r.updateDNSRecord(ctx, dnsRecordOriginal, dnsRecord); err != nil {
+	// Delete Health checks for each gateway no longer referred by this policy
+	for _, gw := range gwDiffObj.GatewaysWithInvalidPolicyRef {
+		log.V(1).Info("reconcileHealthChecks: gateway with invalid policy ref", "key", gw.Key())
+		_, err := r.reconcileGatewayHealthChecks(ctx, gw.Gateway, nil)
+		if err != nil {
 			return err
 		}
 	}
 
-	result := r.reconcileHealthCheckStatus(allResults, policy)
-	log.Info("reconciling health check status", "result", result, "policy status", policy.Status)
-	return result
+	healthCheckConfig := getHealthChecksConfig(dnsPolicy)
+	allResults := []dns.HealthCheckResult{}
+
+	// Reconcile Health checks for each gateway directly referred by the policy (existing and new)
+	for _, gw := range append(gwDiffObj.GatewaysWithValidPolicyRef, gwDiffObj.GatewaysMissingPolicyRef...) {
+		log.V(1).Info("reconcileHealthChecks: gateway with valid and missing policy ref", "key", gw.Key())
+		results, err := r.reconcileGatewayHealthChecks(ctx, gw.Gateway, healthCheckConfig)
+		if err != nil {
+			return err
+		}
+		allResults = append(allResults, results...)
+	}
+
+	return r.reconcileHealthCheckStatus(allResults, dnsPolicy)
 }
 
-func (r *DNSPolicyReconciler) reconcileHealthChecks(ctx context.Context, log logr.Logger, dnsRecord *v1alpha1.DNSRecord, policy *v1alpha1.DNSPolicy, config *healthChecksConfig) ([]dns.HealthCheckResult, error) {
-	healthCheckReconciler := r.DNSProvider.HealthCheckReconciler()
+func (r *DNSPolicyReconciler) reconcileGatewayHealthChecks(ctx context.Context, gateway *gatewayv1beta1.Gateway, config *healthChecksConfig) ([]dns.HealthCheckResult, error) {
+	allResults := []dns.HealthCheckResult{}
 
-	results := []dns.HealthCheckResult{}
+	gatewayAccessor := traffic.NewGateway(gateway)
+	managedHosts, err := r.HostService.GetManagedHosts(ctx, gatewayAccessor)
+	if err != nil {
+		return allResults, err
+	}
 
-	for _, dnsEndpoint := range dnsRecord.Spec.Endpoints {
-		log.Info("reconciling DNS Record health checks", "endpoint", dnsEndpoint)
-		if a, ok := dnsEndpoint.GetAddress(); !ok {
-			log.Info("address not ok", "address", a)
+	for _, mh := range managedHosts {
+		if mh.DnsRecord == nil {
 			continue
 		}
 
-		endpointId, err := idForEndpoint(dnsRecord, dnsEndpoint)
+		// Keep a copy of the DNSRecord to check if it needs to be updated after
+		// reconciling the health checks
+		dnsRecordOriginal := mh.DnsRecord.DeepCopy()
+
+		results, err := r.reconcileDNSRecordHealthChecks(ctx, mh.DnsRecord, config)
+		if err != nil {
+			return allResults, err
+		}
+
+		allResults = append(allResults, results...)
+
+		if !equality.Semantic.DeepEqual(dnsRecordOriginal, mh.DnsRecord) {
+			err = r.Client().Update(ctx, mh.DnsRecord)
+			if err != nil {
+				return allResults, err
+			}
+		}
+	}
+	return allResults, nil
+}
+
+func (r *DNSPolicyReconciler) reconcileDNSRecordHealthChecks(ctx context.Context, dnsRecord *v1alpha1.DNSRecord, config *healthChecksConfig) ([]dns.HealthCheckResult, error) {
+	healthCheckReconciler := r.DNSProvider.HealthCheckReconciler()
+	results := []dns.HealthCheckResult{}
+
+	for _, endpoint := range dnsRecord.Spec.Endpoints {
+		if config == nil {
+			result, err := healthCheckReconciler.Delete(ctx, endpoint)
+			if err != nil {
+				return nil, err
+			}
+			results = append(results, result)
+			continue
+		}
+		if _, ok := endpoint.GetAddress(); !ok {
+			continue
+		}
+
+		endpointId, err := idForEndpoint(dnsRecord, endpoint)
 		if err != nil {
 			return nil, err
 		}
 
 		spec := dns.HealthCheckSpec{
 			Id:               endpointId,
-			Name:             fmt.Sprintf("%s-%s", dnsEndpoint.DNSName, dnsEndpoint.SetIdentifier),
+			Name:             fmt.Sprintf("%s-%s", endpoint.DNSName, endpoint.SetIdentifier),
 			Path:             config.Endpoint,
 			Port:             config.Port,
 			Protocol:         config.Protocol,
 			FailureThreshold: config.FailureThreshold,
 		}
 
-		result, err := healthCheckReconciler.Reconcile(ctx, spec, dnsEndpoint)
+		result, err := healthCheckReconciler.Reconcile(ctx, spec, endpoint)
 		if err != nil {
 			return nil, err
 		}
@@ -106,7 +128,6 @@ func (r *DNSPolicyReconciler) reconcileHealthChecks(ctx context.Context, log log
 		results = append(results, result)
 	}
 
-	log.Info("returning health checks", "count", len(results))
 	return results, nil
 }
 
@@ -135,34 +156,6 @@ func (r *DNSPolicyReconciler) reconcileHealthCheckStatus(results []dns.HealthChe
 	}
 
 	return nil
-}
-
-func (r *DNSPolicyReconciler) reconcileHealthCheckDeletion(ctx context.Context, dnsRecord *v1alpha1.DNSRecord, policy *v1alpha1.DNSPolicy) ([]dns.HealthCheckResult, error) {
-	reconciler := r.DNSProvider.HealthCheckReconciler()
-	results := []dns.HealthCheckResult{}
-
-	for _, endpoint := range dnsRecord.Spec.Endpoints {
-		result, err := reconciler.Delete(ctx, endpoint)
-		if err != nil {
-			return nil, err
-		}
-
-		results = append(results, result)
-	}
-
-	return results, nil
-}
-
-func (r *DNSPolicyReconciler) getDNSRecords(ctx context.Context, policy *v1alpha1.DNSPolicy) ([]*v1alpha1.DNSRecord, error) {
-	return getDNSRecords(ctx, r.Client, r.HostService, policy)
-}
-
-func (r *DNSPolicyReconciler) updateDNSRecord(ctx context.Context, original, updated *v1alpha1.DNSRecord) error {
-	if equality.Semantic.DeepEqual(original, updated) {
-		return nil
-	}
-
-	return r.Client.Update(ctx, updated)
 }
 
 func getHealthChecksConfig(policy *v1alpha1.DNSPolicy) *healthChecksConfig {

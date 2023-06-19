@@ -36,13 +36,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/log"
+	crlog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/policy"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/traffic"
@@ -59,8 +60,7 @@ type HostService interface {
 	CreateDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone, owner metav1.Object) (*v1alpha1.DNSRecord, error)
 	GetDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone, owner metav1.Object) (*v1alpha1.DNSRecord, error)
 	GetManagedZoneForHost(ctx context.Context, domain string, t traffic.Interface) (*v1alpha1.ManagedZone, string, error)
-	SetEndpoints(ctx context.Context, endpoints []gatewayv1beta1.GatewayAddress, dnsRecord *v1alpha1.DNSRecord) error
-	GetDNSRecordsFor(ctx context.Context, t traffic.Interface) ([]*v1alpha1.DNSRecord, error)
+	SetEndpoints(ctx context.Context, endpoints []gatewayv1beta1.GatewayAddress, dnsRecord *v1alpha1.DNSRecord, dnsPolicy *v1alpha1.DNSPolicy) error
 	CleanupDNSRecords(ctx context.Context, owner traffic.Interface) error
 	// GetManagedHosts will return the list of hosts in this gateways listeners that are associated with a managedzone managed by this controller
 	GetManagedHosts(ctx context.Context, traffic traffic.Interface) ([]v1alpha1.ManagedHost, error)
@@ -108,7 +108,7 @@ func isDeleting(g *gatewayv1beta1.Gateway) bool {
 }
 
 func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := log.FromContext(ctx)
+	log := crlog.FromContext(ctx)
 	previous := &gatewayv1beta1.Gateway{}
 	err := r.Client.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: req.Name}, previous)
 	if err != nil {
@@ -133,6 +133,10 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	if !controllerutil.ContainsFinalizer(upstreamGateway, GatewayFinalizer) {
+		// The first time we see the gateway we want to make sure a DNSPolicy exists for it
+		if err := r.ensureDefaultDNSPolicy(ctx, upstreamGateway); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to ensure default dnspolicy for gateway : %s", err)
+		}
 		controllerutil.AddFinalizer(upstreamGateway, GatewayFinalizer)
 		if err = r.Update(ctx, upstreamGateway); err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to add finalizer to gateway : %s", err)
@@ -141,8 +145,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	}
 
-	// If the GatewayClass parametrers are invalid, update the status
-	// and stop reconciling
+	// If the GatewayClass parameters are invalid, update the status and stop reconciling
 	params, err := getParams(ctx, r.Client, string(upstreamGateway.Spec.GatewayClassName))
 	if err != nil && IsInvalidParamsError(err) {
 		conditions.SetCondition(upstreamGateway.Status.Conditions, previous.Generation, string(gatewayv1beta1.GatewayConditionProgrammed), metav1.ConditionFalse, string(gatewayv1beta1.GatewayReasonPending), fmt.Sprintf("Invalid parameters in gateway class: %s", err.Error()))
@@ -180,9 +183,32 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	return ctrl.Result{}, reconcileErr
 }
 
+// ensureDefaultDNSPolicy creates a default DNS Policy for this gateway if one does not already exist
+func (r *GatewayReconciler) ensureDefaultDNSPolicy(ctx context.Context, upstreamGateway *gatewayv1beta1.Gateway) error {
+	log := crlog.FromContext(ctx)
+
+	defaultDNSPolicy := policy.NewDefaultDNSPolicy(upstreamGateway)
+
+	var dnsPolicies v1alpha1.DNSPolicyList
+	err := r.List(ctx, &dnsPolicies, client.InNamespace(upstreamGateway.GetNamespace()), client.MatchingFields{policy.POLICY_TARGET_REF_KEY: policy.GetTargetRefValueFromPolicy(&defaultDNSPolicy)})
+	if err != nil {
+		return err
+	}
+	if len(dnsPolicies.Items) == 0 {
+		log.Info("creating default DNSPolicy for gateway", "upstreamGateway", upstreamGateway)
+		//create default DNSPolicy and return
+		err = r.Client.Create(ctx, &defaultDNSPolicy, &client.CreateOptions{})
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // reconcileDownstreamGateway takes the upstream definition and transforms it as needed to apply it to the downstream spokes
 func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.Context, upstreamGateway *gatewayv1beta1.Gateway, params *Params) (bool, metav1.ConditionStatus, []string, error) {
-	log := log.FromContext(ctx)
+	log := crlog.FromContext(ctx)
 	clusters := []string{}
 	downstream := upstreamGateway.DeepCopy()
 	downstreamNS := fmt.Sprintf("%s-%s", "kuadrant", downstream.Namespace)
@@ -226,6 +252,10 @@ func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.C
 	if err != nil {
 		return false, metav1.ConditionFalse, clusters, fmt.Errorf("failed to get managed hosts : %s", err)
 	}
+	if len(managedHosts) == 0 {
+		return false, metav1.ConditionFalse, clusters, fmt.Errorf("no managed hosts found")
+	}
+
 	// ensure tls is set up first before doing anything else. TLS is not affectd by placement changes
 	tlsSecrets, err := r.reconcileTLS(ctx, upstreamGateway, downstream, managedHosts)
 	if err != nil {
@@ -240,7 +270,7 @@ func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.C
 		}
 	}
 
-	// ensure the gatways are placed into the right target clusters and removed from any that are no longer targeted
+	// ensure the gateways are placed into the right target clusters and removed from any that are no longer targeted
 	targets, err := r.Placement.Place(ctx, upstreamGateway, downstream, tlsSecrets...)
 	if err != nil {
 		return true, metav1.ConditionFalse, clusters, fmt.Errorf("failed to get place gateway : %s", err)
@@ -254,11 +284,6 @@ func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.C
 	}
 	//update the cluster set
 	clusters = placed.UnsortedList()
-	//update dns for listeners on the placed gateway
-	if err := r.reconcileDNSEndpoints(ctx, upstreamGateway, clusters, managedHosts); err != nil {
-		return true, metav1.ConditionFalse, clusters, fmt.Errorf("failed to reconcile dns endpoints : %s", err)
-	}
-	log.Info("DNS Reconciled ", "gateway", upstreamGateway.Name, "namespace", upstreamGateway.Namespace)
 	if placed.Equal(targets) {
 		return false, metav1.ConditionTrue, clusters, nil
 	}
@@ -267,13 +292,13 @@ func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.C
 }
 
 func (r *GatewayReconciler) reconcileTLS(ctx context.Context, upstreamGateway *gatewayv1beta1.Gateway, gateway *gatewayv1beta1.Gateway, managedHosts []v1alpha1.ManagedHost) ([]metav1.Object, error) {
-	log := log.FromContext(ctx)
+	log := crlog.FromContext(ctx)
 	tlsSecrets := []metav1.Object{}
 	accessor := traffic.NewGateway(gateway)
 
 	for _, mh := range managedHosts {
 		// Only generate cert for https listeners
-		listener := getListenerByHost(gateway, mh.Host)
+		listener := accessor.GetListenerByHost(mh.Host)
 		if listener == nil || listener.Protocol != gatewayv1beta1.HTTPSProtocolType {
 			continue
 		}
@@ -306,73 +331,6 @@ func (r *GatewayReconciler) reconcileTLS(ctx context.Context, upstreamGateway *g
 		}
 	}
 	return tlsSecrets, nil
-}
-
-func (r *GatewayReconciler) reconcileDNSEndpoints(ctx context.Context, gateway *gatewayv1beta1.Gateway, placed []string, managedHosts []v1alpha1.ManagedHost) error {
-	log := log.Log
-	log.V(3).Info("checking gateway for attached routes ", "gateway", gateway.Name, "clusters", placed, "managed hosts", len(managedHosts))
-	if len(placed) == 0 {
-		//nothing to do
-		log.V(3).Info("reconcileDNSEndpoints gateway has not been placed on to any downstream clusters nothing to do")
-		return nil
-	}
-
-	for _, mh := range managedHosts {
-		log.V(3).Info("dns for ", "host", mh.Host)
-		endpoints := []gatewayv1beta1.GatewayAddress{}
-		for _, downstreamCluster := range placed {
-			// Only consider host for dns if there's at least 1 attached route to the listener for this host in *any* gateway
-			listener := getListenerByHost(gateway, mh.Host)
-			if listener == nil {
-				log.V(3).Info("no downstream listener found", "host ", mh.Host)
-				continue
-			}
-			log.V(3).Info("checking downstream", "listener ", listener.Name)
-			attached, err := r.Placement.ListenerTotalAttachedRoutes(ctx, gateway, string(listener.Name), downstreamCluster)
-			if err != nil {
-				log.Error(err, "failed to get total attached routes for listener ", "listner", listener.Name)
-				continue
-			}
-			if attached == 0 {
-				log.V(3).Info("no attached routes for ", "listner", listener.Name, "cluster ", downstreamCluster)
-				continue
-			}
-			log.V(3).Info("hostHasAttachedRoutes", "host", mh.Host, "hostHasAttachedRoutes", attached)
-			addresses, err := r.Placement.GetAddresses(ctx, gateway, downstreamCluster)
-			if err != nil {
-				return fmt.Errorf("get addresses failed: %s", err)
-			}
-			endpoints = append(endpoints, addresses...)
-		}
-
-		if len(endpoints) == 0 {
-			// delete record
-			log.V(3).Info("no endpoints deleting DNS record", " for host ", mh.Host)
-			if mh.DnsRecord != nil {
-				if err := r.Delete(ctx, mh.DnsRecord); client.IgnoreNotFound(err) != nil {
-					return fmt.Errorf("failed to deleted dns record for managed host %s : %s", mh.Host, err)
-				}
-			}
-			continue
-		}
-		var dnsRecord, err = r.Host.CreateDNSRecord(ctx, mh.Subdomain, mh.ManagedZone, gateway)
-		if err := client.IgnoreAlreadyExists(err); err != nil {
-			return fmt.Errorf("failed to create dns record for host %s : %s ", mh.Host, err)
-		}
-		if k8serrors.IsAlreadyExists(err) {
-			dnsRecord, err = r.Host.GetDNSRecord(ctx, mh.Subdomain, mh.ManagedZone, gateway)
-			if err != nil {
-				return fmt.Errorf("failed to get dns record for host %s : %s ", mh.Host, err)
-			}
-		}
-
-		log.Info("setting dns endpoints for gateway listener", "listener", dnsRecord.Name, "values", endpoints)
-
-		if err := r.Host.SetEndpoints(ctx, endpoints, dnsRecord); err != nil {
-			return fmt.Errorf("failed to set dns record endpoints %s %v", err, endpoints)
-		}
-	}
-	return nil
 }
 
 func (r *GatewayReconciler) reconcileParams(ctx context.Context, gateway *gatewayv1beta1.Gateway, params *Params) error {
@@ -416,8 +374,21 @@ func buildAcceptedCondition(gatewayStatus gatewayv1beta1.GatewayStatus, generati
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager, ctx context.Context) error {
-	log := log.FromContext(ctx)
-	//TODO need to trigger gatway reconcile when gatewayclass params changes
+	log := crlog.FromContext(ctx)
+
+	err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&v1alpha1.DNSPolicy{},
+		policy.POLICY_TARGET_REF_KEY,
+		func(obj client.Object) []string {
+			return []string{policy.GetTargetRefValueFromPolicy(obj.(*v1alpha1.DNSPolicy))}
+		},
+	)
+	if err != nil {
+		return err
+	}
+
+	//TODO need to trigger gateway reconcile when gatewayclass params changes
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gatewayv1beta1.Gateway{}).
 		Watches(&source.Kind{Type: &workv1.ManifestWork{}}, handler.EnqueueRequestsFromMapFunc(func(o client.Object) []reconcile.Request {
@@ -470,14 +441,4 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager, ctx context.Conte
 			return true
 		})).
 		Complete(r)
-}
-
-// This is very specific to gateways so not in traffic interface
-func getListenerByHost(g *gatewayv1beta1.Gateway, host string) *gatewayv1beta1.Listener {
-	for _, listener := range g.Spec.Listeners {
-		if *(*string)(listener.Hostname) == host {
-			return &listener
-		}
-	}
-	return nil
 }

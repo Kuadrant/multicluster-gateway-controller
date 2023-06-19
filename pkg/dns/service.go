@@ -2,12 +2,11 @@ package dns
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"golang.org/x/net/publicsuffix"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -16,6 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
@@ -27,7 +27,10 @@ const (
 	LabelGatewayReference = "kuadrant.io/gateway-uid"
 )
 
-var ErrAlreadyAssigned = fmt.Errorf("managed host already assigned")
+var (
+	ErrNoManagedZoneForHost = fmt.Errorf("no managed zone for host")
+	ErrAlreadyAssigned      = fmt.Errorf("managed host already assigned")
+)
 
 type Service struct {
 	controlClient client.Client
@@ -60,10 +63,10 @@ func (s *Service) resolveIPS(ctx context.Context, addresses []gatewayv1beta1.Gat
 }
 
 func (s *Service) GetManagedHosts(ctx context.Context, traffic traffic.Interface) ([]v1alpha1.ManagedHost, error) {
-	managed := []v1alpha1.ManagedHost{}
+	var managed []v1alpha1.ManagedHost
 	for _, host := range traffic.GetHosts() {
 		managedZone, subDomain, err := s.GetManagedZoneForHost(ctx, host, traffic)
-		if err != nil {
+		if err != nil && !errors.Is(err, ErrNoManagedZoneForHost) {
 			return nil, err
 		}
 		if managedZone == nil {
@@ -84,22 +87,6 @@ func (s *Service) GetManagedHosts(ctx context.Context, traffic traffic.Interface
 		managed = append(managed, managedHost)
 	}
 	return managed, nil
-}
-
-func (s *Service) GetDNSRecordsFor(ctx context.Context, trafficAccessor traffic.Interface) ([]*v1alpha1.DNSRecord, error) {
-	allHosts := trafficAccessor.GetHosts()
-
-	return slice.MapErr(allHosts, func(host string) (*v1alpha1.DNSRecord, error) {
-		managedZone, subdomain, err := s.GetManagedZoneForHost(ctx, host, trafficAccessor)
-		if err != nil {
-			return nil, err
-		}
-		if managedZone == nil {
-			return nil, nil
-		}
-
-		return s.GetDNSRecord(ctx, subdomain, managedZone, trafficAccessor)
-	})
 }
 
 // CreateDNSRecord creates a new DNSRecord, if one does not already exist, in the given managed zone with the given subdomain.
@@ -149,15 +136,10 @@ func (s *Service) CreateDNSRecord(ctx context.Context, subDomain string, managed
 func (s *Service) GetDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone, owner metav1.Object) (*v1alpha1.DNSRecord, error) {
 	managedHost := strings.ToLower(fmt.Sprintf("%s.%s", subDomain, managedZone.Spec.DomainName))
 
-	dnsRecord := &v1alpha1.DNSRecord{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      managedHost,
-			Namespace: managedZone.GetNamespace(),
-		},
-	}
-	if err := s.controlClient.Get(ctx, client.ObjectKeyFromObject(dnsRecord), dnsRecord); err != nil {
+	dnsRecord := &v1alpha1.DNSRecord{}
+	if err := s.controlClient.Get(ctx, client.ObjectKey{Name: managedHost, Namespace: managedZone.GetNamespace()}, dnsRecord); err != nil {
 		if k8serrors.IsNotFound(err) {
-			log.Log.V(10).Info("no dnsrecord found for host ", "host", dnsRecord.Name)
+			log.Log.V(1).Info("no dnsrecord found for host ", "host", managedHost)
 		}
 		return nil, err
 	}
@@ -167,10 +149,9 @@ func (s *Service) GetDNSRecord(ctx context.Context, subDomain string, managedZon
 	return dnsRecord, nil
 }
 
-// AddEndpoints adds endpoints to the given DNSRecord for each ip address resolvable for the given traffic resource.
-func (s *Service) SetEndpoints(ctx context.Context, addresses []gatewayv1beta1.GatewayAddress, dnsRecord *v1alpha1.DNSRecord) error {
-
-	//TODO not removing existing addresses when not in use...
+// SetEndpoints sets the endpoints for the given DNSRecord for each of the gateway addresses.
+func (s *Service) SetEndpoints(ctx context.Context, addresses []gatewayv1beta1.GatewayAddress, dnsRecord *v1alpha1.DNSRecord, dnsPolicy *v1alpha1.DNSPolicy) error {
+	//dnsPolicy is not currently used, but will be once we add other routing strategies
 	ips, err := s.resolveIPS(ctx, addresses)
 	if err != nil {
 		return err
@@ -205,15 +186,12 @@ func (s *Service) SetEndpoints(ctx context.Context, addresses []gatewayv1beta1.G
 			SetIdentifier: ep,
 			RecordTTL:     60,
 		}
-
 		dnsRecord.Spec.Endpoints = append(dnsRecord.Spec.Endpoints, endpoint)
 	}
-	totalIPs := 0
-	for _, e := range dnsRecord.Spec.Endpoints {
-		totalIPs += len(e.Targets)
-	}
-	for _, e := range dnsRecord.Spec.Endpoints {
-		e.SetProviderSpecific(s.provider.ProviderSpecific().Weight, awsEndpointWeight(totalIPs))
+
+	err = s.provider.AdjustEndpoints(dnsRecord, dnsPolicy)
+	if err != nil {
+		return err
 	}
 
 	if equality.Semantic.DeepEqual(old.Spec, dnsRecord.Spec) {
@@ -237,7 +215,7 @@ func (s *Service) GetManagedZoneForHost(ctx context.Context, host string, t traf
 
 func FindMatchingManagedZone(originalHost, host string, zones []v1alpha1.ManagedZone) (*v1alpha1.ManagedZone, string, error) {
 	if len(zones) == 0 {
-		return nil, "", fmt.Errorf("no managed zone found for host : %s", host)
+		return nil, "", fmt.Errorf("%w : %s", ErrNoManagedZoneForHost, host)
 	}
 	host = strings.ToLower(host)
 	hostParts := strings.SplitN(host, ".", 2)
@@ -281,21 +259,4 @@ func (s *Service) CleanupDNSRecords(ctx context.Context, owner traffic.Interface
 		}
 	}
 	return nil
-}
-
-// awsEndpointWeight returns the weight Value for a single AWS record in a set of records where the traffic is split
-// evenly between a number of clusters/ingresses, each splitting traffic evenly to a number of IPs (numIPs)
-//
-// Divides the number of IPs by a known weight allowance for a cluster/ingress, note that this means:
-// * Will always return 1 after a certain number of ips is reached, 60 in the current case (maxWeight / 2)
-// * Will return values that don't add up to the total maxWeight when the number of ingresses is not divisible by numIPs
-//
-// The aws weight value must be an integer between 0 and 255.
-// https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/resource-record-sets-values-weighted.html#rrsets-values-weighted-weight
-func awsEndpointWeight(numIPs int) string {
-	maxWeight := 120
-	if numIPs > maxWeight {
-		numIPs = maxWeight
-	}
-	return strconv.Itoa(maxWeight / numIPs)
 }

@@ -17,8 +17,11 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"fmt"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gatewayapiv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
 // DNSPolicySpec defines the desired state of DNSPolicy
@@ -62,6 +65,35 @@ type DNSPolicy struct {
 
 	Spec   DNSPolicySpec   `json:"spec,omitempty"`
 	Status DNSPolicyStatus `json:"status,omitempty"`
+}
+
+func (p *DNSPolicy) GetWrappedNamespace() gatewayv1beta1.Namespace {
+	return gatewayv1beta1.Namespace(p.Namespace)
+}
+
+func (p *DNSPolicy) GetRulesHostnames() []string {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (p *DNSPolicy) GetTargetRef() gatewayapiv1alpha2.PolicyTargetReference {
+	return p.Spec.TargetRef
+}
+
+func (p *DNSPolicy) Validate() error {
+	if p.Spec.TargetRef.Group != ("gateway.networking.k8s.io") {
+		return fmt.Errorf("invalid targetRef.Group %s. The only supported group is gateway.networking.k8s.io", p.Spec.TargetRef.Group)
+	}
+
+	if p.Spec.TargetRef.Kind != ("Gateway") {
+		return fmt.Errorf("invalid targetRef.Kind %s. The only supported kind is Gateway", p.Spec.TargetRef.Kind)
+	}
+
+	if p.Spec.TargetRef.Namespace != nil && string(*p.Spec.TargetRef.Namespace) != p.Namespace {
+		return fmt.Errorf("invalid targetRef.Namespace %s. Currently only supporting references to the same namespace", *p.Spec.TargetRef.Namespace)
+	}
+
+	return nil
 }
 
 //+kubebuilder:object:root=true
