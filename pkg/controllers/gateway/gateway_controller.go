@@ -50,7 +50,6 @@ import (
 )
 
 const (
-	ClusterSyncerAnnotation               = "clustersync.kuadrant.io"
 	GatewayClusterLabelSelectorAnnotation = "kuadrant.io/gateway-cluster-label-selector"
 	GatewayFinalizer                      = "kuadrant.io/gateway"
 	ManagedLabel                          = "kuadarant.io/managed"
@@ -333,7 +332,7 @@ func (r *GatewayReconciler) reconcileTLS(ctx context.Context, upstreamGateway *g
 	return tlsSecrets, nil
 }
 
-func (r *GatewayReconciler) reconcileParams(ctx context.Context, gateway *gatewayv1beta1.Gateway, params *Params) error {
+func (r *GatewayReconciler) reconcileParams(_ context.Context, gateway *gatewayv1beta1.Gateway, params *Params) error {
 
 	downstreamClass := params.GetDownstreamClass()
 
@@ -363,7 +362,7 @@ func buildProgrammedStatus(gatewayStatus gatewayv1beta1.GatewayStatus, generatio
 
 }
 
-func buildAcceptedCondition(gatewayStatus gatewayv1beta1.GatewayStatus, generation int64, acceptedStatus metav1.ConditionStatus) []metav1.Condition {
+func buildAcceptedCondition(_ gatewayv1beta1.GatewayStatus, generation int64, _ metav1.ConditionStatus) []metav1.Condition {
 	statusConditions := []metav1.Condition{}
 	message := fmt.Sprintf("Handled by %s", ControllerName)
 

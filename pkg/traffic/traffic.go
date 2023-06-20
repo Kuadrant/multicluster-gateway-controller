@@ -7,8 +7,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 )
 
 type CreateOrUpdateTraffic func(ctx context.Context, i Interface) error
@@ -25,6 +23,5 @@ type Interface interface {
 	HasTLS() bool
 	RemoveTLS(host []string)
 	GetSpec() interface{}
-	GetDNSTargets(ctx context.Context) ([]v1alpha1.Target, error)
 	ExposesOwnController() bool
 }

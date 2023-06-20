@@ -50,8 +50,7 @@ For this walkthrough, we're going to use multiple terminal sessions/windows, all
 Open three windows, which we'll refer to throughout this walkthrough as:
 
 * `T1` (Hub Cluster)
-* `T2` (Where we'll run our controller locally)
-* `T3` (Workloads cluster)
+* `T2` (Workloads cluster)
 
 1. To setup a local instance, in `T1`, run:
 
@@ -137,10 +136,10 @@ Open three windows, which we'll refer to throughout this walkthrough as:
 
 ### Start the Gateway Controller
 
-1. In `T2` run the following to start the Gateway Controller:
+1. In `T1` run the following to start the Gateway Controller:
 
     ```bash
-    (export $(cat ./controller-config.env | xargs) && export $(cat ./aws-credentials.env | xargs) && make build-controller install run-controller)
+    make build-controller kind-load-controller deploy-controller
     ```
 
 ### Check the managed zone
@@ -345,7 +344,7 @@ So now we have a working gateway with DNS and TLS configured. Let place this gat
 
 1. This will open your `$EDITOR` - in here, edit the spec change the `numberOfClusters` to be 2, and save.
 
-1. In `T3` window execute the following to see the gateway on the workload-1 cluster:
+1. In `T2` window execute the following to see the gateway on the workload-1 cluster:
 
     ```bash
     kind export kubeconfig --name=mgc-workload-1 --kubeconfig=$(pwd)/local/kube/workload1.yaml && export KUBECONFIG=$(pwd)/local/kube/workload1.yaml
@@ -359,7 +358,7 @@ So now we have a working gateway with DNS and TLS configured. Let place this gat
 
     So now we have second ingress cluster configured with the same Gateway. 
 
-1. In `T3`, targeting the second cluster, go ahead and create the HTTPRoute in the second gateway cluster.
+1. In `T2`, targeting the second cluster, go ahead and create the HTTPRoute in the second gateway cluster.
 
     ```bash
     kubectl apply -f - <<EOF

@@ -58,7 +58,7 @@ deployMetalLB () {
   echo "Deploying MetalLB to ${clusterName}"
   ${KUSTOMIZE_BIN} build ${METALLB_KUSTOMIZATION_DIR} | kubectl apply -f -
   echo "Waiting for deployments to be ready ..."
-  kubectl -n metallb-system wait --for=condition=ready pod --selector=app=metallb --timeout=90s
+  kubectl -n metallb-system wait --for=condition=ready pod --selector=app=metallb --timeout=300s
   echo "Creating MetalLB AddressPool"
   cat <<EOF | kubectl apply -f -
 apiVersion: metallb.io/v1beta1
