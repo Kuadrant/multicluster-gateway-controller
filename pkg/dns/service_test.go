@@ -153,10 +153,9 @@ func TestDNS_GetDNSRecords(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
-			fp := &dns.FakeProvider{}
 			gw := traffic.NewGateway(tc.Gateway)
 			f := fake.NewClientBuilder().WithScheme(scheme).WithObjects(tc.DNSRecord).Build()
-			s := dns.NewService(f, tc.Resolver(), fp)
+			s := dns.NewService(f, tc.Resolver())
 			record, err := s.GetDNSRecord(context.TODO(), tc.SubDomain, tc.MZ(), gw)
 			tc.Assert(t, record, err)
 		})
@@ -167,14 +166,14 @@ func TestDNS_GetDNSRecords(t *testing.T) {
 func TestSetProviderSpecific(t *testing.T) {
 	endpoint := &v1alpha1.Endpoint{
 		ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
-			{Name: "aws/weight", Value: "120"},
+			{Name: "weight", Value: "120"},
 		},
 	}
 
 	// Test updating an existing property
-	endpoint.SetProviderSpecific("aws/weight", "60")
+	endpoint.SetProviderSpecific("weight", "60")
 	for _, property := range endpoint.ProviderSpecific {
-		if property.Name == "aws/weight" && property.Value != "60" {
+		if property.Name == "weight" && property.Value != "60" {
 			t.Errorf("Existing property was not updated. Got %s, expected 60", property.Value)
 		}
 	}

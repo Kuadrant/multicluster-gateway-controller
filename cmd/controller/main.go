@@ -127,7 +127,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	dnsService := dns.NewService(mgr.GetClient(), dns.NewSafeHostResolver(dns.NewDefaultHostResolver()), dnsProvider)
+	dnsService := dns.NewService(mgr.GetClient(), dns.NewSafeHostResolver(dns.NewDefaultHostResolver()))
 	certService := tls.NewService(mgr.GetClient(), certProvider)
 
 	dnsPolicyBaseReconciler := reconcilers.NewBaseReconciler(
