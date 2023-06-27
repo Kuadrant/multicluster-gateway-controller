@@ -9,6 +9,8 @@ metadata:
     app.kubernetes.io/created-by: multicluster-gateway-controller
   name: dnsrecord-geo
 spec:
+  managedZone:
+    name: mgc-dev-mz
   endpoints:
     - dnsName: dnsrecord-geo.mn.hcpapps.net
       recordTTL: 60
@@ -37,7 +39,7 @@ spec:
       recordType: A
       setIdentifier: 50.16.23.1
       providerSpecific:
-        - name: "aws/weight"
+        - name: "weight"
           value: "60"
       labels:
         id: 50.16.23.1
@@ -48,7 +50,7 @@ spec:
       recordType: A
       setIdentifier: 50.16.23.2
       providerSpecific:
-        - name: "aws/weight"
+        - name: "weight"
           value: "60"
       labels:
         id: 50.16.23.2

@@ -9,6 +9,8 @@ metadata:
     app.kubernetes.io/created-by: multicluster-gateway-controller
   name: dnsrecord-sample
 spec:
+  managedZone:
+    name: mgc-dev-mz
   endpoints:
     - dnsName: dnsrecord-simple.mn.hcpapps.net
       recordTTL: 60

@@ -133,11 +133,9 @@ var _ = BeforeSuite(func() {
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 
-	dnsProvider := &dns.FakeProvider{}
-
 	certificates := tls.NewService(k8sManager.GetClient(), "glbc-ca")
 
-	dns := dns.NewService(k8sManager.GetClient(), dns.NewSafeHostResolver(dns.NewDefaultHostResolver()), dnsProvider)
+	dns := dns.NewService(k8sManager.GetClient(), dns.NewSafeHostResolver(dns.NewDefaultHostResolver()))
 
 	plc := placement.NewOCMPlacer(k8sManager.GetClient())
 

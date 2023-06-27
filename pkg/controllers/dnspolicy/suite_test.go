@@ -102,7 +102,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 
 	dnsProvider := &dns.FakeProvider{}
-	dns := dns.NewService(k8sManager.GetClient(), dns.NewSafeHostResolver(dns.NewDefaultHostResolver()), dnsProvider)
+	dns := dns.NewService(k8sManager.GetClient(), dns.NewSafeHostResolver(dns.NewDefaultHostResolver()))
 	plc := NewTestOCMPlacer()
 
 	dnsPolicyBaseReconciler := reconcilers.NewBaseReconciler(

@@ -155,7 +155,11 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 
 				if len(createdDNSRecord.Spec.Endpoints) != 1 && createdDNSRecord.Spec.Endpoints[0].DNSName != TestAttachedRouteAddress {
 					return false
+				}
 
+				prop, ok := createdDNSRecord.Spec.Endpoints[0].GetProviderSpecificProperty("weight")
+				if !ok || prop.Value != "120" {
+					return false
 				}
 
 				return true

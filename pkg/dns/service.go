@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"golang.org/x/net/publicsuffix"
@@ -23,8 +24,9 @@ import (
 )
 
 const (
-	labelRecordID         = "kuadrant.io/record-id"
-	LabelGatewayReference = "kuadrant.io/gateway-uid"
+	labelRecordID          = "kuadrant.io/record-id"
+	LabelGatewayReference  = "kuadrant.io/gateway-uid"
+	ProviderSpecificWeight = "weight"
 )
 
 var (
@@ -36,12 +38,10 @@ type Service struct {
 	controlClient client.Client
 
 	hostResolver HostResolver
-
-	provider Provider
 }
 
-func NewService(controlClient client.Client, hostResolv HostResolver, provider Provider) *Service {
-	return &Service{controlClient: controlClient, provider: provider, hostResolver: hostResolv}
+func NewService(controlClient client.Client, hostResolv HostResolver) *Service {
+	return &Service{controlClient: controlClient, hostResolver: hostResolv}
 }
 
 func (s *Service) resolveIPS(ctx context.Context, addresses []gatewayv1beta1.GatewayAddress) ([]string, error) {
@@ -189,9 +189,12 @@ func (s *Service) SetEndpoints(ctx context.Context, addresses []gatewayv1beta1.G
 		dnsRecord.Spec.Endpoints = append(dnsRecord.Spec.Endpoints, endpoint)
 	}
 
-	err = s.provider.AdjustEndpoints(dnsRecord, dnsPolicy)
-	if err != nil {
-		return err
+	totalIPs := 0
+	for _, e := range dnsRecord.Spec.Endpoints {
+		totalIPs += len(e.Targets)
+	}
+	for _, e := range dnsRecord.Spec.Endpoints {
+		e.SetProviderSpecific(ProviderSpecificWeight, endpointWeight(totalIPs))
 	}
 
 	if equality.Semantic.DeepEqual(old.Spec, dnsRecord.Spec) {
@@ -259,4 +262,21 @@ func (s *Service) CleanupDNSRecords(ctx context.Context, owner traffic.Interface
 		}
 	}
 	return nil
+}
+
+// endpointWeight returns the weight Value for a single record in a set of records where the traffic is split
+// evenly between a number of clusters/ingresses, each splitting traffic evenly to a number of IPs (numIPs)
+//
+// Divides the number of IPs by a known weight allowance for a cluster/ingress, note that this means:
+// * Will always return 1 after a certain number of ips is reached, 60 in the current case (maxWeight / 2)
+// * Will return values that don't add up to the total maxWeight when the number of ingresses is not divisible by numIPs
+//
+// For aws weight value must be an integer between 0 and 255.
+// https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/resource-record-sets-values-weighted.html#rrsets-values-weighted-weight
+func endpointWeight(numIPs int) string {
+	maxWeight := 120
+	if numIPs > maxWeight {
+		numIPs = maxWeight
+	}
+	return strconv.Itoa(maxWeight / numIPs)
 }
