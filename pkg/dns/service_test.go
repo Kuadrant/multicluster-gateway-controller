@@ -540,6 +540,7 @@ func TestService_SetEndpoints(t *testing.T) {
 		name      string
 		addresses []gatewayv1beta1.GatewayAddress
 		dnsRecord *v1alpha1.DNSRecord
+		wantSpec  *v1alpha1.DNSRecordSpec
 		wantErr   bool
 	}{
 		{
@@ -557,6 +558,36 @@ func TestService_SetEndpoints(t *testing.T) {
 			dnsRecord: &v1alpha1.DNSRecord{
 				ObjectMeta: v1.ObjectMeta{
 					Name: "example.com",
+				},
+			},
+			wantSpec: &v1alpha1.DNSRecordSpec{
+				Endpoints: []*v1alpha1.Endpoint{
+					{
+						DNSName:       "example.com",
+						Targets:       []string{"1.1.1.1"},
+						RecordType:    "A",
+						SetIdentifier: "1.1.1.1",
+						RecordTTL:     60,
+						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
+							{
+								Name:  "weight",
+								Value: "60",
+							},
+						},
+					},
+					{
+						DNSName:       "example.com",
+						Targets:       []string{"0.0.0.0"},
+						RecordType:    "A",
+						SetIdentifier: "0.0.0.0",
+						RecordTTL:     60,
+						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
+							{
+								Name:  "weight",
+								Value: "60",
+							},
+						},
+					},
 				},
 			},
 		},
@@ -582,6 +613,22 @@ func TestService_SetEndpoints(t *testing.T) {
 					},
 				},
 			},
+			wantSpec: &v1alpha1.DNSRecordSpec{
+				Endpoints: []*v1alpha1.Endpoint{
+					{
+						DNSName:       "example.com",
+						Targets:       []string{"1.1.1.1"},
+						SetIdentifier: "1.1.1.1",
+						RecordTTL:     0,
+						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
+							{
+								Name:  "weight",
+								Value: "120",
+							},
+						},
+					},
+				},
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -592,6 +639,16 @@ func TestService_SetEndpoints(t *testing.T) {
 			if err := s.SetEndpoints(context.TODO(), tt.addresses, tt.dnsRecord, &v1alpha1.DNSPolicy{}); (err != nil) != tt.wantErr {
 				t.Errorf("SetEndpoints() error = %v, wantErr %v", err, tt.wantErr)
 			}
+
+			gotRecord := &v1alpha1.DNSRecord{}
+			if err := f.Get(context.TODO(), client.ObjectKeyFromObject(tt.dnsRecord), gotRecord); err != nil {
+				t.Errorf("error gettinging updated DNSrecord")
+			} else {
+				if !reflect.DeepEqual(gotRecord.Spec, *tt.wantSpec) {
+					t.Errorf("SetEndpoints() updated DNSRecord spec: \n%v, want spec: \n%v", gotRecord.Spec, *tt.wantSpec)
+				}
+			}
+
 		})
 	}
 }
@@ -844,6 +901,10 @@ func testScheme(t *testing.T) *runtime.Scheme {
 		t.Fatalf("falied to add work scheme %s ", err)
 	}
 	return scheme
+}
+
+func validateDNSRecord() {
+
 }
 
 func addr[T any](value T) *T {
