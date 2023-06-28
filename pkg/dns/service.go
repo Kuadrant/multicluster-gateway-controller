@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	labelRecordID          = "kuadrant.io/record-id"
+	LabelRecordID          = "kuadrant.io/record-id"
 	LabelGatewayReference  = "kuadrant.io/gateway-uid"
 	ProviderSpecificWeight = "weight"
 )
@@ -99,7 +99,7 @@ func (s *Service) CreateDNSRecord(ctx context.Context, subDomain string, managed
 			Name:      managedHost,
 			Namespace: managedZone.Namespace,
 			Labels: map[string]string{
-				labelRecordID:         subDomain,
+				LabelRecordID:         subDomain,
 				LabelGatewayReference: string(owner.GetUID()),
 			},
 		},
