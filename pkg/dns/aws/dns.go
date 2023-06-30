@@ -92,7 +92,14 @@ func NewDNSProvider(dnsProviderConfig v1alpha1.DNSProviderConfig) (*Route53DNSPr
 
 func NewProviderFromSecret(s *v1.Secret) (*Route53DNSProvider, error) {
 	config := aws.NewConfig()
-
+	config.Credentials = credentials.NewStaticCredentials(s.Data[""], s.Data[""], "")
+	// validate secret structure
+	// build provider
+	p := &Route53DNSProvider{
+		client: &InstrumentedRoute53{route53.New(sess, config)},
+		logger: log.Log.WithName("aws-route53").WithValues("region", config.Region),
+	}
+	return p, nil
 }
 
 type action string
