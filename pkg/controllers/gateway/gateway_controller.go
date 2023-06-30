@@ -63,7 +63,6 @@ type HostService interface {
 	GetManagedZoneForHost(ctx context.Context, domain string, t traffic.Interface) (*v1alpha1.ManagedZone, string, error)
 	SetEndpoints(ctx context.Context, endpoints []gatewayv1beta1.GatewayAddress, dnsRecord *v1alpha1.DNSRecord, dnsPolicy *v1alpha1.DNSPolicy) error
 	CleanupDNSRecords(ctx context.Context, owner traffic.Interface) error
-	GetDNSRecordsFor(ctx context.Context, t traffic.Interface) ([]*v1alpha1.DNSRecord, error)
 	// GetManagedHosts will return the list of hosts in this gateways listeners that are associated with a managedzone managed by this controller
 	GetManagedHosts(ctx context.Context, traffic traffic.Interface) ([]v1alpha1.ManagedHost, error)
 }
@@ -167,7 +166,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	requeue, programmedStatus, clusters, reconcileErr := r.reconcileDownstreamFromUpstreamGateway(ctx, upstreamGateway, params)
 	// gateway now in expected state, place gateway and its associated objects in correct places. Update gateway spec/metadata
 	if reconcileErr != nil {
-		if err == gracePeriod.ErrGracePeriodNotExpired || errors.Unwrap(err) == gracePeriod.ErrGracePeriodNotExpired {
+		if errors.Is(reconcileErr, gracePeriod.ErrGracePeriodNotExpired) {
 			log.V(3).Info("grace period not yet expired, requeueing gateway")
 			return reconcile.Result{
 				Requeue:      true,
@@ -282,7 +281,7 @@ func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.C
 	// ensure the gateways are placed into the right target clusters and removed from any that are no longer targeted
 	targets, err := r.Placement.Place(ctx, upstreamGateway, downstream, tlsSecrets...)
 	if err != nil {
-		return true, metav1.ConditionFalse, clusters, fmt.Errorf("failed to get place gateway : %w", err)
+		return true, metav1.ConditionFalse, clusters, fmt.Errorf("failed to place gateway : %w", err)
 	}
 
 	log.Info("Gateway Placed ", "gateway", upstreamGateway.Name, "namespace", upstreamGateway.Namespace, "targets", targets.UnsortedList())

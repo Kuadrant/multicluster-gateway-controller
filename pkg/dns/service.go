@@ -88,22 +88,6 @@ func (s *Service) GetManagedHosts(ctx context.Context, traffic traffic.Interface
 	return managed, nil
 }
 
-func (s *Service) GetDNSRecordsFor(ctx context.Context, trafficAccessor traffic.Interface) ([]*v1alpha1.DNSRecord, error) {
-	allHosts := trafficAccessor.GetHosts()
-
-	return slice.MapErr(allHosts, func(host string) (*v1alpha1.DNSRecord, error) {
-		managedZone, subdomain, err := s.GetManagedZoneForHost(ctx, host, trafficAccessor)
-		if err != nil {
-			return nil, err
-		}
-		if managedZone == nil {
-			return nil, nil
-		}
-
-		return s.GetDNSRecord(ctx, subdomain, managedZone, trafficAccessor)
-	})
-}
-
 // CreateDNSRecord creates a new DNSRecord, if one does not already exist, in the given managed zone with the given subdomain.
 // Needs traffic.Interface owner to block other traffic objects from accessing this record
 func (s *Service) CreateDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone, owner metav1.Object) (*v1alpha1.DNSRecord, error) {
@@ -201,6 +185,7 @@ func (s *Service) SetEndpoints(ctx context.Context, addresses []gatewayv1beta1.G
 			Targets:       []string{ep},
 			RecordType:    "A",
 			SetIdentifier: ep,
+			RecordTTL:     DefaultTTL,
 		}
 		dnsRecord.Spec.Endpoints = append(dnsRecord.Spec.Endpoints, endpoint)
 	}

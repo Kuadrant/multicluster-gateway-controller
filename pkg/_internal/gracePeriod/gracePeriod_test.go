@@ -2,6 +2,7 @@ package gracePeriod
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -40,7 +41,7 @@ func TestGracefulDelete(t *testing.T) {
 				},
 			},
 			Verify: func(t *testing.T, updatedObj client.Object, err, getErr error) {
-				if !WasGracePeriodNotExpiredErr(err) {
+				if errors.Is(err, ErrGracePeriodNotExpired) {
 					t.Fatalf("expected graceful delete error to be nil, got: %v", err)
 				}
 				if getErr != nil {

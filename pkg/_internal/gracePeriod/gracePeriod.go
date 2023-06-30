@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/metadata"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
@@ -20,13 +20,11 @@ const (
 
 var ErrGracePeriodNotExpired = fmt.Errorf("grace period has not yet expired")
 
-func WasGracePeriodNotExpiredErr(e error) bool {
-	return strings.Contains(e.Error(), "grace period has not yet expired")
-}
-
 func GracefulDelete(ctx context.Context, c client.Client, obj client.Object) error {
+	log := log.Log
 	at := time.Now().Add(DefaultGracePeriod)
 	if err := c.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
+		log.V(3).Info("error finding object to graceful delete")
 		return err
 	}
 
@@ -35,23 +33,32 @@ func GracefulDelete(ctx context.Context, c client.Client, obj client.Object) err
 		return c.Delete(ctx, obj)
 	}
 
-	//ensure finalizer and annotation are present
+	//ensure annotation is present
 	if !metadata.HasAnnotation(obj, GraceTimestampAnnotation) {
+		log.V(3).Info("no grace annotation set, adding one now")
 		metadata.AddAnnotation(obj, GraceTimestampAnnotation, strconv.FormatInt(at.Unix(), 10))
-		return c.Update(ctx, obj)
-	}
-	deleteAt, err := strconv.Atoi(obj.GetAnnotations()[GraceTimestampAnnotation])
-	if err != nil {
-		//badly formed deleteAt annotation, remove it, so it will be regenerated
-		metadata.RemoveAnnotation(obj, GraceTimestampAnnotation)
 		if err := c.Update(ctx, obj); err != nil {
 			return err
 		}
-	} else {
-		//grace time reached, delete it
-		if int64(deleteAt) <= time.Now().Unix() {
-			return c.Delete(ctx, obj)
-		}
+		return ErrGracePeriodNotExpired
 	}
+	deleteAt, err := strconv.Atoi(obj.GetAnnotations()[GraceTimestampAnnotation])
+	if err != nil {
+		log.V(3).Info("existing grace annotation has bad value, resetting it")
+		metadata.AddAnnotation(obj, GraceTimestampAnnotation, strconv.FormatInt(at.Unix(), 10))
+		if err := c.Update(ctx, obj); err != nil {
+			return err
+		}
+		return ErrGracePeriodNotExpired
+	}
+
+	//grace time reached, delete it
+	if int64(deleteAt) <= time.Now().Unix() {
+		log.V(3).Info("grace period expired, removing object")
+		return c.Delete(ctx, obj)
+	}
+
+	log.V(3).Info("grace period still pending")
+
 	return ErrGracePeriodNotExpired
 }
