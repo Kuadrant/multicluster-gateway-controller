@@ -18,6 +18,7 @@ package gateway
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"time"
@@ -43,6 +44,7 @@ import (
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/gracePeriod"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/policy"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
@@ -61,6 +63,7 @@ type HostService interface {
 	GetManagedZoneForHost(ctx context.Context, domain string, t traffic.Interface) (*v1alpha1.ManagedZone, string, error)
 	SetEndpoints(ctx context.Context, endpoints []gatewayv1beta1.GatewayAddress, dnsRecord *v1alpha1.DNSRecord, dnsPolicy *v1alpha1.DNSPolicy) error
 	CleanupDNSRecords(ctx context.Context, owner traffic.Interface) error
+	GetDNSRecordsFor(ctx context.Context, t traffic.Interface) ([]*v1alpha1.DNSRecord, error)
 	// GetManagedHosts will return the list of hosts in this gateways listeners that are associated with a managedzone managed by this controller
 	GetManagedHosts(ctx context.Context, traffic traffic.Interface) ([]v1alpha1.ManagedHost, error)
 }
@@ -164,6 +167,13 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	requeue, programmedStatus, clusters, reconcileErr := r.reconcileDownstreamFromUpstreamGateway(ctx, upstreamGateway, params)
 	// gateway now in expected state, place gateway and its associated objects in correct places. Update gateway spec/metadata
 	if reconcileErr != nil {
+		if err == gracePeriod.ErrGracePeriodNotExpired || errors.Unwrap(err) == gracePeriod.ErrGracePeriodNotExpired {
+			log.V(3).Info("grace period not yet expired, requeueing gateway")
+			return reconcile.Result{
+				Requeue:      true,
+				RequeueAfter: 60 * time.Second,
+			}, nil
+		}
 		log.Error(fmt.Errorf("gateway reconcile failed %s", reconcileErr), "gateway failed to reconcile", "gateway", upstreamGateway.Name)
 	}
 	if reconcileErr == nil && !reflect.DeepEqual(upstreamGateway, previous) {
@@ -186,7 +196,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 func (r *GatewayReconciler) ensureDefaultDNSPolicy(ctx context.Context, upstreamGateway *gatewayv1beta1.Gateway) error {
 	log := crlog.FromContext(ctx)
 
-	defaultDNSPolicy := policy.NewDefaultDNSPolicy(upstreamGateway)
+	defaultDNSPolicy := v1alpha1.NewDefaultDNSPolicy(upstreamGateway)
 
 	var dnsPolicies v1alpha1.DNSPolicyList
 	err := r.List(ctx, &dnsPolicies, client.InNamespace(upstreamGateway.GetNamespace()), client.MatchingFields{policy.POLICY_TARGET_REF_KEY: policy.GetTargetRefValueFromPolicy(&defaultDNSPolicy)})
@@ -255,12 +265,12 @@ func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.C
 		return false, metav1.ConditionFalse, clusters, fmt.Errorf("no managed hosts found")
 	}
 
-	// ensure tls is set up first before doing anything else. TLS is not affectd by placement changes
+	// ensure tls is set up first before doing anything else. TLS is not affected by placement changes
 	tlsSecrets, err := r.reconcileTLS(ctx, upstreamGateway, downstream, managedHosts)
 	if err != nil {
 		return true, metav1.ConditionFalse, clusters, fmt.Errorf("failed to reconcle tls : %s", err)
 	}
-	log.Info("TLS reconciled for downstream gatway ", "gateway", downstream.Name, "namespace", downstream.Namespace)
+	log.Info("TLS reconciled for downstream gateway ", "gateway", downstream.Name, "namespace", downstream.Namespace)
 
 	// some of this should be pulled from gateway class params
 	if params != nil {
@@ -272,7 +282,7 @@ func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.C
 	// ensure the gateways are placed into the right target clusters and removed from any that are no longer targeted
 	targets, err := r.Placement.Place(ctx, upstreamGateway, downstream, tlsSecrets...)
 	if err != nil {
-		return true, metav1.ConditionFalse, clusters, fmt.Errorf("failed to get place gateway : %s", err)
+		return true, metav1.ConditionFalse, clusters, fmt.Errorf("failed to get place gateway : %w", err)
 	}
 
 	log.Info("Gateway Placed ", "gateway", upstreamGateway.Name, "namespace", upstreamGateway.Namespace, "targets", targets.UnsortedList())

@@ -64,6 +64,7 @@ func AddAnnotation(obj metav1.Object, key, value string) {
 			if v == value {
 				return
 			}
+			break
 		}
 	}
 	annotations[key] = value

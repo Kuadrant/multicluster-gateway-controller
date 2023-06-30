@@ -6,7 +6,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/placement"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -17,6 +16,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/gateway-api/apis/v1beta1"
+
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/placement"
 )
 
 func init() {
@@ -84,9 +85,9 @@ func TestGetAddresses(t *testing.T) {
 				}
 				if address == nil || len(address) != 1 {
 					t.Fatalf("expected 1 address to be returned but got %v", address)
-					if address[0].Value != testAddress {
-						t.Fatalf("expected address to be %s but got %s", testAddress, address[0].Value)
-					}
+				}
+				if address[0].Value != testAddress {
+					t.Fatalf("expected address to be %s but got %s", testAddress, address[0].Value)
 				}
 			},
 		},
@@ -461,7 +462,7 @@ func TestGetClusters(t *testing.T) {
 	}
 }
 
-func TestPlace(t *testing.T) {
+func TestDeschedule(t *testing.T) {
 	var manifestWorkFunc = func(downstream, name string) *workv1.ManifestWork {
 
 		return &workv1.ManifestWork{
@@ -578,43 +579,6 @@ func TestPlace(t *testing.T) {
 					},
 				},
 			},
-			ManifestWork: manifestWorkFunc,
-			Assert:       commonAssert,
-		},
-		{
-			Name: "test gateway removed from clusters",
-			Upstream: &v1beta1.Gateway{
-				ObjectMeta: v1.ObjectMeta{
-					Labels:    map[string]string{placement.OCMPlacementLabel: "test"},
-					Namespace: "test",
-					Name:      "test",
-				},
-				TypeMeta: v1.TypeMeta{
-					Kind:       "Gateway",
-					APIVersion: "gateway.networking.k8s.io/v1beta1",
-				},
-			},
-			PlacementDecision: placementDecisionFunc,
-			Downstream: &v1beta1.Gateway{
-				ObjectMeta: v1.ObjectMeta{
-					Namespace: "test",
-					Name:      "test",
-				},
-				TypeMeta: v1.TypeMeta{
-					Kind:       "Gateway",
-					APIVersion: "gateway.networking.k8s.io/v1beta1",
-				},
-			},
-			TLSSecrets: []v1.Object{
-				&corev1.Secret{
-					ObjectMeta: v1.ObjectMeta{
-						Name:      "test",
-						Namespace: "test",
-					},
-				},
-			},
-			Clusters:     sets.Set[string](sets.NewString("c1")),
-			Existing:     sets.Set[string](sets.NewString("c1", "c2")),
 			ManifestWork: manifestWorkFunc,
 			Assert:       commonAssert,
 		},
