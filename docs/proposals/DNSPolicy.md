@@ -17,7 +17,6 @@ As a gateway admin, I have a discount with a particular cloud provider and want 
 ## Goals
 
 - Allow definition of a DNS load balancing strategy to decide how traffic should be weighted across multiple gateway instances from the central control plane.
-- Allow definition of TTL that control DNS TTLs for hosts used by the gateway
 
 
 ## None Goals
@@ -34,7 +33,7 @@ As a gateway admin, I have a discount with a particular cloud provider and want 
 
 ## Proposal
 
-Provide a control plane DNSPolicy API that uses the idea of direct [policy attachment](https://gateway-api.sigs.k8s.io/references/policy-attachment/#direct-policy-attachment) from gateway API that allows a load balancing strategy and TTLs to be applied to the DNS records for any managed listeners being served by the data plane instances of this gateway. 
+Provide a control plane DNSPolicy API that uses the idea of direct [policy attachment](https://gateway-api.sigs.k8s.io/references/policy-attachment/#direct-policy-attachment) from gateway API that allows a load balancing strategy to be applied to the DNS records structure for any managed listeners being served by the data plane instances of this gateway. 
 The DNSPolicy also covers health checks that inform the DNS response but that is not covered in this document.
 
 Below is a draft API for what we anticipate the DNSPolicy to look like
@@ -48,8 +47,6 @@ spec:
     name: gateway-name
   health:
    ...
-  ttl: 
-    value: 60
   loadBalancing:
      #one or both of GEO and weighted are required 
     weighted: # always requird
@@ -78,8 +75,6 @@ name: default-policy
 spec:
   targetRef: # defaults to gateway gvk and currrent namespace
     name: gateway-name
-  ttl: 
-    value: 60
   loadBalancing:
     weighted: # required
      default: 10  #required, all records created get this weight
@@ -141,10 +136,6 @@ The above is then used in the DNSPolicy to set custom weights for the records as
 
 So any gateway placed on this `ManagedCluster` targeted by this DNSPolicy will get an A record with a weight of 20 
 
-
-### TTLs 
-
-Within the DNSPolicy, there will be a TTL section, this translates directly to the TTL applied to the DNS record. This will be used by the DNSPolicy controller when updating and creating a DNSRecord.
 
 
 
@@ -247,9 +238,7 @@ spec:
 
 ## Considerations and Limitations
 
-Not being able to target a listener means all DNS records will have the same TTL this means it wont currently be possible to reduce the TTL on one host and not another if those hosts belong to the same gateway
-
-The same applies for the load balancing. You cannot have a different load balancing strategy for each listener within a gateway. So in the following gateway definition
+You cannot have a different load balancing strategy for each listener within a gateway. So in the following gateway definition
 
 ``` yaml
 
