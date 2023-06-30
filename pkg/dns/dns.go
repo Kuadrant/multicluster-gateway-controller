@@ -17,8 +17,12 @@ limitations under the License.
 package dns
 
 import (
+	"context"
+
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 )
+
+type ProviderFactory func(ctx context.Context, managedZone *v1alpha1.ManagedZone) (Provider, error)
 
 // Provider knows how to manage DNS zones only as pertains to routing.
 type Provider interface {

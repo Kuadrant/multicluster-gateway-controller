@@ -31,7 +31,6 @@ import (
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/managedzone"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 )
 
@@ -40,13 +39,12 @@ const (
 )
 
 var Clock clock.Clock = clock.RealClock{}
-var DNSProvider dns.Provider
 
 // DNSRecordReconciler reconciles a DNSRecord object
 type DNSRecordReconciler struct {
 	client.Client
-	Scheme  *runtime.Scheme
-	DNSProv managedzone.DNS
+	Scheme      *runtime.Scheme
+	DNSProvider dns.ProviderFactory
 }
 
 //+kubebuilder:rbac:groups=kuadrant.io,resources=dnsrecords,verbs=get;list;watch;create;update;patch;delete
@@ -66,12 +64,6 @@ func (r *DNSRecordReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 	}
 	dnsRecord := previous.DeepCopy()
-
-	managedZone, err := r.GetDNSRecordManagedZone(ctx, dnsRecord)
-	if err != nil {
-		// If the Managed Zone isn't found, just continue
-		return ctrl.Result{}, client.IgnoreNotFound(err)
-	}
 
 	log.Log.V(3).Info("DNSRecordReconciler Reconcile", "dnsRecord", dnsRecord)
 
@@ -101,11 +93,6 @@ func (r *DNSRecordReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	status := metav1.ConditionTrue
 	reason = "ProviderSuccess"
 	message = "Provider ensured the managed zone"
-
-	DNSProvider, err = r.DNSProv.CreateDNSProvider(ctx, managedZone)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
 
 	// Publish the record
 	err = r.publishRecord(ctx, dnsRecord)
@@ -147,8 +134,11 @@ func (r *DNSRecordReconciler) deleteRecord(ctx context.Context, dnsRecord *v1alp
 		// If the Managed Zone isn't found, just continue
 		return client.IgnoreNotFound(err)
 	}
-
-	err = DNSProvider.Delete(dnsRecord, managedZone)
+	provider, err := r.DNSProvider(ctx, managedZone)
+	if err != nil {
+		return err
+	}
+	err = provider.Delete(dnsRecord, managedZone)
 	if err != nil {
 		if strings.Contains(err.Error(), "was not found") {
 			log.Log.Info("Record not found in managed zone, continuing", "dnsRecord", dnsRecord.Name, "managedZone", managedZone.Name)

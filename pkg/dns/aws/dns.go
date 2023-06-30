@@ -28,6 +28,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/route53"
 
+	v1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -87,6 +88,11 @@ func NewDNSProvider(dnsProviderConfig v1alpha1.DNSProviderConfig) (*Route53DNSPr
 	}
 
 	return p, nil
+}
+
+func NewProviderFromSecret(s *v1.Secret) (*Route53DNSProvider, error) {
+	config := aws.NewConfig()
+
 }
 
 type action string
