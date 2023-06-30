@@ -48,11 +48,10 @@ spec:
   health:
    ...
   loadBalancing:
-     #one or both of GEO and weighted are required 
     weighted: # always requird
      default: 10  #always required
      custom: #optional
-     - value: AWS  #optional with both GEO and weighted. With GEO the custom weight is applied to gateways within a GEOgraphic region
+     - value: AWS  #optional with both GEO and weighted. With GEO the custom weight is applied to gateways within a Geographic region
        weight: 10
      - value: GCP
        weight: 20
@@ -64,7 +63,7 @@ spec:
 
 GEO and Weighted load balancing are well understood strategies and this API effectively allow a complex requirement to be expressed relatively simply and executed by the gateway controller in the chosen DNS provider. Our default policy will execute a "Round Robin" weighted strategy which reflects the current default behaviour.
 
-With the above API we can provide weighted and GEO and weighted within a  GEO. A weighted strategy with a minimum of a default weight is always required and the simplest type of policy. The multi-cluster gateway controller will set up a default policy when a gateway is discovered (shown below). This policy can be replaced or modified by the user.  A weighted strategy can be complimented with a GEO strategy IE they can be used together in order to provide a GEO and weighted (within a GEO) load balancing. By defining a GEO section, you are indicating that you want to use a GEO based strategy (how this works is covered below).
+With the above API we can provide weighted and GEO and weighted within a GEO. A weighted strategy with a minimum of a default weight is always required and the simplest type of policy. The multi-cluster gateway controller will set up a default policy when a gateway is discovered (shown below). This policy can be replaced or modified by the user.  A weighted strategy can be complimented with a GEO strategy IE they can be used together in order to provide a GEO and weighted (within a GEO) load balancing. By defining a GEO section, you are indicating that you want to use a GEO based strategy (how this works is covered below).
   
 
 ```yaml 
@@ -91,7 +90,7 @@ To solve this we will allow two new attributes to be added to the `ManagedCluste
    kuadrant.io/lb-attribute-custom-weight: "GCP"
 ```
 
-These two labels allow setting values in the DNSPolicy that will be reflected into DNS records for gateways placed on that cluster depending on the strategies used. (see the first DNSPolicy definition above to see how these values are used)
+These two labels allow setting values in the DNSPolicy that will be reflected into DNS records for gateways placed on that cluster depending on the strategies used. (see the first DNSPolicy definition above to see how these values are used) or take a look at the examples at the bottom.
 
 
 example :
@@ -105,7 +104,7 @@ metadata:
 spec:    
 ```  
 
-The attributes provide the key values we need in order to understand how to define records for a given LB address based on the DNSPolicy targeting the gateway.
+The attributes provide the key and value we need in order to understand how to define records for a given LB address based on the DNSPolicy targeting the gateway.
 
 
 ### DNS Record Structure
@@ -134,7 +133,7 @@ The above is then used in the DNSPolicy to set custom weights for the records as
       weight: 20
 ```        
 
-So any gateway placed on this `ManagedCluster` targeted by this DNSPolicy will get an A record with a weight of 20 
+So any gateway targeted by a DNSPolicy with the above definition that is placed on a `ManagedCluster` with the `kuadrant.io/lb-attribute-custom-weight` set with a value of GCP will get an A record with a weight of 20 
 
 
 
@@ -207,7 +206,7 @@ spec:
      default: 10
      custom:
      - attribute: cloud
-       value: Azure
+       value: Azure #any record associated with a gateway on a cluster without this value gets the default
        weight: 30
 
 ``` 
