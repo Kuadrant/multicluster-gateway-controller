@@ -104,8 +104,8 @@ func (h *FakeHostService) CreateDNSRecord(_ context.Context, subDomain string, _
 }
 
 func (h *FakeHostService) GetDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone, _ v1.Object) (*v1alpha1.DNSRecord, error) {
-	if subDomain == testutil.FailFetchDNSsubdinain {
-		return &v1alpha1.DNSRecord{}, fmt.Errorf(testutil.FailFetchDNSsubdinain)
+	if subDomain == testutil.FailFetchDANSSubdomain {
+		return &v1alpha1.DNSRecord{}, fmt.Errorf(testutil.FailFetchDANSSubdomain)
 	}
 	record := &v1alpha1.DNSRecord{
 		ObjectMeta: v1.ObjectMeta{

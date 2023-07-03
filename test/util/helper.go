@@ -21,7 +21,7 @@ import (
 const (
 	Domain                 = "thecat.com"
 	ValidTestHostname      = "boop." + Domain
-	FailFetchDNSsubdinain  = "failfetch"
+	FailFetchDANSSubdomain = "failfetch"
 	FailCreateDNSSubdomain = "failcreate"
 	FailEnsureCertHost     = "failCreateCert" + "." + Domain
 	FailGetCertSecretHost  = "failGetCert" + "." + Domain

@@ -14,6 +14,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+
+	testutil "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 )
 
 func TestGetParams(t *testing.T) {
@@ -35,7 +37,7 @@ func TestGetParams(t *testing.T) {
 						Group:     "",
 						Kind:      "ConfigMap",
 						Name:      "test-params",
-						Namespace: addr(gatewayv1beta1.Namespace("test-ns")),
+						Namespace: testutil.Pointer(gatewayv1beta1.Namespace("test-ns")),
 					},
 				},
 			},
@@ -86,7 +88,7 @@ func TestGetParams(t *testing.T) {
 						Group:     "",
 						Kind:      "ConfigMap",
 						Name:      "test-params",
-						Namespace: addr(gatewayv1beta1.Namespace("test-ns")),
+						Namespace: testutil.Pointer(gatewayv1beta1.Namespace("test-ns")),
 					},
 				},
 			},
@@ -109,7 +111,7 @@ func TestGetParams(t *testing.T) {
 						Group:     "",
 						Kind:      "ConfigMap",
 						Name:      "test-params",
-						Namespace: addr(gatewayv1beta1.Namespace("test-ns")),
+						Namespace: testutil.Pointer(gatewayv1beta1.Namespace("test-ns")),
 					},
 				},
 			},
@@ -158,7 +160,7 @@ func TestGetParams(t *testing.T) {
 						Group:     "",
 						Kind:      "ConfigMap",
 						Name:      "test-params-no-exist",
-						Namespace: addr(gatewayv1beta1.Namespace("test-ns")),
+						Namespace: testutil.Pointer(gatewayv1beta1.Namespace("test-ns")),
 					},
 				},
 			},
@@ -182,7 +184,7 @@ func TestGetParams(t *testing.T) {
 						Group:     "foo",
 						Kind:      "Unsupported",
 						Name:      "test-params",
-						Namespace: addr(gatewayv1beta1.Namespace("test-ns")),
+						Namespace: testutil.Pointer(gatewayv1beta1.Namespace("test-ns")),
 					},
 				},
 			},
@@ -218,10 +220,6 @@ func TestGetParams(t *testing.T) {
 			}
 		})
 	}
-}
-
-func addr[T any](value T) *T {
-	return &value
 }
 
 // Assertion utils

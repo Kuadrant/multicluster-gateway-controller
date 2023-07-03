@@ -159,9 +159,9 @@ func TestGatewayReconciler_Reconcile(t *testing.T) {
 			},
 			verify: func(res ctrl.Result, err error, t *testing.T) {
 				if !reflect.DeepEqual(res, ctrl.Result{}) &&
-					!strings.Contains(err.Error(), "gatewayckasses") &&
+					!strings.Contains(err.Error(), "gatewayclasses") &&
 					!strings.Contains(err.Error(), "not found") {
-					t.Errorf("expected to fail finding gateway classm but got err: %s ", err)
+					t.Errorf("expected to fail finding gateway class but got err: %s ", err)
 				}
 			},
 		},
@@ -403,7 +403,7 @@ func TestGatewayReconciler_reconcileDownstreamFromUpstreamGateway(t *testing.T) 
 						Listeners: []v1beta1.Listener{
 							{
 								Name:     v1beta1.SectionName(testutil.ValidTestHostname),
-								Hostname: getTestHostname(testutil.FailFetchDNSsubdinain + "." + testutil.Domain),
+								Hostname: getTestHostname(testutil.FailFetchDANSSubdomain + "." + testutil.Domain),
 								Protocol: v1beta1.HTTPSProtocolType,
 							},
 						},
@@ -414,7 +414,7 @@ func TestGatewayReconciler_reconcileDownstreamFromUpstreamGateway(t *testing.T) 
 			wantClusters:  []string{},
 			wantRequeue:   false,
 			wantErr:       true,
-			expectedError: testutil.FailFetchDNSsubdinain,
+			expectedError: testutil.FailFetchDANSSubdomain,
 		},
 		{
 			name: "created DNSRecord CR, HTTP protocol",
