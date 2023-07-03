@@ -4,6 +4,7 @@ package dnspolicy
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 )
 
 func testBuildManagedZone(domainName, ns string) *v1alpha1.ManagedZone {
@@ -85,6 +87,11 @@ func testBuildDNSPolicyWithHealthCheck(policyName, gwName, ns string) *v1alpha1.
 				Endpoint: "/",
 				Protocol: &protocol,
 			},
+			LoadBalancing: &v1alpha1.LoadBalancingSpec{
+				Weighted: &v1alpha1.LoadBalancingWeighted{
+					DefaultWeight: 120,
+				},
+			},
 		},
 	}
 }
@@ -123,10 +130,12 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 	Context("gateway placed", func() {
 		var gateway *gatewayv1beta1.Gateway
 		var dnsPolicy *v1alpha1.DNSPolicy
+		var lbHash string
 
 		BeforeEach(func() {
 			gateway = testBuildGateway(TestPlacedGatewayName, gatewayClass.Name, TestAttachedRouteName, testNamespace)
 			dnsPolicy = testBuildDNSPolicyWithHealthCheck("test-dns-policy", TestPlacedGatewayName, testNamespace)
+			lbHash = dns.ToBase36hash(fmt.Sprintf("%s-%s", gateway.Name, gateway.Namespace))
 
 			Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
 			Expect(k8sClient.Create(ctx, dnsPolicy)).To(BeNil())
@@ -148,22 +157,153 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 
 		It("should create dns record", func() {
 			createdDNSRecord := &v1alpha1.DNSRecord{}
+			expectedEndpoints := []*v1alpha1.Endpoint{
+				{
+					DNSName: "test.example.com",
+					Targets: []string{
+						"lb-" + lbHash + ".test.example.com",
+					},
+					RecordType:    "CNAME",
+					SetIdentifier: "",
+					RecordTTL:     300,
+				},
+				{
+					DNSName: "lb-" + lbHash + ".test.example.com",
+					Targets: []string{
+						"default.lb-" + lbHash + ".test.example.com",
+					},
+					RecordType:    "CNAME",
+					SetIdentifier: "default",
+					RecordTTL:     300,
+					ProviderSpecific: v1alpha1.ProviderSpecific{
+						{
+							Name:  "geo-country-code",
+							Value: "*",
+						},
+					},
+				},
+				{
+					DNSName: "16z1l1.lb-" + lbHash + ".test.example.com",
+					Targets: []string{
+						"172.0.0.3",
+					},
+					RecordType:    "A",
+					SetIdentifier: "",
+					RecordTTL:     60,
+				},
+				{
+					DNSName: "default.lb-" + lbHash + ".test.example.com",
+					Targets: []string{
+						"16z1l1.lb-" + lbHash + ".test.example.com",
+					},
+					RecordType:    "CNAME",
+					SetIdentifier: "16z1l1.lb-" + lbHash + ".test.example.com",
+					RecordTTL:     60,
+					ProviderSpecific: v1alpha1.ProviderSpecific{
+						{
+							Name:  "weight",
+							Value: "120",
+						},
+					},
+				},
+			}
 			Eventually(func() bool { // DNS record exists
 				if err := k8sClient.Get(ctx, client.ObjectKey{Name: TestAttachedRouteName, Namespace: dnsPolicy.Namespace}, createdDNSRecord); err != nil {
 					return false
 				}
+				return len(createdDNSRecord.Spec.Endpoints) == 4
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			Expect(createdDNSRecord.Spec.ManagedZoneRef.Name).To(Equal("example.com"))
+			Expect(createdDNSRecord.Spec.Endpoints).To(HaveLen(4))
+			Expect(createdDNSRecord.Spec.Endpoints).Should(ContainElements(expectedEndpoints))
+		})
 
-				if len(createdDNSRecord.Spec.Endpoints) != 1 && createdDNSRecord.Spec.Endpoints[0].DNSName != TestAttachedRouteAddress {
+		It("should create geo dns record", func() {
+			dnsPolicy.Spec.LoadBalancing.Geo = &v1alpha1.LoadBalancingGeo{
+				DefaultGeo: "IE",
+			}
+			Eventually(func() bool {
+				if err := k8sClient.Update(ctx, dnsPolicy); err != nil {
 					return false
 				}
-
-				prop, ok := createdDNSRecord.Spec.Endpoints[0].GetProviderSpecificProperty("weight")
-				if !ok || prop.Value != "120" {
-					return false
-				}
-
 				return true
 			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+
+			createdDNSRecord := &v1alpha1.DNSRecord{}
+			expectedEndpoints := []*v1alpha1.Endpoint{
+				{
+					DNSName: "test.example.com",
+					Targets: []string{
+						"lb-" + lbHash + ".test.example.com",
+					},
+					RecordType:    "CNAME",
+					SetIdentifier: "",
+					RecordTTL:     300,
+				},
+				{
+					DNSName: "lb-" + lbHash + ".test.example.com",
+					Targets: []string{
+						"ie.lb-" + lbHash + ".test.example.com",
+					},
+					RecordType:    "CNAME",
+					SetIdentifier: "IE",
+					RecordTTL:     300,
+					ProviderSpecific: v1alpha1.ProviderSpecific{
+						{
+							Name:  "geo-country-code",
+							Value: "IE",
+						},
+					},
+				},
+				{
+					DNSName: "lb-" + lbHash + ".test.example.com",
+					Targets: []string{
+						"ie.lb-" + lbHash + ".test.example.com",
+					},
+					RecordType:    "CNAME",
+					SetIdentifier: "default",
+					RecordTTL:     300,
+					ProviderSpecific: v1alpha1.ProviderSpecific{
+						{
+							Name:  "geo-country-code",
+							Value: "*",
+						},
+					},
+				},
+				{
+					DNSName: "16z1l1.lb-" + lbHash + ".test.example.com",
+					Targets: []string{
+						"172.0.0.3",
+					},
+					RecordType:    "A",
+					SetIdentifier: "",
+					RecordTTL:     60,
+				},
+				{
+					DNSName: "ie.lb-" + lbHash + ".test.example.com",
+					Targets: []string{
+						"16z1l1.lb-" + lbHash + ".test.example.com",
+					},
+					RecordType:    "CNAME",
+					SetIdentifier: "16z1l1.lb-" + lbHash + ".test.example.com",
+					RecordTTL:     60,
+					ProviderSpecific: v1alpha1.ProviderSpecific{
+						{
+							Name:  "weight",
+							Value: "120",
+						},
+					},
+				},
+			}
+			Eventually(func() bool { // DNS record exists
+				if err := k8sClient.Get(ctx, client.ObjectKey{Name: TestAttachedRouteName, Namespace: dnsPolicy.Namespace}, createdDNSRecord); err != nil {
+					return false
+				}
+				return len(createdDNSRecord.Spec.Endpoints) == 5
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			Expect(createdDNSRecord.Spec.ManagedZoneRef.Name).To(Equal("example.com"))
+			Expect(createdDNSRecord.Spec.Endpoints).To(HaveLen(5))
+			Expect(createdDNSRecord.Spec.Endpoints).Should(ContainElements(expectedEndpoints))
 		})
 
 		It("should have ready status", func() {

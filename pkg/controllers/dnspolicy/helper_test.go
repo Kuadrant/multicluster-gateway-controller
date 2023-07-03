@@ -17,6 +17,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 )
 
 const (
@@ -84,6 +86,16 @@ func (f FakeOCMPlacer) GetAddresses(ctx context.Context, gateway *gatewayv1beta1
 		})
 	}
 	return gwAddresses, nil
+}
+
+func (f FakeOCMPlacer) GetClusterGateway(ctx context.Context, gateway *gatewayv1beta1.Gateway, clusterName string) (dns.ClusterGateway, error) {
+	gwAddresses, _ := f.GetAddresses(ctx, gateway, clusterName)
+	cgw := dns.ClusterGateway{
+		ClusterName:       clusterName,
+		GatewayAddresses:  gwAddresses,
+		ClusterAttributes: dns.ClusterAttributes{},
+	}
+	return cgw, nil
 }
 
 func CreateNamespace(namespace *string) {

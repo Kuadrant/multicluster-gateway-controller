@@ -5,9 +5,10 @@ package dns_test
 import (
 	"context"
 	"reflect"
+	"sort"
 	"testing"
-	"time"
 
+	"k8s.io/apimachinery/pkg/api/equality"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -19,25 +20,12 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/traffic"
+	testutil "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 )
-
-type fakeHostResolver struct{}
-
-func (fr *fakeHostResolver) LookupIPAddr(_ context.Context, _ string) ([]dns.HostAddress, error) {
-	return []dns.HostAddress{
-		{
-			Host: "example.com",
-			IP:   []byte{0, 0, 0, 0},
-			TTL:  time.Second * 60,
-			TXT:  "example.com",
-		},
-	}, nil
-}
 
 func TestDNS_GetDNSRecords(t *testing.T) {
 	cases := []struct {
 		Name      string
-		Resolver  func() dns.HostResolver
 		MZ        func() *v1alpha1.ManagedZone
 		SubDomain string
 		Assert    func(t *testing.T, dnsRecord *v1alpha1.DNSRecord, err error)
@@ -46,9 +34,6 @@ func TestDNS_GetDNSRecords(t *testing.T) {
 	}{
 		{
 			Name: "test get dns record returns record",
-			Resolver: func() dns.HostResolver {
-				return &fakeHostResolver{}
-			},
 			MZ: func() *v1alpha1.ManagedZone {
 				return &v1alpha1.ManagedZone{
 					ObjectMeta: v1.ObjectMeta{
@@ -84,9 +69,6 @@ func TestDNS_GetDNSRecords(t *testing.T) {
 		},
 		{
 			Name: "test get dns error when not found",
-			Resolver: func() dns.HostResolver {
-				return &fakeHostResolver{}
-			},
 			MZ: func() *v1alpha1.ManagedZone {
 				return &v1alpha1.ManagedZone{
 					ObjectMeta: v1.ObjectMeta{
@@ -116,10 +98,7 @@ func TestDNS_GetDNSRecords(t *testing.T) {
 			},
 		},
 		{
-			Name: "test get dns error when referencing different gateway",
-			Resolver: func() dns.HostResolver {
-				return &fakeHostResolver{}
-			},
+			Name: "test get dns error when referencing different Gateway",
 			MZ: func() *v1alpha1.ManagedZone {
 				return &v1alpha1.ManagedZone{
 					ObjectMeta: v1.ObjectMeta{
@@ -156,10 +135,7 @@ func TestDNS_GetDNSRecords(t *testing.T) {
 			},
 		},
 		{
-			Name: "test get dns error when not owned by gateway",
-			Resolver: func() dns.HostResolver {
-				return &fakeHostResolver{}
-			},
+			Name: "test get dns error when not owned by Gateway",
 			MZ: func() *v1alpha1.ManagedZone {
 				return &v1alpha1.ManagedZone{
 					ObjectMeta: v1.ObjectMeta{
@@ -201,7 +177,7 @@ func TestDNS_GetDNSRecords(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			gw := traffic.NewGateway(tc.Gateway)
 			f := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(tc.DNSRecord).Build()
-			s := dns.NewService(f, tc.Resolver())
+			s := dns.NewService(f)
 			record, err := s.GetDNSRecord(context.TODO(), tc.SubDomain, tc.MZ(), gw)
 			tc.Assert(t, record, err)
 		})
@@ -456,8 +432,7 @@ func TestService_CleanupDNSRecords(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			gw := traffic.NewGateway(tt.gateway)
 			f := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(tt.record).Build()
-			s := dns.NewService(f, &fakeHostResolver{})
-
+			s := dns.NewService(f)
 			if err := s.CleanupDNSRecords(context.TODO(), gw); (err != nil) != tt.wantErr {
 				t.Errorf("CleanupDNSRecords() error = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -517,7 +492,7 @@ func TestService_GetManagedZoneForHost(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			gw := traffic.NewGateway(tt.gateway)
 			f := fake.NewClientBuilder().WithScheme(tt.scheme).WithLists(tt.mz).Build()
-			s := dns.NewService(f, &fakeHostResolver{})
+			s := dns.NewService(f)
 
 			gotMZ, gotSubdomain, err := s.GetManagedZoneForHost(context.TODO(), tt.host, gw)
 			if (err != nil) != tt.wantErr {
@@ -538,94 +513,248 @@ func TestService_SetEndpoints(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		addresses []gatewayv1beta1.GatewayAddress
+		mcgTarget *dns.MultiClusterGatewayTarget
 		dnsRecord *v1alpha1.DNSRecord
 		wantSpec  *v1alpha1.DNSRecordSpec
 		wantErr   bool
 	}{
 		{
-			name: "endpoints are set",
-			addresses: []gatewayv1beta1.GatewayAddress{
-				{
-					Type:  addr(gatewayv1beta1.IPAddressType),
-					Value: "1.1.1.1",
+			name: "sets weighted endpoints",
+			mcgTarget: &dns.MultiClusterGatewayTarget{
+				Gateway: &gatewayv1beta1.Gateway{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "testgw",
+						Namespace: "testns",
+					},
 				},
-				{
-					Type:  addr(gatewayv1beta1.HostnameAddressType),
-					Value: "example.com",
+				ClusterGatewayTargets: []dns.ClusterGatewayTarget{
+					{
+
+						ClusterGateway: &dns.ClusterGateway{
+							ClusterName: "test-cluster-1",
+							GatewayAddresses: []gatewayv1beta1.GatewayAddress{
+								{
+									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+									Value: "1.1.1.1",
+								},
+								{
+									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+									Value: "2.2.2.2",
+								},
+							},
+						},
+						Geo:    testutil.Pointer(dns.GeoCode("default")),
+						Weight: testutil.Pointer(120),
+					},
+					{
+
+						ClusterGateway: &dns.ClusterGateway{
+							ClusterName: "test-cluster-2",
+							GatewayAddresses: []gatewayv1beta1.GatewayAddress{
+								{
+									Type:  testutil.Pointer(gatewayv1beta1.HostnameAddressType),
+									Value: "mylb.example.com",
+								},
+							},
+						},
+						Geo:    testutil.Pointer(dns.GeoCode("default")),
+						Weight: testutil.Pointer(120),
+					},
 				},
 			},
 			dnsRecord: &v1alpha1.DNSRecord{
 				ObjectMeta: v1.ObjectMeta{
-					Name: "example.com",
+					Name: "test.example.com",
 				},
 			},
 			wantSpec: &v1alpha1.DNSRecordSpec{
 				Endpoints: []*v1alpha1.Endpoint{
 					{
-						DNSName:       "example.com",
-						Targets:       []string{"1.1.1.1"},
-						RecordType:    "A",
-						SetIdentifier: "1.1.1.1",
-						RecordTTL:     60,
-						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
-							{
-								Name:  "weight",
-								Value: "60",
-							},
-						},
+						DNSName:    "20qri0.lb-0ecjaw.test.example.com",
+						Targets:    []string{"1.1.1.1", "2.2.2.2"},
+						RecordType: "A",
+						RecordTTL:  dns.DefaultTTL,
 					},
 					{
-						DNSName:       "example.com",
-						Targets:       []string{"0.0.0.0"},
-						RecordType:    "A",
-						SetIdentifier: "0.0.0.0",
-						RecordTTL:     60,
-						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
-							{
-								Name:  "weight",
-								Value: "60",
-							},
-						},
-					},
-				},
-			},
-		},
-		{
-			name: "no new endpoints",
-			addresses: []gatewayv1beta1.GatewayAddress{
-				{
-					Type:  addr(gatewayv1beta1.IPAddressType),
-					Value: "1.1.1.1",
-				},
-			},
-			dnsRecord: &v1alpha1.DNSRecord{
-				ObjectMeta: v1.ObjectMeta{
-					Name: "example.com",
-				},
-				Spec: v1alpha1.DNSRecordSpec{
-					Endpoints: []*v1alpha1.Endpoint{
-						{
-							DNSName:       "example.com",
-							SetIdentifier: "1.1.1.1",
-							Targets:       []string{"1.1.1.1"},
-						},
-					},
-				},
-			},
-			wantSpec: &v1alpha1.DNSRecordSpec{
-				Endpoints: []*v1alpha1.Endpoint{
-					{
-						DNSName:       "example.com",
-						Targets:       []string{"1.1.1.1"},
-						SetIdentifier: "1.1.1.1",
-						RecordTTL:     0,
+						DNSName:       "default.lb-0ecjaw.test.example.com",
+						Targets:       []string{"20qri0.lb-0ecjaw.test.example.com"},
+						RecordType:    "CNAME",
+						SetIdentifier: "20qri0.lb-0ecjaw.test.example.com",
+						RecordTTL:     dns.DefaultTTL,
 						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
 							{
 								Name:  "weight",
 								Value: "120",
 							},
 						},
+					},
+					{
+						DNSName:       "default.lb-0ecjaw.test.example.com",
+						Targets:       []string{"mylb.example.com"},
+						RecordType:    "CNAME",
+						SetIdentifier: "mylb.example.com",
+						RecordTTL:     dns.DefaultTTL,
+						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
+							{
+								Name:  "weight",
+								Value: "120",
+							},
+						},
+					},
+					{
+						DNSName:       "lb-0ecjaw.test.example.com",
+						Targets:       []string{"default.lb-0ecjaw.test.example.com"},
+						RecordType:    "CNAME",
+						SetIdentifier: "default",
+						RecordTTL:     dns.DefaultCnameTTL,
+						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
+							{
+								Name:  "geo-country-code",
+								Value: "*",
+							},
+						},
+					},
+					{
+						DNSName:    "test.example.com",
+						Targets:    []string{"lb-0ecjaw.test.example.com"},
+						RecordType: "CNAME",
+						RecordTTL:  dns.DefaultCnameTTL,
+					},
+				},
+			},
+		},
+		{
+			name: "sets geo weighted endpoints",
+			mcgTarget: &dns.MultiClusterGatewayTarget{
+				Gateway: &gatewayv1beta1.Gateway{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "testgw",
+						Namespace: "testns",
+					},
+				},
+				ClusterGatewayTargets: []dns.ClusterGatewayTarget{
+					{
+
+						ClusterGateway: &dns.ClusterGateway{
+							ClusterName: "test-cluster-1",
+							GatewayAddresses: []gatewayv1beta1.GatewayAddress{
+								{
+									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+									Value: "1.1.1.1",
+								},
+								{
+									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+									Value: "2.2.2.2",
+								},
+							},
+						},
+						Geo:    testutil.Pointer(dns.GeoCode("C-NA")),
+						Weight: testutil.Pointer(120),
+					},
+					{
+
+						ClusterGateway: &dns.ClusterGateway{
+							ClusterName: "test-cluster-2",
+							GatewayAddresses: []gatewayv1beta1.GatewayAddress{
+								{
+									Type:  testutil.Pointer(gatewayv1beta1.HostnameAddressType),
+									Value: "mylb.example.com",
+								},
+							},
+						},
+						Geo:    testutil.Pointer(dns.GeoCode("IE")),
+						Weight: testutil.Pointer(120),
+					},
+				},
+				LoadBalancing: &v1alpha1.LoadBalancingSpec{
+					Geo: &v1alpha1.LoadBalancingGeo{
+						DefaultGeo: "C-NA",
+					},
+				},
+			},
+			dnsRecord: &v1alpha1.DNSRecord{
+				ObjectMeta: v1.ObjectMeta{
+					Name: "test.example.com",
+				},
+			},
+			wantSpec: &v1alpha1.DNSRecordSpec{
+				Endpoints: []*v1alpha1.Endpoint{
+					{
+						DNSName:    "20qri0.lb-0ecjaw.test.example.com",
+						Targets:    []string{"1.1.1.1", "2.2.2.2"},
+						RecordType: "A",
+						RecordTTL:  dns.DefaultTTL,
+					},
+					{
+						DNSName:       "c-na.lb-0ecjaw.test.example.com",
+						Targets:       []string{"20qri0.lb-0ecjaw.test.example.com"},
+						RecordType:    "CNAME",
+						SetIdentifier: "20qri0.lb-0ecjaw.test.example.com",
+						RecordTTL:     dns.DefaultTTL,
+						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
+							{
+								Name:  "weight",
+								Value: "120",
+							},
+						},
+					},
+					{
+						DNSName:       "ie.lb-0ecjaw.test.example.com",
+						Targets:       []string{"mylb.example.com"},
+						RecordType:    "CNAME",
+						SetIdentifier: "mylb.example.com",
+						RecordTTL:     dns.DefaultTTL,
+						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
+							{
+								Name:  "weight",
+								Value: "120",
+							},
+						},
+					},
+					{
+						DNSName:       "lb-0ecjaw.test.example.com",
+						Targets:       []string{"c-na.lb-0ecjaw.test.example.com"},
+						RecordType:    "CNAME",
+						SetIdentifier: "default",
+						RecordTTL:     dns.DefaultCnameTTL,
+						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
+							{
+								Name:  "geo-country-code",
+								Value: "*",
+							},
+						},
+					},
+					{
+						DNSName:       "lb-0ecjaw.test.example.com",
+						Targets:       []string{"c-na.lb-0ecjaw.test.example.com"},
+						RecordType:    "CNAME",
+						SetIdentifier: "C-NA",
+						RecordTTL:     dns.DefaultCnameTTL,
+						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
+							{
+								Name:  "geo-continent-code",
+								Value: "C-NA",
+							},
+						},
+					},
+					{
+						DNSName:       "lb-0ecjaw.test.example.com",
+						Targets:       []string{"ie.lb-0ecjaw.test.example.com"},
+						RecordType:    "CNAME",
+						SetIdentifier: "IE",
+						RecordTTL:     dns.DefaultCnameTTL,
+						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
+							{
+								Name:  "geo-country-code",
+								Value: "IE",
+							},
+						},
+					},
+					{
+						DNSName:    "test.example.com",
+						Targets:    []string{"lb-0ecjaw.test.example.com"},
+						RecordType: "CNAME",
+						RecordTTL:  dns.DefaultCnameTTL,
 					},
 				},
 			},
@@ -634,9 +763,9 @@ func TestService_SetEndpoints(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(tt.dnsRecord).Build()
-			s := dns.NewService(f, &fakeHostResolver{})
+			s := dns.NewService(f)
 
-			if err := s.SetEndpoints(context.TODO(), tt.addresses, tt.dnsRecord, &v1alpha1.DNSPolicy{}); (err != nil) != tt.wantErr {
+			if err := s.SetEndpoints(context.TODO(), tt.mcgTarget, tt.dnsRecord); (err != nil) != tt.wantErr {
 				t.Errorf("SetEndpoints() error = %v, wantErr %v", err, tt.wantErr)
 			}
 
@@ -644,7 +773,20 @@ func TestService_SetEndpoints(t *testing.T) {
 			if err := f.Get(context.TODO(), client.ObjectKeyFromObject(tt.dnsRecord), gotRecord); err != nil {
 				t.Errorf("error gettinging updated DNSrecord")
 			} else {
-				if !reflect.DeepEqual(gotRecord.Spec, *tt.wantSpec) {
+
+				sort.Slice(gotRecord.Spec.Endpoints, func(i, j int) bool {
+					id1 := gotRecord.Spec.Endpoints[i].DNSName + gotRecord.Spec.Endpoints[i].SetIdentifier
+					id2 := gotRecord.Spec.Endpoints[j].DNSName + gotRecord.Spec.Endpoints[j].SetIdentifier
+					return id1 < id2
+				})
+
+				sort.Slice(tt.wantSpec.Endpoints, func(i, j int) bool {
+					id1 := tt.wantSpec.Endpoints[i].DNSName + tt.wantSpec.Endpoints[i].SetIdentifier
+					id2 := tt.wantSpec.Endpoints[j].DNSName + tt.wantSpec.Endpoints[j].SetIdentifier
+					return id1 < id2
+				})
+
+				if !equality.Semantic.DeepEqual(gotRecord.Spec.Endpoints, tt.wantSpec.Endpoints) {
 					t.Errorf("SetEndpoints() updated DNSRecord spec: \n%v, want spec: \n%v", gotRecord.Spec, *tt.wantSpec)
 				}
 			}
@@ -704,8 +846,8 @@ func TestService_CreateDNSRecord(t *testing.T) {
 							APIVersion:         "kuadrant.io/v1alpha1",
 							Kind:               "ManagedZone",
 							Name:               "mz",
-							Controller:         addr(true),
-							BlockOwnerDeletion: addr(true),
+							Controller:         testutil.Pointer(true),
+							BlockOwnerDeletion: testutil.Pointer(true),
 						},
 					},
 					ResourceVersion: "1",
@@ -762,14 +904,14 @@ func TestService_CreateDNSRecord(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := fake.NewClientBuilder().WithScheme(testScheme(t)).WithLists(tt.recordList).Build()
-			s := dns.NewService(f, &fakeHostResolver{})
+			s := dns.NewService(f)
 
 			gotRecord, err := s.CreateDNSRecord(context.TODO(), tt.args.subDomain, tt.args.managedZone, tt.args.owner)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("CreateDNSRecord() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(gotRecord, tt.wantRecord) {
+			if !equality.Semantic.DeepEqual(gotRecord, tt.wantRecord) {
 				t.Errorf("CreateDNSRecord() gotRecord = \n%v, want \n%v", gotRecord, tt.wantRecord)
 			}
 		})
@@ -794,7 +936,7 @@ func TestService_GetManagedHosts(t *testing.T) {
 				Spec: gatewayv1beta1.GatewaySpec{
 					Listeners: []gatewayv1beta1.Listener{
 						{
-							Hostname: addr(gatewayv1beta1.Hostname("sub.domain.com")),
+							Hostname: testutil.Pointer(gatewayv1beta1.Hostname("sub.domain.com")),
 						},
 					},
 				},
@@ -866,7 +1008,7 @@ func TestService_GetManagedHosts(t *testing.T) {
 				Spec: gatewayv1beta1.GatewaySpec{
 					Listeners: []gatewayv1beta1.Listener{
 						{
-							Hostname: addr(gatewayv1beta1.Hostname("sub.domain.com")),
+							Hostname: testutil.Pointer(gatewayv1beta1.Hostname("sub.domain.com")),
 						},
 					},
 				},
@@ -878,7 +1020,7 @@ func TestService_GetManagedHosts(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := fake.NewClientBuilder().WithScheme(testScheme(t)).WithLists(tt.initLists...).Build()
-			s := dns.NewService(f, &fakeHostResolver{})
+			s := dns.NewService(f)
 
 			got, err := s.GetManagedHosts(context.TODO(), traffic.NewGateway(tt.gateway))
 			if (err != nil) != tt.wantErr {
@@ -901,12 +1043,4 @@ func testScheme(t *testing.T) *runtime.Scheme {
 		t.Fatalf("falied to add work scheme %s ", err)
 	}
 	return scheme
-}
-
-func validateDNSRecord() {
-
-}
-
-func addr[T any](value T) *T {
-	return &value
 }

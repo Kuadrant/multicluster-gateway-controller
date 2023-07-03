@@ -33,6 +33,36 @@ type DNSPolicySpec struct {
 
 	// +optional
 	HealthCheck *HealthCheckSpec `json:"healthCheck,omitempty"`
+
+	// +kubebuilder:validation:Required
+	// +required
+	LoadBalancing *LoadBalancingSpec `json:"loadBalancing"`
+}
+
+type LoadBalancingSpec struct {
+	// +required
+	Weighted *LoadBalancingWeighted `json:"weighted,omitempty"`
+	// +optional
+	Geo *LoadBalancingGeo `json:"geo,omitempty"`
+}
+
+type LoadBalancingWeighted struct {
+	// defaultWeight is the record weight to use when no other can be determined for a dns target cluster.
+	//
+	// +kubebuilder:default=120
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=255
+	DefaultWeight int `json:"defaultWeight,omitempty"`
+}
+
+type LoadBalancingGeo struct {
+	// defaultGeo is the country or continent code to use when no other can be determined for a dns target cluster.
+	//
+	// 2 digit iso3166 alpha-2 country code (https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2) or continent code.
+	// C-AF: Africa; C-AN: Antarctica; C-AS: Asia; C-EU: Europe; C-OC: Oceania; C-NA: North America; C-SA: South America
+	//
+	// +kubebuilder:validation:Pattern="^([A-Z]{2}|C-AF|C-AN|C-AS|C-EU|C-OS|C-NA|C-SA)$"
+	DefaultGeo string `json:"defaultGeo,omitempty"`
 }
 
 // DNSPolicyStatus defines the observed state of DNSPolicy
@@ -136,6 +166,8 @@ func init() {
 	SchemeBuilder.Register(&DNSPolicy{}, &DNSPolicyList{})
 }
 
+const DefaultWeight = 120
+
 func NewDefaultDNSPolicy(gateway *gatewayv1beta1.Gateway) DNSPolicy {
 	gatewayTypedNamespace := gatewayv1beta1.Namespace(gateway.Namespace)
 	return DNSPolicy{
@@ -149,6 +181,11 @@ func NewDefaultDNSPolicy(gateway *gatewayv1beta1.Gateway) DNSPolicy {
 				Kind:      "Gateway",
 				Name:      gatewayv1beta1.ObjectName(gateway.Name),
 				Namespace: &gatewayTypedNamespace,
+			},
+			LoadBalancing: &LoadBalancingSpec{
+				Weighted: &LoadBalancingWeighted{
+					DefaultWeight: DefaultWeight,
+				},
 			},
 		},
 	}

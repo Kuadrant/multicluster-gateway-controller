@@ -23,9 +23,10 @@ import (
 )
 
 const (
-	LabelRecordID          = "kuadrant.io/record-id"
-	LabelGatewayReference  = "kuadrant.io/gateway-uid"
-	ProviderSpecificWeight = "weight"
+	DefaultTTL            = 60
+	DefaultCnameTTL       = 300
+	LabelRecordID         = "kuadrant.io/record-id"
+	LabelGatewayReference = "kuadrant.io/Gateway-uid"
 )
 
 var (
@@ -35,30 +36,10 @@ var (
 
 type Service struct {
 	controlClient client.Client
-
-	hostResolver HostResolver
 }
 
-func NewService(controlClient client.Client, hostResolv HostResolver) *Service {
-	return &Service{controlClient: controlClient, hostResolver: hostResolv}
-}
-
-func (s *Service) resolveIPS(ctx context.Context, addresses []gatewayv1beta1.GatewayAddress) ([]string, error) {
-	activeDNSTargetIPs := []string{}
-	for _, target := range addresses {
-		if *target.Type == gatewayv1beta1.IPAddressType {
-			activeDNSTargetIPs = append(activeDNSTargetIPs, target.Value)
-			continue
-		}
-		addr, err := s.hostResolver.LookupIPAddr(ctx, target.Value)
-		if err != nil {
-			return activeDNSTargetIPs, fmt.Errorf("DNSLookup failed for host %s : %s", target.Value, err)
-		}
-		for _, add := range addr {
-			activeDNSTargetIPs = append(activeDNSTargetIPs, add.IP.String())
-		}
-	}
-	return activeDNSTargetIPs, nil
+func NewService(controlClient client.Client) *Service {
+	return &Service{controlClient: controlClient}
 }
 
 func (s *Service) GetManagedHosts(ctx context.Context, traffic traffic.Interface) ([]v1alpha1.ManagedHost, error) {
@@ -148,61 +129,139 @@ func (s *Service) GetDNSRecord(ctx context.Context, subDomain string, managedZon
 	return dnsRecord, nil
 }
 
-// SetEndpoints sets the endpoints for the given DNSRecord for each of the gateway addresses.
-func (s *Service) SetEndpoints(ctx context.Context, addresses []gatewayv1beta1.GatewayAddress, dnsRecord *v1alpha1.DNSRecord, dnsPolicy *v1alpha1.DNSPolicy) error {
-	//dnsPolicy is not currently used, but will be once we add other routing strategies
-	ips, err := s.resolveIPS(ctx, addresses)
-	if err != nil {
-		return err
-	}
+// SetEndpoints sets the endpoints for the given MultiClusterGatewayTarget
+//
+// Builds an array of v1alpha1.Endpoint resources and sets them on the given DNSRecord. The endpoints expected are calculated
+// from the MultiClusterGatewayTarget using the target Gateway (MultiClusterGatewayTarget.Gateway), the LoadBalancing Spec
+// from the DNSPolicy attached to the target gateway (MultiClusterGatewayTarget.LoadBalancing) and the list of clusters the
+// target gateway is currently placed on (MultiClusterGatewayTarget.ClusterGatewayTargets).
+//
+// MultiClusterGatewayTarget.ClusterGatewayTarget are grouped by Geo, in the case of Geo not being defined in the
+// LoadBalancing Spec (Weighted only) an internal only Geo Code of "default" is used and all clusters added to it.
+//
+// A CNAME record is created for the target host (DNSRecord.name), pointing to a generated gateway lb host.
+// A CNAME record for the gateway lb host is created for every Geo, with appropriate Geo information, pointing to a geo
+// specific host.
+// A CNAME record for the geo specific host is created for every Geo, with weight information for that target added,
+// pointing to a target cluster hostname.
+// An A record for the target cluster hostname is created for any IP targets retrieved for that cluster.
+//
+// Example(Weighted only)
+//
+// www.example.com CNAME lb-1ab1.www.example.com
+// lb-1ab1.www.example.com CNAME geolocation * default.lb-1ab1.www.example.com
+// default.lb-1ab1.www.example.com CNAME weighted 100 1bc1.lb-1ab1.www.example.com
+// default.lb-1ab1.www.example.com CNAME weighted 100 aws.lb.com
+// 1bc1.lb-1ab1.www.example.com A 192.22.2.1
+//
+// Example(Geo, default IE)
+//
+// shop.example.com CNAME lb-a1b2.shop.example.com
+// lb-a1b2.shop.example.com CNAME geolocation ireland ie.lb-a1b2.shop.example.com
+// lb-a1b2.shop.example.com geolocation australia aus.lb-a1b2.shop.example.com
+// lb-a1b2.shop.example.com geolocation default ie.lb-a1b2.shop.example.com (set by the default geo option)
+// ie.lb-a1b2.shop.example.com CNAME weighted 100 ab1.lb-a1b2.shop.example.com
+// ie.lb-a1b2.shop.example.com CNAME weighted 100 aws.lb.com
+// aus.lb-a1b2.shop.example.com CNAME weighted 100 ab2.lb-a1b2.shop.example.com
+// aus.lb-a1b2.shop.example.com CNAME weighted 100 ab3.lb-a1b2.shop.example.com
+// ab1.lb-a1b2.shop.example.com A 192.22.2.1 192.22.2.5
+// ab2.lb-a1b2.shop.example.com A 192.22.2.3
+// ab3.lb-a1b2.shop.example.com A 192.22.2.4
+
+func (s *Service) SetEndpoints(ctx context.Context, mcgTarget *MultiClusterGatewayTarget, dnsRecord *v1alpha1.DNSRecord) error {
+
 	old := dnsRecord.DeepCopy()
-	host := dnsRecord.Name
+	gwListenerHost := dnsRecord.Name
 
-	// check if endpoint already exists in the DNSRecord - we cannot delete and rebuild as health points are injected into
-	// these endpoints elsewhere - TODO refactor this to be all in one place.
-	endpoints := []string{}
-	for _, addr := range ips {
-		endpointFound := false
-		for _, endpoint := range dnsRecord.Spec.Endpoints {
-			if endpoint.DNSName == host && endpoint.SetIdentifier == addr {
-				log.Log.V(3).Info("address already exists in record for host", "address ", addr, "host", host)
-				endpointFound = true
-				// if this is an existing DNS Record, we need to ensure the TTL is updated if i
-				continue
+	//Health Checks currently modify endpoints so we have to keep existing ones in order to not lose health check ids
+	currentEndpoints := make(map[string]*v1alpha1.Endpoint, len(dnsRecord.Spec.Endpoints))
+	for _, endpoint := range dnsRecord.Spec.Endpoints {
+		currentEndpoints[endpoint.SetID()] = endpoint
+	}
+
+	var (
+		newEndpoints []*v1alpha1.Endpoint
+		endpoint     *v1alpha1.Endpoint
+	)
+
+	lbName := strings.ToLower(fmt.Sprintf("lb-%s.%s", mcgTarget.GetShortCode(), gwListenerHost))
+	//Create gwListenerHost CNAME (shop.example.com -> lb-a1b2.shop.example.com)
+	endpoint = createOrUpdateEndpoint(gwListenerHost, []string{lbName}, v1alpha1.CNAMERecordType, "", DefaultCnameTTL, currentEndpoints)
+	newEndpoints = append(newEndpoints, endpoint)
+
+	for geoCode, cgwTargets := range mcgTarget.GroupTargetsByGeo() {
+		geoLbName := strings.ToLower(fmt.Sprintf("%s.%s", geoCode, lbName))
+		//Create lbName CNAME (lb-a1b2.shop.example.com -> default.lb-a1b2.shop.example.com)
+		endpoint = createOrUpdateEndpoint(lbName, []string{geoLbName}, v1alpha1.CNAMERecordType, string(geoCode), DefaultCnameTTL, currentEndpoints)
+		newEndpoints = append(newEndpoints, endpoint)
+
+		switch {
+		case geoCode.IsDefaultCode():
+			endpoint.SetProviderSpecific(ProviderSpecificGeoCountryCode, "*")
+		case geoCode.IsContinentCode():
+			endpoint.SetProviderSpecific(ProviderSpecificGeoContinentCode, string(geoCode))
+		case geoCode.IsCountryCode():
+			endpoint.SetProviderSpecific(ProviderSpecificGeoCountryCode, string(geoCode))
+		}
+
+		//Create the default geo if this geo matches the default policy geo and we haven't just created it
+		if !geoCode.IsDefaultCode() && geoCode == mcgTarget.getDefaultGeo() {
+			endpoint = createOrUpdateEndpoint(lbName, []string{geoLbName}, v1alpha1.CNAMERecordType, "default", DefaultCnameTTL, currentEndpoints)
+			newEndpoints = append(newEndpoints, endpoint)
+			endpoint.SetProviderSpecific(ProviderSpecificGeoCountryCode, "*")
+		}
+
+		for _, cgwTarget := range cgwTargets {
+			var ipValues []string
+			var hostValues []string
+			for _, gwa := range cgwTarget.GatewayAddresses {
+				if *gwa.Type == gatewayv1beta1.IPAddressType {
+					ipValues = append(ipValues, gwa.Value)
+				} else {
+					hostValues = append(hostValues, gwa.Value)
+				}
 			}
+
+			if len(ipValues) > 0 {
+				clusterLbName := strings.ToLower(fmt.Sprintf("%s.%s", cgwTarget.GetShortCode(), lbName))
+				endpoint = createOrUpdateEndpoint(clusterLbName, ipValues, v1alpha1.ARecordType, "", DefaultTTL, currentEndpoints)
+				newEndpoints = append(newEndpoints, endpoint)
+				hostValues = append(hostValues, clusterLbName)
+			}
+
+			for _, hostValue := range hostValues {
+				endpoint = createOrUpdateEndpoint(geoLbName, []string{hostValue}, v1alpha1.CNAMERecordType, hostValue, DefaultTTL, currentEndpoints)
+				endpoint.SetProviderSpecific(ProviderSpecificWeight, strconv.Itoa(cgwTarget.GetWeight()))
+				newEndpoints = append(newEndpoints, endpoint)
+			}
+
 		}
-		if !endpointFound {
-			endpoints = append(endpoints, addr)
-		}
-	}
-	if len(dnsRecord.Spec.Endpoints) == 0 {
-		// they are all new endpoints
-		endpoints = ips
-	}
-	for _, ep := range endpoints {
-		endpoint := &v1alpha1.Endpoint{
-			DNSName:       host,
-			Targets:       []string{ep},
-			RecordType:    "A",
-			SetIdentifier: ep,
-			RecordTTL:     DefaultTTL,
-		}
-		dnsRecord.Spec.Endpoints = append(dnsRecord.Spec.Endpoints, endpoint)
 	}
 
-	totalIPs := 0
-	for _, e := range dnsRecord.Spec.Endpoints {
-		totalIPs += len(e.Targets)
-	}
-	for _, e := range dnsRecord.Spec.Endpoints {
-		e.SetProviderSpecific(ProviderSpecificWeight, endpointWeight(totalIPs))
-	}
+	dnsRecord.Spec.Endpoints = newEndpoints
 
 	if equality.Semantic.DeepEqual(old.Spec, dnsRecord.Spec) {
 		return nil
 	}
 
 	return s.controlClient.Update(ctx, dnsRecord, &client.UpdateOptions{})
+}
+
+func createOrUpdateEndpoint(dnsName string, targets v1alpha1.Targets, recordType v1alpha1.DNSRecordType, setIdentifier string,
+	recordTTL v1alpha1.TTL, currentEndpoints map[string]*v1alpha1.Endpoint) (endpoint *v1alpha1.Endpoint) {
+	ok := false
+	endpointID := dnsName + setIdentifier
+	if endpoint, ok = currentEndpoints[endpointID]; !ok {
+		endpoint = &v1alpha1.Endpoint{}
+		if setIdentifier != "" {
+			endpoint.SetIdentifier = setIdentifier
+		}
+	}
+	endpoint.DNSName = dnsName
+	endpoint.RecordType = string(recordType)
+	endpoint.Targets = targets
+	endpoint.RecordTTL = recordTTL
+	return endpoint
 }
 
 // GetManagedZoneForHost returns a ManagedZone and subDomain for the given host if one exists.
@@ -263,21 +322,4 @@ func (s *Service) CleanupDNSRecords(ctx context.Context, owner traffic.Interface
 		}
 	}
 	return nil
-}
-
-// endpointWeight returns the weight Value for a single record in a set of records where the traffic is split
-// evenly between a number of clusters/ingresses, each splitting traffic evenly to a number of IPs (numIPs)
-//
-// Divides the number of IPs by a known weight allowance for a cluster/ingress, note that this means:
-// * Will always return 1 after a certain number of ips is reached, 60 in the current case (maxWeight / 2)
-// * Will return values that don't add up to the total maxWeight when the number of ingresses is not divisible by numIPs
-//
-// For aws weight value must be an integer between 0 and 255.
-// https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/resource-record-sets-values-weighted.html#rrsets-values-weighted-weight
-func endpointWeight(numIPs int) string {
-	maxWeight := 120
-	if numIPs > maxWeight {
-		numIPs = maxWeight
-	}
-	return strconv.Itoa(maxWeight / numIPs)
 }
