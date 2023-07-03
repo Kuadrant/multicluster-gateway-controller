@@ -19,6 +19,7 @@ ISTIOCTL ?= $(LOCALBIN)/istioctl
 OPERATOR_SDK ?= $(LOCALBIN)/operator-sdk
 CLUSTERADM ?= $(LOCALBIN)/clusteradm
 SUBCTL ?= $(LOCALBIN)/subctl
+GINKGO ?= $(LOCALBIN)/ginkgo
 
 
 ## Tool Versions
@@ -31,6 +32,7 @@ ISTIOVERSION ?= 1.17.0
 OPERATOR_SDK_VERSION ?= 1.28.0
 CLUSTERADM_VERSION ?= 0.5.1
 SUBCTL_VERSION ?= release-0.15
+GINKGO_VERSION ?= v2.6.1
 
 
 KUSTOMIZE_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"
@@ -98,3 +100,8 @@ $(CLUSTERADM):
 subctl: $(SUBCTL)
 $(SUBCTL):
 	test -s $(LOCALBIN)/subctl || curl https://get.submariner.io | DESTDIR=$(LOCALBIN) VERSION=$(SUBCTL_VERSION) bash
+
+.PHONY: ginkgo
+ginkgo: $(GINKGO) ## Download ginkgo locally if necessary
+$(GINKGO):
+	test -s $(GINKGO) || GOBIN=$(LOCALBIN) go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo@$(GINKGO_VERSION)
