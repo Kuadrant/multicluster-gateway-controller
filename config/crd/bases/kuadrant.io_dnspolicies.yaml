@@ -52,6 +52,8 @@ spec:
                   port:
                     type: integer
                   protocol:
+                    description: HealthProtocol represents the protocol to use when
+                      making a health check request
                     type: string
                 type: object
               loadBalancing:
