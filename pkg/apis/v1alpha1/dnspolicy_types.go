@@ -128,10 +128,6 @@ type DNSRecordRef struct {
 	Namespace string `json:"namespace"`
 }
 
-type HealthProtocol string
-
-const HttpProtocol HealthProtocol = "HTTP"
-
 func init() {
 	SchemeBuilder.Register(&DNSPolicy{}, &DNSPolicyList{})
 }

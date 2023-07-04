@@ -19,10 +19,12 @@ package main
 import (
 	"flag"
 	"os"
+	"time"
 
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -39,12 +41,14 @@ import (
 	workv1 "open-cluster-management.io/api/work/v1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnshealthcheckprobe"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnspolicy"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnsrecord"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/managedzone"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/aws"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/health"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/placement"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/tls"
 	"github.com/kuadrant/kuadrant-operator/pkg/reconcilers"
@@ -118,6 +122,19 @@ func main() {
 
 	placement := placement.NewOCMPlacer(mgr.GetClient())
 
+	healthMonitor := health.NewMonitor()
+	healthCheckQueue := health.NewRequestQueue(time.Second * 5)
+
+	if err := mgr.Add(healthMonitor); err != nil {
+		setupLog.Error(err, "unable to start health monitor")
+		os.Exit(1)
+	}
+
+	if err := mgr.Add(healthCheckQueue); err != nil {
+		setupLog.Error(err, "unable to start health check queue")
+		os.Exit(1)
+	}
+
 	if err = (&dnsrecord.DNSRecordReconciler{
 		Client:      mgr.GetClient(),
 		Scheme:      mgr.GetScheme(),
@@ -172,6 +189,15 @@ func main() {
 		Placement:    placement,
 	}).SetupWithManager(mgr, ctx); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Gateway")
+		os.Exit(1)
+	}
+
+	if err = (&dnshealthcheckprobe.DNSHealthCheckProbeReconciler{
+		Client:        mgr.GetClient(),
+		HealthMonitor: healthMonitor,
+		Queue:         healthCheckQueue,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "DNSHealthCheckProbe")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder

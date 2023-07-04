@@ -29,4 +29,12 @@ resources:
   group: gateway.networking.k8s.io
   kind: Gateway
   version: v1beta1
+- api:
+    crdVersion: v1alpha1
+    namespaced: true
+  controller: true
+  group: kuadrant.io
+  kind: DNSHealthCheckProbe
+  path: github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1
+  version: v1
 version: "3"
