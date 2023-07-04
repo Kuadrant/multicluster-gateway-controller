@@ -135,3 +135,21 @@ const HttpProtocol HealthProtocol = "HTTP"
 func init() {
 	SchemeBuilder.Register(&DNSPolicy{}, &DNSPolicyList{})
 }
+
+func NewDefaultDNSPolicy(gateway *gatewayv1beta1.Gateway) DNSPolicy {
+	gatewayTypedNamespace := gatewayv1beta1.Namespace(gateway.Namespace)
+	return DNSPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      gateway.Name,
+			Namespace: gateway.Namespace,
+		},
+		Spec: DNSPolicySpec{
+			TargetRef: gatewayapiv1alpha2.PolicyTargetReference{
+				Group:     gatewayv1beta1.Group(gatewayv1beta1.GroupVersion.Group),
+				Kind:      "Gateway",
+				Name:      gatewayv1beta1.ObjectName(gateway.Name),
+				Namespace: &gatewayTypedNamespace,
+			},
+		},
+	}
+}

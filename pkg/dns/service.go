@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"golang.org/x/net/publicsuffix"
-
 	"k8s.io/apimachinery/pkg/api/equality"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -159,7 +158,8 @@ func (s *Service) SetEndpoints(ctx context.Context, addresses []gatewayv1beta1.G
 	old := dnsRecord.DeepCopy()
 	host := dnsRecord.Name
 
-	// check if endpoint already exists in the DNSRecord
+	// check if endpoint already exists in the DNSRecord - we cannot delete and rebuild as health points are injected into
+	// these endpoints elsewhere - TODO refactor this to be all in one place.
 	endpoints := []string{}
 	for _, addr := range ips {
 		endpointFound := false
@@ -167,6 +167,7 @@ func (s *Service) SetEndpoints(ctx context.Context, addresses []gatewayv1beta1.G
 			if endpoint.DNSName == host && endpoint.SetIdentifier == addr {
 				log.Log.V(3).Info("address already exists in record for host", "address ", addr, "host", host)
 				endpointFound = true
+				// if this is an existing DNS Record, we need to ensure the TTL is updated if i
 				continue
 			}
 		}
@@ -184,7 +185,7 @@ func (s *Service) SetEndpoints(ctx context.Context, addresses []gatewayv1beta1.G
 			Targets:       []string{ep},
 			RecordType:    "A",
 			SetIdentifier: ep,
-			RecordTTL:     60,
+			RecordTTL:     DefaultTTL,
 		}
 		dnsRecord.Spec.Endpoints = append(dnsRecord.Spec.Endpoints, endpoint)
 	}
@@ -221,17 +222,17 @@ func FindMatchingManagedZone(originalHost, host string, zones []v1alpha1.Managed
 		return nil, "", fmt.Errorf("%w : %s", ErrNoManagedZoneForHost, host)
 	}
 	host = strings.ToLower(host)
-	hostParts := strings.SplitN(host, ".", 2)
-	if len(hostParts) < 2 {
-		return nil, "", fmt.Errorf("unable to parse host : %s", host)
-	}
-
 	//get the TLD from this host
 	tld, _ := publicsuffix.PublicSuffix(host)
 
 	//The host is just the TLD, or the detected TLD is not an ICANN TLD
 	if host == tld {
 		return nil, "", fmt.Errorf("no valid zone found for host: %v", originalHost)
+	}
+
+	hostParts := strings.SplitN(host, ".", 2)
+	if len(hostParts) < 2 {
+		return nil, "", fmt.Errorf("no valid zone found for host: %s", originalHost)
 	}
 
 	zone, ok := slice.Find(zones, func(zone v1alpha1.ManagedZone) bool {

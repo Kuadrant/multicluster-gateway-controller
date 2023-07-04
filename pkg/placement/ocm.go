@@ -22,6 +22,7 @@ import (
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/gracePeriod"
 )
 
 const (
@@ -156,6 +157,7 @@ func (op *ocmPlacer) Place(ctx context.Context, upStreamGateway *gatewayv1beta1.
 		log.V(3).Info("placement: ", "added gateway to cluster ", cluster, "gateway", upStreamGateway.Name, "gateway ns", upStreamGateway.Namespace)
 		existingClusters.Insert(cluster)
 	}
+
 	// remove from remove
 	for _, cluster := range removeFrom.UnsortedList() {
 		log.V(3).Info("placement: ", "removing gateway from cluster ", cluster, "gateway", upStreamGateway.Name, "gateway ns", upStreamGateway.Namespace)
@@ -166,10 +168,18 @@ func (op *ocmPlacer) Place(ctx context.Context, upStreamGateway *gatewayv1beta1.
 				Namespace: cluster,
 			},
 		}
-		if err := op.c.Delete(ctx, w, &client.DeleteOptions{}); client.IgnoreNotFound(err) != nil {
-			// use a multi-error
+		err = op.c.Get(ctx, client.ObjectKeyFromObject(w), w)
+		if err != nil {
 			return existingClusters, err
 		}
+
+		if err := gracePeriod.GracefulDelete(ctx, op.c, w); err != nil {
+			// use a multi-error
+			log.V(3).Info("error during graceful delete", "error", err)
+			return existingClusters, err
+		}
+
+		log.V(3).Info("graceful delete of gateway manifestwork complete, deleting RBAC")
 		rbac := &workv1.ManifestWork{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: cluster,

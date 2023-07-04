@@ -39,3 +39,7 @@ undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/confi
 .PHONY: restart-controller
 restart-controller:
 	kubectl rollout restart deployment mgc-controller-manager -n multicluster-gateway-controller-system
+	
+.PHONY: tail-controller-logs
+tail-controller-logs:
+	kubectl logs -f deployment/mgc-controller-manager -n multicluster-gateway-controller-system

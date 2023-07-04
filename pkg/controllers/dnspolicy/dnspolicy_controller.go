@@ -32,11 +32,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 	gatewayapiv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
+	"github.com/kuadrant/kuadrant-operator/pkg/reconcilers"
+
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
-	"github.com/kuadrant/kuadrant-operator/pkg/reconcilers"
 )
 
 const (
