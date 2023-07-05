@@ -8,8 +8,8 @@ kindGenExternalKubeconfig() {
   EXTERNAL_KUBECONFIG=./tmp/kubeconfigs/external/${cluster}.kubeconfig
   cp ./tmp/kubeconfigs/${cluster}.kubeconfig ${EXTERNAL_KUBECONFIG}
   master_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "${cluster}-control-plane" | head -n 1)
-  yq -i ".clusters[0].cluster.server = \"https://${master_ip}:6443\"" "${EXTERNAL_KUBECONFIG}"
-  yq -i "(.. | select(. == \"kind-${cluster}\")) = \"${cluster}\"" "${EXTERNAL_KUBECONFIG}"
+  ${YQ_BIN} -i ".clusters[0].cluster.server = \"https://${master_ip}:6443\"" "${EXTERNAL_KUBECONFIG}"
+  ${YQ_BIN} -i "(.. | select(. == \"kind-${cluster}\")) = \"${cluster}\"" "${EXTERNAL_KUBECONFIG}"
   chmod a+r "${EXTERNAL_KUBECONFIG}"
 }
 
