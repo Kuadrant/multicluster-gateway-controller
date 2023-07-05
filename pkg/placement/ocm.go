@@ -10,6 +10,7 @@ import (
 	rbac "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	k8smeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -21,7 +22,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/gracePeriod"
 )
 
@@ -209,8 +209,8 @@ func (op *ocmPlacer) GetPlacedClusters(ctx context.Context, gateway *gatewayv1be
 	//where the gateway currently exists
 
 	for _, e := range existing.Items {
-		applied := conditions.GetConditionByType(e.Status.Conditions, string(workv1.ManifestApplied))
-		if applied != nil && applied.Status == metav1.ConditionTrue {
+		applied := meta.IsStatusConditionTrue(e.Status.Conditions, string(workv1.ManifestApplied))
+		if applied {
 			existingClusters = existingClusters.Insert(e.GetNamespace())
 		}
 	}
