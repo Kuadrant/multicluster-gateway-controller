@@ -16,7 +16,7 @@ import (
 	kuadrantapi "github.com/kuadrant/kuadrant-operator/api/v1beta1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	clusterv1beta2 "open-cluster-management.io/api/cluster/v1beta1"
+	clusterv1 "open-cluster-management.io/api/cluster/v1"
 	workv1 "open-cluster-management.io/api/work/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -86,7 +86,7 @@ var _ = BeforeSuite(func() {
 	err = workv1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
-	err = clusterv1beta2.AddToScheme(scheme.Scheme)
+	err = clusterv1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 	//+kubebuilder:scaffold:scheme
 
@@ -102,7 +102,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 
 	dnsProvider := &dns.FakeProvider{}
-	dns := dns.NewService(k8sManager.GetClient(), dns.NewSafeHostResolver(dns.NewDefaultHostResolver()))
+	dns := dns.NewService(k8sManager.GetClient())
 	plc := NewTestOCMPlacer()
 
 	dnsPolicyBaseReconciler := reconcilers.NewBaseReconciler(

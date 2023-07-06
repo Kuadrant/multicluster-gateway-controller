@@ -21,7 +21,9 @@ import (
 )
 
 const (
-	DefaultTTL = 60
+	ProviderSpecificWeight           = "weight"
+	ProviderSpecificGeoContinentCode = "geo-continent-code"
+	ProviderSpecificGeoCountryCode   = "geo-country-code"
 )
 
 // Provider knows how to manage DNS zones only as pertains to routing.

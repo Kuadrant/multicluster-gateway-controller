@@ -19,6 +19,7 @@ package aws
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -39,8 +40,6 @@ const (
 	ProviderSpecificEvaluateTargetHealth       = "aws/evaluate-target-health"
 	ProviderSpecificRegion                     = "aws/region"
 	ProviderSpecificFailover                   = "aws/failover"
-	ProviderSpecificGeolocationContinentCode   = "aws/geolocation-continent-code"
-	ProviderSpecificGeolocationCountryCode     = "aws/geolocation-country-code"
 	ProviderSpecificGeolocationSubdivisionCode = "aws/geolocation-subdivision-code"
 	ProviderSpecificMultiValueAnswer           = "aws/multi-value-answer"
 	ProviderSpecificHealthCheckID              = "aws/health-check-id"
@@ -302,11 +301,11 @@ func (p *Route53DNSProvider) changeForEndpoint(endpoint *v1alpha1.Endpoint, acti
 
 	var geolocation = &route53.GeoLocation{}
 	useGeolocation := false
-	if prop, ok := endpoint.GetProviderSpecificProperty(ProviderSpecificGeolocationContinentCode); ok {
-		geolocation.ContinentCode = aws.String(prop.Value)
+	if prop, ok := endpoint.GetProviderSpecificProperty(dns.ProviderSpecificGeoContinentCode); ok {
+		geolocation.ContinentCode = aws.String(getAWSContinentCode(prop.Value))
 		useGeolocation = true
 	} else {
-		if prop, ok := endpoint.GetProviderSpecificProperty(ProviderSpecificGeolocationCountryCode); ok {
+		if prop, ok := endpoint.GetProviderSpecificProperty(dns.ProviderSpecificGeoCountryCode); ok {
 			geolocation.CountryCode = aws.String(prop.Value)
 			useGeolocation = true
 		}
@@ -328,6 +327,11 @@ func (p *Route53DNSProvider) changeForEndpoint(endpoint *v1alpha1.Endpoint, acti
 		ResourceRecordSet: resourceRecordSet,
 	}
 	return change, nil
+}
+
+// getAWSContinentCode maps am mgc geo continent code to an AWS continent code
+func getAWSContinentCode(mcgGeoContinentCode string) string {
+	return strings.ReplaceAll(mcgGeoContinentCode, "C-", "")
 }
 
 // validateServiceEndpoints validates that provider clients can communicate with

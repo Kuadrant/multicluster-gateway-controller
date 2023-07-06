@@ -12,6 +12,7 @@ import (
 	"github.com/kuadrant/kuadrant-operator/pkg/reconcilers"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/traffic"
 )
 
@@ -60,7 +61,7 @@ func (r *DNSPolicyReconciler) reconcileGatewayDNSRecords(ctx context.Context, ga
 	}
 
 	for _, mh := range managedHosts {
-		gwAddresses := []gatewayv1beta1.GatewayAddress{}
+		var clusterGateways []dns.ClusterGateway
 		for _, downstreamCluster := range clusters {
 			// Only consider host for dns if there's at least 1 attached route to the listener for this host in *any* gateway
 			listener := gatewayAccessor.GetListenerByHost(mh.Host)
@@ -79,16 +80,16 @@ func (r *DNSPolicyReconciler) reconcileGatewayDNSRecords(ctx context.Context, ga
 				continue
 			}
 			log.V(3).Info("hostHasAttachedRoutes", "host", mh.Host, "hostHasAttachedRoutes", attached)
-			addresses, err := r.Placement.GetAddresses(ctx, gateway, downstreamCluster)
+			cg, err := r.Placement.GetClusterGateway(ctx, gateway, downstreamCluster)
 			if err != nil {
-				return fmt.Errorf("get addresses failed: %s", err)
+				return fmt.Errorf("get cluster gateway failed: %s", err)
 			}
-			gwAddresses = append(gwAddresses, addresses...)
+			clusterGateways = append(clusterGateways, cg)
 		}
 
-		if len(gwAddresses) == 0 {
+		if len(clusterGateways) == 0 {
 			// delete record
-			log.V(3).Info("no endpoints deleting DNS record", " for host ", mh.Host)
+			log.V(3).Info("no cluster gateways, deleting DNS record", " for host ", mh.Host)
 			if mh.DnsRecord != nil {
 				if err := r.Client().Delete(ctx, mh.DnsRecord); client.IgnoreNotFound(err) != nil {
 					return fmt.Errorf("failed to deleted dns record for managed host %s : %s", mh.Host, err)
@@ -107,10 +108,11 @@ func (r *DNSPolicyReconciler) reconcileGatewayDNSRecords(ctx context.Context, ga
 			}
 		}
 
-		log.Info("setting dns gwAddresses for gateway listener", "listener", dnsRecord.Name, "values", gwAddresses)
+		mcgTarget := dns.NewMultiClusterGatewayTarget(gateway, clusterGateways, dnsPolicy.Spec.LoadBalancing)
+		log.Info("setting dns dnsTargets for gateway listener", "listener", dnsRecord.Name, "values", mcgTarget)
 
-		if err := r.HostService.SetEndpoints(ctx, gwAddresses, dnsRecord, dnsPolicy); err != nil {
-			return fmt.Errorf("failed to add dns record gwAddresses %s %v", err, gwAddresses)
+		if err := r.HostService.SetEndpoints(ctx, mcgTarget, dnsRecord); err != nil {
+			return fmt.Errorf("failed to add dns record dnsTargets %s %v", err, mcgTarget)
 		}
 
 	}

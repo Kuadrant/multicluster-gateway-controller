@@ -41,6 +41,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	ocmclusterv1 "open-cluster-management.io/api/cluster/v1"
 	ocmclusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
 	ocmworkv1 "open-cluster-management.io/api/work/v1"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -112,6 +113,9 @@ var _ = BeforeSuite(func() {
 	err = ocmworkv1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
+	err = ocmclusterv1.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
+
 	err = ocmclusterv1beta1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 	//+kubebuilder:scaffold:scheme
@@ -135,7 +139,7 @@ var _ = BeforeSuite(func() {
 
 	certificates := tls.NewService(k8sManager.GetClient(), "glbc-ca")
 
-	dns := dns.NewService(k8sManager.GetClient(), dns.NewSafeHostResolver(dns.NewDefaultHostResolver()))
+	dns := dns.NewService(k8sManager.GetClient())
 
 	plc := placement.NewOCMPlacer(k8sManager.GetClient())
 

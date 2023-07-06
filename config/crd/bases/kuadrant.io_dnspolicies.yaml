@@ -54,6 +54,31 @@ spec:
                   protocol:
                     type: string
                 type: object
+              loadBalancing:
+                properties:
+                  geo:
+                    properties:
+                      defaultGeo:
+                        description: "defaultGeo is the country or continent code
+                          to use when no other can be determined for a dns target
+                          cluster. \n 2 digit iso3166 alpha-2 country code (https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2)
+                          or continent code. C-AF: Africa; C-AN: Antarctica; C-AS:
+                          Asia; C-EU: Europe; C-OC: Oceania; C-NA: North America;
+                          C-SA: South America"
+                        pattern: ^([A-Z]{2}|C-AF|C-AN|C-AS|C-EU|C-OS|C-NA|C-SA)$
+                        type: string
+                    type: object
+                  weighted:
+                    properties:
+                      defaultWeight:
+                        default: 120
+                        description: defaultWeight is the record weight to use when
+                          no other can be determined for a dns target cluster.
+                        maximum: 255
+                        minimum: 0
+                        type: integer
+                    type: object
+                type: object
               targetRef:
                 description: PolicyTargetReference identifies an API object to apply
                   policy to. This should be used as part of Policy resources that
@@ -92,6 +117,7 @@ spec:
                 - name
                 type: object
             required:
+            - loadBalancing
             - targetRef
             type: object
           status:

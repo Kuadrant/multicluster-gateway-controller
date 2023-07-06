@@ -24,10 +24,7 @@ import (
 
 // SetID returns an id that should be unique across a set of endpoints
 func (e *Endpoint) SetID() string {
-	if e.SetIdentifier != "" {
-		return e.SetIdentifier
-	}
-	return e.DNSName
+	return e.DNSName + e.SetIdentifier
 }
 
 // ProviderSpecificProperty holds the name and value of a configuration which is specific to individual DNS providers

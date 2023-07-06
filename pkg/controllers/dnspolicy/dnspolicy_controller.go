@@ -24,6 +24,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	clusterv1 "open-cluster-management.io/api/cluster/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -228,11 +229,20 @@ func (r *DNSPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	gatewayEventMapper := &GatewayEventMapper{
 		Logger: r.Logger().WithName("gatewayEventMapper"),
 	}
+	clusterEventMapper := &ClusterEventMapper{
+		Logger:             r.Logger().WithName("clusterEventMapper"),
+		GatewayEventMapper: gatewayEventMapper,
+		client:             r.Client(),
+	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.DNSPolicy{}).
 		Watches(
 			&source.Kind{Type: &gatewayapiv1beta1.Gateway{}},
 			handler.EnqueueRequestsFromMapFunc(gatewayEventMapper.MapToDNSPolicy),
+		).
+		Watches(
+			&source.Kind{Type: &clusterv1.ManagedCluster{}},
+			handler.EnqueueRequestsFromMapFunc(clusterEventMapper.MapToDNSPolicy),
 		).
 		Complete(r)
 }

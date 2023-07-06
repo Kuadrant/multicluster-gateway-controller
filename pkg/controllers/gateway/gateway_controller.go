@@ -18,6 +18,7 @@ package gateway
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -45,14 +46,17 @@ import (
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/gracePeriod"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/metadata"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/policy"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/traffic"
 )
 
 const (
 	GatewayClusterLabelSelectorAnnotation = "kuadrant.io/gateway-cluster-label-selector"
+	GatewayClustersAnnotation             = "kuadrant.io/gateway-clusters"
 	GatewayFinalizer                      = "kuadrant.io/gateway"
 	ManagedLabel                          = "kuadarant.io/managed"
 )
@@ -61,7 +65,7 @@ type HostService interface {
 	CreateDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone, owner metav1.Object) (*v1alpha1.DNSRecord, error)
 	GetDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone, owner metav1.Object) (*v1alpha1.DNSRecord, error)
 	GetManagedZoneForHost(ctx context.Context, domain string, t traffic.Interface) (*v1alpha1.ManagedZone, string, error)
-	SetEndpoints(ctx context.Context, endpoints []gatewayv1beta1.GatewayAddress, dnsRecord *v1alpha1.DNSRecord, dnsPolicy *v1alpha1.DNSPolicy) error
+	SetEndpoints(ctx context.Context, mcgTarget *dns.MultiClusterGatewayTarget, dnsRecord *v1alpha1.DNSRecord) error
 	CleanupDNSRecords(ctx context.Context, owner traffic.Interface) error
 	// GetManagedHosts will return the list of hosts in this gateways listeners that are associated with a managedzone managed by this controller
 	GetManagedHosts(ctx context.Context, traffic traffic.Interface) ([]v1alpha1.ManagedHost, error)
@@ -85,6 +89,8 @@ type GatewayPlacer interface {
 	ListenerTotalAttachedRoutes(ctx context.Context, gateway *gatewayv1beta1.Gateway, listenerName string, downstream string) (int, error)
 	// GetAddresses will look at the downstream view of the gateway and return the LB addresses used for these gateways
 	GetAddresses(ctx context.Context, gateway *gatewayv1beta1.Gateway, downstream string) ([]gatewayv1beta1.GatewayAddress, error)
+	// GetClusterGateway
+	GetClusterGateway(ctx context.Context, gateway *gatewayv1beta1.Gateway, clusterName string) (dns.ClusterGateway, error)
 }
 
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways,verbs=get;list;watch;create;update;patch;delete
@@ -182,6 +188,13 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 		log.Error(fmt.Errorf("gateway reconcile failed %s", reconcileErr), "gateway failed to reconcile", "gateway", upstreamGateway.Name)
 	}
+
+	serialized, err := json.Marshal(clusters)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	metadata.AddAnnotation(upstreamGateway, GatewayClustersAnnotation, string(serialized))
+
 	if reconcileErr == nil && !reflect.DeepEqual(upstreamGateway, previous) {
 		return reconcile.Result{}, r.Update(ctx, upstreamGateway)
 	}

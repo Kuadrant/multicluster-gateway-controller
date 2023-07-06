@@ -49,14 +49,14 @@ spec:
    ...
   loadBalancing:
     weighted: # always requird
-     default: 10  #always required
+     defaultWeight: 10  #always required
      custom: #optional
      - value: AWS  #optional with both GEO and weighted. With GEO the custom weight is applied to gateways within a Geographic region
        weight: 10
      - value: GCP
        weight: 20
     GEO: #optional
-      default: IE # required with GEO. Choses a default DNS response when no particular response is defined for a request from an unknown GEO.
+      defaultGeo: IE # required with GEO. Choses a default DNS response when no particular response is defined for a request from an unknown GEO.
 ```  
 
 ### Available Load Balancing Strategies  
@@ -76,7 +76,7 @@ spec:
     name: gateway-name
   loadBalancing:
     weighted: # required
-     default: 10  #required, all records created get this weight
+     defaultWeight: 10  #required, all records created get this weight
   health:
    ...   
 ```  
@@ -86,12 +86,11 @@ In order to provide GEO based DNS and allow customisation of the weighting, we n
 To solve this we will allow two new attributes to be added to the `ManagedCluster` resource as labels:
 
 ```
-   kuadrant.io/lb-attribute-GEO-<GEO-code-type>: "IE"
+   kuadrant.io/lb-attribute-geo-code: "IE"
    kuadrant.io/lb-attribute-custom-weight: "GCP"
 ```
 
 These two labels allow setting values in the DNSPolicy that will be reflected into DNS records for gateways placed on that cluster depending on the strategies used. (see the first DNSPolicy definition above to see how these values are used) or take a look at the examples at the bottom.
-
 
 example :
 ```yaml
@@ -99,13 +98,14 @@ apiVersion: cluster.open-cluster-management.io/v1
 kind: ManagedCluster
 metadata:
  labels:
-   kuadrant.io/lb-attribute-GEO-country-code: "IE"
+   kuadrant.io/lb-attribute-geo-code: "IE"
    kuadrant.io/lb-attribute-custom-weight: "GCP"
 spec:    
 ```  
 
 The attributes provide the key and value we need in order to understand how to define records for a given LB address based on the DNSPolicy targeting the gateway.
 
+The `kuadrant.io/lb-attribute-geo-code` attribute value must be a two digit ISO3166 Alpha-2 country code (https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2) or a one of the following four digit continent codes: (`C-AF`: Africa; `C-AN`: Antarctica; `C-AS`: Asia; `C-EU`: Europe; `C-OC`: Oceania; `C-NA`: North America; `C-SA`: South America) 
 
 ### DNS Record Structure
 
@@ -170,7 +170,7 @@ spec:
     name: gateway-name
   loadBalancing:
     weighted:
-     default: 10
+     defaultWeight: 10
 ``` 
 
 ### GEO (Round Robin)
@@ -185,9 +185,9 @@ spec:
     name: gateway-name
   loadBalancing:
     weighted:
-     default: 10
+     defaultWeight: 10
     GEO:
-     default: IE
+     defaultGeo: IE
 ``` 
 
 
@@ -203,7 +203,7 @@ spec:
     name: gateway-name
   loadBalancing:
     weighted:
-     default: 10
+     defaultWeight: 10
      custom:
      - attribute: cloud
        value: Azure #any record associated with a gateway on a cluster without this value gets the default
@@ -224,13 +224,13 @@ spec:
     name: gateway-name
   loadBalancing:
     weighted:
-     default: 10
+     defaultWeight: 10
      custom:
      - attribute: cloud
        value: Azure
        weight: 30
     GEO:
-      default: IE
+      defaultGeo: IE
 ``` 
 
 

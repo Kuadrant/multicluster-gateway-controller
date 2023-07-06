@@ -33,9 +33,10 @@ import (
 
 	certmanv1 "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
 
-	clusterv1beta2 "open-cluster-management.io/api/cluster/v1beta1"
 	gatewayapi "sigs.k8s.io/gateway-api/apis/v1beta1"
 
+	clusterv1 "open-cluster-management.io/api/cluster/v1"
+	clusterv1beta2 "open-cluster-management.io/api/cluster/v1beta1"
 	workv1 "open-cluster-management.io/api/work/v1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
@@ -63,6 +64,7 @@ func init() {
 	utilruntime.Must(gatewayapi.AddToScheme(scheme.Scheme))
 	utilruntime.Must(clusterv1beta2.AddToScheme(scheme.Scheme))
 	utilruntime.Must(workv1.AddToScheme(scheme.Scheme))
+	utilruntime.Must(clusterv1.AddToScheme(scheme.Scheme))
 
 	//+kubebuilder:scaffold:scheme
 }
@@ -127,7 +129,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	dnsService := dns.NewService(mgr.GetClient(), dns.NewSafeHostResolver(dns.NewDefaultHostResolver()))
+	dnsService := dns.NewService(mgr.GetClient())
 	certService := tls.NewService(mgr.GetClient(), certProvider)
 
 	dnsPolicyBaseReconciler := reconcilers.NewBaseReconciler(
