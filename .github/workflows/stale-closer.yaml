@@ -5,6 +5,7 @@ on:
 
 jobs:
   close-issues:
+    if: github.repository_owner == 'kuadrant'
     runs-on: ubuntu-latest
     permissions:
       issues: write
