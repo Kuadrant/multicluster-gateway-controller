@@ -25,6 +25,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -43,7 +44,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/gracePeriod"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/policy"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
@@ -149,7 +149,14 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// If the GatewayClass parameters are invalid, update the status and stop reconciling
 	params, err := getParams(ctx, r.Client, string(upstreamGateway.Spec.GatewayClassName))
 	if err != nil && IsInvalidParamsError(err) {
-		conditions.SetCondition(upstreamGateway.Status.Conditions, previous.Generation, string(gatewayv1beta1.GatewayConditionProgrammed), metav1.ConditionFalse, string(gatewayv1beta1.GatewayReasonPending), fmt.Sprintf("Invalid parameters in gateway class: %s", err.Error()))
+		programmedCondition := metav1.Condition{
+			Type:               string(gatewayv1beta1.GatewayConditionProgrammed),
+			Status:             metav1.ConditionFalse,
+			Reason:             string(gatewayv1beta1.GatewayReasonPending),
+			Message:            fmt.Sprintf("Invalid parameters in gateway class: %s", err.Error()),
+			ObservedGeneration: previous.Generation,
+		}
+		meta.SetStatusCondition(&upstreamGateway.Status.Conditions, programmedCondition)
 
 		if !reflect.DeepEqual(upstreamGateway, previous) {
 			err = r.Status().Update(ctx, upstreamGateway)
@@ -179,8 +186,12 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return reconcile.Result{}, r.Update(ctx, upstreamGateway)
 	}
 
-	upstreamGateway.Status.Conditions = buildAcceptedCondition(upstreamGateway.Status, upstreamGateway.Generation, metav1.ConditionTrue)
-	upstreamGateway.Status.Conditions = buildProgrammedStatus(upstreamGateway.Status, upstreamGateway.Generation, clusters, programmedStatus, err)
+	acceptedCondition := buildAcceptedCondition(upstreamGateway.Generation, metav1.ConditionTrue)
+	programmedCondition := buildProgrammedCondition(upstreamGateway.Generation, clusters, programmedStatus, err)
+
+	meta.SetStatusCondition(&upstreamGateway.Status.Conditions, acceptedCondition)
+	meta.SetStatusCondition(&upstreamGateway.Status.Conditions, programmedCondition)
+
 	if !isDeleting(upstreamGateway) && !reflect.DeepEqual(upstreamGateway.Status, previous.Status) {
 		return reconcile.Result{}, r.Status().Update(ctx, upstreamGateway)
 	}
@@ -290,8 +301,8 @@ func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.C
 	if err != nil {
 		return false, metav1.ConditionUnknown, targets.UnsortedList(), fmt.Errorf("failed to get placed clusters : %s", err)
 	}
-	//update the cluster set
-	clusters = placed.UnsortedList()
+	//update the cluster set, needs to be ordered or the status update can continually change and cause spurious updates
+	clusters = sets.List(placed)
 	if placed.Equal(targets) {
 		return false, metav1.ConditionTrue, clusters, nil
 	}
@@ -352,7 +363,7 @@ func (r *GatewayReconciler) reconcileParams(_ context.Context, gateway *gatewayv
 	return nil
 }
 
-func buildProgrammedStatus(gatewayStatus gatewayv1beta1.GatewayStatus, generation int64, placed []string, programmedStatus metav1.ConditionStatus, err error) []metav1.Condition {
+func buildProgrammedCondition(generation int64, placed []string, programmedStatus metav1.ConditionStatus, err error) metav1.Condition {
 	errorMsg := ""
 	if err != nil {
 		errorMsg = err.Error()
@@ -367,17 +378,26 @@ func buildProgrammedStatus(gatewayStatus gatewayv1beta1.GatewayStatus, generatio
 	if programmedStatus == metav1.ConditionUnknown {
 		message = "current state of the gateway is unknown error %s"
 	}
-	return conditions.SetCondition(gatewayStatus.Conditions, generation, string(gatewayv1beta1.GatewayConditionProgrammed), programmedStatus, string(gatewayv1beta1.GatewayReasonProgrammed), fmt.Sprintf(message, placed, errorMsg))
 
+	cond := metav1.Condition{
+		Type:               string(gatewayv1beta1.GatewayConditionProgrammed),
+		Status:             programmedStatus,
+		Reason:             string(gatewayv1beta1.GatewayReasonProgrammed),
+		Message:            fmt.Sprintf(message, placed, errorMsg),
+		ObservedGeneration: generation,
+	}
+	return cond
 }
 
-func buildAcceptedCondition(_ gatewayv1beta1.GatewayStatus, generation int64, _ metav1.ConditionStatus) []metav1.Condition {
-	statusConditions := []metav1.Condition{}
-	message := fmt.Sprintf("Handled by %s", ControllerName)
-
-	// State has changed
-	return conditions.SetCondition(statusConditions, generation, string(gatewayv1beta1.GatewayConditionAccepted), metav1.ConditionTrue, string(gatewayv1beta1.GatewayConditionAccepted), message)
-
+func buildAcceptedCondition(generation int64, acceptedStatus metav1.ConditionStatus) metav1.Condition {
+	cond := metav1.Condition{
+		Type:               string(gatewayv1beta1.GatewayConditionAccepted),
+		Status:             acceptedStatus,
+		Reason:             string(gatewayv1beta1.GatewayReasonAccepted),
+		Message:            fmt.Sprintf("Handled by %s", ControllerName),
+		ObservedGeneration: generation,
+	}
+	return cond
 }
 
 // SetupWithManager sets up the controller with the Manager.

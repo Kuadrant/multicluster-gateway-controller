@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -29,7 +30,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
 )
 
@@ -125,7 +125,7 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 }
 
 func gatewayClassIsAccepted(gatewayClass *gatewayv1beta1.GatewayClass) bool {
-	acceptedCondition := conditions.GetConditionByType(gatewayClass.Status.Conditions, string(gatewayv1beta1.GatewayConditionAccepted))
+	acceptedCondition := meta.FindStatusCondition(gatewayClass.Status.Conditions, string(gatewayv1beta1.GatewayConditionAccepted))
 	return (acceptedCondition != nil && acceptedCondition.Status == metav1.ConditionTrue)
 }
 

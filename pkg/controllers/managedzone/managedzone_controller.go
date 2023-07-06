@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -323,11 +324,7 @@ func (r *ManagedZoneReconciler) parentZoneNSRecordReady(ctx context.Context, man
 		}
 	}
 
-	nsRecordReady := conditions.HasCondition(nsRecord.Status.Conditions, metav1.Condition{
-		Type:   conditions.ConditionTypeReady,
-		Status: metav1.ConditionTrue,
-	})
-
+	nsRecordReady := meta.IsStatusConditionTrue(nsRecord.Status.Conditions, conditions.ConditionTypeReady)
 	if !nsRecordReady {
 		return fmt.Errorf("the ns record is not in a ready state : %s", nsRecord.Name)
 	}
@@ -336,5 +333,12 @@ func (r *ManagedZoneReconciler) parentZoneNSRecordReady(ctx context.Context, man
 
 // setManagedZoneCondition adds or updates a given condition in the ManagedZone status.
 func setManagedZoneCondition(managedZone *v1alpha1.ManagedZone, conditionType string, status metav1.ConditionStatus, reason, message string) {
-	managedZone.Status.Conditions = conditions.SetCondition(managedZone.Status.Conditions, managedZone.Generation, conditionType, status, reason, message)
+	cond := metav1.Condition{
+		Type:               conditionType,
+		Status:             status,
+		Reason:             reason,
+		Message:            message,
+		ObservedGeneration: managedZone.Generation,
+	}
+	meta.SetStatusCondition(&managedZone.Status.Conditions, cond)
 }

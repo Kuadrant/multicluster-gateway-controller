@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/clock"
@@ -187,10 +188,7 @@ func (r *DNSRecordReconciler) getDNSRecordManagedZone(ctx context.Context, dnsRe
 		return nil, err
 	}
 
-	managedZoneReady := conditions.HasCondition(managedZone.Status.Conditions, metav1.Condition{
-		Type:   "Ready",
-		Status: metav1.ConditionTrue,
-	})
+	managedZoneReady := meta.IsStatusConditionTrue(managedZone.Status.Conditions, "Ready")
 
 	if !managedZoneReady {
 		return nil, fmt.Errorf("the managed zone is not in a ready state : %s", managedZone.Name)
@@ -201,5 +199,12 @@ func (r *DNSRecordReconciler) getDNSRecordManagedZone(ctx context.Context, dnsRe
 
 // setDNSRecordCondition adds or updates a given condition in the DNSRecord status..
 func setDNSRecordCondition(dnsRecord *v1alpha1.DNSRecord, conditionType string, status metav1.ConditionStatus, reason, message string) {
-	dnsRecord.Status.Conditions = conditions.SetCondition(dnsRecord.Status.Conditions, dnsRecord.Generation, conditionType, status, reason, message)
+	cond := metav1.Condition{
+		Type:               conditionType,
+		Status:             status,
+		Reason:             reason,
+		Message:            message,
+		ObservedGeneration: dnsRecord.Generation,
+	}
+	meta.SetStatusCondition(&dnsRecord.Status.Conditions, cond)
 }
