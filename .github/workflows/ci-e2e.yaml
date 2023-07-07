@@ -1,0 +1,65 @@
+name: CI-E2E
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.adoc'
+      - '**.md'
+      - 'samples/**'
+      - 'LICENSE'
+  pull_request_target:
+    branches:
+      - main
+    paths-ignore:
+      - '**.adoc'
+      - '**.md'
+      - 'samples/**'
+      - 'LICENSE'
+
+jobs:
+  event_payload:
+    runs-on: ubuntu-latest
+    steps:
+      - run: cat $GITHUB_EVENT_PATH
+  authorize:
+    # see https://docs.github.com/en/graphql/reference/enums#commentauthorassociation
+    # for info on author association
+    environment:
+      ${{ github.event_name == 'pull_request_target' &&
+      github.event.pull_request.author_association != 'OWNER' &&
+      github.event.pull_request.author_association != 'MEMBER' &&
+      github.event.pull_request.author_association != 'COLLABORATOR' &&
+      'external' || 'internal' }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: "true"
+  e2e_test_suite:
+    name: E2E Test Suite
+    needs: authorize
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
+      - uses: actions/setup-go@v4
+        with:
+          go-version: "1.19"
+      - name: Create controller-config.env
+        run: |
+          echo "AWS_DNS_PUBLIC_ZONE_ID=${{ secrets.E2E_AWS_DNS_PUBLIC_ZONE_ID }}" >> controller-config.env
+          echo "ZONE_ROOT_DOMAIN=${{ secrets.E2E_AWS_DNS_PUBLIC_ZONE_NAME }}" >> controller-config.env
+
+      - name: Create aws-credentials.env
+        run: |
+          echo "AWS_ACCESS_KEY_ID=${{ secrets.E2E_AWS_ACCESS_KEY_ID }}" >> aws-credentials.env
+          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.E2E_AWS_SECRET_ACCESS_KEY }}" >> aws-credentials.env
+          echo "AWS_REGION=${{ env.AWS_REGION }}" >> aws-credentials.env
+      - name: Run suite
+        run: |
+          export OCM_SINGLE=1
+          export TEST_HUB_NAMESPACE=multi-cluster-gateways
+          export TEST_HUB_KUBE_CONTEXT=kind-mgc-control-plane
+          export TEST_MANAGED_ZONE=${{ secrets.E2E_AWS_DNS_PUBLIC_ZONE_NAME }}
+          make local-setup && make test-e2e

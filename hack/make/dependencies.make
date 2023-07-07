@@ -46,7 +46,7 @@ $(KUSTOMIZE): $(LOCALBIN)
 	test -s $(LOCALBIN)/kustomize || { curl -Ss $(KUSTOMIZE_INSTALL_SCRIPT) | bash -s -- $(subst v,,$(KUSTOMIZE_VERSION)) $(LOCALBIN); }
 
 .PHONY: operator-sdk
-operator-sdk: 
+operator-sdk:
 	@if test -x ${LOCALBIN}/operator-sdk && ! ${LOCALBIN}/operator-sdk version | grep -q ${OPERATOR_SDK_VERSION}; then \
 		echo "${OPERATOR_SDK} version is not expected ${OPERATOR_SDK_VERSION}. Removing it before installing."; \
 		rm -rf ${OPERATOR_SDK}; \
@@ -89,7 +89,7 @@ $(ISTIOCTL):
 	$(eval ISTIO_TMP := $(shell mktemp -d))
 	cd $(ISTIO_TMP); curl -sSL https://istio.io/downloadIstio | ISTIO_VERSION=$(ISTIOVERSION) sh -
 	cp $(ISTIO_TMP)/istio-$(ISTIOVERSION)/bin/istioctl ${ISTIOCTL}
-	-rm -rf $(TMP)	
+	-rm -rf $(TMP)
 
 .PHONY: clusteradm
 clusteradm: $(CLUSTERADM)
