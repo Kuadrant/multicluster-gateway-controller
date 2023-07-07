@@ -46,13 +46,24 @@ type LoadBalancingSpec struct {
 	Geo *LoadBalancingGeo `json:"geo,omitempty"`
 }
 
+// +kubebuilder:validation:Minimum=0
+// +kubebuilder:validation:Maximum=255
+type Weight int
+
+type CustomWeight struct {
+	// +required
+	Value string `json:"value,omitempty"`
+	// +required
+	Weight Weight `json:"weight,omitempty"`
+}
+
 type LoadBalancingWeighted struct {
 	// defaultWeight is the record weight to use when no other can be determined for a dns target cluster.
 	//
 	// +kubebuilder:default=120
-	// +kubebuilder:validation:Minimum=0
-	// +kubebuilder:validation:Maximum=255
-	DefaultWeight int `json:"defaultWeight,omitempty"`
+	DefaultWeight Weight `json:"defaultWeight,omitempty"`
+	// +optional
+	Custom []*CustomWeight `json:"custom,omitempty"`
 }
 
 type LoadBalancingGeo struct {
@@ -166,7 +177,7 @@ func init() {
 	SchemeBuilder.Register(&DNSPolicy{}, &DNSPolicyList{})
 }
 
-const DefaultWeight = 120
+const DefaultWeight Weight = 120
 
 func NewDefaultDNSPolicy(gateway *gatewayv1beta1.Gateway) DNSPolicy {
 	gatewayTypedNamespace := gatewayv1beta1.Namespace(gateway.Namespace)

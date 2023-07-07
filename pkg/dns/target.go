@@ -15,9 +15,10 @@ import (
 )
 
 const (
-	DefaultWeight                   = v1alpha1.DefaultWeight
-	DefaultGeo              GeoCode = "default"
-	LabelLBAttributeGeoCode         = "kuadrant.io/lb-attribute-geo-code"
+	DefaultWeight                        = int(v1alpha1.DefaultWeight)
+	DefaultGeo                   GeoCode = "default"
+	LabelLBAttributeGeoCode              = "kuadrant.io/lb-attribute-geo-code"
+	LabelLBAttributeCustomWeight         = "kuadrant.io/lb-attribute-custom-weight"
 )
 
 // MultiClusterGatewayTarget represents a Gateway that is placed on multiple clusters (ClusterGateway).
@@ -62,7 +63,7 @@ func (t *MultiClusterGatewayTarget) getDefaultGeo() GeoCode {
 
 func (t *MultiClusterGatewayTarget) getDefaultWeight() int {
 	if t.LoadBalancing != nil && t.LoadBalancing.Weighted != nil {
-		return t.LoadBalancing.Weighted.DefaultWeight
+		return int(t.LoadBalancing.Weighted.DefaultWeight)
 	}
 	return DefaultWeight
 }
@@ -70,9 +71,11 @@ func (t *MultiClusterGatewayTarget) getDefaultWeight() int {
 func (t *MultiClusterGatewayTarget) setClusterGatewayTargets(clusterGateways []ClusterGateway) {
 	var cgTargets []ClusterGatewayTarget
 	for _, cg := range clusterGateways {
-		cgt := NewClusterGatewayTarget(cg)
-		cgt.setWeight(t.getDefaultWeight())
-		cgt.setGeo(t.getDefaultGeo())
+		var customWeights []*v1alpha1.CustomWeight
+		if t.LoadBalancing != nil && t.LoadBalancing.Weighted != nil {
+			customWeights = t.LoadBalancing.Weighted.Custom
+		}
+		cgt := NewClusterGatewayTarget(cg, t.getDefaultGeo(), t.getDefaultWeight(), customWeights)
 		cgTargets = append(cgTargets, cgt)
 	}
 	t.ClusterGatewayTargets = cgTargets
@@ -86,7 +89,8 @@ type ClusterGateway struct {
 }
 
 type ClusterAttributes struct {
-	Geo *GeoCode
+	CustomWeight *string
+	Geo          *GeoCode
 }
 
 type GeoCode string
@@ -129,13 +133,18 @@ func NewClusterGateway(cluster metav1.Object, gatewayAddresses []gatewayv1beta1.
 
 func (t *ClusterGateway) setClusterAttributesFromObject(mc metav1.Object) {
 	t.ClusterAttributes = ClusterAttributes{}
-	for k, v := range mc.GetLabels() {
-		if k == LabelLBAttributeGeoCode {
-			geoCode := GeoCode(v)
-			if geoCode.IsValid() {
-				t.ClusterAttributes.Geo = &geoCode
-			}
+	labels := mc.GetLabels()
+	if labels == nil {
+		return
+	}
+	if gc, ok := labels[LabelLBAttributeGeoCode]; ok {
+		geoCode := GeoCode(gc)
+		if geoCode.IsValid() {
+			t.ClusterAttributes.Geo = &geoCode
 		}
+	}
+	if cw, ok := labels[LabelLBAttributeCustomWeight]; ok {
+		t.ClusterAttributes.CustomWeight = &cw
 	}
 }
 
@@ -146,12 +155,12 @@ type ClusterGatewayTarget struct {
 	Weight *int
 }
 
-func NewClusterGatewayTarget(cg ClusterGateway) ClusterGatewayTarget {
+func NewClusterGatewayTarget(cg ClusterGateway, defaultGeoCode GeoCode, defaultWeight int, customWeights []*v1alpha1.CustomWeight) ClusterGatewayTarget {
 	target := ClusterGatewayTarget{
 		ClusterGateway: &cg,
 	}
-	target.setGeo(DefaultGeo)
-	target.setWeight(DefaultWeight)
+	target.setGeo(defaultGeoCode)
+	target.setWeight(defaultWeight, customWeights)
 	return target
 }
 
@@ -179,8 +188,19 @@ func (t *ClusterGatewayTarget) setGeo(defaultGeo GeoCode) {
 	t.Geo = t.ClusterAttributes.Geo
 }
 
-func (t *ClusterGatewayTarget) setWeight(defaultWeight int) {
-	t.Weight = &defaultWeight
+func (t *ClusterGatewayTarget) setWeight(defaultWeight int, customWeights []*v1alpha1.CustomWeight) {
+	weight := &defaultWeight
+	if t.ClusterAttributes.CustomWeight != nil && customWeights != nil {
+		for k := range customWeights {
+			cw := customWeights[k]
+			if *t.ClusterAttributes.CustomWeight == cw.Value {
+				customWeight := int(cw.Weight)
+				weight = &customWeight
+				break
+			}
+		}
+	}
+	t.Weight = weight
 }
 
 func ToBase36hash(s string) string {
