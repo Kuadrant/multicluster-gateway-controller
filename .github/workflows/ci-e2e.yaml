@@ -19,10 +19,18 @@ on:
       - 'LICENSE'
 
 jobs:
+  event_payload:
+    runs-on: ubuntu-latest
+    steps:
+      - run: cat $GITHUB_EVENT_PATH
   authorize:
+    # see https://docs.github.com/en/graphql/reference/enums#commentauthorassociation
+    # for info on author association
     environment:
       ${{ github.event_name == 'pull_request_target' &&
-      github.event.pull_request.head.repo.full_name != github.repository &&
+      github.event.pull_request.author_association != 'OWNER' &&
+      github.event.pull_request.author_association != 'MEMBER' &&
+      github.event.pull_request.author_association != 'COLLABORATOR' &&
       'external' || 'internal' }}
     runs-on: ubuntu-latest
     steps:
