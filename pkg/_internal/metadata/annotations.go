@@ -73,7 +73,7 @@ func AddAnnotation(obj metav1.Object, key, value string) {
 
 func RemoveAnnotationsByPrefix(obj metav1.Object, prefix string) int {
 	count := 0
-	for annotation, _ := range GetAnnotationsByPrefix(obj, prefix) {
+	for annotation := range GetAnnotationsByPrefix(obj, prefix) {
 		RemoveAnnotation(obj, annotation)
 		count++
 	}
