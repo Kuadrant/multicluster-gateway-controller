@@ -4,6 +4,7 @@ package placement_test
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -30,7 +31,33 @@ func init() {
 }
 
 func TestGetAddresses(t *testing.T) {
-	testAddress := "127.0.0.1"
+	address1 := "172.16.0.1"
+	address2 := "172.16.0.2"
+	ipAddressType := v1beta1.IPAddressType
+	singleAddressJson, err := json.Marshal([]v1beta1.GatewayAddress{
+		{
+			Type:  &ipAddressType,
+			Value: address1,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	singleAddressJsonString := string(singleAddressJson)
+	multiAddressesJson, err := json.Marshal([]v1beta1.GatewayAddress{
+		{
+			Type:  &ipAddressType,
+			Value: address1,
+		},
+		{
+			Type:  &ipAddressType,
+			Value: address2,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	multiAddressesJsonString := string(multiAddressesJson)
 
 	cases := []struct {
 		Name              string
@@ -65,7 +92,7 @@ func TestGetAddresses(t *testing.T) {
 										Values: []workv1.FeedbackValue{{
 											Name: "addresses",
 											Value: workv1.FieldValue{
-												String: &testAddress,
+												JsonRaw: &singleAddressJsonString,
 											},
 										}},
 									},
@@ -86,8 +113,63 @@ func TestGetAddresses(t *testing.T) {
 				if address == nil || len(address) != 1 {
 					t.Fatalf("expected 1 address to be returned but got %v", address)
 				}
-				if address[0].Value != testAddress {
-					t.Fatalf("expected address to be %s but got %s", testAddress, address[0].Value)
+				if address[0].Value != address1 {
+					t.Fatalf("expected address to be %s but got %s", address1, address[0].Value)
+				}
+			},
+		},
+		{
+			Name:              "test get addresses returns multiple addresses",
+			DownstreamCluster: "test",
+			Gateway: &v1beta1.Gateway{
+				TypeMeta: v1.TypeMeta{
+					Kind:       "Gateway",
+					APIVersion: "gateway.networking.k8s.io/v1beta1",
+				},
+				ObjectMeta: v1.ObjectMeta{
+					Name: "test",
+				},
+			},
+			ManifestWork: func(downstream, name string) *workv1.ManifestWork {
+				return &workv1.ManifestWork{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      name,
+						Namespace: downstream,
+					},
+					Status: workv1.ManifestWorkStatus{
+						ResourceStatus: workv1.ManifestResourceStatus{
+							Manifests: []workv1.ManifestCondition{
+								{
+									StatusFeedbacks: workv1.StatusFeedbackResult{
+										Values: []workv1.FeedbackValue{{
+											Name: "addresses",
+											Value: workv1.FieldValue{
+												JsonRaw: &multiAddressesJsonString,
+											},
+										}},
+									},
+									ResourceMeta: workv1.ManifestResourceMeta{
+										Group: "gateway.networking.k8s.io",
+										Name:  "test",
+									},
+								},
+							},
+						},
+					},
+				}
+			},
+			Assert: func(t *testing.T, err error, address []v1beta1.GatewayAddress) {
+				if err != nil {
+					t.Fatalf("did not expect an error but got %s", err)
+				}
+				if address == nil || len(address) != 2 {
+					t.Fatalf("expected 2 address to be returned but got %v", address)
+				}
+				if address[0].Value != address1 {
+					t.Fatalf("expected address to be %s but got %s", address1, address[0].Value)
+				}
+				if address[1].Value != address2 {
+					t.Fatalf("expected address to be %s but got %s", address2, address[0].Value)
 				}
 			},
 		},

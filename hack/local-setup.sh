@@ -211,13 +211,15 @@ deployOCMHub(){
   clusterName=${1}
   echo "installing the hub cluster in kind-(${clusterName}) "
 
-  ${CLUSTERADM_BIN} init --bundle-version='0.10.0' --wait --context kind-${clusterName}
+  ${CLUSTERADM_BIN} init --bundle-version='0.11.0' --wait --context kind-${clusterName}
+  echo "PATCHING CLUSTERMANAGER: placement image patch to use amd64 image - See https://kubernetes.slack.com/archives/C01GE7YSUUF/p1685016272443249"
+  kubectl patch clustermanager cluster-manager --type='merge' -p '{"spec":{"placementImagePullSpec":"quay.io/open-cluster-management/placement:v0.11.0-amd64"}}'
   echo "checking if cluster is single or multi"
   if [[ -n "${OCM_SINGLE}" ]]; then
     clusterName=kind-${KIND_CLUSTER_CONTROL_PLANE}
     echo "Found single cluster installing hub and spoke on the one cluster (${clusterName})"
     join=$(${CLUSTERADM_BIN} get token --context ${clusterName} |  grep -o  'clusteradm.*--cluster-name')
-    ${BIN_DIR}/${join} ${clusterName} --bundle-version='0.10.0' --force-internal-endpoint-lookup --context ${clusterName} | grep clusteradm
+    ${BIN_DIR}/${join} ${clusterName} --bundle-version='0.11.0' --feature-gates=RawFeedbackJsonString=true --force-internal-endpoint-lookup --context ${clusterName} | grep clusteradm
     echo "accepting OCM spoke cluster invite"
   
     max_retry=18
@@ -243,7 +245,7 @@ deployOCMSpoke(){
   kubectl config use-context kind-${KIND_CLUSTER_CONTROL_PLANE}
   join=$(${CLUSTERADM_BIN} get token --context kind-${KIND_CLUSTER_CONTROL_PLANE} |  grep -o  'clusteradm.*--cluster-name')
   kubectl config use-context kind-${clusterName}
-  ${BIN_DIR}/${join} kind-${clusterName} --force-internal-endpoint-lookup --context kind-${clusterName} | grep clusteradm
+  ${BIN_DIR}/${join} kind-${clusterName} --bundle-version='0.11.0' --feature-gates=RawFeedbackJsonString=true --force-internal-endpoint-lookup --context kind-${clusterName} | grep clusteradm
   echo "accepting OCM spoke cluster invite"
   kubectl config use-context kind-${KIND_CLUSTER_CONTROL_PLANE}
   

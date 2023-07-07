@@ -55,23 +55,21 @@ func (op *ocmPlacer) GetAddresses(ctx context.Context, gateway *gatewayv1beta1.G
 			Namespace: downstream,
 		},
 	}
-	if err := op.c.Get(ctx, client.ObjectKeyFromObject(mw), mw, &client.GetOptions{}); err != nil {
+	var err error
+	if err = op.c.Get(ctx, client.ObjectKeyFromObject(mw), mw, &client.GetOptions{}); err != nil {
 		return addresses, err
 	}
 	for _, m := range mw.Status.ResourceStatus.Manifests {
 		if m.ResourceMeta.Group == gateway.GetObjectKind().GroupVersionKind().Group && m.ResourceMeta.Name == rootMeta.GetName() {
 			for _, value := range m.StatusFeedbacks.Values {
 				if value.Name == "addresses" {
-					t := gatewayv1beta1.IPAddressType
-					addresses = append(addresses, gatewayv1beta1.GatewayAddress{
-						Type:  &t,
-						Value: *value.Value.String,
-					})
+					err = json.Unmarshal([]byte(*value.Value.JsonRaw), &addresses)
+					break
 				}
 			}
 		}
 	}
-	return addresses, nil
+	return addresses, err
 }
 
 func (op *ocmPlacer) ListenerTotalAttachedRoutes(ctx context.Context, gateway *gatewayv1beta1.Gateway, listenerName string, downstream string) (int, error) {
@@ -320,7 +318,7 @@ func (op *ocmPlacer) createUpdateClusterManifests(ctx context.Context, manifestN
 	jsonPaths := []workv1.JsonPath{
 		{
 			Name: "addresses",
-			Path: ".status.addresses[?(@.type==\"IPAddress\")].value",
+			Path: ".status.addresses",
 		},
 	}
 	for _, l := range upstream.Spec.Listeners {
@@ -452,7 +450,7 @@ func (op *ocmPlacer) createUpdateManifest(ctx context.Context, cluster string, m
 	}
 
 	if !equality.Semantic.DeepEqual(mw.Spec, m.Spec) {
-		log.Log.V(3).Info("placment: manifest found updating it ")
+		log.Log.V(3).Info("placement: manifest found updating it ")
 		mw.Spec = m.Spec
 		if err := op.c.Update(ctx, mw, &client.UpdateOptions{}); err != nil {
 			log.Log.V(3).Info("placement:  updating manifest ", "error", err)
