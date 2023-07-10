@@ -1,6 +1,18 @@
 # multicluster-gateway-controller
 
 ## Description:
+
+The multi-cluster gateway controller, leverages the gateway API standard and Open Cluster Management to provide multi-cluster connectivity and global load balancing
+
+Key Features:
+
+- Central Gateway Definition that can then be distributed to multiple clusters
+- Automatic TLS and cert distribution for HTTPS based listeners
+- DNSPolicy to decide how North-South based traffic should be balanced and reach the gateways
+- Health checks to detect and take remedial action against unhealthy endpoints
+- Cloud DNS provider integrations (AWS route 53) with new ones being added (google DNS)
+
+
 When deploying the multicluster gateway controller using the make targets, the following will be created: 
 * Kind cluster(s)
 * Gateway API CRDs in the control plane cluster
