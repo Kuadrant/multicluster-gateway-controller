@@ -713,7 +713,7 @@ func Test_buildProgrammedStatus(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := buildProgrammedStatus(tt.args.gatewayStatus, tt.args.generation, tt.args.clusters, tt.args.programmedStatus, nil); !testutil.ConditionsEqual(got, tt.want) {
+			if got := buildProgrammedCondition(tt.args.generation, tt.args.clusters, tt.args.programmedStatus, nil); !testutil.ConditionsEqual(got, tt.want) {
 				t.Errorf("buildStatusConditions() = \ngot:\n%v, \nwant: \n%v", got, tt.want)
 			}
 		})
@@ -766,10 +766,10 @@ func getValidCertificateSecret(hostname string) *corev1.SecretList {
 
 func buildRequeueStatus() v1beta1.GatewayStatus {
 	status := v1beta1.GatewayStatus{
-		Conditions: make([]v1.Condition, 2),
+		Conditions: []v1.Condition{},
 	}
-	status.Conditions = buildAcceptedCondition(v1beta1.GatewayStatus{}, 0, v1.ConditionTrue)
-	status.Conditions = buildProgrammedStatus(status, 0, []string{}, v1.ConditionFalse, nil)
+	_ = append(status.Conditions, buildAcceptedCondition(0, v1.ConditionTrue))
+	_ = append(status.Conditions, buildProgrammedCondition(0, []string{}, v1.ConditionFalse, nil))
 	return status
 }
 

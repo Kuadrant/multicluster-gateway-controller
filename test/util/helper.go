@@ -52,27 +52,17 @@ func BuildTestCondition(conditionType v1beta1.GatewayConditionType, generation i
 	}
 }
 
-func ConditionsEqual(got, want []v1.Condition) bool {
-	if len(got) != len(want) {
-		return false
-	}
+func ConditionsEqual(got v1.Condition, want []v1.Condition) bool {
 	for _, wantCase := range want {
-		found := false
-		for _, gotCase := range got {
-			if wantCase.Type == gotCase.Type &&
-				wantCase.Status == gotCase.Status &&
-				wantCase.ObservedGeneration == gotCase.ObservedGeneration &&
-				wantCase.Reason == gotCase.Reason &&
-				strings.Contains(gotCase.Message, wantCase.Message) {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return false
+		if wantCase.Type == got.Type &&
+			wantCase.Status == got.Status &&
+			wantCase.ObservedGeneration == got.ObservedGeneration &&
+			wantCase.Reason == got.Reason &&
+			strings.Contains(got.Message, wantCase.Message) {
+			return true
 		}
 	}
-	return true
+	return false
 }
 
 func GotExpectedError(expected string, got error) bool {

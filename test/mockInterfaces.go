@@ -5,6 +5,7 @@ package test
 import (
 	"context"
 	"fmt"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -56,7 +57,7 @@ type FakeHostService struct {
 	controlClient client.Client
 }
 
-func (h *FakeHostService) SetEndpoints(_ context.Context, _ []v1beta1.GatewayAddress, _ *v1alpha1.DNSRecord, _ *v1alpha1.DNSPolicy) error {
+func (h *FakeHostService) SetEndpoints(_ context.Context, _ *dns.MultiClusterGatewayTarget, _ *v1alpha1.DNSRecord) error {
 	return nil
 }
 
@@ -153,6 +154,10 @@ func NewTestHostService(client client.Client) *FakeHostService {
 }
 
 type FakeGatewayPlacer struct{}
+
+func (p *FakeGatewayPlacer) GetClusterGateway(_ context.Context, _ *v1beta1.Gateway, _ string) (dns.ClusterGateway, error) {
+	return dns.ClusterGateway{}, nil
+}
 
 func (p *FakeGatewayPlacer) Place(_ context.Context, upstream *v1beta1.Gateway, _ *v1beta1.Gateway, _ ...v1.Object) (sets.Set[string], error) {
 	if upstream.Labels == nil {
