@@ -28,8 +28,8 @@ This document describes a proposal to extend the current health check implementa
 
 #### `DNSPolicy` resource
 
-The presence of the `healthCheck` means that for every DNS endpoint, a health check is created based on the 
-health check configuration in the DNSPolicy.
+The presence of the `healthCheck` means that for every DNS endpoint (that is either an A record, or a CNAME to an external host), 
+a health check is created based on the health check configuration in the DNSPolicy.
 
 A `failureThreshold` field will be added to the health spec, allowing users to configure a number of consecutive health 
 check failures that must be observed before the endpoint is considered unhealthy.
