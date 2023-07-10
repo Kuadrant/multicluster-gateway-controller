@@ -70,6 +70,17 @@ spec:
                     type: object
                   weighted:
                     properties:
+                      custom:
+                        items:
+                          properties:
+                            value:
+                              type: string
+                            weight:
+                              maximum: 255
+                              minimum: 0
+                              type: integer
+                          type: object
+                        type: array
                       defaultWeight:
                         default: 120
                         description: defaultWeight is the record weight to use when
