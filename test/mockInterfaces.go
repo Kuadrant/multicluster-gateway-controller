@@ -5,7 +5,6 @@ package test
 import (
 	"context"
 	"fmt"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -16,6 +15,7 @@ import (
 	"sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/traffic"
 	"github.com/Kuadrant/multicluster-gateway-controller/test/util"
 )
