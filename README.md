@@ -8,7 +8,7 @@ Key Features:
 
 - Central Gateway Definition that can then be distributed to multiple clusters
 - Automatic TLS and cert distribution for HTTPS based listeners
-- DNSPolicy to decide how Nort-South based traffic should be balanced and reach the gateways
+- DNSPolicy to decide how North-South based traffic should be balanced and reach the gateways
 - Health checks to detect and take remedial action against unhealthy endpoints
 - Cloud DNS provider integrations (AWS route 53) with new ones being added (google DNS)
 
