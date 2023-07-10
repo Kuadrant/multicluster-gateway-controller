@@ -26,10 +26,8 @@ When deploying the multicluster gateway controller using the make targets, the f
 
 ## Prerequisites:
 * AWS
-* Kind 
-    * `make kind`
-* yq 
-    * `make yq`
+* Various dependencies installed into $(pwd)/bin e.g. kind, yq etc.
+  * Run `make dependencies`
 * openssl>=3
     * On macos a later version is available with `brew install openssl`. You'll need to update your PATH as macos provides an older version via libressl as well
     * On fedora use `dnf install openssl`
