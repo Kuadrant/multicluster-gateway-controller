@@ -19,7 +19,9 @@ on:
       - 'LICENSE'
 
 jobs:
-  e2e_authorize:
+  e2e_test_suite:
+    name: E2E Test Suite
+    runs-on: ubuntu-latest
     # see https://docs.github.com/en/graphql/reference/enums#commentauthorassociation
     # for info on author association
     environment:
@@ -29,14 +31,8 @@ jobs:
       github.event.pull_request.author_association != 'COLLABORATOR' &&
       github.event.pull_request.author_association != 'CONTRIBUTOR' &&
       'e2e-external' || 'e2e-internal' }}
-    runs-on: ubuntu-latest
     steps:
       - run: cat $GITHUB_EVENT_PATH
-  e2e_test_suite:
-    name: E2E Test Suite
-    needs: authorize
-    runs-on: ubuntu-latest
-    steps:
       - uses: actions/checkout@v3
         with:
           ref: ${{ github.event.pull_request.head.sha || github.ref }}
