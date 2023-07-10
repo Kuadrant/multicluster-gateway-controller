@@ -1,4 +1,4 @@
-## Build Dependencies
+##@ Build Dependencies
 
 ## system information
 ARCH ?= amd64
@@ -38,6 +38,7 @@ GINKGO_VERSION ?= v2.6.1
 .PHONY: dependencies
 dependencies: kustomize operator-sdk controller-gen envtest kind helm yq istioctl clusteradm subctl ginkgo
 	@echo "dependencies installed successfully"
+	@echo "consider running `export PATH=$PATH:$(pwd)/bin` if you haven't already done"
 
 KUSTOMIZE_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"
 .PHONY: kustomize
