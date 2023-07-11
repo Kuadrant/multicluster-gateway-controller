@@ -16,28 +16,43 @@ We will start with a single cluster and move to multiple clusters to illustrate 
 
 ## Installation and Setup
 * Clone this repo locally 
-* Setup a `./controller-config.env` file in the root of the repo with the following key values
+* Setup a `./controller-config.env` env-var file in the root of the repo with the following keys. Fill in your own values as appropriate. You will need access to a domain or subdomain in Route 53 in AWS:
 
-    ```bash
-    AWS_DNS_PUBLIC_ZONE_ID=<AWS ZONE ID> # this sets up your default managed zone
-    ZONE_ROOT_DOMAIN=test.hcpapps.net # this is the domain at the root of your zone (foo.example.com)
-    LOG_LEVEL=1
-    ```   
+  ```bash
+  AWS_DNS_PUBLIC_ZONE_ID=Z01234567US0IQE3YLO00
+  ZONE_ROOT_DOMAIN=jbloggs.hcpapps.net
+  LOG_LEVEL=1
+  ```
+
+  | Env Var                  | Example Value           | Description                                           |
+  |--------------------------|-------------------------|-------------------------------------------------------|
+  | `ZONE_ROOT_DOMAIN`       | `jbloggs.hcpapps.net`   | Hostname for the root Domain                          |
+  | `AWS_DNS_PUBLIC_ZONE_ID` | `Z01234567US0IQE3YLO00` | AWS Route 53 Zone ID for specified `ZONE_ROOT_DOMAIN` |
+  | `LOG_LEVEL`              | `1`                     | Log level for the Controller                          |
 
 * setup a `./aws-credentials.env` with credentials to access route 53
 
-    For example:
+  For example:
+
     ```bash
     AWS_ACCESS_KEY_ID=<access_key_id>
     AWS_SECRET_ACCESS_KEY=<secret_access_key>
     AWS_REGION=eu-west-1
     ```
 
+  | Env Var                 | Example Value          | Description                                                    |
+  |-------------------------|------------------------|----------------------------------------------------------------|
+  | `AWS_ACCESS_KEY_ID`     | `AKIA1234567890000000` | Access Key ID, with access to resources in Route 53            |
+  | `AWS_SECRET_ACCESS_KEY` | `Z01234567US0000000`   | Access Secret Access Key, with access to resources in Route 53 |
+  | `AWS_REGION`            | `eu-west-1`            | AWS Region                                                     |
+
+
 * We're going to use an environment variable, `MGC_SUB_DOMAIN`, throughout this walkthrough. Simply run the below in each window you create:
 
-```bash
-export MGC_SUB_DOMAIN=myapp.test.hcpapps.net # replace this
-```
+  For example:
+  ```bash
+  export MGC_SUB_DOMAIN=myapp.jbloggs.hcpapps.net
+  ```
 
 * Alternatively, to set a default, add the above environment variable to your `.zshrc` or `.bash_profile`. To override this as a once-off, simply `export MGC_SUB_DOMAIN`.
 
@@ -140,7 +155,7 @@ Open two windows, which we'll refer to throughout this walkthrough as:
     make build-controller kind-load-controller deploy-controller
     ```
 
-    *Alternatively, in `T2`, you can run the controller locally instead by running:*
+    *Alternatively, in a new window we'll call `T3`, you can run the controller locally instead by running:*
 
     ```bash
     (export $(cat ./controller-config.env | xargs) && export $(cat ./aws-credentials.env | xargs) && make build-controller install run-controller)
@@ -345,13 +360,11 @@ So now we have a working gateway with DNS and TLS configured. Let place this gat
     kubectl label managedcluster kind-mgc-workload-1 ingress-cluster=true
     ```
 
-1. This has added our workload-1 cluster to the ingress clusterset. Next we need to modify our placement. In `T1`, run:
+1. This has added our workload-1 cluster to the ingress clusterset. Next we need to modify our placement to update our `numberOfClusters` to 2. To patch, in `T1`, run:
 
     ```bash
-    kubectl edit placement http-gateway -n multi-cluster-gateways
+    kubectl patch placement http-gateway -n multi-cluster-gateways --type='json' -p='[{"op": "replace", "path": "/spec/numberOfClusters", "value": 2}]'
     ```
-
-1. This will open your `$EDITOR` - in here, edit the spec change the `numberOfClusters` to be 2, and save.
 
 1. In `T2` window execute the following to see the gateway on the workload-1 cluster:
 
