@@ -47,7 +47,7 @@ export MGC_SUB_DOMAIN=myapp.test.hcpapps.net # replace this
 
 For this walkthrough, we're going to use multiple terminal sessions/windows, all using `multicluster-gateway-controller` as the `pwd`.
 
-Open three windows, which we'll refer to throughout this walkthrough as:
+Open two windows, which we'll refer to throughout this walkthrough as:
 
 * `T1` (Hub Cluster)
 * `T2` (Workloads cluster)
@@ -136,10 +136,16 @@ Open three windows, which we'll refer to throughout this walkthrough as:
 
 ### Start the Gateway Controller
 
-1. In `T1` run the following to start the Gateway Controller:
+1. In `T1` run the following to build and deploy the Gateway Controller in a container:
 
     ```bash
     make build-controller kind-load-controller deploy-controller
+    ```
+
+    *Alternatively, you can run the controller locally instead by running:*
+
+    ```bash
+    (export $(cat ./controller-config.env | xargs) && export $(cat ./aws-credentials.env | xargs) && make build-controller install run-controller)
     ```
 
 ### Check the managed zone
