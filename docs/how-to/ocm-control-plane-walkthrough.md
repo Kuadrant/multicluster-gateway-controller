@@ -19,10 +19,8 @@ We will start with a single cluster and move to multiple clusters to illustrate 
 * Setup a `./controller-config.env` file in the root of the repo with the following key values
 
     ```bash
-    # this sets up your default managed zone
-    AWS_DNS_PUBLIC_ZONE_ID=<AWS ZONE ID>
-    # this is the domain at the root of your zone (foo.example.com)
-    ZONE_ROOT_DOMAIN=test.hcpapps.net # replace this with your root domain
+    AWS_DNS_PUBLIC_ZONE_ID=<AWS ZONE ID> # this sets up your default managed zone
+    ZONE_ROOT_DOMAIN=test.hcpapps.net # this is the domain at the root of your zone (foo.example.com)
     LOG_LEVEL=1
     ```   
 
@@ -142,7 +140,7 @@ Open two windows, which we'll refer to throughout this walkthrough as:
     make build-controller kind-load-controller deploy-controller
     ```
 
-    *Alternatively, you can run the controller locally instead by running:*
+    *Alternatively, in `T2`, you can run the controller locally instead by running:*
 
     ```bash
     (export $(cat ./controller-config.env | xargs) && export $(cat ./aws-credentials.env | xargs) && make build-controller install run-controller)
@@ -154,6 +152,11 @@ Open two windows, which we'll refer to throughout this walkthrough as:
 
     ```bash
     export KUBECONFIG=$(pwd)/local/kube/control-plane.yaml
+    ```
+
+    followed by:
+
+    ```bash
     kubectl get managedzone -n multi-cluster-gateways
     ```
 1. You should see the following:    
