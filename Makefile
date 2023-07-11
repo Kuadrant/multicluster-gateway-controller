@@ -111,6 +111,10 @@ uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified 
 deploy-sample-applicationset:
 	kubectl apply -f ./samples/argocd-applicationset/echo-applicationset.yaml
 
+.PHONY: thanos-manifests
+thanos-manifests: ./hack/thanos/thanos_build.sh ./hack/thanos/thanos.jsonnet
+	./hack/thanos/thanos_build.sh
+
 DEV_TLS_DIR = config/webhook-setup/control/tls
 DEV_TLS_CRT ?= $(DEV_TLS_DIR)/tls.crt
 DEV_TLS_KEY ?= $(DEV_TLS_DIR)/tls.key
