@@ -55,10 +55,12 @@ import (
 )
 
 const (
-	GatewayClusterLabelSelectorAnnotation = "kuadrant.io/gateway-cluster-label-selector"
-	GatewayClustersAnnotation             = "kuadrant.io/gateway-clusters"
-	GatewayFinalizer                      = "kuadrant.io/gateway"
-	ManagedLabel                          = "kuadarant.io/managed"
+	GatewayClusterLabelSelectorAnnotation                            = "kuadrant.io/gateway-cluster-label-selector"
+	GatewayClustersAnnotation                                        = "kuadrant.io/gateway-clusters"
+	GatewayFinalizer                                                 = "kuadrant.io/gateway"
+	ManagedLabel                                                     = "kuadarant.io/managed"
+	MultiClusterIPAddressType             gatewayv1beta1.AddressType = "kuadrant.io/MultiClusterIPAddress"
+	MultiClusterHostnameAddressType       gatewayv1beta1.AddressType = "kuadrant.io/MultiClusterHostnameAddress"
 )
 
 type HostService interface {
@@ -198,6 +200,57 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if reconcileErr == nil && !reflect.DeepEqual(upstreamGateway, previous) {
 		return reconcile.Result{}, r.Update(ctx, upstreamGateway)
 	}
+
+	var addressErr error
+	allAddresses := []gatewayv1beta1.GatewayAddress{}
+	for _, cluster := range clusters {
+		log.V(3).Info("checking cluster for addresses", "cluster", cluster)
+		addresses, addressErr := r.Placement.GetAddresses(ctx, upstreamGateway, cluster)
+		log.V(3).Info("got addresses", "addresses,", addresses, "addressErr", addressErr)
+		if addressErr != nil {
+			break
+		}
+		for _, address := range addresses {
+			log.V(3).Info("checking address type for mapping", "address.Type", address.Type)
+			var addressType gatewayv1beta1.AddressType
+			if *address.Type == gatewayv1beta1.IPAddressType {
+				addressType = MultiClusterIPAddressType
+			} else if *address.Type == gatewayv1beta1.HostnameAddressType {
+				addressType = MultiClusterHostnameAddressType
+			} else {
+				break // ignore address type. Unsupported for multi cluster gateway
+			}
+			allAddresses = append(allAddresses, gatewayv1beta1.GatewayAddress{
+				Type:  &addressType,
+				Value: fmt.Sprintf("%s/%s", cluster, address.Value),
+			})
+		}
+	}
+	if addressErr != nil {
+		return ctrl.Result{}, reconcileErr
+	}
+	log.V(3).Info("allAddresses", "allAddresses", allAddresses)
+	upstreamGateway.Status.Addresses = allAddresses
+
+	allListenerStatuses := []gatewayv1beta1.ListenerStatus{}
+	specListeners := upstreamGateway.Spec.Listeners
+	for _, listener := range specListeners {
+		for _, cluster := range clusters {
+			attachedRoutes, err := r.Placement.ListenerTotalAttachedRoutes(ctx, upstreamGateway, string(listener.Name), cluster)
+			if err != nil {
+				// May not have the status yet, let's ignore, but output info logs about it
+				log.Info("AttachedRoutes unknown for listener. Ignoring", "listener", listener.Name, "cluster", cluster, "message", err)
+				continue
+			}
+			allListenerStatuses = append(allListenerStatuses, gatewayv1beta1.ListenerStatus{
+				Name:           gatewayv1beta1.SectionName(fmt.Sprintf("%s.%s", cluster, string(listener.Name))),
+				AttachedRoutes: int32(attachedRoutes),
+				SupportedKinds: []gatewayv1beta1.RouteGroupKind{},
+				Conditions:     []metav1.Condition{},
+			})
+		}
+	}
+	upstreamGateway.Status.Listeners = allListenerStatuses
 
 	acceptedCondition := buildAcceptedCondition(upstreamGateway.Generation, metav1.ConditionTrue)
 	programmedCondition := buildProgrammedCondition(upstreamGateway.Generation, clusters, programmedStatus, err)

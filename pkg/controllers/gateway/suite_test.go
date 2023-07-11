@@ -18,6 +18,7 @@ package gateway
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"testing"
 	"time"
@@ -51,6 +52,7 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/placement"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/tls"
+	. "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -351,7 +353,8 @@ var _ = Describe("GatewayController", func() {
 			}
 			Expect(k8sClient.Status().Update(ctx, placementDecision)).To(BeNil())
 			//Before: Stub Gateway for tests but not creating it here
-			hostname := gatewayv1beta1.Hostname("test.example.com")
+			hostname1 := gatewayv1beta1.Hostname("test1.example.com")
+			hostname2 := gatewayv1beta1.Hostname("test2.example.com")
 			gateway = &gatewayv1beta1.Gateway{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-gw-1",
@@ -367,7 +370,13 @@ var _ = Describe("GatewayController", func() {
 							Name:     "default",
 							Port:     8443,
 							Protocol: gatewayv1beta1.HTTPSProtocolType,
-							Hostname: &hostname,
+							Hostname: &hostname1,
+						},
+						{
+							Name:     "web",
+							Port:     8443,
+							Protocol: gatewayv1beta1.HTTPSProtocolType,
+							Hostname: &hostname2,
 						},
 					},
 				},
@@ -385,7 +394,7 @@ var _ = Describe("GatewayController", func() {
 							Name:     "default",
 							Port:     8443,
 							Protocol: gatewayv1beta1.HTTPSProtocolType,
-							Hostname: &hostname,
+							Hostname: &hostname1,
 						},
 					},
 				},
@@ -521,7 +530,7 @@ var _ = Describe("GatewayController", func() {
 
 			}, EventuallyTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 			//Comparing the hostname
-			Expect(stringified).To(Equal("test.example.com"))
+			Expect(stringified).To(Equal("test1.example.com"))
 
 			// Test: Passes when manifest2 is found in Namespace test-spoke-cluster-2 and contains the hostname from the gateway
 
@@ -545,9 +554,27 @@ var _ = Describe("GatewayController", func() {
 			}, EventuallyTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 
 			//Comparing the hostname
-			Expect(stringified).To(Equal("test.example.com"))
+			Expect(stringified).To(Equal("test1.example.com"))
 
 			//Mock: Make the manifestwork status in manifest 1 be "applied". OCM usually does it when the resources have been applied
+			ipAddressType := gatewayv1beta1.IPAddressType
+			hostnameAddressType := gatewayv1beta1.HostnameAddressType
+			ip1 := "172.18.0.1"
+			ip2 := "172.18.0.2"
+			ip3 := "172.18.1.1"
+			hostname4 := "test4.example.com"
+			m1AddressesJson, err := json.Marshal([]gatewayv1beta1.GatewayAddress{
+				{
+					Type:  &ipAddressType,
+					Value: ip1,
+				},
+				{
+					Type:  &ipAddressType,
+					Value: ip2,
+				},
+			})
+			Expect(err).NotTo(HaveOccurred())
+			m1AddressesJsonString := string(m1AddressesJson)
 			manifest1.Status = ocmworkv1.ManifestWorkStatus{
 				Conditions: []metav1.Condition{
 					{
@@ -558,12 +585,60 @@ var _ = Describe("GatewayController", func() {
 						Message:            "Apply manifest complete",
 					},
 				},
+				ResourceStatus: ocmworkv1.ManifestResourceStatus{
+					Manifests: []ocmworkv1.ManifestCondition{
+						{
+							ResourceMeta: ocmworkv1.ManifestResourceMeta{
+								Group:     "gateway.networking.k8s.io",
+								Name:      gateway.Name,
+								Namespace: gateway.Namespace,
+							},
+							StatusFeedbacks: ocmworkv1.StatusFeedbackResult{
+								Values: []ocmworkv1.FeedbackValue{
+									{
+										Name: "addresses",
+										Value: ocmworkv1.FieldValue{
+											Type:    ocmworkv1.JsonRaw,
+											JsonRaw: &m1AddressesJsonString,
+										},
+									},
+									{
+										Name: "listenerdefaultAttachedRoutes",
+										Value: ocmworkv1.FieldValue{
+											Type:    ocmworkv1.Integer,
+											Integer: Pointer(int64(1)),
+										},
+									},
+									{
+										Name: "listenerwebAttachedRoutes",
+										Value: ocmworkv1.FieldValue{
+											Type:    ocmworkv1.Integer,
+											Integer: Pointer(int64(1)),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
 			}
 
 			Expect(k8sClient.Status().Update(ctx, manifest1)).To(BeNil())
 
 			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: manifest2.Namespace, Name: manifest2.Name}, manifest2)).To(BeNil())
 			//Mock: Make the manifestwork status in manifest 2 be "applied". OCM usually does it when the resources have been applied
+			m2AddressesJson, err := json.Marshal([]gatewayv1beta1.GatewayAddress{
+				{
+					Type:  &ipAddressType,
+					Value: ip3,
+				},
+				{
+					Type:  &hostnameAddressType,
+					Value: hostname4,
+				},
+			})
+			Expect(err).NotTo(HaveOccurred())
+			m2AddressesJsonString := string(m2AddressesJson)
 			manifest2.Status = ocmworkv1.ManifestWorkStatus{
 				Conditions: []metav1.Condition{
 					{
@@ -572,6 +647,42 @@ var _ = Describe("GatewayController", func() {
 						LastTransitionTime: metav1.Now(),
 						Reason:             "AppliedManifestComplete",
 						Message:            "Apply manifest complete",
+					},
+				},
+				ResourceStatus: ocmworkv1.ManifestResourceStatus{
+					Manifests: []ocmworkv1.ManifestCondition{
+						{
+							ResourceMeta: ocmworkv1.ManifestResourceMeta{
+								Group:     "gateway.networking.k8s.io",
+								Name:      gateway.Name,
+								Namespace: gateway.Namespace,
+							},
+							StatusFeedbacks: ocmworkv1.StatusFeedbackResult{
+								Values: []ocmworkv1.FeedbackValue{
+									{
+										Name: "addresses",
+										Value: ocmworkv1.FieldValue{
+											Type:    ocmworkv1.JsonRaw,
+											JsonRaw: &m2AddressesJsonString,
+										},
+									},
+									{
+										Name: "listenerdefaultAttachedRoutes",
+										Value: ocmworkv1.FieldValue{
+											Type:    ocmworkv1.Integer,
+											Integer: Pointer(int64(0)),
+										},
+									},
+									{
+										Name: "listenerwebAttachedRoutes",
+										Value: ocmworkv1.FieldValue{
+											Type:    ocmworkv1.Integer,
+											Integer: Pointer(int64(1)),
+										},
+									},
+								},
+							},
+						},
 					},
 				},
 			}
@@ -592,6 +703,38 @@ var _ = Describe("GatewayController", func() {
 				Expect(programmedCondition).ToNot(BeNil())
 				return programmedCondition.Status == metav1.ConditionTrue
 			}, EventuallyTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+
+			// Test the aggregated addresses are correct
+			addresses := upstreamGateway.Status.Addresses
+			Expect(len(addresses)).To(BeEquivalentTo(4)) // 2 Gateways. Each Gateway has 2 IPAddresses
+			address1 := addresses[0]
+			Expect(string(*address1.Type)).To(BeEquivalentTo("kuadrant.io/MultiClusterIPAddress"))
+			Expect(address1.Value).To(BeEquivalentTo(fmt.Sprintf("%s/%s", nsSpoke1Name, ip1)))
+			address2 := addresses[1]
+			Expect(string(*address2.Type)).To(BeEquivalentTo("kuadrant.io/MultiClusterIPAddress"))
+			Expect(address2.Value).To(BeEquivalentTo(fmt.Sprintf("%s/%s", nsSpoke1Name, ip2)))
+			address3 := addresses[2]
+			Expect(string(*address3.Type)).To(BeEquivalentTo("kuadrant.io/MultiClusterIPAddress"))
+			Expect(address3.Value).To(BeEquivalentTo(fmt.Sprintf("%s/%s", nsSpoke2Name, ip3)))
+			address4 := addresses[3]
+			Expect(string(*address4.Type)).To(BeEquivalentTo("kuadrant.io/MultiClusterHostnameAddress"))
+			Expect(address4.Value).To(BeEquivalentTo(fmt.Sprintf("%s/%s", nsSpoke2Name, hostname4)))
+
+			// Test the aggregated listeners are correct
+			listeners := upstreamGateway.Status.Listeners
+			Expect(len(listeners)).To(BeEquivalentTo(4)) // 2 Gateways. Each Gateway has 2 listeners: 'default' and 'web'
+			listener1 := listeners[0]
+			Expect(listener1.Name).To(BeEquivalentTo(fmt.Sprintf("%s.default", nsSpoke1Name)))
+			Expect(listener1.AttachedRoutes).To(BeEquivalentTo(1))
+			listener2 := listeners[1]
+			Expect(listener2.Name).To(BeEquivalentTo(fmt.Sprintf("%s.default", nsSpoke2Name)))
+			Expect(listener2.AttachedRoutes).To(BeEquivalentTo(0))
+			listener3 := listeners[2]
+			Expect(listener3.Name).To(BeEquivalentTo(fmt.Sprintf("%s.web", nsSpoke1Name)))
+			Expect(listener3.AttachedRoutes).To(BeEquivalentTo(1))
+			listener4 := listeners[3]
+			Expect(listener4.Name).To(BeEquivalentTo(fmt.Sprintf("%s.web", nsSpoke2Name)))
+			Expect(listener4.AttachedRoutes).To(BeEquivalentTo(1))
 
 		})
 
