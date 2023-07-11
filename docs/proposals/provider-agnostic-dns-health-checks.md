@@ -11,6 +11,7 @@ This feature has a few shortfalls:
 1. It’s tightly coupled with Route53. If other DNS providers are supported they must either provide a similar feature, 
 or health checks will not be supported
 2. Lacks the ability to reach endpoints in private networks
+3. requires using the gateway controller to implement, maintain and test multiple providers
 
 This document describes a proposal to extend the current health check implementation to overcome these shortfalls.
 
