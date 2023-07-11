@@ -59,12 +59,12 @@ status:
 ```
 
 #### Spec Fields Definition
-**Port** The port to use
-**Address** The address to connect to (e.g. IP address or hostname of a clusters loadbalancer)
-**Host** The host to request in the Host header
-**Path** The path to request
-**Protocol** The protocol to use for this request
-**Interval** How frequently this check would ideally be executed.
+- **Port** The port to use
+- **Address** The address to connect to (e.g. IP address or hostname of a clusters loadbalancer)
+- **Host** The host to request in the Host header
+- **Path** The path to request
+- **Protocol** The protocol to use for this request
+- **Interval** How frequently this check would ideally be executed.
 
 The reconciliation of this resource results in the configuration of a health probe, which targets the endpoint and 
 updates the status. The status is propagated to the providerSpecific status of the equivalent endpoint in the DNSRecord
