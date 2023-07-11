@@ -33,6 +33,7 @@ type ManagedZoneSpec struct {
 	// +optional
 	ID string `json:"id,omitempty"`
 	//Domain name of this ManagedZone
+	// +kubebuilder:validation:Pattern=`^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$`
 	DomainName string `json:"domainName"`
 	//Description for this ManagedZone
 	Description string `json:"description"`
