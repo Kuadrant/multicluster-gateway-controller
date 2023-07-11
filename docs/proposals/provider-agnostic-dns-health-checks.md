@@ -38,7 +38,7 @@ check failures that must be observed before the endpoint is considered unhealthy
 #### `DNSHealthCheckProbe` resource
 
 The DNSHealthCheckProbe resource configures a health probe in the controller to perform the health checks against an 
-endpoint.
+identified final A or CNAME endpoint
 
 ```yaml
 apiVersion: kuadrant.io/v1alpha1
