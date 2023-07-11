@@ -96,6 +96,32 @@ func testBuildDNSPolicyWithHealthCheck(policyName, gwName, ns string) *v1alpha1.
 	}
 }
 
+func testBuildDNSPolicyWithGeo(policyName, gwName, ns string) *v1alpha1.DNSPolicy {
+	typedNamespace := gatewayv1beta1.Namespace(ns)
+	return &v1alpha1.DNSPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      policyName,
+			Namespace: ns,
+		},
+		Spec: v1alpha1.DNSPolicySpec{
+			TargetRef: gatewayapiv1alpha2.PolicyTargetReference{
+				Group:     "gateway.networking.k8s.io",
+				Kind:      "Gateway",
+				Name:      gatewayv1beta1.ObjectName(gwName),
+				Namespace: &typedNamespace,
+			},
+			LoadBalancing: &v1alpha1.LoadBalancingSpec{
+				Weighted: &v1alpha1.LoadBalancingWeighted{
+					DefaultWeight: 120,
+				},
+				Geo: &v1alpha1.LoadBalancingGeo{
+					DefaultGeo: "IE",
+				},
+			},
+		},
+	}
+}
+
 var _ = Describe("DNSPolicy", Ordered, func() {
 
 	var gatewayClass *gatewayv1beta1.GatewayClass
@@ -129,268 +155,275 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 
 	Context("gateway placed", func() {
 		var gateway *gatewayv1beta1.Gateway
-		var dnsPolicy *v1alpha1.DNSPolicy
 		var lbHash string
 
 		BeforeEach(func() {
 			gateway = testBuildGateway(TestPlacedGatewayName, gatewayClass.Name, TestAttachedRouteName, testNamespace)
-			dnsPolicy = testBuildDNSPolicyWithHealthCheck("test-dns-policy", TestPlacedGatewayName, testNamespace)
 			lbHash = dns.ToBase36hash(fmt.Sprintf("%s-%s", gateway.Name, gateway.Namespace))
-
 			Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
-			Expect(k8sClient.Create(ctx, dnsPolicy)).To(BeNil())
-
 			Eventually(func() bool { //gateway exists
 				if err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway); err != nil {
 					return false
 				}
 				return true
 			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
-
-			Eventually(func() bool { //dns policy exists
-				if err := k8sClient.Get(ctx, client.ObjectKey{Name: dnsPolicy.Name, Namespace: dnsPolicy.Namespace}, dnsPolicy); err != nil {
-					return false
-				}
-				return true
-			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 		})
 
-		It("should create dns record", func() {
-			createdDNSRecord := &v1alpha1.DNSRecord{}
-			expectedEndpoints := []*v1alpha1.Endpoint{
-				{
-					DNSName: "test.example.com",
-					Targets: []string{
-						"lb-" + lbHash + ".test.example.com",
+		Context("weighted dnspolicy", func() {
+			var dnsPolicy *v1alpha1.DNSPolicy
+
+			BeforeEach(func() {
+				dnsPolicy = testBuildDNSPolicyWithHealthCheck("test-dns-policy", TestPlacedGatewayName, testNamespace)
+				Expect(k8sClient.Create(ctx, dnsPolicy)).To(BeNil())
+				Eventually(func() bool { //dns policy exists
+					if err := k8sClient.Get(ctx, client.ObjectKey{Name: dnsPolicy.Name, Namespace: dnsPolicy.Namespace}, dnsPolicy); err != nil {
+						return false
+					}
+					return true
+				}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			})
+
+			It("should create a dns record", func() {
+				createdDNSRecord := &v1alpha1.DNSRecord{}
+				expectedEndpoints := []*v1alpha1.Endpoint{
+					{
+						DNSName: "test.example.com",
+						Targets: []string{
+							"lb-" + lbHash + ".test.example.com",
+						},
+						RecordType:    "CNAME",
+						SetIdentifier: "",
+						RecordTTL:     300,
 					},
-					RecordType:    "CNAME",
-					SetIdentifier: "",
-					RecordTTL:     300,
-				},
-				{
-					DNSName: "lb-" + lbHash + ".test.example.com",
-					Targets: []string{
-						"default.lb-" + lbHash + ".test.example.com",
-					},
-					RecordType:    "CNAME",
-					SetIdentifier: "default",
-					RecordTTL:     300,
-					ProviderSpecific: v1alpha1.ProviderSpecific{
-						{
-							Name:  "geo-country-code",
-							Value: "*",
+					{
+						DNSName: "lb-" + lbHash + ".test.example.com",
+						Targets: []string{
+							"default.lb-" + lbHash + ".test.example.com",
+						},
+						RecordType:    "CNAME",
+						SetIdentifier: "default",
+						RecordTTL:     300,
+						ProviderSpecific: v1alpha1.ProviderSpecific{
+							{
+								Name:  "geo-country-code",
+								Value: "*",
+							},
 						},
 					},
-				},
-				{
-					DNSName: "16z1l1.lb-" + lbHash + ".test.example.com",
-					Targets: []string{
-						"172.0.0.3",
+					{
+						DNSName: "16z1l1.lb-" + lbHash + ".test.example.com",
+						Targets: []string{
+							"172.0.0.3",
+						},
+						RecordType:    "A",
+						SetIdentifier: "",
+						RecordTTL:     60,
 					},
-					RecordType:    "A",
-					SetIdentifier: "",
-					RecordTTL:     60,
-				},
-				{
-					DNSName: "default.lb-" + lbHash + ".test.example.com",
-					Targets: []string{
-						"16z1l1.lb-" + lbHash + ".test.example.com",
-					},
-					RecordType:    "CNAME",
-					SetIdentifier: "16z1l1.lb-" + lbHash + ".test.example.com",
-					RecordTTL:     60,
-					ProviderSpecific: v1alpha1.ProviderSpecific{
-						{
-							Name:  "weight",
-							Value: "120",
+					{
+						DNSName: "default.lb-" + lbHash + ".test.example.com",
+						Targets: []string{
+							"16z1l1.lb-" + lbHash + ".test.example.com",
+						},
+						RecordType:    "CNAME",
+						SetIdentifier: "16z1l1.lb-" + lbHash + ".test.example.com",
+						RecordTTL:     60,
+						ProviderSpecific: v1alpha1.ProviderSpecific{
+							{
+								Name:  "weight",
+								Value: "120",
+							},
 						},
 					},
-				},
-			}
-			Eventually(func() bool { // DNS record exists
-				if err := k8sClient.Get(ctx, client.ObjectKey{Name: TestAttachedRouteName, Namespace: dnsPolicy.Namespace}, createdDNSRecord); err != nil {
-					return false
 				}
-				return len(createdDNSRecord.Spec.Endpoints) == 4
-			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
-			Expect(createdDNSRecord.Spec.ManagedZoneRef.Name).To(Equal("example.com"))
-			Expect(createdDNSRecord.Spec.Endpoints).To(HaveLen(4))
-			Expect(createdDNSRecord.Spec.Endpoints).Should(ContainElements(expectedEndpoints))
+				Eventually(func() bool { // DNS record exists
+					if err := k8sClient.Get(ctx, client.ObjectKey{Name: TestAttachedRouteName, Namespace: dnsPolicy.Namespace}, createdDNSRecord); err != nil {
+						return false
+					}
+					return len(createdDNSRecord.Spec.Endpoints) == 4
+				}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+				Expect(createdDNSRecord.Spec.ManagedZoneRef.Name).To(Equal("example.com"))
+				Expect(createdDNSRecord.Spec.Endpoints).To(HaveLen(4))
+				Expect(createdDNSRecord.Spec.Endpoints).Should(ContainElements(expectedEndpoints))
+			})
+
+			It("should have ready status", func() {
+				Eventually(func() bool {
+					if err := k8sClient.Get(ctx, client.ObjectKey{Name: dnsPolicy.Name, Namespace: dnsPolicy.Namespace}, dnsPolicy); err != nil {
+						return false
+					}
+
+					return meta.IsStatusConditionTrue(dnsPolicy.Status.Conditions, conditions.ConditionTypeReady)
+				}, time.Second*15, time.Second).Should(BeTrue())
+			})
+
+			It("should have health check status", func() {
+				Eventually(func() bool { // DNS Policy has health check status
+					if err := k8sClient.Get(ctx, client.ObjectKey{Name: dnsPolicy.Name, Namespace: dnsPolicy.Namespace}, dnsPolicy); err != nil {
+						return false
+					}
+
+					if dnsPolicy.Status.HealthCheck == nil || dnsPolicy.Status.HealthCheck.Conditions == nil {
+						return false
+					}
+					return len(dnsPolicy.Status.HealthCheck.Conditions) > 0
+				}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			})
+
+			It("should set gateway back reference", func() {
+				existingGateway := &gatewayv1beta1.Gateway{}
+				policyBackRefValue := testNamespace + "/" + dnsPolicy.Name
+				refs, _ := json.Marshal([]client.ObjectKey{{Name: dnsPolicy.Name, Namespace: testNamespace}})
+				policiesBackRefValue := string(refs)
+
+				Eventually(func() map[string]string {
+					// Check gateway back references
+					err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: testNamespace}, existingGateway)
+					// must exist
+					Expect(err).ToNot(HaveOccurred())
+					return existingGateway.GetAnnotations()
+				}, time.Second*5, time.Second).Should(HaveKeyWithValue(DNSPolicyBackRefAnnotation, policyBackRefValue))
+				Eventually(func() map[string]string {
+					// Check gateway back references
+					err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: testNamespace}, existingGateway)
+					// must exist
+					Expect(err).ToNot(HaveOccurred())
+					return existingGateway.GetAnnotations()
+				}, time.Second*5, time.Second).Should(HaveKeyWithValue(DNSPoliciesBackRefAnnotation, policiesBackRefValue))
+			})
+
+			It("should remove gateway back reference on policy deletion", func() {
+				existingGateway := &gatewayv1beta1.Gateway{}
+				policyBackRefValue := testNamespace + "/" + dnsPolicy.Name
+				refs, _ := json.Marshal([]client.ObjectKey{{Name: dnsPolicy.Name, Namespace: testNamespace}})
+				policiesBackRefValue := string(refs)
+
+				Eventually(func() map[string]string {
+					// Check gateway back references
+					err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: testNamespace}, existingGateway)
+					// must exist
+					Expect(err).ToNot(HaveOccurred())
+					return existingGateway.GetAnnotations()
+				}, time.Second*5, time.Second).Should(HaveKeyWithValue(DNSPolicyBackRefAnnotation, policyBackRefValue))
+				Eventually(func() map[string]string {
+					// Check gateway back references
+					err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: testNamespace}, existingGateway)
+					// must exist
+					Expect(err).ToNot(HaveOccurred())
+					return existingGateway.GetAnnotations()
+				}, time.Second*5, time.Second).Should(HaveKeyWithValue(DNSPoliciesBackRefAnnotation, policiesBackRefValue))
+
+				Expect(k8sClient.Delete(ctx, dnsPolicy)).To(BeNil())
+
+				Eventually(func() map[string]string {
+					// Check gateway back references
+					err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: testNamespace}, existingGateway)
+					// must exist
+					Expect(err).ToNot(HaveOccurred())
+					return existingGateway.GetAnnotations()
+				}, time.Second*5, time.Second).ShouldNot(HaveKey(DNSPolicyBackRefAnnotation))
+				Eventually(func() map[string]string {
+					// Check gateway back references
+					err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: testNamespace}, existingGateway)
+					// must exist
+					Expect(err).ToNot(HaveOccurred())
+					return existingGateway.GetAnnotations()
+				}, time.Second*5, time.Second).ShouldNot(HaveKey(DNSPolicyBackRefAnnotation))
+
+			})
 		})
 
-		It("should create geo dns record", func() {
-			dnsPolicy.Spec.LoadBalancing.Geo = &v1alpha1.LoadBalancingGeo{
-				DefaultGeo: "IE",
-			}
-			Eventually(func() bool {
-				if err := k8sClient.Update(ctx, dnsPolicy); err != nil {
-					return false
-				}
-				return true
-			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+		Context("geo dnspolicy", func() {
+			var dnsPolicy *v1alpha1.DNSPolicy
 
-			createdDNSRecord := &v1alpha1.DNSRecord{}
-			expectedEndpoints := []*v1alpha1.Endpoint{
-				{
-					DNSName: "test.example.com",
-					Targets: []string{
-						"lb-" + lbHash + ".test.example.com",
+			BeforeEach(func() {
+				dnsPolicy = testBuildDNSPolicyWithGeo("test-dns-policy", TestPlacedGatewayName, testNamespace)
+				Expect(k8sClient.Create(ctx, dnsPolicy)).To(BeNil())
+				Eventually(func() bool { //dns policy exists
+					if err := k8sClient.Get(ctx, client.ObjectKey{Name: dnsPolicy.Name, Namespace: dnsPolicy.Namespace}, dnsPolicy); err != nil {
+						return false
+					}
+					return true
+				}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			})
+
+			It("should create a dns record", func() {
+				createdDNSRecord := &v1alpha1.DNSRecord{}
+				expectedEndpoints := []*v1alpha1.Endpoint{
+					{
+						DNSName: "test.example.com",
+						Targets: []string{
+							"lb-" + lbHash + ".test.example.com",
+						},
+						RecordType:    "CNAME",
+						SetIdentifier: "",
+						RecordTTL:     300,
 					},
-					RecordType:    "CNAME",
-					SetIdentifier: "",
-					RecordTTL:     300,
-				},
-				{
-					DNSName: "lb-" + lbHash + ".test.example.com",
-					Targets: []string{
-						"ie.lb-" + lbHash + ".test.example.com",
-					},
-					RecordType:    "CNAME",
-					SetIdentifier: "IE",
-					RecordTTL:     300,
-					ProviderSpecific: v1alpha1.ProviderSpecific{
-						{
-							Name:  "geo-country-code",
-							Value: "IE",
+					{
+						DNSName: "lb-" + lbHash + ".test.example.com",
+						Targets: []string{
+							"ie.lb-" + lbHash + ".test.example.com",
+						},
+						RecordType:    "CNAME",
+						SetIdentifier: "IE",
+						RecordTTL:     300,
+						ProviderSpecific: v1alpha1.ProviderSpecific{
+							{
+								Name:  "geo-country-code",
+								Value: "IE",
+							},
 						},
 					},
-				},
-				{
-					DNSName: "lb-" + lbHash + ".test.example.com",
-					Targets: []string{
-						"ie.lb-" + lbHash + ".test.example.com",
-					},
-					RecordType:    "CNAME",
-					SetIdentifier: "default",
-					RecordTTL:     300,
-					ProviderSpecific: v1alpha1.ProviderSpecific{
-						{
-							Name:  "geo-country-code",
-							Value: "*",
+					{
+						DNSName: "lb-" + lbHash + ".test.example.com",
+						Targets: []string{
+							"ie.lb-" + lbHash + ".test.example.com",
+						},
+						RecordType:    "CNAME",
+						SetIdentifier: "default",
+						RecordTTL:     300,
+						ProviderSpecific: v1alpha1.ProviderSpecific{
+							{
+								Name:  "geo-country-code",
+								Value: "*",
+							},
 						},
 					},
-				},
-				{
-					DNSName: "16z1l1.lb-" + lbHash + ".test.example.com",
-					Targets: []string{
-						"172.0.0.3",
+					{
+						DNSName: "16z1l1.lb-" + lbHash + ".test.example.com",
+						Targets: []string{
+							"172.0.0.3",
+						},
+						RecordType:    "A",
+						SetIdentifier: "",
+						RecordTTL:     60,
 					},
-					RecordType:    "A",
-					SetIdentifier: "",
-					RecordTTL:     60,
-				},
-				{
-					DNSName: "ie.lb-" + lbHash + ".test.example.com",
-					Targets: []string{
-						"16z1l1.lb-" + lbHash + ".test.example.com",
-					},
-					RecordType:    "CNAME",
-					SetIdentifier: "16z1l1.lb-" + lbHash + ".test.example.com",
-					RecordTTL:     60,
-					ProviderSpecific: v1alpha1.ProviderSpecific{
-						{
-							Name:  "weight",
-							Value: "120",
+					{
+						DNSName: "ie.lb-" + lbHash + ".test.example.com",
+						Targets: []string{
+							"16z1l1.lb-" + lbHash + ".test.example.com",
+						},
+						RecordType:    "CNAME",
+						SetIdentifier: "16z1l1.lb-" + lbHash + ".test.example.com",
+						RecordTTL:     60,
+						ProviderSpecific: v1alpha1.ProviderSpecific{
+							{
+								Name:  "weight",
+								Value: "120",
+							},
 						},
 					},
-				},
-			}
-			Eventually(func() bool { // DNS record exists
-				if err := k8sClient.Get(ctx, client.ObjectKey{Name: TestAttachedRouteName, Namespace: dnsPolicy.Namespace}, createdDNSRecord); err != nil {
-					return false
 				}
-				return len(createdDNSRecord.Spec.Endpoints) == 5
-			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
-			Expect(createdDNSRecord.Spec.ManagedZoneRef.Name).To(Equal("example.com"))
-			Expect(createdDNSRecord.Spec.Endpoints).To(HaveLen(5))
-			Expect(createdDNSRecord.Spec.Endpoints).Should(ContainElements(expectedEndpoints))
+				Eventually(func() bool { // DNS record exists
+					if err := k8sClient.Get(ctx, client.ObjectKey{Name: TestAttachedRouteName, Namespace: dnsPolicy.Namespace}, createdDNSRecord); err != nil {
+						return false
+					}
+					return len(createdDNSRecord.Spec.Endpoints) == 5
+				}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+				Expect(createdDNSRecord.Spec.ManagedZoneRef.Name).To(Equal("example.com"))
+				Expect(createdDNSRecord.Spec.Endpoints).To(HaveLen(5))
+				Expect(createdDNSRecord.Spec.Endpoints).Should(ContainElements(expectedEndpoints))
+			})
 		})
-
-		It("should have ready status", func() {
-			Eventually(func() bool {
-				if err := k8sClient.Get(ctx, client.ObjectKey{Name: dnsPolicy.Name, Namespace: dnsPolicy.Namespace}, dnsPolicy); err != nil {
-					return false
-				}
-
-				return meta.IsStatusConditionTrue(dnsPolicy.Status.Conditions, conditions.ConditionTypeReady)
-			}, time.Second*15, time.Second).Should(BeTrue())
-		})
-
-		It("should have health check status", func() {
-			Eventually(func() bool { // DNS Policy has health check status
-				if err := k8sClient.Get(ctx, client.ObjectKey{Name: dnsPolicy.Name, Namespace: dnsPolicy.Namespace}, dnsPolicy); err != nil {
-					return false
-				}
-
-				if dnsPolicy.Status.HealthCheck == nil || dnsPolicy.Status.HealthCheck.Conditions == nil {
-					return false
-				}
-				return len(dnsPolicy.Status.HealthCheck.Conditions) > 0
-			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
-		})
-
-		It("should set gateway back reference", func() {
-			existingGateway := &gatewayv1beta1.Gateway{}
-			policyBackRefValue := testNamespace + "/" + dnsPolicy.Name
-			refs, _ := json.Marshal([]client.ObjectKey{{Name: dnsPolicy.Name, Namespace: testNamespace}})
-			policiesBackRefValue := string(refs)
-
-			Eventually(func() map[string]string {
-				// Check gateway back references
-				err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: testNamespace}, existingGateway)
-				// must exist
-				Expect(err).ToNot(HaveOccurred())
-				return existingGateway.GetAnnotations()
-			}, time.Second*5, time.Second).Should(HaveKeyWithValue(DNSPolicyBackRefAnnotation, policyBackRefValue))
-			Eventually(func() map[string]string {
-				// Check gateway back references
-				err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: testNamespace}, existingGateway)
-				// must exist
-				Expect(err).ToNot(HaveOccurred())
-				return existingGateway.GetAnnotations()
-			}, time.Second*5, time.Second).Should(HaveKeyWithValue(DNSPoliciesBackRefAnnotation, policiesBackRefValue))
-		})
-
-		It("should remove gateway back reference on policy deletion", func() {
-			existingGateway := &gatewayv1beta1.Gateway{}
-			policyBackRefValue := testNamespace + "/" + dnsPolicy.Name
-			refs, _ := json.Marshal([]client.ObjectKey{{Name: dnsPolicy.Name, Namespace: testNamespace}})
-			policiesBackRefValue := string(refs)
-
-			Eventually(func() map[string]string {
-				// Check gateway back references
-				err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: testNamespace}, existingGateway)
-				// must exist
-				Expect(err).ToNot(HaveOccurred())
-				return existingGateway.GetAnnotations()
-			}, time.Second*5, time.Second).Should(HaveKeyWithValue(DNSPolicyBackRefAnnotation, policyBackRefValue))
-			Eventually(func() map[string]string {
-				// Check gateway back references
-				err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: testNamespace}, existingGateway)
-				// must exist
-				Expect(err).ToNot(HaveOccurred())
-				return existingGateway.GetAnnotations()
-			}, time.Second*5, time.Second).Should(HaveKeyWithValue(DNSPoliciesBackRefAnnotation, policiesBackRefValue))
-
-			Expect(k8sClient.Delete(ctx, dnsPolicy)).To(BeNil())
-
-			Eventually(func() map[string]string {
-				// Check gateway back references
-				err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: testNamespace}, existingGateway)
-				// must exist
-				Expect(err).ToNot(HaveOccurred())
-				return existingGateway.GetAnnotations()
-			}, time.Second*5, time.Second).ShouldNot(HaveKey(DNSPolicyBackRefAnnotation))
-			Eventually(func() map[string]string {
-				// Check gateway back references
-				err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: testNamespace}, existingGateway)
-				// must exist
-				Expect(err).ToNot(HaveOccurred())
-				return existingGateway.GetAnnotations()
-			}, time.Second*5, time.Second).ShouldNot(HaveKey(DNSPolicyBackRefAnnotation))
-
-		})
-
 	})
 
 	Context("gateway not placed", func() {
