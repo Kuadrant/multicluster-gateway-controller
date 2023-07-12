@@ -27,6 +27,9 @@ This document describes a proposal to extend the current health check implementa
 
 ## Proposal
 
+Currently, this functionality will be added to the existing MGC, and executed within that component. This will be created
+with the knowledge that it may need to be made into an external component in the future.
+
 #### `DNSPolicy` resource
 
 The presence of the `healthCheck` means that for every DNS endpoint (that is either an A record, or a CNAME to an external host), 
@@ -114,4 +117,13 @@ There are a few scenarios to cover when considering the removal of DNS Record en
 unhealthy endpoints, otherwise the usual weight assigning process will be executed.
 
 ## Executing the probes
-There will be a 
+There will be a DNSHealthCheckProbe CR controller added to the controller. This controller will create an instance of a 
+`HealthMonitor`, the HealthMonitor ensures that each DNSHealthCheckProbe CR has a matching probeQueuer object running.
+It will also handle both the updating of the probeQueuer on CR update and the removal of probeQueuers, when a 
+DNSHealthcheckProbe is removed.
+
+The `ProbeQueuer` will add a health check request to a queue based on a configured interval, this queue is consumed by a
+`ProbeWorker`, probeQueuers work on their own goroutine.
+
+The ProbeWorker is responsible for actually executing the probe, and updating the DNSHealthCheckProbe CR status. The 
+probeWorker executes on its own goroutine.
