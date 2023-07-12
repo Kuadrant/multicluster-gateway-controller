@@ -51,6 +51,11 @@ spec:
     failureThreshold: 5
     port: 443
     protocol: https
+    additionalHeaders:
+      - name: "..."
+        value: "..."
+      - name: "..."
+        value: "..."
   targetRef:
     group: gateway.networking.k8s.io
     kind: Gateway
