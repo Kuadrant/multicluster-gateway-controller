@@ -78,7 +78,7 @@ In order to support this new feature, the following changes in the behaviour of 
 
 Currently, the reconciliation loop of this controller creates health checks in the configured DNS provider 
 (Route53 currently) based on the spec of the DNSPolicy, separately from the reconciliation of the DNSRecords. 
-The proposed change is to reconcile health check CRs based on the combination of DNS Records and DNS Policies.
+The proposed change is to reconcile health check probe CRs based on the combination of DNS Records and DNS Policies.
 
 Instead of Route53 health checks, the controller will create `DNSHealthCheckProbe` resources.
 
