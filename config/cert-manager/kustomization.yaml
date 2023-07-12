@@ -21,4 +21,4 @@ helmCharts:
       cainjector:
         enabled: false
       # Customize active controllers
-      extraArgs: ["--controllers=*,-ingress-shim"]
+      extraArgs: ["--controllers=*,-ingress-shim",--enable-certificate-owner-ref=true]

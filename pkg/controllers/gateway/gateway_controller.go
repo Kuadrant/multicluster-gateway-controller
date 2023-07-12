@@ -319,11 +319,6 @@ func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.C
 		if err != nil {
 			return false, metav1.ConditionFalse, clusters, err
 		}
-		log.V(3).Info("cleaning up associated DNSRecords")
-		if err := r.HostService.CleanupDNSRecords(ctx, accessor); err != nil {
-			log.Error(err, "Error deleting DNS record")
-			return false, metav1.ConditionFalse, clusters, err
-		}
 
 		// Cleanup certificates
 		err = r.Certificates.CleanupCertificates(ctx, accessor)
