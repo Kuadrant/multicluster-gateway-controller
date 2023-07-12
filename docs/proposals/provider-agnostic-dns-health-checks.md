@@ -35,10 +35,30 @@ a health check is created based on the health check configuration in the DNSPoli
 A `failureThreshold` field will be added to the health spec, allowing users to configure a number of consecutive health 
 check failures that must be observed before the endpoint is considered unhealthy.
 
+Example DNS Policy with a defined health check.
+```yaml
+apiVersion: kuadrant.io/v1alpha1
+kind: DNSPolicy
+metadata:
+  name: prod-web
+  namespace: multi-cluster-gateways
+spec:
+  healthCheck:
+    endpoint: /health
+    failureThreshold: 5
+    port: 443
+    protocol: https
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: prod-web
+    namespace: multi-cluster-gateways
+```
 #### `DNSHealthCheckProbe` resource
 
 The DNSHealthCheckProbe resource configures a health probe in the controller to perform the health checks against an 
-identified final A or CNAME endpoint
+identified final A or CNAME endpoint. When created by the controller as a result of a DNS Policy, this will have an 
+owner ref of the DNS Policy that caused it to be created.
 
 ```yaml
 apiVersion: kuadrant.io/v1alpha1
@@ -85,6 +105,13 @@ Instead of Route53 health checks, the controller will create `DNSHealthCheckProb
 #### DNSRecord controller
 
 When reconciling a DNS Record, the DNS Record reconciler will retrieve the relevant DNSHealthCheckProbe CRs, and consult
-the status of them when determining what value to assign to a particular endpoint's weight. If the HealthCheckProbe is 
-reporting an unhealthy response, then the weight will be assigned 0, otherwise the usual weight assigning process will 
-be executed.
+the status of them when determining what value to assign to a particular endpoint's weight. 
+
+There are a few scenarios to cover when considering the removal of DNS Record endpoints due to unhealthiness.
+
+1. All endpoints are reporting unhealthy responses, then the weight will be assigned as if they are all healthy
+1. One or more, but not all endpoints are reporting an unhealthy response, then the weight will be assigned 0 for the 
+unhealthy endpoints, otherwise the usual weight assigning process will be executed.
+
+## Executing the probes
+There will be a 
