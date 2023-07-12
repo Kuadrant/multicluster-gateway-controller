@@ -3,11 +3,12 @@ package dnshealthcheckprobe
 import (
 	"context"
 
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/health"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/health"
 )
 
 type StatusUpdateProbeNotifier struct {
@@ -24,10 +25,10 @@ func NewStatusUpdateProbeNotifier(apiClient client.Client, forObj *v1alpha1.DNSH
 	}
 }
 
-func (n StatusUpdateProbeNotifier) Notify(ctx context.Context, result health.ProbeResult) error {
+func (n StatusUpdateProbeNotifier) Notify(ctx context.Context, result health.ProbeResult) (health.NotificationResult, error) {
 	probeObj := &v1alpha1.DNSHealthCheckProbe{}
 	if err := n.apiClient.Get(ctx, n.probeObjKey, probeObj); err != nil {
-		return err
+		return health.NotificationResult{}, err
 	}
 
 	// Increase the number of consecutive failures if it failed previously
@@ -44,6 +45,15 @@ func (n StatusUpdateProbeNotifier) Notify(ctx context.Context, result health.Pro
 	probeObj.Status.LastCheckedAt = metav1.NewTime(result.CheckedAt)
 	probeObj.Status.Healthy = result.Healthy
 	probeObj.Status.Reason = result.Reason
+	probeObj.Status.Status = result.Status
 
-	return n.apiClient.Status().Update(ctx, probeObj)
+	if err := n.apiClient.Status().Update(ctx, probeObj); err != nil {
+		if errors.IsConflict(err) {
+			return health.NotificationResult{Requeue: true}, nil
+		}
+
+		return health.NotificationResult{}, err
+	}
+
+	return health.NotificationResult{}, nil
 }

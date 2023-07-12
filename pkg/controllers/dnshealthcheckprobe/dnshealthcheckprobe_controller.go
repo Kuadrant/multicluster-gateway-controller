@@ -20,8 +20,12 @@ const (
 type DNSHealthCheckProbeReconciler struct {
 	client.Client
 	HealthMonitor *health.Monitor
-	Queue         *health.RequestQueue
+	Queue         *health.QueuedProbeWorker
 }
+
+// +kubebuilder:rbac:groups=kuadrant.io,resources=dnshealthcheckprobes,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=kuadrant.io,resources=dnshealthcheckprobes/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=kuadrant.io,resources=dnshealthcheckprobes/finalizers,verbs=get;update;patch
 
 func (r *DNSHealthCheckProbeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
@@ -69,29 +73,35 @@ func (r *DNSHealthCheckProbeReconciler) Reconcile(ctx context.Context, req ctrl.
 		protocol = v1alpha1.HttpProtocol
 	}
 
+	protocol = v1alpha1.NewHealthProtocol(string(previous.Spec.Protocol))
+
 	probeId := probeId(previous)
 
 	if r.HealthMonitor.HasProbe(probeId) {
-		r.HealthMonitor.UpdateProbe(probeId, func(p *health.Probe) {
+		r.HealthMonitor.UpdateProbe(probeId, func(p *health.ProbeQueuer) {
 			p.Interval = interval
 			p.Host = previous.Spec.Host
-			p.IPAddress = previous.Spec.IPAddress
+			p.IPAddress = previous.Spec.Address
 			p.Path = previous.Spec.Path
 			p.Port = previous.Spec.Port
 			p.Protocol = protocol
+			p.AdditionalHeaders = previous.Spec.AdditionalHeaders
+			p.ExpectedReponses = previous.Spec.ExpectedReponses
 		})
 	} else {
 		notifier := NewStatusUpdateProbeNotifier(r.Client, previous)
-		r.HealthMonitor.AddProbe(&health.Probe{
-			ID:        probeId,
-			Interval:  interval,
-			Host:      previous.Spec.Host,
-			Path:      previous.Spec.Path,
-			Port:      previous.Spec.Port,
-			Protocol:  protocol,
-			IPAddress: previous.Spec.IPAddress,
-			Notifier:  notifier,
-			Queue:     r.Queue,
+		r.HealthMonitor.AddProbeQueuer(&health.ProbeQueuer{
+			ID:                probeId,
+			Interval:          interval,
+			Host:              previous.Spec.Host,
+			Path:              previous.Spec.Path,
+			Port:              previous.Spec.Port,
+			Protocol:          protocol,
+			IPAddress:         previous.Spec.Address,
+			AdditionalHeaders: previous.Spec.AdditionalHeaders,
+			ExpectedReponses:  previous.Spec.ExpectedReponses,
+			Notifier:          notifier,
+			Queue:             r.Queue,
 		})
 	}
 

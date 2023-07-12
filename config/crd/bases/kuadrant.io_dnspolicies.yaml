@@ -45,8 +45,24 @@ spec:
                   By default this health check will be applied to each unique DNS
                   A Record for the listeners assigned to the target gateway
                 properties:
+                  additionalHeaders:
+                    items:
+                      properties:
+                        name:
+                          type: string
+                        value:
+                          type: string
+                      required:
+                      - name
+                      - value
+                      type: object
+                    type: array
                   endpoint:
                     type: string
+                  expectedResponses:
+                    items:
+                      type: integer
+                    type: array
                   failureThreshold:
                     type: integer
                   port:

@@ -87,6 +87,15 @@ func findMatchingManagedZone(originalHost, host string, zones []v1alpha1.Managed
 
 }
 
+func dnsRecordLabels(gwKey, apKey client.ObjectKey) map[string]string {
+	return map[string]string{
+		DNSPolicyBackRefAnnotation:                              apKey.Name,
+		fmt.Sprintf("%s-namespace", DNSPolicyBackRefAnnotation): apKey.Namespace,
+		"gateway-namespace":                                     gwKey.Namespace,
+		"gateway":                                               gwKey.Name,
+	}
+}
+
 // createDNSRecord creates a new DNSRecord, if one does not already exist, in the given managed zone with the given subdomain.
 // Needs traffic.Interface owner to block other traffic objects from accessing this record
 func (dh *dnsHelper) createDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone, owner metav1.Object) (*v1alpha1.DNSRecord, error) {

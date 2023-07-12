@@ -1,5 +1,7 @@
 package v1alpha1
 
+import "strings"
+
 // HealthProtocol represents the protocol to use when making a health check request
 type HealthProtocol string
 
@@ -7,6 +9,16 @@ const (
 	HttpProtocol  HealthProtocol = "HTTP"
 	HttpsProtocol HealthProtocol = "HTTPS"
 )
+
+func NewHealthProtocol(p string) HealthProtocol {
+	switch strings.ToUpper(p) {
+	case "HTTPS":
+		return HttpsProtocol
+	case "HTTP":
+		return HttpProtocol
+	}
+	return HttpProtocol
+}
 
 func (p HealthProtocol) ToScheme() string {
 	switch p {

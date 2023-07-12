@@ -45,11 +45,29 @@ spec:
           spec:
             description: DNSHealthCheckProbeSpec defines the desired state of DNSHealthCheckProbe
             properties:
+              additionalHeaders:
+                items:
+                  properties:
+                    name:
+                      type: string
+                    value:
+                      type: string
+                  required:
+                  - name
+                  - value
+                  type: object
+                type: array
+              address:
+                type: string
+              expectedReponses:
+                items:
+                  type: integer
+                type: array
+              failureThreshold:
+                type: integer
               host:
                 type: string
               interval:
-                type: string
-              ipAddress:
                 type: string
               path:
                 type: string
@@ -72,6 +90,8 @@ spec:
                 type: string
               reason:
                 type: string
+              status:
+                type: integer
             required:
             - healthy
             - lastCheckedAt

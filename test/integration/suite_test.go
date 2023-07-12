@@ -19,6 +19,7 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/go-logr/logr"
 	certman "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
@@ -40,10 +41,12 @@ import (
 	"github.com/kuadrant/kuadrant-operator/pkg/reconcilers"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnshealthcheckprobe"
 	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnspolicy"
 	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
 	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/managedzone"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/health"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/placement"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/tls"
 	//+kubebuilder:scaffold:imports
@@ -124,6 +127,20 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).ToNot(HaveOccurred())
 
+	healthQueue := health.NewRequestQueue(1 * time.Second)
+	err = k8sManager.Add(healthQueue)
+	Expect(err).ToNot(HaveOccurred())
+
+	monitor := health.NewMonitor()
+	err = k8sManager.Add(monitor)
+	Expect(err).ToNot(HaveOccurred())
+
+	healthServer := &testHealthServer{
+		Port: 3333,
+	}
+	err = k8sManager.Add(healthServer)
+	Expect(err).ToNot(HaveOccurred())
+
 	certificates := tls.NewService(k8sManager.GetClient(), "glbc-ca")
 	plc := placement.NewOCMPlacer(k8sManager.GetClient())
 	testPlc := NewTestOCMPlacer()
@@ -161,6 +178,13 @@ var _ = BeforeSuite(func() {
 		Client:      k8sManager.GetClient(),
 		Scheme:      k8sManager.GetScheme(),
 		DNSProvider: providerFactory,
+	}).SetupWithManager(k8sManager)
+	Expect(err).ToNot(HaveOccurred())
+
+	err = (&DNSHealthCheckProbeReconciler{
+		Client:        k8sManager.GetClient(),
+		HealthMonitor: monitor,
+		Queue:         healthQueue,
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 

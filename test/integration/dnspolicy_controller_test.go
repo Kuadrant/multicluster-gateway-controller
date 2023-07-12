@@ -13,10 +13,12 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	gatewayapiv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/metadata"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnspolicy"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
@@ -73,56 +75,26 @@ func testBuildGateway(gwName, gwClassName, hostname, ns string) *gatewayv1beta1.
 	}
 }
 
-func testBuildDNSPolicyWithHealthCheck(policyName, gwName, ns string) *v1alpha1.DNSPolicy {
-	typedNamespace := gatewayv1beta1.Namespace(ns)
+func testModifyPolicyAddHealthCheckAndLoadBalancing(policy *v1alpha1.DNSPolicy) {
 	protocol := v1alpha1.HttpProtocol
-	return &v1alpha1.DNSPolicy{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      policyName,
-			Namespace: ns,
-		},
-		Spec: v1alpha1.DNSPolicySpec{
-			TargetRef: gatewayapiv1alpha2.PolicyTargetReference{
-				Group:     "gateway.networking.k8s.io",
-				Kind:      "Gateway",
-				Name:      gatewayv1beta1.ObjectName(gwName),
-				Namespace: &typedNamespace,
-			},
-			HealthCheck: &v1alpha1.HealthCheckSpec{
-				Endpoint: "/",
-				Protocol: &protocol,
-			},
-			LoadBalancing: &v1alpha1.LoadBalancingSpec{
-				Weighted: &v1alpha1.LoadBalancingWeighted{
-					DefaultWeight: 120,
-				},
-			},
+	policy.Spec.HealthCheck = &v1alpha1.HealthCheckSpec{
+		Endpoint: "/",
+		Protocol: &protocol,
+	}
+	policy.Spec.LoadBalancing = &v1alpha1.LoadBalancingSpec{
+		Weighted: &v1alpha1.LoadBalancingWeighted{
+			DefaultWeight: 120,
 		},
 	}
 }
 
-func testBuildDNSPolicyWithGeo(policyName, gwName, ns string) *v1alpha1.DNSPolicy {
-	typedNamespace := gatewayv1beta1.Namespace(ns)
-	return &v1alpha1.DNSPolicy{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      policyName,
-			Namespace: ns,
+func testModifyPolicyAddGeo(policy *v1alpha1.DNSPolicy) {
+	policy.Spec.LoadBalancing = &v1alpha1.LoadBalancingSpec{
+		Weighted: &v1alpha1.LoadBalancingWeighted{
+			DefaultWeight: 120,
 		},
-		Spec: v1alpha1.DNSPolicySpec{
-			TargetRef: gatewayapiv1alpha2.PolicyTargetReference{
-				Group:     "gateway.networking.k8s.io",
-				Kind:      "Gateway",
-				Name:      gatewayv1beta1.ObjectName(gwName),
-				Namespace: &typedNamespace,
-			},
-			LoadBalancing: &v1alpha1.LoadBalancingSpec{
-				Weighted: &v1alpha1.LoadBalancingWeighted{
-					DefaultWeight: 120,
-				},
-				Geo: &v1alpha1.LoadBalancingGeo{
-					DefaultGeo: "IE",
-				},
-			},
+		Geo: &v1alpha1.LoadBalancingGeo{
+			DefaultGeo: "IE",
 		},
 	}
 }
@@ -135,6 +107,11 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 
 	BeforeAll(func() {
 		gatewayClass = testBuildGatewayClass("kuadrant-multi-cluster-gateway-instance-per-cluster-dns", "default")
+		logger = zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true))
+		logger.WithName("dnspolicy_controller_test")
+		logf.SetLogger(logger)
+
+		gatewayClass = testBuildGatewayClass("kuadrant-multi-cluster-gateway-instance-per-cluster", "default")
 		Expect(k8sClient.Create(ctx, gatewayClass)).To(BeNil())
 		Eventually(func() bool { // gateway class exists
 			if err := k8sClient.Get(ctx, client.ObjectKey{Name: gatewayClass.Name}, gatewayClass); err != nil {
@@ -159,6 +136,19 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 
 	})
 
+	AfterEach(func() {
+		gatewayList := &gatewayv1beta1.GatewayList{}
+		Expect(k8sClient.List(ctx, gatewayList)).To(BeNil())
+		for _, gw := range gatewayList.Items {
+			k8sClient.Delete(ctx, &gw)
+		}
+		policyList := v1alpha1.DNSPolicyList{}
+		Expect(k8sClient.List(ctx, &policyList)).To(BeNil())
+		for _, policy := range policyList.Items {
+			k8sClient.Delete(ctx, &policy)
+		}
+	})
+
 	AfterAll(func() {
 		err := k8sClient.Delete(ctx, gatewayClass)
 		Expect(err).ToNot(HaveOccurred())
@@ -181,19 +171,21 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 		})
 
 		Context("weighted dnspolicy", func() {
-			var dnsPolicy *v1alpha1.DNSPolicy
+			dnsPolicy := &v1alpha1.DNSPolicy{}
 
 			BeforeEach(func() {
-				dnsPolicy = testBuildDNSPolicyWithHealthCheck("test-dns-policy", TestPlacedGatewayName, testNamespace)
-				Expect(k8sClient.Create(ctx, dnsPolicy)).To(BeNil())
-				Eventually(func() bool { //dns policy exists
-					if err := k8sClient.Get(ctx, client.ObjectKey{Name: dnsPolicy.Name, Namespace: dnsPolicy.Namespace}, dnsPolicy); err != nil {
+
+				Eventually(func() bool {
+					if err := k8sClient.Get(ctx, client.ObjectKey{testNamespace, TestPlacedGatewayName}, dnsPolicy); err != nil {
+						return false
+					}
+					testModifyPolicyAddHealthCheckAndLoadBalancing(dnsPolicy)
+					if err := k8sClient.Update(ctx, dnsPolicy); err != nil {
 						return false
 					}
 					return true
 				}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 			})
-
 			It("should create a dns record", func() {
 				createdDNSRecord := &v1alpha1.DNSRecord{}
 				expectedEndpoints := []*v1alpha1.Endpoint{
@@ -247,7 +239,7 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 					},
 				}
 				Eventually(func() bool { // DNS record exists
-					if err := k8sClient.Get(ctx, client.ObjectKey{Name: TestAttachedRouteName, Namespace: dnsPolicy.Namespace}, createdDNSRecord); err != nil {
+					if err := k8sClient.Get(ctx, client.ObjectKey{Name: TestAttachedRouteName, Namespace: testNamespace}, createdDNSRecord); err != nil {
 						return false
 					}
 					return len(createdDNSRecord.Spec.Endpoints) == 4
@@ -259,7 +251,7 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 
 			It("should have ready status", func() {
 				Eventually(func() bool {
-					if err := k8sClient.Get(ctx, client.ObjectKey{Name: dnsPolicy.Name, Namespace: dnsPolicy.Namespace}, dnsPolicy); err != nil {
+					if err := k8sClient.Get(ctx, client.ObjectKey{Name: TestPlacedGatewayName, Namespace: testNamespace}, dnsPolicy); err != nil {
 						return false
 					}
 
@@ -267,28 +259,15 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 				}, time.Second*15, time.Second).Should(BeTrue())
 			})
 
-			It("should have health check status", func() {
-				Eventually(func() bool { // DNS Policy has health check status
-					if err := k8sClient.Get(ctx, client.ObjectKey{Name: dnsPolicy.Name, Namespace: dnsPolicy.Namespace}, dnsPolicy); err != nil {
-						return false
-					}
-
-					if dnsPolicy.Status.HealthCheck == nil || dnsPolicy.Status.HealthCheck.Conditions == nil {
-						return false
-					}
-					return len(dnsPolicy.Status.HealthCheck.Conditions) > 0
-				}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
-			})
-
 			It("should set gateway back reference", func() {
 				existingGateway := &gatewayv1beta1.Gateway{}
-				policyBackRefValue := testNamespace + "/" + dnsPolicy.Name
-				refs, _ := json.Marshal([]client.ObjectKey{{Name: dnsPolicy.Name, Namespace: testNamespace}})
+				policyBackRefValue := testNamespace + "/" + TestPlacedGatewayName
+				refs, _ := json.Marshal([]client.ObjectKey{{Name: TestPlacedGatewayName, Namespace: testNamespace}})
 				policiesBackRefValue := string(refs)
 
 				Eventually(func() map[string]string {
 					// Check gateway back references
-					err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: testNamespace}, existingGateway)
+					err := k8sClient.Get(ctx, client.ObjectKey{Name: TestPlacedGatewayName, Namespace: testNamespace}, existingGateway)
 					// must exist
 					Expect(err).ToNot(HaveOccurred())
 					return existingGateway.GetAnnotations()
@@ -304,8 +283,8 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 
 			It("should remove gateway back reference on policy deletion", func() {
 				existingGateway := &gatewayv1beta1.Gateway{}
-				policyBackRefValue := testNamespace + "/" + dnsPolicy.Name
-				refs, _ := json.Marshal([]client.ObjectKey{{Name: dnsPolicy.Name, Namespace: testNamespace}})
+				policyBackRefValue := testNamespace + "/" + TestPlacedGatewayName
+				refs, _ := json.Marshal([]client.ObjectKey{{Name: TestPlacedGatewayName, Namespace: testNamespace}})
 				policiesBackRefValue := string(refs)
 
 				Eventually(func() map[string]string {
@@ -323,15 +302,25 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 					return existingGateway.GetAnnotations()
 				}, time.Second*5, time.Second).Should(HaveKeyWithValue(DNSPoliciesBackRefAnnotation, policiesBackRefValue))
 
+				//finalizer should exist
+				Eventually(func() bool {
+					existingDNSPolicy := &v1alpha1.DNSPolicy{}
+					err := k8sClient.Get(ctx, client.ObjectKey{Name: TestPlacedGatewayName, Namespace: testNamespace}, existingDNSPolicy)
+					// must exist
+					Expect(err).ToNot(HaveOccurred())
+					return metadata.HasFinalizer(existingDNSPolicy, DNSPolicyFinalizer)
+				}, time.Second*5, time.Second).Should(BeTrue())
+
 				Expect(k8sClient.Delete(ctx, dnsPolicy)).To(BeNil())
 
 				Eventually(func() map[string]string {
 					// Check gateway back references
-					err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: testNamespace}, existingGateway)
+					err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, existingGateway)
 					// must exist
 					Expect(err).ToNot(HaveOccurred())
 					return existingGateway.GetAnnotations()
 				}, time.Second*5, time.Second).ShouldNot(HaveKey(DNSPolicyBackRefAnnotation))
+
 				Eventually(func() map[string]string {
 					// Check gateway back references
 					err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: testNamespace}, existingGateway)
@@ -343,13 +332,16 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 		})
 
 		Context("geo dnspolicy", func() {
-			var dnsPolicy *v1alpha1.DNSPolicy
+			dnsPolicy := &v1alpha1.DNSPolicy{}
 
 			BeforeEach(func() {
-				dnsPolicy = testBuildDNSPolicyWithGeo("test-dns-policy", TestPlacedGatewayName, testNamespace)
-				Expect(k8sClient.Create(ctx, dnsPolicy)).To(BeNil())
-				Eventually(func() bool { //dns policy exists
-					if err := k8sClient.Get(ctx, client.ObjectKey{Name: dnsPolicy.Name, Namespace: dnsPolicy.Namespace}, dnsPolicy); err != nil {
+
+				Eventually(func() bool {
+					if err := k8sClient.Get(ctx, client.ObjectKey{testNamespace, TestPlacedGatewayName}, dnsPolicy); err != nil {
+						return false
+					}
+					testModifyPolicyAddGeo(dnsPolicy)
+					if err := k8sClient.Update(ctx, dnsPolicy); err != nil {
 						return false
 					}
 					return true
@@ -424,7 +416,7 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 					},
 				}
 				Eventually(func() bool { // DNS record exists
-					if err := k8sClient.Get(ctx, client.ObjectKey{Name: TestAttachedRouteName, Namespace: dnsPolicy.Namespace}, createdDNSRecord); err != nil {
+					if err := k8sClient.Get(ctx, client.ObjectKey{Name: TestAttachedRouteName, Namespace: testNamespace}, createdDNSRecord); err != nil {
 						return false
 					}
 					return len(createdDNSRecord.Spec.Endpoints) == 5
@@ -438,15 +430,23 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 
 	Context("gateway not placed", func() {
 		var gateway *gatewayv1beta1.Gateway
-		var dnsPolicy *v1alpha1.DNSPolicy
+		dnsPolicy := &v1alpha1.DNSPolicy{}
 		testGatewayName := "test-not-placed-gateway"
 
 		BeforeEach(func() {
 			gateway = testBuildGateway(testGatewayName, gatewayClass.Name, TestAttachedRouteName, testNamespace)
-			dnsPolicy = testBuildDNSPolicyWithHealthCheck("test-dns-policy", testGatewayName, testNamespace)
-
 			Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
-			Expect(k8sClient.Create(ctx, dnsPolicy)).To(BeNil())
+
+			Eventually(func() bool {
+				if err := k8sClient.Get(ctx, client.ObjectKey{testNamespace, testGatewayName}, dnsPolicy); err != nil {
+					return false
+				}
+				testModifyPolicyAddHealthCheckAndLoadBalancing(dnsPolicy)
+				if err := k8sClient.Update(ctx, dnsPolicy); err != nil {
+					return false
+				}
+				return true
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 
 			Eventually(func() bool { //gateway exists
 				if err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway); err != nil {
@@ -456,7 +456,7 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 
 			Eventually(func() bool { //dns policy exists
-				if err := k8sClient.Get(ctx, client.ObjectKey{Name: dnsPolicy.Name, Namespace: dnsPolicy.Namespace}, dnsPolicy); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Name: testGatewayName, Namespace: testNamespace}, dnsPolicy); err != nil {
 					return false
 				}
 				return true
@@ -479,7 +479,7 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 
 		It("should have ready status", func() {
 			Eventually(func() bool {
-				if err := k8sClient.Get(ctx, client.ObjectKey{Name: dnsPolicy.Name, Namespace: dnsPolicy.Namespace}, dnsPolicy); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Name: testGatewayName, Namespace: testNamespace}, dnsPolicy); err != nil {
 					return false
 				}
 
@@ -489,8 +489,8 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 
 		It("should set gateway back reference", func() {
 			existingGateway := &gatewayv1beta1.Gateway{}
-			policyBackRefValue := testNamespace + "/" + dnsPolicy.Name
-			refs, _ := json.Marshal([]client.ObjectKey{{Name: dnsPolicy.Name, Namespace: testNamespace}})
+			policyBackRefValue := testNamespace + "/" + testGatewayName
+			refs, _ := json.Marshal([]client.ObjectKey{{Name: testGatewayName, Namespace: testNamespace}})
 			policiesBackRefValue := string(refs)
 			Eventually(func() map[string]string {
 				// Check gateway back references
@@ -507,7 +507,5 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 				return existingGateway.GetAnnotations()
 			}, time.Second*5, time.Second).Should(HaveKeyWithValue(DNSPoliciesBackRefAnnotation, policiesBackRefValue))
 		})
-
 	})
-
 })

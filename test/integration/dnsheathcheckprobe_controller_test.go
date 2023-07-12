@@ -1,14 +1,18 @@
-package dnshealthcheckprobe
+//go:build integration
+
+package integration
 
 import (
 	"context"
 	"time"
 
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 )
 
 var _ = Describe("DNSHealthCheckProbe controller", func() {
@@ -32,11 +36,11 @@ var _ = Describe("DNSHealthCheckProbe controller", func() {
 					Namespace: ProbeNamespace,
 				},
 				Spec: v1alpha1.DNSHealthCheckProbeSpec{
-					Host:      "localhost",
-					IPAddress: "0.0.0.0",
-					Port:      3333,
-					Interval:  metav1.Duration{Duration: time.Second * 10},
-					Path:      "/healthy",
+					Host:     "localhost",
+					Address:  "0.0.0.0",
+					Port:     3333,
+					Interval: metav1.Duration{Duration: time.Second * 10},
+					Path:     "/healthy",
 				},
 			}
 

@@ -22,12 +22,22 @@ import (
 
 // DNSHealthCheckProbeSpec defines the desired state of DNSHealthCheckProbe
 type DNSHealthCheckProbeSpec struct {
-	Port      int             `json:"port,omitempty"`
-	Host      string          `json:"host,omitempty"`
-	IPAddress string          `json:"ipAddress,omitempty"`
-	Path      string          `json:"path,omitempty"`
-	Protocol  HealthProtocol  `json:"protocol,omitempty"`
-	Interval  metav1.Duration `json:"interval,omitempty"`
+	Port              int               `json:"port,omitempty"`
+	Host              string            `json:"host,omitempty"`
+	Address           string            `json:"address,omitempty"`
+	Path              string            `json:"path,omitempty"`
+	Protocol          HealthProtocol    `json:"protocol,omitempty"`
+	Interval          metav1.Duration   `json:"interval,omitempty"`
+	AdditionalHeaders AdditionalHeaders `json:"additionalHeaders,omitempty"`
+	FailureThreshold  *int              `json:"failureThreshold,omitempty"`
+	ExpectedReponses  []int             `json:"expectedReponses,omitempty"`
+}
+
+type AdditionalHeaders []AdditionalHeader
+
+type AdditionalHeader struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
 }
 
 // DNSHealthCheckProbeStatus defines the observed state of DNSHealthCheckProbe
@@ -35,6 +45,7 @@ type DNSHealthCheckProbeStatus struct {
 	LastCheckedAt       metav1.Time `json:"lastCheckedAt"`
 	ConsecutiveFailures int         `json:"consecutiveFailures,omitempty"`
 	Reason              string      `json:"reason,omitempty"`
+	Status              int         `json:"status,omitempty"`
 	Healthy             bool        `json:"healthy"`
 }
 

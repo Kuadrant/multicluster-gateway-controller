@@ -45,6 +45,7 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/managedzone"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/dnsprovider"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/health"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/placement"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/tls"
 	//+kubebuilder:scaffold:imports

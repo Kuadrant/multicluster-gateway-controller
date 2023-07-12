@@ -9,14 +9,14 @@ import (
 )
 
 type Monitor struct {
-	Probes []*Probe
+	ProbeQueuers []*ProbeQueuer
 
 	mux sync.Mutex
 }
 
 func NewMonitor() *Monitor {
 	return &Monitor{
-		Probes: make([]*Probe, 0),
+		ProbeQueuers: make([]*ProbeQueuer, 0),
 	}
 }
 
@@ -29,8 +29,8 @@ func (m *Monitor) Start(ctx context.Context) error {
 
 	logger.Info("Stopping health check monitor")
 
-	for _, probe := range m.Probes {
-		probe.Stop()
+	for _, probeQueuer := range m.ProbeQueuers {
+		probeQueuer.Stop()
 	}
 
 	return nil
@@ -42,8 +42,8 @@ func (m *Monitor) HasProbe(id string) bool {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 
-	for _, probe := range m.Probes {
-		if probe.ID == id {
+	for _, probeQueuer := range m.ProbeQueuers {
+		if probeQueuer.ID == id {
 			return true
 		}
 	}
@@ -51,29 +51,29 @@ func (m *Monitor) HasProbe(id string) bool {
 	return false
 }
 
-func (m *Monitor) UpdateProbe(id string, update func(*Probe)) {
+func (m *Monitor) UpdateProbe(id string, update func(*ProbeQueuer)) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 
-	for _, probe := range m.Probes {
-		if probe.ID == id {
-			update(probe)
+	for _, probeQueuer := range m.ProbeQueuers {
+		if probeQueuer.ID == id {
+			update(probeQueuer)
 		}
 	}
 }
 
-func (m *Monitor) AddProbe(probe *Probe) bool {
+func (m *Monitor) AddProbeQueuer(probeQueuer *ProbeQueuer) bool {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 
-	for _, existingProbe := range m.Probes {
-		if probe.ID == existingProbe.ID {
+	for _, existingProbe := range m.ProbeQueuers {
+		if probeQueuer.ID == existingProbe.ID {
 			return false
 		}
 	}
 
-	m.Probes = append(m.Probes, probe)
-	probe.Start()
+	m.ProbeQueuers = append(m.ProbeQueuers, probeQueuer)
+	probeQueuer.Start()
 	return true
 }
 
@@ -81,15 +81,15 @@ func (m *Monitor) RemoveProbe(id string) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 
-	updatedProbes := []*Probe{}
+	updatedProbes := []*ProbeQueuer{}
 
-	for _, probe := range m.Probes {
-		if probe.ID == id {
-			probe.Stop()
+	for _, probeQueuer := range m.ProbeQueuers {
+		if probeQueuer.ID == id {
+			probeQueuer.Stop()
 		} else {
-			updatedProbes = append(updatedProbes, probe)
+			updatedProbes = append(updatedProbes, probeQueuer)
 		}
 	}
 
-	m.Probes = updatedProbes
+	m.ProbeQueuers = updatedProbes
 }
