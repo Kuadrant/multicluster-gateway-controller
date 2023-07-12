@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
 	"golang.org/x/net/publicsuffix"
+
 	"k8s.io/apimachinery/pkg/api/equality"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -238,13 +240,15 @@ func (s *Service) SetEndpoints(ctx context.Context, mcgTarget *MultiClusterGatew
 		}
 	}
 
+	sort.Slice(newEndpoints, func(i, j int) bool {
+		return newEndpoints[i].SetID() < newEndpoints[j].SetID()
+	})
 	dnsRecord.Spec.Endpoints = newEndpoints
 
-	if equality.Semantic.DeepEqual(old.Spec, dnsRecord.Spec) {
-		return nil
+	if !equality.Semantic.DeepEqual(old, dnsRecord) {
+		return s.controlClient.Update(ctx, dnsRecord)
 	}
-
-	return s.controlClient.Update(ctx, dnsRecord, &client.UpdateOptions{})
+	return nil
 }
 
 func createOrUpdateEndpoint(dnsName string, targets v1alpha1.Targets, recordType v1alpha1.DNSRecordType, setIdentifier string,

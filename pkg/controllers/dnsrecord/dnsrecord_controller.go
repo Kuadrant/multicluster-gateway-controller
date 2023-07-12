@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/api/equality"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -88,6 +90,7 @@ func (r *DNSRecordReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		if err != nil {
 			return ctrl.Result{}, err
 		}
+		return ctrl.Result{Requeue: true}, nil
 	}
 
 	var reason, message string
@@ -107,14 +110,15 @@ func (r *DNSRecordReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 	setDNSRecordCondition(dnsRecord, conditions.ConditionTypeReady, status, reason, message)
 
-	err = r.Status().Update(ctx, dnsRecord.DeepCopy())
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-
-	err = r.Update(ctx, dnsRecord.DeepCopy())
-	if err != nil {
-		return ctrl.Result{}, err
+	if !equality.Semantic.DeepEqual(previous.Status, dnsRecord.Status) {
+		updateErr := r.Status().Update(ctx, dnsRecord)
+		if updateErr != nil {
+			// Ignore conflicts, resource might just be outdated.
+			if apierrors.IsConflict(updateErr) {
+				return ctrl.Result{Requeue: true}, nil
+			}
+			return ctrl.Result{}, updateErr
+		}
 	}
 
 	return ctrl.Result{}, nil
