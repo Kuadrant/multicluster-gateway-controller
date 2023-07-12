@@ -13,18 +13,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package managedzone
+package integration
 
 import (
 	"context"
 	"path/filepath"
 	"testing"
-	"time"
 
+	"github.com/go-logr/logr"
+	"github.com/kuadrant/kuadrant-operator/pkg/reconcilers"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 
@@ -35,12 +34,18 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	clusterv1beta2 "open-cluster-management.io/api/cluster/v1beta1"
-	workv1 "open-cluster-management.io/api/work/v1"
+	ocmclusterv1 "open-cluster-management.io/api/cluster/v1"
+	ocmclusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
+	ocmworkv1 "open-cluster-management.io/api/work/v1"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnspolicy"
+	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
+	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/managedzone"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/placement"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/tls"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -53,13 +58,10 @@ var (
 	testEnv   *envtest.Environment
 	ctx       context.Context
 	cancel    context.CancelFunc
+	logger    logr.Logger
 )
 
-const (
-	EventuallyTimeoutMedium   = time.Second * 10
-	ConsistentlyTimeoutMedium = time.Second * 60
-	TestRetryIntervalMedium   = time.Millisecond * 250
-)
+func testClient() client.Client { return k8sClient }
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -68,16 +70,17 @@ func TestAPIs(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
+	logger = zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true))
+	logger.WithName("suite_test")
+	logf.SetLogger(logger)
 	ctx, cancel = context.WithCancel(context.TODO())
-
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
-			filepath.Join("../../../", "config", "crd", "bases"),
-			filepath.Join("../../../", "config", "gateway-api", "crd", "standard"),
-			filepath.Join("../../../", "config", "cert-manager", "crd", "v1.7.1"),
-			filepath.Join("../../../", "config", "ocm", "crd"),
+			filepath.Join("../../", "config", "crd", "bases"),
+			filepath.Join("../../", "config", "gateway-api", "crd", "standard"),
+			filepath.Join("../../", "config", "cert-manager", "crd", "v1.7.1"),
+			filepath.Join("../../", "config", "ocm", "crd"),
 		},
 		ErrorIfCRDPathMissing: true,
 	}
@@ -97,10 +100,13 @@ var _ = BeforeSuite(func() {
 	err = certman.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
-	err = workv1.AddToScheme(scheme.Scheme)
+	err = ocmworkv1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
-	err = clusterv1beta2.AddToScheme(scheme.Scheme)
+	err = ocmclusterv1.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = ocmclusterv1beta1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 	//+kubebuilder:scaffold:scheme
 
@@ -116,6 +122,41 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 
 	dnsProvider := &dns.FakeProvider{}
+	certificates := tls.NewService(k8sManager.GetClient(), "glbc-ca")
+	dns := dns.NewService(k8sManager.GetClient())
+	plc := placement.NewOCMPlacer(k8sManager.GetClient())
+	testPlc := NewTestOCMPlacer()
+
+	dnsPolicyBaseReconciler := reconcilers.NewBaseReconciler(
+		k8sManager.GetClient(), k8sManager.GetScheme(), k8sManager.GetAPIReader(),
+		logger.WithName("dnspolicy"),
+		k8sManager.GetEventRecorderFor("DNSPolicy"),
+	)
+
+	err = (&DNSPolicyReconciler{
+		TargetRefReconciler: reconcilers.TargetRefReconciler{
+			BaseReconciler: dnsPolicyBaseReconciler,
+		},
+		DNSProvider: dnsProvider,
+		HostService: dns,
+		Placement:   testPlc,
+	}).SetupWithManager(k8sManager)
+	Expect(err).ToNot(HaveOccurred())
+
+	err = (&GatewayClassReconciler{
+		Client: k8sManager.GetClient(),
+		Scheme: k8sManager.GetScheme(),
+	}).SetupWithManager(k8sManager)
+	Expect(err).ToNot(HaveOccurred())
+
+	err = (&GatewayReconciler{
+		Client:       k8sManager.GetClient(),
+		Scheme:       k8sManager.GetScheme(),
+		Certificates: certificates,
+		Host:         dns,
+		Placement:    plc,
+	}).SetupWithManager(k8sManager, ctx)
+	Expect(err).ToNot(HaveOccurred())
 
 	err = (&ManagedZoneReconciler{
 		Client:      k8sManager.GetClient(),
@@ -136,68 +177,4 @@ var _ = AfterSuite(func() {
 	By("tearing down the test environment")
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
-})
-
-var _ = Describe("ManagedZoneReconciler", func() {
-	Context("testing ManagedZone controller", func() {
-		var managedZone *v1alpha1.ManagedZone
-
-		BeforeEach(func() {
-			managedZone = &v1alpha1.ManagedZone{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "example.com",
-					Namespace: "default",
-				},
-				Spec: v1alpha1.ManagedZoneSpec{
-					ID:         "example.com",
-					DomainName: "example.com",
-				},
-			}
-		})
-
-		AfterEach(func() {
-			// Clean up managedZones
-			mzList := &v1alpha1.ManagedZoneList{}
-			err := k8sClient.List(ctx, mzList, client.InNamespace("default"))
-			Expect(err).NotTo(HaveOccurred())
-			for _, mz := range mzList.Items {
-				err = k8sClient.Delete(ctx, &mz)
-				Expect(err).NotTo(HaveOccurred())
-			}
-		})
-
-		It("should accept a managed zone for this controller and allow deletion", func() {
-			Expect(k8sClient.Create(ctx, managedZone)).To(BeNil())
-
-			createdMZ := &v1alpha1.ManagedZone{}
-
-			Eventually(func() bool {
-				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: managedZone.Namespace, Name: managedZone.Name}, createdMZ)
-				return err == nil
-			}, EventuallyTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
-
-			Expect(k8sClient.Delete(ctx, managedZone)).To(BeNil())
-
-			Eventually(func() bool {
-				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: managedZone.Namespace, Name: managedZone.Name}, createdMZ)
-				return errors.IsNotFound(err)
-			}, EventuallyTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
-		})
-
-		It("should reject a managed zone with an invalid domain name", func() {
-			invalidDomainNameManagedZone := &v1alpha1.ManagedZone{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "invalid_domain",
-					Namespace: "default",
-				},
-				Spec: v1alpha1.ManagedZoneSpec{
-					ID:         "invalid_domain",
-					DomainName: "invalid_domain",
-				},
-			}
-			err := k8sClient.Create(ctx, invalidDomainNameManagedZone)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("spec.domainName in body should match"))
-		})
-	})
 })

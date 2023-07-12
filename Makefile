@@ -72,7 +72,7 @@ test-unit: manifests generate fmt vet envtest ## Run unit tests.
 
 .PHONY: test-integration
 test-integration: manifests generate fmt vet envtest ## Run integration tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -tags=integration -coverprofile cover-integration.out -ginkgo.v -v -timeout 0
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./test/... -tags=integration -coverprofile cover-integration.out -ginkgo.v -v -timeout 0
 
 .PHONY: test
 test: manifests generate fmt vet envtest ## Run tests.

@@ -1,6 +1,6 @@
 //go:build integration
 
-package dnspolicy
+package integration
 
 import (
 	"context"
@@ -22,12 +22,17 @@ import (
 )
 
 const (
-	TestTimeoutMedium        = time.Second * 10
-	TestRetryIntervalMedium  = time.Millisecond * 250
-	TestPlacedGatewayName    = "test-placed-gateway"
-	TestPlacedClusterName    = "test-placed-cluster"
-	TestAttachedRouteName    = "test.example.com"
-	TestAttachedRouteAddress = "172.0.0.3"
+	TestTimeoutMedium         = time.Second * 10
+	ConsistentlyTimeoutMedium = time.Second * 60
+	TestRetryIntervalMedium   = time.Millisecond * 250
+	TestPlacedGatewayName     = "test-placed-gateway"
+	TestPlacedClusterName     = "test-placed-cluster"
+	TestAttachedRouteName     = "test.example.com"
+	TestAttachedRouteAddress  = "172.0.0.3"
+	nsSpoke1Name              = "test-spoke-cluster-1"
+	nsSpoke2Name              = "test-spoke-cluster-2"
+	defaultNS                 = "default"
+	gatewayFinalizer          = "kuadrant.io/gateway"
 )
 
 // FakeOCMPlacer has one gateway called `placedGatewayName` placed on one cluster called `placedClusterName` with one

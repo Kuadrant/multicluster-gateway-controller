@@ -13,15 +13,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package gateway
+package integration
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"path/filepath"
-	"testing"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -29,144 +25,21 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/rest"
 
-	certman "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	ocmclusterv1 "open-cluster-management.io/api/cluster/v1"
 	ocmclusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
 	ocmworkv1 "open-cluster-management.io/api/work/v1"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/placement"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/tls"
 	. "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 	//+kubebuilder:scaffold:imports
 )
-
-// These tests use Ginkgo (BDD-style Go testing framework). Refer to
-// http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
-
-var (
-	cfg       *rest.Config
-	k8sClient client.Client
-	testEnv   *envtest.Environment
-	ctx       context.Context
-	cancel    context.CancelFunc
-)
-
-const (
-	EventuallyTimeoutMedium   = time.Second * 10
-	ConsistentlyTimeoutMedium = time.Second * 60
-	TestRetryIntervalMedium   = time.Millisecond * 250
-	nsSpoke1Name              = "test-spoke-cluster-1"
-	nsSpoke2Name              = "test-spoke-cluster-2"
-	defaultNS                 = "default"
-	gatewayFinalizer          = "kuadrant.io/gateway"
-)
-
-func TestAPIs(t *testing.T) {
-	RegisterFailHandler(Fail)
-
-	RunSpecs(t, "Controller Suite")
-}
-
-var _ = BeforeSuite(func() {
-	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
-	ctx, cancel = context.WithCancel(context.TODO())
-	By("bootstrapping test environment")
-	testEnv = &envtest.Environment{
-		CRDDirectoryPaths: []string{
-			filepath.Join("../../../", "config", "crd", "bases"),
-			filepath.Join("../../../", "config", "gateway-api", "crd", "standard"),
-			filepath.Join("../../../", "config", "cert-manager", "crd", "v1.7.1"),
-			filepath.Join("../../../", "config", "ocm", "crd"),
-		},
-		ErrorIfCRDPathMissing: true,
-	}
-
-	var err error
-	// cfg is defined in this file globally.
-	cfg, err = testEnv.Start()
-	Expect(err).NotTo(HaveOccurred())
-	Expect(cfg).NotTo(BeNil())
-
-	err = v1alpha1.AddToScheme(scheme.Scheme)
-	Expect(err).NotTo(HaveOccurred())
-
-	err = gatewayv1beta1.AddToScheme(scheme.Scheme)
-	Expect(err).NotTo(HaveOccurred())
-
-	err = certman.AddToScheme(scheme.Scheme)
-	Expect(err).NotTo(HaveOccurred())
-
-	err = ocmworkv1.AddToScheme(scheme.Scheme)
-	Expect(err).NotTo(HaveOccurred())
-
-	err = ocmclusterv1.AddToScheme(scheme.Scheme)
-	Expect(err).NotTo(HaveOccurred())
-
-	err = ocmclusterv1beta1.AddToScheme(scheme.Scheme)
-	Expect(err).NotTo(HaveOccurred())
-	//+kubebuilder:scaffold:scheme
-
-	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
-	Expect(err).NotTo(HaveOccurred())
-	Expect(k8sClient).NotTo(BeNil())
-
-	k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
-		Scheme:                 scheme.Scheme,
-		HealthProbeBindAddress: "0",
-		MetricsBindAddress:     "0",
-	})
-	Expect(err).ToNot(HaveOccurred())
-
-	err = (&GatewayClassReconciler{
-		Client: k8sManager.GetClient(),
-		Scheme: k8sManager.GetScheme(),
-	}).SetupWithManager(k8sManager)
-	Expect(err).ToNot(HaveOccurred())
-
-	certificates := tls.NewService(k8sManager.GetClient(), "glbc-ca")
-
-	dns := dns.NewService(k8sManager.GetClient())
-
-	plc := placement.NewOCMPlacer(k8sManager.GetClient())
-
-	err = (&GatewayReconciler{
-		Client:       k8sManager.GetClient(),
-		Scheme:       k8sManager.GetScheme(),
-		Certificates: certificates,
-		Host:         dns,
-		Placement:    plc,
-	}).SetupWithManager(k8sManager, ctx)
-	Expect(err).ToNot(HaveOccurred())
-
-	go func() {
-		defer GinkgoRecover()
-		err = k8sManager.Start(ctx)
-		Expect(err).ToNot(HaveOccurred(), "failed to run manager")
-	}()
-})
-
-var _ = AfterSuite(func() {
-	cancel()
-	By("tearing down the test environment")
-	err := testEnv.Stop()
-	Expect(err).NotTo(HaveOccurred())
-})
 
 var _ = Describe("GatewayClassController", func() {
 	Context("testing gatewayclass controller", func() {
@@ -203,14 +76,14 @@ var _ = Describe("GatewayClassController", func() {
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, gatewayclassType, createdGatewayclass)
 				return err == nil
-			}, EventuallyTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 
 			// Status Accepted
 			var condition metav1.Condition
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, gatewayclassType, createdGatewayclass)
 				return err == nil && createdGatewayclass.Status.Conditions[0].Status == metav1.ConditionTrue
-			}, EventuallyTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 			condition = createdGatewayclass.Status.Conditions[0]
 			Expect(len(createdGatewayclass.Status.Conditions)).To(BeEquivalentTo(1))
 			Expect(condition.Type).To(BeEquivalentTo(gatewayv1beta1.GatewayClassConditionStatusAccepted))
@@ -228,7 +101,7 @@ var _ = Describe("GatewayClassController", func() {
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, gatewayclassType, createdGatewayclass)
 				return err == nil
-			}, EventuallyTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 
 			// Only 1
 			gatewayclassList := &gatewayv1beta1.GatewayClassList{}
@@ -247,7 +120,7 @@ var _ = Describe("GatewayClassController", func() {
 				}
 				condition = createdGatewayclass.Status.Conditions[0]
 				return condition.Type == string(gatewayv1beta1.GatewayClassConditionStatusAccepted) && condition.Status == metav1.ConditionUnknown
-			}, EventuallyTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 		})
 
 		It("should NOT accept a gatewayclass that is 'unsupported'", func() {
@@ -260,7 +133,7 @@ var _ = Describe("GatewayClassController", func() {
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, gatewayclassType, createdGatewayclass)
 				return err == nil
-			}, EventuallyTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 
 			// Status is false
 			var condition metav1.Condition
@@ -273,7 +146,7 @@ var _ = Describe("GatewayClassController", func() {
 				}
 				condition = createdGatewayclass.Status.Conditions[0]
 				return condition.Type == string(gatewayv1beta1.GatewayClassConditionStatusAccepted) && condition.Status == metav1.ConditionFalse
-			}, EventuallyTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 			Expect(condition.Reason).To(BeEquivalentTo(gatewayv1beta1.GatewayClassReasonInvalidParameters))
 			Expect(condition.Message).To(BeEquivalentTo("Invalid Parameters - Unsupported class name test-class-name-1. Must be one of [kuadrant-multi-cluster-gateway-instance-per-cluster]"))
 		})
@@ -484,7 +357,7 @@ var _ = Describe("GatewayController", func() {
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, upstreamGatewayType, upstreamGateway)
 				return err == nil
-			}, EventuallyTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 
 			// Test: Passes if the gateway contains a finalizer
 			Eventually(func() bool {
@@ -492,7 +365,7 @@ var _ = Describe("GatewayController", func() {
 					return false
 				}
 				return controllerutil.ContainsFinalizer(upstreamGateway, gatewayFinalizer)
-			}, EventuallyTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 
 			// Test: Passes if the gateway has the correct label
 			Eventually(func() bool {
@@ -501,7 +374,7 @@ var _ = Describe("GatewayController", func() {
 				}
 				return gateway.Labels["kuadarant.io/managed"] == "true"
 
-			}, EventuallyTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 
 			// Mock: Creating tls cert manager would have created
 			err := k8sClient.Create(ctx, tlsSecrets)
@@ -528,7 +401,7 @@ var _ = Describe("GatewayController", func() {
 				stringified = string(hostnametest)
 				return err == nil
 
-			}, EventuallyTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 			//Comparing the hostname
 			Expect(stringified).To(Equal("test1.example.com"))
 
@@ -551,7 +424,7 @@ var _ = Describe("GatewayController", func() {
 				stringified = string(hostnametest)
 				return err == nil
 
-			}, EventuallyTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 
 			//Comparing the hostname
 			Expect(stringified).To(Equal("test1.example.com"))
@@ -702,7 +575,7 @@ var _ = Describe("GatewayController", func() {
 				log.Log.Info("programmedCondition", "programmedCondition", programmedCondition)
 				Expect(programmedCondition).ToNot(BeNil())
 				return programmedCondition.Status == metav1.ConditionTrue
-			}, EventuallyTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 
 			// Test the aggregated addresses are correct
 			addresses := upstreamGateway.Status.Addresses
@@ -749,7 +622,7 @@ var _ = Describe("GatewayController", func() {
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, noLabelUpstreamGatewayType, noLabelGateway)
 				return err == nil
-			}, EventuallyTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 
 			// Passes if the gateway contains a finalizer
 			Eventually(func() bool {
@@ -757,13 +630,13 @@ var _ = Describe("GatewayController", func() {
 					return false
 				}
 				return controllerutil.ContainsFinalizer(noLabelGateway, gatewayFinalizer)
-			}, EventuallyTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 
 			// Test: Passes if no manifest was gotten
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, types.NamespacedName{Namespace: nsSpoke1Name, Name: "gateway-default-test-gw-2"}, manifest1)
 				return err == nil
-			}, EventuallyTimeoutMedium, TestRetryIntervalMedium).Should(BeFalse())
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeFalse())
 
 		})
 	})
@@ -852,7 +725,7 @@ var _ = Describe("GatewayController", func() {
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: managedZone.Namespace, Name: managedZone.Name}, createdMZ)
 				return err == nil
-			}, EventuallyTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 
 			Expect(k8sClient.Create(ctx, gatewayClass)).To(BeNil())
 
@@ -862,7 +735,7 @@ var _ = Describe("GatewayController", func() {
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, createdGW)
 				return err == nil
-			}, EventuallyTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, createdGW)
@@ -878,14 +751,14 @@ var _ = Describe("GatewayController", func() {
 				}
 
 				return gwIsProgrammed
-			}, EventuallyTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 
 			Expect(k8sClient.Delete(ctx, createdGW)).To(BeNil())
 
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: createdGW.Namespace, Name: createdGW.Name}, createdGW)
 				return k8serrors.IsNotFound(err)
-			}, EventuallyTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 
 			badHost := gatewayv1beta1.Hostname("test.badexample.com")
 			gateway.ResourceVersion = ""
@@ -896,7 +769,7 @@ var _ = Describe("GatewayController", func() {
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, createdGW)
 				return err == nil
-			}, EventuallyTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 
 			Consistently(func() bool {
 				err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, createdGW)
@@ -930,7 +803,7 @@ var _ = Describe("GatewayController", func() {
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: managedZone.Namespace, Name: managedZone.Name}, createdMZ)
 				return err == nil
-			}, EventuallyTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 
 			Expect(k8sClient.Create(ctx, gatewayClass)).To(BeNil())
 			createdGWClass := &gatewayv1beta1.GatewayClass{}
@@ -938,7 +811,7 @@ var _ = Describe("GatewayController", func() {
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, client.ObjectKey{Name: gatewayClass.Name}, createdGWClass)
 				return err == nil
-			}, EventuallyTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 
 			Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
 			createdGW := &gatewayv1beta1.Gateway{}
@@ -946,7 +819,7 @@ var _ = Describe("GatewayController", func() {
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, createdGW)
 				return err == nil
-			}, EventuallyTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 
 			Consistently(func() bool {
 				err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, createdGW)
