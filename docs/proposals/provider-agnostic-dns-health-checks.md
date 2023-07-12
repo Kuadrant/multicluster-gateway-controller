@@ -75,6 +75,11 @@ spec:
   path: "..."
   protocol: "..."
   interval: "..."
+  additionalHeaders:
+    - name: "..."
+      value: "..."
+    - name: "..."
+      value: "..."
 status:
   healthy: true
   consecutiveFailures: 0
@@ -89,6 +94,7 @@ status:
 - **Path** The path to request
 - **Protocol** The protocol to use for this request
 - **Interval** How frequently this check would ideally be executed.
+- **AdditionalHeaders** Optional headers and their values that can be specified to ensure the health check is successful.
 
 The reconciliation of this resource results in the configuration of a health probe, which targets the endpoint and 
 updates the status. The status is propagated to the providerSpecific status of the equivalent endpoint in the DNSRecord
