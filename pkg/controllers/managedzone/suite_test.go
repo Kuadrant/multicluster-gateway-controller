@@ -183,5 +183,21 @@ var _ = Describe("ManagedZoneReconciler", func() {
 				return errors.IsNotFound(err)
 			}, EventuallyTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 		})
+
+		It("should reject a managed zone with an invalid domain name", func() {
+			invalidDomainNameManagedZone := &v1alpha1.ManagedZone{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "invalid_domain",
+					Namespace: "default",
+				},
+				Spec: v1alpha1.ManagedZoneSpec{
+					ID:         "invalid_domain",
+					DomainName: "invalid_domain",
+				},
+			}
+			err := k8sClient.Create(ctx, invalidDomainNameManagedZone)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("spec.domainName in body should match"))
+		})
 	})
 })

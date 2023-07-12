@@ -61,6 +61,7 @@ spec:
                 type: string
               domainName:
                 description: Domain name of this ManagedZone
+                pattern: ^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$
                 type: string
               id:
                 description: ID is the provider assigned id of this  zone (i.e. route53.HostedZone.ID).
