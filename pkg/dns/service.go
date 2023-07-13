@@ -182,37 +182,15 @@ func (s *Service) SetEndpoints(ctx context.Context, mcgTarget *MultiClusterGatew
 	}
 
 	var (
-		newEndpoints []*v1alpha1.Endpoint
-		endpoint     *v1alpha1.Endpoint
+		newEndpoints    []*v1alpha1.Endpoint
+		endpoint        *v1alpha1.Endpoint
+		defaultEndpoint *v1alpha1.Endpoint
 	)
-
 	lbName := strings.ToLower(fmt.Sprintf("lb-%s.%s", mcgTarget.GetShortCode(), gwListenerHost))
-	//Create gwListenerHost CNAME (shop.example.com -> lb-a1b2.shop.example.com)
-	endpoint = createOrUpdateEndpoint(gwListenerHost, []string{lbName}, v1alpha1.CNAMERecordType, "", DefaultCnameTTL, currentEndpoints)
-	newEndpoints = append(newEndpoints, endpoint)
 
 	for geoCode, cgwTargets := range mcgTarget.GroupTargetsByGeo() {
 		geoLbName := strings.ToLower(fmt.Sprintf("%s.%s", geoCode, lbName))
-		//Create lbName CNAME (lb-a1b2.shop.example.com -> default.lb-a1b2.shop.example.com)
-		endpoint = createOrUpdateEndpoint(lbName, []string{geoLbName}, v1alpha1.CNAMERecordType, string(geoCode), DefaultCnameTTL, currentEndpoints)
-		newEndpoints = append(newEndpoints, endpoint)
-
-		switch {
-		case geoCode.IsDefaultCode():
-			endpoint.SetProviderSpecific(ProviderSpecificGeoCountryCode, "*")
-		case geoCode.IsContinentCode():
-			endpoint.SetProviderSpecific(ProviderSpecificGeoContinentCode, string(geoCode))
-		case geoCode.IsCountryCode():
-			endpoint.SetProviderSpecific(ProviderSpecificGeoCountryCode, string(geoCode))
-		}
-
-		//Create the default geo if this geo matches the default policy geo and we haven't just created it
-		if !geoCode.IsDefaultCode() && geoCode == mcgTarget.getDefaultGeo() {
-			endpoint = createOrUpdateEndpoint(lbName, []string{geoLbName}, v1alpha1.CNAMERecordType, "default", DefaultCnameTTL, currentEndpoints)
-			newEndpoints = append(newEndpoints, endpoint)
-			endpoint.SetProviderSpecific(ProviderSpecificGeoCountryCode, "*")
-		}
-
+		var clusterEndpoints []*v1alpha1.Endpoint
 		for _, cgwTarget := range cgwTargets {
 			var ipValues []string
 			var hostValues []string
@@ -227,17 +205,49 @@ func (s *Service) SetEndpoints(ctx context.Context, mcgTarget *MultiClusterGatew
 			if len(ipValues) > 0 {
 				clusterLbName := strings.ToLower(fmt.Sprintf("%s.%s", cgwTarget.GetShortCode(), lbName))
 				endpoint = createOrUpdateEndpoint(clusterLbName, ipValues, v1alpha1.ARecordType, "", DefaultTTL, currentEndpoints)
-				newEndpoints = append(newEndpoints, endpoint)
+				clusterEndpoints = append(clusterEndpoints, endpoint)
 				hostValues = append(hostValues, clusterLbName)
 			}
 
 			for _, hostValue := range hostValues {
 				endpoint = createOrUpdateEndpoint(geoLbName, []string{hostValue}, v1alpha1.CNAMERecordType, hostValue, DefaultTTL, currentEndpoints)
 				endpoint.SetProviderSpecific(ProviderSpecificWeight, strconv.Itoa(cgwTarget.GetWeight()))
-				newEndpoints = append(newEndpoints, endpoint)
+				clusterEndpoints = append(clusterEndpoints, endpoint)
 			}
-
 		}
+		if len(clusterEndpoints) == 0 {
+			continue
+		}
+		newEndpoints = append(newEndpoints, clusterEndpoints...)
+
+		//Create lbName CNAME (lb-a1b2.shop.example.com -> default.lb-a1b2.shop.example.com)
+		endpoint = createOrUpdateEndpoint(lbName, []string{geoLbName}, v1alpha1.CNAMERecordType, string(geoCode), DefaultCnameTTL, currentEndpoints)
+
+		//Deal with the default geo endpoint first
+		if geoCode.IsDefaultCode() {
+			defaultEndpoint = endpoint
+			// continue here as we will add the `defaultEndpoint` later
+			continue
+		} else if (geoCode == mcgTarget.getDefaultGeo()) || defaultEndpoint == nil {
+			// Ensure that a `defaultEndpoint` is always set, but the expected default takes precedence
+			defaultEndpoint = createOrUpdateEndpoint(lbName, []string{geoLbName}, v1alpha1.CNAMERecordType, "default", DefaultCnameTTL, currentEndpoints)
+		}
+
+		if geoCode.IsContinentCode() {
+			endpoint.SetProviderSpecific(ProviderSpecificGeoContinentCode, string(geoCode))
+		} else if geoCode.IsCountryCode() {
+			endpoint.SetProviderSpecific(ProviderSpecificGeoCountryCode, string(geoCode))
+		}
+		newEndpoints = append(newEndpoints, endpoint)
+	}
+
+	if len(newEndpoints) > 0 {
+		// Add the `defaultEndpoint`, this should always be set by this point if `newEndpoints` isn't empty
+		defaultEndpoint.SetProviderSpecific(ProviderSpecificGeoCountryCode, "*")
+		newEndpoints = append(newEndpoints, defaultEndpoint)
+		//Create gwListenerHost CNAME (shop.example.com -> lb-a1b2.shop.example.com)
+		endpoint = createOrUpdateEndpoint(gwListenerHost, []string{lbName}, v1alpha1.CNAMERecordType, "", DefaultCnameTTL, currentEndpoints)
+		newEndpoints = append(newEndpoints, endpoint)
 	}
 
 	sort.Slice(newEndpoints, func(i, j int) bool {
