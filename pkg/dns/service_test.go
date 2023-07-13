@@ -759,6 +759,50 @@ func TestService_SetEndpoints(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "sets no endpoints when no target addresses",
+			mcgTarget: &dns.MultiClusterGatewayTarget{
+				Gateway: &gatewayv1beta1.Gateway{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "testgw",
+						Namespace: "testns",
+					},
+				},
+				ClusterGatewayTargets: []dns.ClusterGatewayTarget{
+					{
+
+						ClusterGateway: &dns.ClusterGateway{
+							ClusterName:      "test-cluster-1",
+							GatewayAddresses: []gatewayv1beta1.GatewayAddress{},
+						},
+						Geo:    testutil.Pointer(dns.GeoCode("C-NA")),
+						Weight: testutil.Pointer(120),
+					},
+					{
+
+						ClusterGateway: &dns.ClusterGateway{
+							ClusterName:      "test-cluster-2",
+							GatewayAddresses: []gatewayv1beta1.GatewayAddress{},
+						},
+						Geo:    testutil.Pointer(dns.GeoCode("IE")),
+						Weight: testutil.Pointer(120),
+					},
+				},
+				LoadBalancing: &v1alpha1.LoadBalancingSpec{
+					Geo: &v1alpha1.LoadBalancingGeo{
+						DefaultGeo: "C-NA",
+					},
+				},
+			},
+			dnsRecord: &v1alpha1.DNSRecord{
+				ObjectMeta: v1.ObjectMeta{
+					Name: "test.example.com",
+				},
+			},
+			wantSpec: &v1alpha1.DNSRecordSpec{
+				Endpoints: []*v1alpha1.Endpoint{},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
