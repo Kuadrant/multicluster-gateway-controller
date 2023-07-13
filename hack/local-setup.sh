@@ -36,6 +36,8 @@ ISTIO_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/istio/istio-operator.yaml
 GATEWAY_API_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/gateway-api
 REDIS_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/kuadrant/redis
 LIMITADOR_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/kuadrant/limitador
+THANOS_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/thanos
+PROMETHEUS_FOR_FEDERATION_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/prometheus-for-federation
 
 TLS_CERT_PATH=${LOCAL_SETUP_DIR}/../config/webhook-setup/control/tls
 
@@ -286,6 +288,34 @@ joinSubmarinerBroker() {
   fi
 }
 
+deployThanos() {
+  clusterName=${1}
+  if [[ -n "${METRICS_FEDERATION}" ]]; then
+    echo "Deploying Thanos in ${clusterName}"
+    kubectl config use-context kind-${clusterName}
+    ${KUSTOMIZE_BIN} build ${THANOS_KUSTOMIZATION_DIR} | kubectl apply -f -
+
+    nodeIP=$(kubectl get nodes -o json | jq -r ".items[] | select(.metadata.name == \"$clusterName-control-plane\").status | .addresses[] | select(.type == \"InternalIP\").address")
+    echo -ne "\n\n\tConnect to Thanos Query UI\n\n"
+    echo -ne "\t\tURL : https://thanos-query.$nodeIP.nip.io\n\n\n"
+  fi
+}
+
+deployPrometheusForFederation() {
+  clusterName=${1}
+  if [[ -n "${METRICS_FEDERATION}" ]]; then
+    echo "Deploying Prometheus for federation in ${clusterName}"
+    kubectl config use-context kind-${clusterName}
+    # Use server-side apply to avoid below error if re-running apply
+    #   'The CustomResourceDefinition "prometheuses.monitoring.coreos.com" is invalid: metadata.annotations: Too long: must have at most 262144 bytes'
+    # Also need to apply the CRDs first to avoid the below error types that seem to be timing related
+    #   'resource mapping not found for name: "alertmanager-main-rules" namespace: "monitoring" from "STDIN": no matches for kind "PrometheusRule" in version "monitoring.coreos.com/v1"''
+    ${KUSTOMIZE_BIN} build ${PROMETHEUS_FOR_FEDERATION_KUSTOMIZATION_DIR} | ${KFILT} -i kind=CustomResourceDefinition | kubectl apply --server-side -f -
+    # Apply remainder of resources
+    ${KUSTOMIZE_BIN} build ${PROMETHEUS_FOR_FEDERATION_KUSTOMIZATION_DIR} | ${KFILT} -x kind=CustomResourceDefinition | kubectl apply -f -
+  fi
+}
+
 cleanup
 
 port80=9090
@@ -337,6 +367,9 @@ deployRedis ${KIND_CLUSTER_CONTROL_PLANE}
 # Deploy MetalLb
 deployMetalLB ${KIND_CLUSTER_CONTROL_PLANE} ${metalLBSubnetStart}
 
+# Deploy Thanos components in the hub
+deployThanos ${KIND_CLUSTER_CONTROL_PLANE}
+
 # Add workload clusters if MGC_WORKLOAD_CLUSTERS_COUNT environment variable is set
 if [[ -n "${MGC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
   for ((i = 1; i <= ${MGC_WORKLOAD_CLUSTERS_COUNT}; i++)); do
@@ -352,6 +385,7 @@ if [[ -n "${MGC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
     deployAgentSecret ${KIND_CLUSTER_WORKLOAD}-${i} "true"
     deployAgentSecret ${KIND_CLUSTER_WORKLOAD}-${i} "false"
     deployOCMSpoke ${KIND_CLUSTER_WORKLOAD}-${i}
+    deployPrometheusForFederation ${KIND_CLUSTER_WORKLOAD}-${i}
   done
 fi
 
