@@ -63,21 +63,9 @@ const (
 	MultiClusterHostnameAddressType       gatewayv1beta1.AddressType = "kuadrant.io/MultiClusterHostnameAddress"
 )
 
-type HostService interface {
-	CreateDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone, owner metav1.Object) (*v1alpha1.DNSRecord, error)
-	GetDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone, owner metav1.Object) (*v1alpha1.DNSRecord, error)
-	GetManagedZoneForHost(ctx context.Context, domain string, t traffic.Interface) (*v1alpha1.ManagedZone, string, error)
-	SetEndpoints(ctx context.Context, mcgTarget *dns.MultiClusterGatewayTarget, dnsRecord *v1alpha1.DNSRecord) error
-	CleanupDNSRecords(ctx context.Context, owner traffic.Interface) error
-	// GetManagedHosts will return the list of hosts in this gateways listeners that are associated with a managedzone managed by this controller
-	GetManagedHosts(ctx context.Context, traffic traffic.Interface) ([]v1alpha1.ManagedHost, error)
-	GetDNSRecordManagedZone(ctx context.Context, dnsRecord *v1alpha1.DNSRecord) (*v1alpha1.ManagedZone, error)
-}
-
 type CertificateService interface {
-	EnsureCertificate(ctx context.Context, host string, owner metav1.Object) error
-	GetCertificateSecret(ctx context.Context, host string, namespace string) (*corev1.Secret, error)
-	CleanupCertificates(ctx context.Context, owner traffic.Interface) error
+	EnsureCertificate(ctx context.Context, name, host string, owner metav1.Object) error
+	GetCertificateSecret(ctx context.Context, name string, namespace string) (*corev1.Secret, error)
 }
 
 type GatewayPlacer interface {
@@ -109,7 +97,6 @@ type GatewayReconciler struct {
 	client.Client
 	Scheme       *runtime.Scheme
 	Certificates CertificateService
-	HostService  HostService
 	Placement    GatewayPlacer
 }
 
@@ -312,33 +299,21 @@ func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.C
 		downstream.Labels = map[string]string{}
 	}
 	downstream.Labels[ManagedLabel] = "true"
-	accessor := traffic.NewGateway(upstreamGateway)
 	if isDeleting(upstreamGateway) {
 		log.Info("deleting downstream gateways owned by upstream gateway ", "name", downstream.Name, "namespace", downstream.Namespace)
 		targets, err := r.Placement.Place(ctx, upstreamGateway, downstream)
 		if err != nil {
 			return false, metav1.ConditionFalse, clusters, err
 		}
-
-		// Cleanup certificates
-		err = r.Certificates.CleanupCertificates(ctx, accessor)
-		if err != nil {
-			log.Error(err, "Error deleting certs")
-			return false, metav1.ConditionFalse, clusters, err
-		}
 		return false, metav1.ConditionTrue, targets.UnsortedList(), nil
 	}
 
-	managedHosts, err := r.HostService.GetManagedHosts(ctx, upstreamAccessor)
-	if err != nil {
-		return false, metav1.ConditionFalse, clusters, fmt.Errorf("failed to get managed hosts : %s", err)
-	}
-	if len(managedHosts) == 0 {
-		return false, metav1.ConditionFalse, clusters, fmt.Errorf("no managed hosts found")
+	if len(upstreamGateway.Spec.Listeners) == 0 {
+		return false, metav1.ConditionFalse, clusters, fmt.Errorf("no listeners found")
 	}
 
 	// ensure tls is set up first before doing anything else. TLS is not affected by placement changes
-	tlsSecrets, err := r.reconcileTLS(ctx, upstreamGateway, downstream, managedHosts)
+	tlsSecrets, err := r.reconcileTLS(ctx, upstreamGateway, downstream)
 	if err != nil {
 		return true, metav1.ConditionFalse, clusters, fmt.Errorf("failed to reconcle tls : %s", err)
 	}
@@ -372,30 +347,30 @@ func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.C
 	return false, metav1.ConditionUnknown, clusters, nil
 }
 
-func (r *GatewayReconciler) reconcileTLS(ctx context.Context, upstreamGateway *gatewayv1beta1.Gateway, gateway *gatewayv1beta1.Gateway, managedHosts []v1alpha1.ManagedHost) ([]metav1.Object, error) {
+func (r *GatewayReconciler) reconcileTLS(ctx context.Context, upstreamGateway *gatewayv1beta1.Gateway, gateway *gatewayv1beta1.Gateway) ([]metav1.Object, error) {
 	log := crlog.FromContext(ctx)
 	tlsSecrets := []metav1.Object{}
 	accessor := traffic.NewGateway(gateway)
 
-	for _, mh := range managedHosts {
-		// Only generate cert for https listeners
-		listener := accessor.GetListenerByHost(mh.Host)
-		if listener == nil || listener.Protocol != gatewayv1beta1.HTTPSProtocolType {
+	for _, listener := range upstreamGateway.Spec.Listeners {
+		var listenerHost = string(*listener.Hostname)
+		if listener.Protocol != gatewayv1beta1.HTTPSProtocolType || listenerHost == "" {
 			continue
 		}
+		certName := fmt.Sprintf("%s-%s", upstreamGateway.Name, listener.Name)
 
 		// create certificate resource for assigned host
-		if err := r.Certificates.EnsureCertificate(ctx, mh.Host, upstreamGateway); err != nil && !k8serrors.IsAlreadyExists(err) {
+		if err := r.Certificates.EnsureCertificate(ctx, certName, string(*listener.Hostname), upstreamGateway); err != nil && !k8serrors.IsAlreadyExists(err) {
 			return tlsSecrets, err
 		}
 
 		// Check if certificate secret is ready
-		secret, err := r.Certificates.GetCertificateSecret(ctx, mh.Host, upstreamGateway.Namespace)
+		secret, err := r.Certificates.GetCertificateSecret(ctx, certName, upstreamGateway.Namespace)
 		if err != nil && !k8serrors.IsNotFound(err) {
 			return tlsSecrets, err
 		}
 		if err != nil {
-			log.V(3).Info("tls secret does not exist yet for host " + mh.Host + " requeue")
+			log.V(3).Info("tls secret does not exist yet for host " + listenerHost + " requeue")
 			return tlsSecrets, nil
 		}
 
@@ -407,7 +382,7 @@ func (r *GatewayReconciler) reconcileTLS(ctx context.Context, upstreamGateway *g
 			downstreamSecret.Namespace = gateway.Namespace
 			downstreamSecret.Labels = secret.Labels
 			downstreamSecret.Annotations = secret.Annotations
-			accessor.AddTLS(mh.Host, downstreamSecret)
+			accessor.AddTLS(listenerHost, downstreamSecret)
 			tlsSecrets = append(tlsSecrets, downstreamSecret)
 		}
 	}

@@ -2,7 +2,6 @@ package dns
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -11,17 +10,11 @@ import (
 	"golang.org/x/net/publicsuffix"
 
 	"k8s.io/apimachinery/pkg/api/equality"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/traffic"
 )
 
 const (
@@ -44,92 +37,50 @@ func NewService(controlClient client.Client) *Service {
 	return &Service{controlClient: controlClient}
 }
 
-func (s *Service) GetManagedHosts(ctx context.Context, traffic traffic.Interface) ([]v1alpha1.ManagedHost, error) {
-	var managed []v1alpha1.ManagedHost
-	for _, host := range traffic.GetHosts() {
-		managedZone, subDomain, err := s.GetManagedZoneForHost(ctx, host, traffic)
-		if err != nil && !errors.Is(err, ErrNoManagedZoneForHost) {
-			return nil, err
-		}
-		if managedZone == nil {
-			// its ok for no managedzone to be present as this could be a CNAME or externally managed host
-			continue
-		}
-		dnsRecord, err := s.GetDNSRecord(ctx, subDomain, managedZone, traffic)
-		if err != nil && !k8serrors.IsNotFound(err) {
-			return nil, err
-		}
-		managedHost := v1alpha1.ManagedHost{
-			Host:        host,
-			Subdomain:   subDomain,
-			ManagedZone: managedZone,
-			DnsRecord:   dnsRecord,
-		}
+// func (s *Service) GetManagedHosts(ctx context.Context, traffic traffic.Interface) ([]v1alpha1.ManagedHost, error) {
+// 	var managed []v1alpha1.ManagedHost
+// 	for _, host := range traffic.GetHosts() {
+// 		managedZone, subDomain, err := s.GetManagedZoneForHost(ctx, host, traffic)
+// 		if err != nil && !errors.Is(err, ErrNoManagedZoneForHost) {
+// 			return nil, err
+// 		}
+// 		if managedZone == nil {
+// 			// its ok for no managedzone to be present as this could be a CNAME or externally managed host
+// 			continue
+// 		}
+// 		dnsRecord, err := s.GetDNSRecord(ctx, subDomain, managedZone, traffic)
+// 		if err != nil && !k8serrors.IsNotFound(err) {
+// 			return nil, err
+// 		}
+// 		managedHost := v1alpha1.ManagedHost{
+// 			Host:        host,
+// 			Subdomain:   subDomain,
+// 			ManagedZone: managedZone,
+// 			DnsRecord:   dnsRecord,
+// 		}
 
-		managed = append(managed, managedHost)
-	}
-	return managed, nil
-}
+// 		managed = append(managed, managedHost)
+// 	}
+// 	return managed, nil
+// }
 
-// CreateDNSRecord creates a new DNSRecord, if one does not already exist, in the given managed zone with the given subdomain.
-// Needs traffic.Interface owner to block other traffic objects from accessing this record
-func (s *Service) CreateDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone, owner metav1.Object) (*v1alpha1.DNSRecord, error) {
-	managedHost := strings.ToLower(fmt.Sprintf("%s.%s", subDomain, managedZone.Spec.DomainName))
+// // GetDNSRecord returns a v1alpha1.DNSRecord, if one exists, for the given subdomain in the given v1alpha1.ManagedZone.
+// // It needs a reference string to enforce DNS record serving a single traffic.Interface owner
+// func (s *Service) GetDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone, owner metav1.Object) (*v1alpha1.DNSRecord, error) {
+// 	managedHost := strings.ToLower(fmt.Sprintf("%s.%s", subDomain, managedZone.Spec.DomainName))
 
-	dnsRecord := v1alpha1.DNSRecord{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      managedHost,
-			Namespace: managedZone.Namespace,
-			Labels: map[string]string{
-				LabelRecordID:         subDomain,
-				LabelGatewayReference: string(owner.GetUID()),
-			},
-		},
-		Spec: v1alpha1.DNSRecordSpec{
-			ManagedZoneRef: &v1alpha1.ManagedZoneReference{
-				Name: managedZone.Name,
-			},
-		},
-	}
-	if err := controllerutil.SetOwnerReference(owner, &dnsRecord, s.controlClient.Scheme()); err != nil {
-		return nil, err
-	}
-	err := controllerutil.SetControllerReference(managedZone, &dnsRecord, s.controlClient.Scheme())
-	if err != nil {
-		return nil, err
-	}
-
-	err = s.controlClient.Create(ctx, &dnsRecord, &client.CreateOptions{})
-	if err != nil && !k8serrors.IsAlreadyExists(err) {
-		return nil, err
-	}
-	//host may already be present
-	if err != nil && k8serrors.IsAlreadyExists(err) {
-		err = s.controlClient.Get(ctx, client.ObjectKeyFromObject(&dnsRecord), &dnsRecord)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return &dnsRecord, nil
-}
-
-// GetDNSRecord returns a v1alpha1.DNSRecord, if one exists, for the given subdomain in the given v1alpha1.ManagedZone.
-// It needs a reference string to enforce DNS record serving a single traffic.Interface owner
-func (s *Service) GetDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone, owner metav1.Object) (*v1alpha1.DNSRecord, error) {
-	managedHost := strings.ToLower(fmt.Sprintf("%s.%s", subDomain, managedZone.Spec.DomainName))
-
-	dnsRecord := &v1alpha1.DNSRecord{}
-	if err := s.controlClient.Get(ctx, client.ObjectKey{Name: managedHost, Namespace: managedZone.GetNamespace()}, dnsRecord); err != nil {
-		if k8serrors.IsNotFound(err) {
-			log.Log.V(1).Info("no dnsrecord found for host ", "host", managedHost)
-		}
-		return nil, err
-	}
-	if dnsRecord.GetLabels()[LabelGatewayReference] != string(owner.GetUID()) {
-		return nil, fmt.Errorf("attempting to get a DNSrecord for a host already in use by a different traffic object. Host: %s", managedHost)
-	}
-	return dnsRecord, nil
-}
+// 	dnsRecord := &v1alpha1.DNSRecord{}
+// 	if err := s.controlClient.Get(ctx, client.ObjectKey{Name: managedHost, Namespace: managedZone.GetNamespace()}, dnsRecord); err != nil {
+// 		if k8serrors.IsNotFound(err) {
+// 			log.Log.V(1).Info("no dnsrecord found for host ", "host", managedHost)
+// 		}
+// 		return nil, err
+// 	}
+// 	if dnsRecord.GetLabels()[LabelGatewayReference] != string(owner.GetUID()) {
+// 		return nil, fmt.Errorf("attempting to get a DNSrecord for a host already in use by a different traffic object. Host: %s", managedHost)
+// 	}
+// 	return dnsRecord, nil
+// }
 
 // SetEndpoints sets the endpoints for the given MultiClusterGatewayTarget
 //
@@ -281,14 +232,14 @@ func createOrUpdateEndpoint(dnsName string, targets v1alpha1.Targets, recordType
 // GetManagedZoneForHost returns a ManagedZone and subDomain for the given host if one exists.
 //
 // Currently, this returns the first matching ManagedZone found in the traffic resources own namespace
-func (s *Service) GetManagedZoneForHost(ctx context.Context, host string, t traffic.Interface) (*v1alpha1.ManagedZone, string, error) {
-	var managedZones v1alpha1.ManagedZoneList
-	if err := s.controlClient.List(ctx, &managedZones, client.InNamespace(t.GetNamespace())); err != nil {
-		log.FromContext(ctx).Error(err, "unable to list managed zones in traffic resource NS")
-		return nil, "", err
-	}
-	return FindMatchingManagedZone(host, host, managedZones.Items)
-}
+// func (s *Service) GetManagedZoneForHost(ctx context.Context, host string, t traffic.Interface) (*v1alpha1.ManagedZone, string, error) {
+// 	var managedZones v1alpha1.ManagedZoneList
+// 	if err := s.controlClient.List(ctx, &managedZones, client.InNamespace(t.GetNamespace())); err != nil {
+// 		log.FromContext(ctx).Error(err, "unable to list managed zones in traffic resource NS")
+// 		return nil, "", err
+// 	}
+// 	return FindMatchingManagedZone(host, host, managedZones.Items)
+// }
 
 func FindMatchingManagedZone(originalHost, host string, zones []v1alpha1.ManagedZone) (*v1alpha1.ManagedZone, string, error) {
 	if len(zones) == 0 {
@@ -322,35 +273,18 @@ func FindMatchingManagedZone(originalHost, host string, zones []v1alpha1.Managed
 
 }
 
-// CleanupDNSRecords removes all DNS records that were created for a provided traffic.Interface object
-func (s *Service) CleanupDNSRecords(ctx context.Context, owner traffic.Interface) error {
-	recordsToCleaunup := &v1alpha1.DNSRecordList{}
-	selector, _ := labels.Parse(fmt.Sprintf("%s=%s", LabelGatewayReference, owner.GetUID()))
+// // CleanupDNSRecords removes all DNS records that were created for a provided traffic.Interface object
+// func (s *Service) CleanupDNSRecords(ctx context.Context, owner traffic.Interface) error {
+// 	recordsToCleaunup := &v1alpha1.DNSRecordList{}
+// 	selector, _ := labels.Parse(fmt.Sprintf("%s=%s", LabelGatewayReference, owner.GetUID()))
 
-	if err := s.controlClient.List(ctx, recordsToCleaunup, &client.ListOptions{LabelSelector: selector}); err != nil {
-		return err
-	}
-	for _, record := range recordsToCleaunup.Items {
-		if err := s.controlClient.Delete(ctx, &record); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// getDNSRecordManagedZone returns the current ManagedZone for the given DNSRecord.
-func (s *Service) GetDNSRecordManagedZone(ctx context.Context, dnsRecord *v1alpha1.DNSRecord) (*v1alpha1.ManagedZone, error) {
-
-	if dnsRecord.Spec.ManagedZoneRef == nil {
-		return nil, fmt.Errorf("no managed zone configured for : %s", dnsRecord.Name)
-	}
-
-	managedZone := &v1alpha1.ManagedZone{}
-
-	err := s.controlClient.Get(ctx, client.ObjectKey{Namespace: dnsRecord.Namespace, Name: dnsRecord.Spec.ManagedZoneRef.Name}, managedZone)
-	if err != nil {
-		return nil, err
-	}
-
-	return managedZone, nil
-}
+// 	if err := s.controlClient.List(ctx, recordsToCleaunup, &client.ListOptions{LabelSelector: selector}); err != nil {
+// 		return err
+// 	}
+// 	for _, record := range recordsToCleaunup.Items {
+// 		if err := s.controlClient.Delete(ctx, &record); err != nil {
+// 			return err
+// 		}
+// 	}
+// 	return nil
+// }

@@ -4,7 +4,6 @@ package dns_test
 
 import (
 	"context"
-	"reflect"
 	"sort"
 	"testing"
 
@@ -393,121 +392,121 @@ func TestDNS_findMatchingManagedZone(t *testing.T) {
 	}
 }
 
-func TestService_CleanupDNSRecords(t *testing.T) {
+// func TestService_CleanupDNSRecords(t *testing.T) {
 
-	tests := []struct {
-		name    string
-		gateway *gatewayv1beta1.Gateway
-		record  *v1alpha1.DNSRecord
-		wantErr bool
-	}{
-		{
-			name: "DNS record gets deleted",
-			gateway: &gatewayv1beta1.Gateway{
-				ObjectMeta: v1.ObjectMeta{
-					UID: types.UID("test"),
-				},
-			},
-			record: &v1alpha1.DNSRecord{
-				ObjectMeta: v1.ObjectMeta{
-					Labels: map[string]string{
-						dns.LabelGatewayReference: "test",
-					},
-				},
-			},
-			wantErr: false,
-		},
-		{
-			name: "no DNS records do be deleted",
-			gateway: &gatewayv1beta1.Gateway{
-				ObjectMeta: v1.ObjectMeta{
-					UID: types.UID("test"),
-				},
-			},
-			record:  &v1alpha1.DNSRecord{},
-			wantErr: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			gw := traffic.NewGateway(tt.gateway)
-			f := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(tt.record).Build()
-			s := dns.NewService(f)
-			if err := s.CleanupDNSRecords(context.TODO(), gw); (err != nil) != tt.wantErr {
-				t.Errorf("CleanupDNSRecords() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
+// 	tests := []struct {
+// 		name    string
+// 		gateway *gatewayv1beta1.Gateway
+// 		record  *v1alpha1.DNSRecord
+// 		wantErr bool
+// 	}{
+// 		{
+// 			name: "DNS record gets deleted",
+// 			gateway: &gatewayv1beta1.Gateway{
+// 				ObjectMeta: v1.ObjectMeta{
+// 					UID: types.UID("test"),
+// 				},
+// 			},
+// 			record: &v1alpha1.DNSRecord{
+// 				ObjectMeta: v1.ObjectMeta{
+// 					Labels: map[string]string{
+// 						dns.LabelGatewayReference: "test",
+// 					},
+// 				},
+// 			},
+// 			wantErr: false,
+// 		},
+// 		{
+// 			name: "no DNS records do be deleted",
+// 			gateway: &gatewayv1beta1.Gateway{
+// 				ObjectMeta: v1.ObjectMeta{
+// 					UID: types.UID("test"),
+// 				},
+// 			},
+// 			record:  &v1alpha1.DNSRecord{},
+// 			wantErr: false,
+// 		},
+// 	}
+// 	for _, tt := range tests {
+// 		t.Run(tt.name, func(t *testing.T) {
+// 			gw := traffic.NewGateway(tt.gateway)
+// 			f := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(tt.record).Build()
+// 			s := dns.NewService(f)
+// 			if err := s.CleanupDNSRecords(context.TODO(), gw); (err != nil) != tt.wantErr {
+// 				t.Errorf("CleanupDNSRecords() error = %v, wantErr %v", err, tt.wantErr)
+// 			}
+// 		})
+// 	}
+// }
 
-func TestService_GetManagedZoneForHost(t *testing.T) {
-	tests := []struct {
-		name          string
-		host          string
-		gateway       *gatewayv1beta1.Gateway
-		mz            *v1alpha1.ManagedZoneList
-		scheme        *runtime.Scheme
-		wantSubdomain string
-		wantErr       bool
-	}{
-		{
-			name: "found MZ",
-			host: "example.com",
-			gateway: &gatewayv1beta1.Gateway{
-				ObjectMeta: v1.ObjectMeta{
-					Namespace: "test",
-				},
-			},
-			mz: &v1alpha1.ManagedZoneList{
-				Items: []v1alpha1.ManagedZone{
-					{
-						ObjectMeta: v1.ObjectMeta{
-							Name:      "example.com",
-							Namespace: "test",
-						},
-						Spec: v1alpha1.ManagedZoneSpec{
-							DomainName: "example.com",
-						},
-					},
-				},
-			},
-			scheme:        testScheme(t),
-			wantSubdomain: "example.com",
-			wantErr:       false,
-		},
-		{
-			name: "unable to list MZ",
-			host: "example.com",
-			gateway: &gatewayv1beta1.Gateway{
-				ObjectMeta: v1.ObjectMeta{
-					Namespace: "test",
-				},
-			},
-			mz:      &v1alpha1.ManagedZoneList{},
-			scheme:  runtime.NewScheme(),
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			gw := traffic.NewGateway(tt.gateway)
-			f := fake.NewClientBuilder().WithScheme(tt.scheme).WithLists(tt.mz).Build()
-			s := dns.NewService(f)
+// func TestService_GetManagedZoneForHost(t *testing.T) {
+// 	tests := []struct {
+// 		name          string
+// 		host          string
+// 		gateway       *gatewayv1beta1.Gateway
+// 		mz            *v1alpha1.ManagedZoneList
+// 		scheme        *runtime.Scheme
+// 		wantSubdomain string
+// 		wantErr       bool
+// 	}{
+// 		{
+// 			name: "found MZ",
+// 			host: "example.com",
+// 			gateway: &gatewayv1beta1.Gateway{
+// 				ObjectMeta: v1.ObjectMeta{
+// 					Namespace: "test",
+// 				},
+// 			},
+// 			mz: &v1alpha1.ManagedZoneList{
+// 				Items: []v1alpha1.ManagedZone{
+// 					{
+// 						ObjectMeta: v1.ObjectMeta{
+// 							Name:      "example.com",
+// 							Namespace: "test",
+// 						},
+// 						Spec: v1alpha1.ManagedZoneSpec{
+// 							DomainName: "example.com",
+// 						},
+// 					},
+// 				},
+// 			},
+// 			scheme:        testScheme(t),
+// 			wantSubdomain: "example.com",
+// 			wantErr:       false,
+// 		},
+// 		{
+// 			name: "unable to list MZ",
+// 			host: "example.com",
+// 			gateway: &gatewayv1beta1.Gateway{
+// 				ObjectMeta: v1.ObjectMeta{
+// 					Namespace: "test",
+// 				},
+// 			},
+// 			mz:      &v1alpha1.ManagedZoneList{},
+// 			scheme:  runtime.NewScheme(),
+// 			wantErr: true,
+// 		},
+// 	}
+// 	for _, tt := range tests {
+// 		t.Run(tt.name, func(t *testing.T) {
+// 			gw := traffic.NewGateway(tt.gateway)
+// 			f := fake.NewClientBuilder().WithScheme(tt.scheme).WithLists(tt.mz).Build()
+// 			s := dns.NewService(f)
 
-			gotMZ, gotSubdomain, err := s.GetManagedZoneForHost(context.TODO(), tt.host, gw)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("GetManagedZoneForHost() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !tt.wantErr && !reflect.DeepEqual(gotMZ.ObjectMeta, tt.mz.Items[0].ObjectMeta) {
-				t.Errorf("GetManagedZoneForHost() gotMZ = %v, want %v", gotMZ, tt.mz.Items[0])
-			}
-			if gotSubdomain != tt.wantSubdomain {
-				t.Errorf("GetManagedZoneForHost() gotSubdomain = %v, want %v", gotSubdomain, tt.wantSubdomain)
-			}
-		})
-	}
-}
+// 			gotMZ, gotSubdomain, err := s.GetManagedZoneForHost(context.TODO(), tt.host, gw)
+// 			if (err != nil) != tt.wantErr {
+// 				t.Errorf("GetManagedZoneForHost() error = %v, wantErr %v", err, tt.wantErr)
+// 				return
+// 			}
+// 			if !tt.wantErr && !reflect.DeepEqual(gotMZ.ObjectMeta, tt.mz.Items[0].ObjectMeta) {
+// 				t.Errorf("GetManagedZoneForHost() gotMZ = %v, want %v", gotMZ, tt.mz.Items[0])
+// 			}
+// 			if gotSubdomain != tt.wantSubdomain {
+// 				t.Errorf("GetManagedZoneForHost() gotSubdomain = %v, want %v", gotSubdomain, tt.wantSubdomain)
+// 			}
+// 		})
+// 	}
+// }
 
 func TestService_SetEndpoints(t *testing.T) {
 
@@ -835,245 +834,6 @@ func TestService_SetEndpoints(t *testing.T) {
 				}
 			}
 
-		})
-	}
-}
-
-func TestService_CreateDNSRecord(t *testing.T) {
-	type args struct {
-		subDomain   string
-		managedZone *v1alpha1.ManagedZone
-		owner       v1.Object
-	}
-	tests := []struct {
-		name       string
-		args       args
-		recordList *v1alpha1.DNSRecordList
-		wantRecord *v1alpha1.DNSRecord
-		wantErr    bool
-	}{
-		{
-			name: "DNS record gets created",
-			args: args{
-				subDomain: "sub",
-				managedZone: &v1alpha1.ManagedZone{
-					ObjectMeta: v1.ObjectMeta{
-						Name:      "mz",
-						Namespace: "test",
-					},
-					Spec: v1alpha1.ManagedZoneSpec{
-						DomainName: "domain.com",
-					},
-				},
-				owner: &gatewayv1beta1.Gateway{
-					ObjectMeta: v1.ObjectMeta{
-						UID: types.UID("gatewayUID"),
-					},
-				},
-			},
-			recordList: &v1alpha1.DNSRecordList{},
-			wantRecord: &v1alpha1.DNSRecord{
-				ObjectMeta: v1.ObjectMeta{
-					Name:      "sub.domain.com",
-					Namespace: "test",
-					Labels: map[string]string{
-						dns.LabelRecordID:         "sub",
-						dns.LabelGatewayReference: "gatewayUID",
-					},
-					OwnerReferences: []v1.OwnerReference{
-						{
-							APIVersion: "gateway.networking.k8s.io/v1beta1",
-							Kind:       "Gateway",
-							UID:        types.UID("gatewayUID"),
-						},
-						{
-							APIVersion:         "kuadrant.io/v1alpha1",
-							Kind:               "ManagedZone",
-							Name:               "mz",
-							Controller:         testutil.Pointer(true),
-							BlockOwnerDeletion: testutil.Pointer(true),
-						},
-					},
-					ResourceVersion: "1",
-				},
-				Spec: v1alpha1.DNSRecordSpec{
-					ManagedZoneRef: &v1alpha1.ManagedZoneReference{
-						Name: "mz",
-					},
-				},
-			},
-		},
-		{
-			name: "DNS record already exists",
-			args: args{
-				subDomain: "sub",
-				managedZone: &v1alpha1.ManagedZone{
-					ObjectMeta: v1.ObjectMeta{
-						Name:      "mz",
-						Namespace: "test",
-					},
-					Spec: v1alpha1.ManagedZoneSpec{
-						DomainName: "domain.com",
-					},
-				},
-				owner: &gatewayv1beta1.Gateway{
-					ObjectMeta: v1.ObjectMeta{
-						UID: types.UID("gatewayUID"),
-					},
-				},
-			},
-			recordList: &v1alpha1.DNSRecordList{
-				Items: []v1alpha1.DNSRecord{
-					{
-						ObjectMeta: v1.ObjectMeta{
-							Name:      "sub.domain.com",
-							Namespace: "test",
-						},
-					},
-				},
-			},
-			wantRecord: &v1alpha1.DNSRecord{
-				ObjectMeta: v1.ObjectMeta{
-					Name:            "sub.domain.com",
-					Namespace:       "test",
-					ResourceVersion: "999",
-				},
-				TypeMeta: v1.TypeMeta{
-					Kind:       "DNSRecord",
-					APIVersion: "kuadrant.io/v1alpha1",
-				},
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			f := fake.NewClientBuilder().WithScheme(testScheme(t)).WithLists(tt.recordList).Build()
-			s := dns.NewService(f)
-
-			gotRecord, err := s.CreateDNSRecord(context.TODO(), tt.args.subDomain, tt.args.managedZone, tt.args.owner)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("CreateDNSRecord() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !equality.Semantic.DeepEqual(gotRecord, tt.wantRecord) {
-				t.Errorf("CreateDNSRecord() gotRecord = \n%v, want \n%v", gotRecord, tt.wantRecord)
-			}
-		})
-	}
-}
-
-func TestService_GetManagedHosts(t *testing.T) {
-	tests := []struct {
-		name      string
-		gateway   *gatewayv1beta1.Gateway
-		initLists []client.ObjectList
-		want      []v1alpha1.ManagedHost
-		wantErr   bool
-	}{
-		{
-			name: "got managed hosts",
-			gateway: &gatewayv1beta1.Gateway{
-				ObjectMeta: v1.ObjectMeta{
-					Namespace: "test",
-					UID:       types.UID("gatewayUID"),
-				},
-				Spec: gatewayv1beta1.GatewaySpec{
-					Listeners: []gatewayv1beta1.Listener{
-						{
-							Hostname: testutil.Pointer(gatewayv1beta1.Hostname("sub.domain.com")),
-						},
-					},
-				},
-			},
-			initLists: []client.ObjectList{
-				&v1alpha1.ManagedZoneList{
-					Items: []v1alpha1.ManagedZone{
-						{
-							ObjectMeta: v1.ObjectMeta{
-								Namespace: "test",
-							},
-							Spec: v1alpha1.ManagedZoneSpec{
-								DomainName: "domain.com",
-							},
-						},
-					},
-				},
-				&v1alpha1.DNSRecordList{
-					Items: []v1alpha1.DNSRecord{
-						{
-							ObjectMeta: v1.ObjectMeta{
-								Name:      "sub.domain.com",
-								Namespace: "test",
-								Labels: map[string]string{
-									dns.LabelGatewayReference: "gatewayUID",
-								},
-							},
-						},
-					},
-				},
-			},
-			want: []v1alpha1.ManagedHost{
-				{
-					Subdomain: "sub",
-					Host:      "sub.domain.com",
-					ManagedZone: &v1alpha1.ManagedZone{
-						ObjectMeta: v1.ObjectMeta{
-							Namespace:       "test",
-							ResourceVersion: "999",
-						},
-						Spec: v1alpha1.ManagedZoneSpec{
-							DomainName: "domain.com",
-						},
-					},
-					DnsRecord: &v1alpha1.DNSRecord{
-						ObjectMeta: v1.ObjectMeta{
-							Name:            "sub.domain.com",
-							Namespace:       "test",
-							ResourceVersion: "999",
-							Labels: map[string]string{
-								dns.LabelGatewayReference: "gatewayUID",
-							},
-						},
-						TypeMeta: v1.TypeMeta{
-							Kind:       "DNSRecord",
-							APIVersion: "kuadrant.io/v1alpha1",
-						},
-					},
-				},
-			},
-		},
-		{
-			name: "No hosts retrieved for CNAME or externaly managed host",
-			gateway: &gatewayv1beta1.Gateway{
-				ObjectMeta: v1.ObjectMeta{
-					Namespace: "test",
-					UID:       types.UID("gatewayUID"),
-				},
-				Spec: gatewayv1beta1.GatewaySpec{
-					Listeners: []gatewayv1beta1.Listener{
-						{
-							Hostname: testutil.Pointer(gatewayv1beta1.Hostname("sub.domain.com")),
-						},
-					},
-				},
-			},
-			initLists: []client.ObjectList{},
-			want:      []v1alpha1.ManagedHost{},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			f := fake.NewClientBuilder().WithScheme(testScheme(t)).WithLists(tt.initLists...).Build()
-			s := dns.NewService(f)
-
-			got, err := s.GetManagedHosts(context.TODO(), traffic.NewGateway(tt.gateway))
-			if (err != nil) != tt.wantErr {
-				t.Errorf("GetManagedHosts() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if len(got) != len(tt.want) && !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("GetManagedHosts() got = \n%v, want \n%v", got, tt.want)
-			}
 		})
 	}
 }

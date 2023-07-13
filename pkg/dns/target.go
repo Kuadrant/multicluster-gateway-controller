@@ -51,7 +51,7 @@ func (t *MultiClusterGatewayTarget) GroupTargetsByGeo() map[GeoCode][]ClusterGat
 	return geoTargets
 }
 
-func (t *MultiClusterGatewayTarget) getDefaultGeo() GeoCode {
+func (t *MultiClusterGatewayTarget) GetDefaultGeo() GeoCode {
 	if t.LoadBalancing != nil && t.LoadBalancing.Geo != nil {
 		geoCode := GeoCode(t.LoadBalancing.Geo.DefaultGeo)
 		if geoCode.IsValid() {
@@ -61,7 +61,7 @@ func (t *MultiClusterGatewayTarget) getDefaultGeo() GeoCode {
 	return DefaultGeo
 }
 
-func (t *MultiClusterGatewayTarget) getDefaultWeight() int {
+func (t *MultiClusterGatewayTarget) GetDefaultWeight() int {
 	if t.LoadBalancing != nil && t.LoadBalancing.Weighted != nil {
 		return int(t.LoadBalancing.Weighted.DefaultWeight)
 	}
@@ -75,7 +75,7 @@ func (t *MultiClusterGatewayTarget) setClusterGatewayTargets(clusterGateways []C
 		if t.LoadBalancing != nil && t.LoadBalancing.Weighted != nil {
 			customWeights = t.LoadBalancing.Weighted.Custom
 		}
-		cgt := NewClusterGatewayTarget(cg, t.getDefaultGeo(), t.getDefaultWeight(), customWeights)
+		cgt := NewClusterGatewayTarget(cg, t.GetDefaultGeo(), t.GetDefaultWeight(), customWeights)
 		cgTargets = append(cgTargets, cgt)
 	}
 	t.ClusterGatewayTargets = cgTargets

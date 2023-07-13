@@ -56,8 +56,7 @@ func (c *DNSPolicyRefsConfig) PolicyRefsAnnotation() string {
 // DNSPolicyReconciler reconciles a DNSPolicy object
 type DNSPolicyReconciler struct {
 	reconcilers.TargetRefReconciler
-	DNSProvider dns.DNSProviderFactory
-	HostService gateway.HostService
+	DNSProvider dns.Provider
 	Placement   gateway.GatewayPlacer
 }
 
@@ -94,6 +93,8 @@ func (r *DNSPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 				if err != nil {
 					return ctrl.Result{}, err
 				}
+				// nothingmore to do now dnspolicy is an orphan
+				return ctrl.Result{}, nil
 			}
 			return ctrl.Result{}, err
 		}
@@ -245,5 +246,9 @@ func (r *DNSPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			&source.Kind{Type: &clusterv1.ManagedCluster{}},
 			handler.EnqueueRequestsFromMapFunc(clusterEventMapper.MapToDNSPolicy),
 		).
+		// Watches(
+		// 	&source.Kind{Type: &v1alpha1.DNSRecord{}},
+		// 	handler.EnqueueRequestsFromMapFunc(clusterEventMapper.MapToDNSPolicy),
+		// ).
 		Complete(r)
 }

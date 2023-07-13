@@ -15,7 +15,6 @@ import (
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/traffic"
 )
 
 // healthChecksConfig represents the user configuration for the health checks
@@ -57,30 +56,22 @@ func (r *DNSPolicyReconciler) reconcileHealthChecks(ctx context.Context, dnsPoli
 func (r *DNSPolicyReconciler) reconcileGatewayHealthChecks(ctx context.Context, gateway *gatewayv1beta1.Gateway, config *healthChecksConfig) ([]dns.HealthCheckResult, error) {
 	allResults := []dns.HealthCheckResult{}
 
-	gatewayAccessor := traffic.NewGateway(gateway)
-	managedHosts, err := r.HostService.GetManagedHosts(ctx, gatewayAccessor)
-	if err != nil {
-		return allResults, err
-	}
-
-	for _, mh := range managedHosts {
-		if mh.DnsRecord == nil {
-			continue
-		}
+	for _, listener := range gateway.Spec.Listeners {
+		dnsRecord, err := r.getDNSRecordForListener(ctx, gateway.Namespace, listener)
 
 		// Keep a copy of the DNSRecord to check if it needs to be updated after
 		// reconciling the health checks
-		dnsRecordOriginal := mh.DnsRecord.DeepCopy()
+		dnsRecordOriginal := dnsRecord.DeepCopy()
 
-		results, err := r.reconcileDNSRecordHealthChecks(ctx, mh.DnsRecord, config)
+		results, err := r.reconcileDNSRecordHealthChecks(ctx, dnsRecord, config)
 		if err != nil {
 			return allResults, err
 		}
 
 		allResults = append(allResults, results...)
 
-		if !equality.Semantic.DeepEqual(dnsRecordOriginal, mh.DnsRecord) {
-			err = r.Client().Update(ctx, mh.DnsRecord)
+		if !equality.Semantic.DeepEqual(dnsRecordOriginal, dnsRecord) {
+			err = r.Client().Update(ctx, dnsRecord)
 			if err != nil {
 				return allResults, err
 			}
