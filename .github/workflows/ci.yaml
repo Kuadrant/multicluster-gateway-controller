@@ -61,8 +61,8 @@ jobs:
       - name: Run make verify-manifests
         run: |
           make verify-manifests
-  test_suite:
-    name: Test Suite
+  integration_test_suite:
+    name: Integration Test Suite
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -71,4 +71,15 @@ jobs:
           go-version: v1.19
       - name: Run suite
         run: |
-          make test
+          make test-integration
+  unit_test_suite:
+    name: Unit Test Suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v4
+        with:
+          go-version: v1.19
+      - name: Run suite
+        run: |
+          make test-unit
