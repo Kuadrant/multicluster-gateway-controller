@@ -1,0 +1,27 @@
+# shellcheck shell=bash
+
+if ! command -v timeout &> /dev/null
+then
+    echo "'timeout' command not found."
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        echo "Try 'brew install coreutils'"
+    fi
+    exit
+fi
+
+wait_for() {
+  local command="${1}"
+  local description="${2}"
+  local timeout="${3}"
+  local interval="${4}"
+
+  printf "Waiting for %s for %s...\n" "${description}" "${timeout}"
+  timeout --foreground "${timeout}" bash -c "
+    until ${command}
+    do
+        printf \"Waiting for %s... Trying again in ${interval}s\n\" \"${description}\"
+        sleep ${interval}
+    done
+    "
+  printf "%s finished!\n" "${description}"
+}

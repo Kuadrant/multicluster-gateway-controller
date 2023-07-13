@@ -1,0 +1,4 @@
+resources:
+  - ../istio
+  - ../gateway-api
+  - ../metallb
