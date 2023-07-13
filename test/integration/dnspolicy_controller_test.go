@@ -32,6 +32,10 @@ func testBuildManagedZone(domainName, ns string) *v1alpha1.ManagedZone {
 			ID:          "1234",
 			DomainName:  domainName,
 			Description: domainName,
+			SecretRef: &v1alpha1.SecretRef{
+				Name:      "secretname",
+				Namespace: ns,
+			},
 		},
 	}
 }
@@ -152,6 +156,7 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 			}
 			return true
 		}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+
 	})
 
 	AfterAll(func() {

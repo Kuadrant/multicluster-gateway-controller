@@ -29,6 +29,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/route53"
 
+	v1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -54,26 +55,24 @@ type Route53DNSProvider struct {
 
 var _ dns.Provider = &Route53DNSProvider{}
 
-// NewDNSProvider returns a Route53DNSProvider instance configured for the AWS Route 53 service using the credentials provided
-func NewDNSProvider(route53Config v1alpha1.DNSProviderConfigRoute53) (*Route53DNSProvider, error) {
-	if route53Config.AccessKeyID == "" || route53Config.SecretAccessKey == "" {
-		return nil, fmt.Errorf("unable to construct route53 provider: both access and secret key must be provided")
-	}
+func NewProviderFromSecret(s *v1.Secret) (*Route53DNSProvider, error) {
 
 	config := aws.NewConfig()
 	sessionOpts := session.Options{
 		Config: *config,
 	}
+	if string(s.Data["AWS_ACCESS_KEY_ID"]) == "" || string(s.Data["AWS_SECRET_ACCESS_KEY"]) == "" {
+		return nil, fmt.Errorf("AWS Provider credentials is empty")
+	}
 
-	sessionOpts.Config.Credentials = credentials.NewStaticCredentials(route53Config.AccessKeyID, route53Config.SecretAccessKey, "")
+	sessionOpts.Config.Credentials = credentials.NewStaticCredentials(string(s.Data["AWS_ACCESS_KEY_ID"]), string(s.Data["AWS_SECRET_ACCESS_KEY"]), "")
 	sessionOpts.SharedConfigState = session.SharedConfigDisable
-
 	sess, err := session.NewSessionWithOptions(sessionOpts)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create aws session: %s", err)
 	}
-	if route53Config.Region != "" {
-		sess.Config.WithRegion(route53Config.Region)
+	if string(s.Data["REGION"]) != "" {
+		sess.Config.WithRegion(string(s.Data["REGION"]))
 	}
 
 	p := &Route53DNSProvider{

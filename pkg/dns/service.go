@@ -337,3 +337,20 @@ func (s *Service) CleanupDNSRecords(ctx context.Context, owner traffic.Interface
 	}
 	return nil
 }
+
+// getDNSRecordManagedZone returns the current ManagedZone for the given DNSRecord.
+func (s *Service) GetDNSRecordManagedZone(ctx context.Context, dnsRecord *v1alpha1.DNSRecord) (*v1alpha1.ManagedZone, error) {
+
+	if dnsRecord.Spec.ManagedZoneRef == nil {
+		return nil, fmt.Errorf("no managed zone configured for : %s", dnsRecord.Name)
+	}
+
+	managedZone := &v1alpha1.ManagedZone{}
+
+	err := s.controlClient.Get(ctx, client.ObjectKey{Namespace: dnsRecord.Namespace, Name: dnsRecord.Spec.ManagedZoneRef.Name}, managedZone)
+	if err != nil {
+		return nil, err
+	}
+
+	return managedZone, nil
+}

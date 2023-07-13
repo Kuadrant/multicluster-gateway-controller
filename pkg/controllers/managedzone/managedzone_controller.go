@@ -24,8 +24,9 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
+
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -42,8 +43,8 @@ const (
 // ManagedZoneReconciler reconciles a ManagedZone object
 type ManagedZoneReconciler struct {
 	client.Client
-	DNSProvider dns.Provider
 	Scheme      *runtime.Scheme
+	DNSProvider dns.DNSProviderFactory
 }
 
 //+kubebuilder:rbac:groups=kuadrant.io,resources=managedzones,verbs=get;list;watch;create;update;patch;delete
@@ -52,7 +53,6 @@ type ManagedZoneReconciler struct {
 
 func (r *ManagedZoneReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
-
 	previous := &v1alpha1.ManagedZone{}
 	err := r.Client.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: req.Name}, previous)
 	if err != nil {
@@ -164,7 +164,11 @@ func (r *ManagedZoneReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 func (r *ManagedZoneReconciler) publishManagedZone(ctx context.Context, managedZone *v1alpha1.ManagedZone) error {
 
-	mzResp, err := r.DNSProvider.EnsureManagedZone(managedZone)
+	dnsProvider, err := r.DNSProvider(ctx, managedZone)
+	if err != nil {
+		return err
+	}
+	mzResp, err := dnsProvider.EnsureManagedZone(managedZone)
 	if err != nil {
 		return err
 	}
@@ -182,7 +186,17 @@ func (r *ManagedZoneReconciler) deleteManagedZone(ctx context.Context, managedZo
 		return nil
 	}
 
-	err := r.DNSProvider.DeleteManagedZone(managedZone)
+	dnsProvider, err := r.DNSProvider(ctx, managedZone)
+	if err != nil {
+		var reason, message string
+		status := metav1.ConditionFalse
+		reason = "ProviderError"
+		message = fmt.Sprintf("The DNS provider creation failed: %v", err)
+		managedZone.Status.ObservedGeneration = managedZone.Generation
+		setManagedZoneCondition(managedZone, conditions.ConditionTypeReady, status, reason, message)
+		return err
+	}
+	err = dnsProvider.DeleteManagedZone(managedZone)
 	if err != nil {
 		if strings.Contains(err.Error(), "was not found") {
 			log.Log.Info("ManagedZone was not found, continuing", "managedZone", managedZone.Name)
@@ -199,7 +213,6 @@ func (r *ManagedZoneReconciler) getParentZone(ctx context.Context, managedZone *
 	if managedZone.Spec.ParentManagedZone == nil {
 		return nil, nil
 	}
-
 	parentZone := &v1alpha1.ManagedZone{}
 	err := r.Client.Get(ctx, client.ObjectKey{Namespace: managedZone.Namespace, Name: managedZone.Spec.ParentManagedZone.Name}, parentZone)
 	if err != nil {

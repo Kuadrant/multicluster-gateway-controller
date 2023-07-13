@@ -34,6 +34,7 @@ import (
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 )
 
@@ -47,7 +48,8 @@ var Clock clock.Clock = clock.RealClock{}
 type DNSRecordReconciler struct {
 	client.Client
 	Scheme      *runtime.Scheme
-	DNSProvider dns.Provider
+	DNSProvider dns.DNSProviderFactory
+	HostService gateway.HostService
 }
 
 //+kubebuilder:rbac:groups=kuadrant.io,resources=dnsrecords,verbs=get;list;watch;create;update;patch;delete
@@ -134,13 +136,24 @@ func (r *DNSRecordReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // deleteRecord deletes record(s) in the DNSPRovider(i.e. route53) configured by the ManagedZone assigned to this
 // DNSRecord (dnsRecord.Status.ParentManagedZone).
 func (r *DNSRecordReconciler) deleteRecord(ctx context.Context, dnsRecord *v1alpha1.DNSRecord) error {
-	managedZone, err := r.getDNSRecordManagedZone(ctx, dnsRecord)
+
+	managedZone, err := r.HostService.GetDNSRecordManagedZone(ctx, dnsRecord)
 	if err != nil {
 		// If the Managed Zone isn't found, just continue
 		return client.IgnoreNotFound(err)
 	}
+	managedZoneReady := meta.IsStatusConditionTrue(managedZone.Status.Conditions, "Ready")
 
-	err = r.DNSProvider.Delete(dnsRecord, managedZone)
+	if !managedZoneReady {
+		return fmt.Errorf("the managed zone is not in a ready state : %s", managedZone.Name)
+	}
+
+	dnsProvider, err := r.DNSProvider(ctx, managedZone)
+	if err != nil {
+		return err
+	}
+
+	err = dnsProvider.Delete(dnsRecord, managedZone)
 	if err != nil {
 		if strings.Contains(err.Error(), "was not found") {
 			log.Log.Info("Record not found in managed zone, continuing", "dnsRecord", dnsRecord.Name, "managedZone", managedZone.Name)
@@ -160,45 +173,32 @@ func (r *DNSRecordReconciler) deleteRecord(ctx context.Context, dnsRecord *v1alp
 // DNSRecord (dnsRecord.Status.ParentManagedZone).
 func (r *DNSRecordReconciler) publishRecord(ctx context.Context, dnsRecord *v1alpha1.DNSRecord) error {
 
-	managedZone, err := r.getDNSRecordManagedZone(ctx, dnsRecord)
+	managedZone, err := r.HostService.GetDNSRecordManagedZone(ctx, dnsRecord)
 	if err != nil {
 		return err
+	}
+	managedZoneReady := meta.IsStatusConditionTrue(managedZone.Status.Conditions, "Ready")
+
+	if !managedZoneReady {
+		return fmt.Errorf("the managed zone is not in a ready state : %s", managedZone.Name)
 	}
 
 	if dnsRecord.Generation == dnsRecord.Status.ObservedGeneration {
 		log.Log.V(3).Info("Skipping managed zone to which the DNS dnsRecord is already published", "dnsRecord", dnsRecord.Name, "managedZone", managedZone.Name)
 		return nil
 	}
+	dnsProvider, err := r.DNSProvider(ctx, managedZone)
+	if err != nil {
+		return err
+	}
 
-	err = r.DNSProvider.Ensure(dnsRecord, managedZone)
+	err = dnsProvider.Ensure(dnsRecord, managedZone)
 	if err != nil {
 		return err
 	}
 	log.Log.Info("Published DNSRecord to manage zone", "dnsRecord", dnsRecord.Name, "managedZone", managedZone.Name)
 
 	return nil
-}
-
-// getDNSRecordManagedZone returns the current ManagedZone for the given DNSRecord.
-func (r *DNSRecordReconciler) getDNSRecordManagedZone(ctx context.Context, dnsRecord *v1alpha1.DNSRecord) (*v1alpha1.ManagedZone, error) {
-
-	if dnsRecord.Spec.ManagedZoneRef == nil {
-		return nil, fmt.Errorf("no managed zone configured for : %s", dnsRecord.Name)
-	}
-
-	managedZone := &v1alpha1.ManagedZone{}
-	err := r.Client.Get(ctx, client.ObjectKey{Namespace: dnsRecord.Namespace, Name: dnsRecord.Spec.ManagedZoneRef.Name}, managedZone)
-	if err != nil {
-		return nil, err
-	}
-
-	managedZoneReady := meta.IsStatusConditionTrue(managedZone.Status.Conditions, "Ready")
-
-	if !managedZoneReady {
-		return nil, fmt.Errorf("the managed zone is not in a ready state : %s", managedZone.Name)
-	}
-
-	return managedZone, nil
 }
 
 // setDNSRecordCondition adds or updates a given condition in the DNSRecord status..

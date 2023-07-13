@@ -59,6 +59,19 @@ spec:
               description:
                 description: Description for this ManagedZone
                 type: string
+              dnsProviderSecretRef:
+                properties:
+                  name:
+                    type: string
+                  namespace:
+                    type: string
+                  type:
+                    type: string
+                required:
+                - name
+                - namespace
+                - type
+                type: object
               domainName:
                 description: Domain name of this ManagedZone
                 pattern: ^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$
@@ -78,6 +91,7 @@ spec:
                 type: object
             required:
             - description
+            - dnsProviderSecretRef
             - domainName
             type: object
           status:

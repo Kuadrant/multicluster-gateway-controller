@@ -40,6 +40,15 @@ type ManagedZoneSpec struct {
 	// Reference to another managed zone that this managed zone belongs to.
 	// +optional
 	ParentManagedZone *ManagedZoneReference `json:"parentManagedZone,omitempty"`
+	// +required
+	SecretRef *SecretRef `json:"dnsProviderSecretRef"`
+}
+
+type SecretRef struct {
+	//+required
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+	Type      string `json:"type"`
 }
 
 // ManagedZoneStatus defines the observed state of a Zone
@@ -63,24 +72,6 @@ type ManagedZoneStatus struct {
 
 	// The NameServers assigned by the provider for this zone (i.e. route53.DelegationSet.NameServers)
 	NameServers []*string `json:"nameServers,omitempty"`
-}
-
-// Only one of these can be set.
-type DNSProviderConfig struct {
-	// Route53 configures this config to communicate with AWS Route 53
-	// +optional
-	Route53 *DNSProviderConfigRoute53 `json:"route53,omitempty"`
-}
-
-// DNSProviderConfigRoute53 is a structure containing the Route 53 configuration for AWS
-type DNSProviderConfigRoute53 struct {
-	//ToDo Load these credentials from a secret
-	AccessKeyID string `json:"accessKeyID"`
-
-	SecretAccessKey string `json:"SecretAccessKey"`
-
-	// Always set the region when using AccessKeyID and SecretAccessKey
-	Region string `json:"region"`
 }
 
 //+kubebuilder:object:root=true
