@@ -1,6 +1,6 @@
 //go:build integration
 
-package dnspolicy
+package integration
 
 import (
 	"encoding/json"
@@ -18,6 +18,7 @@ import (
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnspolicy"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 )
 
@@ -129,7 +130,7 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 	var testNamespace string
 
 	BeforeAll(func() {
-		gatewayClass = testBuildGatewayClass("kuadrant-multi-cluster-gateway-instance-per-cluster", "default")
+		gatewayClass = testBuildGatewayClass("kuadrant-multi-cluster-gateway-instance-per-cluster-dns", "default")
 		Expect(k8sClient.Create(ctx, gatewayClass)).To(BeNil())
 		Eventually(func() bool { // gateway class exists
 			if err := k8sClient.Get(ctx, client.ObjectKey{Name: gatewayClass.Name}, gatewayClass); err != nil {
@@ -151,6 +152,11 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 			}
 			return true
 		}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+	})
+
+	AfterAll(func() {
+		err := k8sClient.Delete(ctx, gatewayClass)
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	Context("gateway placed", func() {
@@ -327,8 +333,7 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 					// must exist
 					Expect(err).ToNot(HaveOccurred())
 					return existingGateway.GetAnnotations()
-				}, time.Second*5, time.Second).ShouldNot(HaveKey(DNSPolicyBackRefAnnotation))
-
+				}, time.Second*5, time.Second).ShouldNot(HaveKeyWithValue(DNSPoliciesBackRefAnnotation, policiesBackRefValue))
 			})
 		})
 

@@ -72,7 +72,7 @@ test-unit: manifests generate fmt vet envtest ## Run unit tests.
 
 .PHONY: test-integration
 test-integration: manifests generate fmt vet envtest ## Run integration tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -tags=integration -coverprofile cover-integration.out -ginkgo.v -v -timeout 0
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" $(GINKGO) -tags=integration -v ./test/integration
 
 .PHONY: test
 test: manifests generate fmt vet envtest ## Run tests.
@@ -80,7 +80,7 @@ test: manifests generate fmt vet envtest ## Run tests.
 
 .PHONY: test-e2e
 test-e2e: ginkgo kind-load-controller deploy-controller
-	$(GINKGO) -tags=e2e -v ./test/...
+	$(GINKGO) -tags=e2e -v ./test/e2e
 
 .PHONY: local-setup
 local-setup: kind kustomize helm yq dev-tls istioctl operator-sdk clusteradm subctl ## Setup multi cluster traffic controller locally using kind.
