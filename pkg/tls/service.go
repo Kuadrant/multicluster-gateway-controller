@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	TlsIssuerAnnotation = "kuadrant.dev/tls-issuer"
-	certFinalizer       = "kuadrant.dev/certificates-cleanup"
+	TlsIssuerAnnotation  = "kuadrant.io/tls-issuer"
+	TLSGatewayOwnerLabel = "kuadrant.io/gateway-id"
+	certFinalizer        = "kuadrant.io/certificates-cleanup"
 )
 
 type Service struct {
@@ -28,7 +29,8 @@ func NewService(controlClient client.Client, defaultIssuer string) *Service {
 }
 
 func (s *Service) EnsureCertificate(ctx context.Context, name, host string, owner metav1.Object) error {
-	cert := s.certificate(host, name, s.defaultIssuer, owner.GetNamespace())
+
+	cert := s.certificate(host, name, s.defaultIssuer, owner.GetNamespace(), string(owner.GetUID()))
 	if err := controllerutil.SetOwnerReference(owner, cert, scheme.Scheme); err != nil {
 		return err
 	}
@@ -50,10 +52,12 @@ func (s *Service) GetCertificateSecret(ctx context.Context, name string, namespa
 	return tlsSecret, nil
 }
 
-func (s *Service) certificate(host, name, issuer, controlNS string) *certman.Certificate {
+func (s *Service) certificate(host, name, issuer, controlNS, ownerID string) *certman.Certificate {
 	// this will be created in the control plane
 	annotations := map[string]string{TlsIssuerAnnotation: issuer}
-	labels := map[string]string{}
+	labels := map[string]string{
+		TLSGatewayOwnerLabel: ownerID,
+	}
 	return &certman.Certificate{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        name,

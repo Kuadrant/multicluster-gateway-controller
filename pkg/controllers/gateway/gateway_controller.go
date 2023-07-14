@@ -51,7 +51,9 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/tls"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/traffic"
+	certman "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
 )
 
 const (
@@ -350,14 +352,12 @@ func (r *GatewayReconciler) reconcileTLS(ctx context.Context, upstreamGateway *g
 	log := crlog.FromContext(ctx)
 	tlsSecrets := []metav1.Object{}
 	accessor := traffic.NewGateway(gateway)
-
 	for _, listener := range upstreamGateway.Spec.Listeners {
 		var listenerHost = string(*listener.Hostname)
 		if listener.Protocol != gatewayv1beta1.HTTPSProtocolType || listenerHost == "" {
 			continue
 		}
-		certName := fmt.Sprintf("%s-%s", upstreamGateway.Name, listener.Name)
-
+		certName := certname(upstreamGateway, listener)
 		// create certificate resource for assigned host
 		if err := r.Certificates.EnsureCertificate(ctx, certName, string(*listener.Hostname), upstreamGateway); err != nil && !k8serrors.IsAlreadyExists(err) {
 			return tlsSecrets, err
@@ -385,7 +385,34 @@ func (r *GatewayReconciler) reconcileTLS(ctx context.Context, upstreamGateway *g
 			tlsSecrets = append(tlsSecrets, downstreamSecret)
 		}
 	}
+	// ensure only certificates for active listeners are in place not this logic will move to a TLSPolicy controller in the future
+	labelSelector := &client.MatchingLabels{
+		tls.TLSGatewayOwnerLabel: string(upstreamGateway.GetUID()),
+	}
+	certList := &certman.CertificateList{}
+	if err := r.List(ctx, certList, labelSelector); err != nil {
+		return tlsSecrets, err
+	}
+	for _, cert := range certList.Items {
+		validCert := false
+		for _, listener := range upstreamGateway.Spec.Listeners {
+			if cert.Name == certname(upstreamGateway, listener) {
+				validCert = true
+				break
+			}
+		}
+		if !validCert {
+			if err := r.Delete(ctx, &cert, &client.DeleteOptions{}); err != nil {
+				return tlsSecrets, err
+			}
+		}
+	}
+
 	return tlsSecrets, nil
+}
+
+func certname(upstreamGateway *gatewayv1beta1.Gateway, listener gatewayv1beta1.Listener) string {
+	return fmt.Sprintf("%s-%s", upstreamGateway.Name, listener.Name)
 }
 
 func (r *GatewayReconciler) reconcileParams(_ context.Context, gateway *gatewayv1beta1.Gateway, params *Params) error {
