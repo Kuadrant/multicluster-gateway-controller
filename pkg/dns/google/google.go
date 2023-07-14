@@ -211,15 +211,14 @@ func (g GoogleDNSProvider) EnsureManagedZone(managedZone *v1alpha1.ManagedZone) 
 
 func (g GoogleDNSProvider) DeleteManagedZone(managedZone *v1alpha1.ManagedZone) error {
 	//TODO implement me
-	panic("implement me")
+	return nil
 }
 
 func (g GoogleDNSProvider) HealthCheckReconciler() dns.HealthCheckReconciler {
-	//TODO implement me
-	panic("implement me")
+	// This can be ignored and likely removed as part of the provider-agnostic health check work
+	return &dns.FakeHealthCheckReconciler{}
 }
 
 func (g GoogleDNSProvider) ProviderSpecific() dns.ProviderSpecificLabels {
-	//TODO implement me
-	panic("implement me")
+	return dns.ProviderSpecificLabels{}
 }
