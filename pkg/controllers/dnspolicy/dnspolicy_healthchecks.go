@@ -7,6 +7,7 @@ import (
 	"io"
 
 	"k8s.io/apimachinery/pkg/api/equality"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	crlog "sigs.k8s.io/controller-runtime/pkg/log"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
@@ -54,10 +55,19 @@ func (r *DNSPolicyReconciler) reconcileHealthChecks(ctx context.Context, dnsPoli
 }
 
 func (r *DNSPolicyReconciler) reconcileGatewayHealthChecks(ctx context.Context, gateway *gatewayv1beta1.Gateway, config *healthChecksConfig) ([]dns.HealthCheckResult, error) {
+	log := crlog.FromContext(ctx)
 	allResults := []dns.HealthCheckResult{}
 
 	for _, listener := range gateway.Spec.Listeners {
 		dnsRecord, err := r.getDNSRecordForListener(ctx, gateway.Namespace, listener)
+		if err != nil && errors.IsNotFound(err) {
+			//no dns record for this listener yet
+			log.V(3).Info("no dns record for  ", "listener", listener.Name)
+			continue
+		}
+		if err != nil {
+			return allResults, fmt.Errorf("failed to get dns record for listener %s %w", listener.Name, err)
+		}
 
 		// Keep a copy of the DNSRecord to check if it needs to be updated after
 		// reconciling the health checks
@@ -82,7 +92,7 @@ func (r *DNSPolicyReconciler) reconcileGatewayHealthChecks(ctx context.Context, 
 
 func (r *DNSPolicyReconciler) reconcileDNSRecordHealthChecks(ctx context.Context, dnsRecord *v1alpha1.DNSRecord, config *healthChecksConfig) ([]dns.HealthCheckResult, error) {
 
-	managedzone, err := r.HostService.GetDNSRecordManagedZone(ctx, dnsRecord)
+	managedzone, err := r.getDNSRecordManagedZone(ctx, dnsRecord)
 	if err != nil {
 		return nil, err
 	}

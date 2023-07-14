@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -330,13 +331,29 @@ func (r *DNSPolicyReconciler) getDNSRecordForListener(ctx context.Context, names
 		return nil, err
 	}
 	if len(dnsrecord.Items) == 0 {
-		return nil, fmt.Errorf("no dns record found for listener %s", listener.Name)
+		return nil, k8serrors.NewNotFound(schema.GroupResource{Group: "kuadrant.io", Resource: "DNSRecord"}, fmt.Sprintf("failed to find dns record for listener %s", listener.Name))
 	}
 	if len(dnsrecord.Items) > 1 {
 		return nil, fmt.Errorf("more than one dnsrecord found for a listener")
 	}
 	return &dnsrecord.Items[0], nil
 
+}
+
+func (r *DNSPolicyReconciler) getDNSRecordManagedZone(ctx context.Context, dnsRecord *v1alpha1.DNSRecord) (*v1alpha1.ManagedZone, error) {
+
+	if dnsRecord.Spec.ManagedZoneRef == nil {
+		return nil, fmt.Errorf("no managed zone configured for : %s", dnsRecord.Name)
+	}
+
+	managedZone := &v1alpha1.ManagedZone{}
+
+	err := r.Client().Get(ctx, client.ObjectKey{Namespace: dnsRecord.Namespace, Name: dnsRecord.Spec.ManagedZoneRef.Name}, managedZone)
+	if err != nil {
+		return nil, err
+	}
+
+	return managedZone, nil
 }
 
 // FindMatchingManagedZone recursively looks for a matching zone in the same ns as the gateway

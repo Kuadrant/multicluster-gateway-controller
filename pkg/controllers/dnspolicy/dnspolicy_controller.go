@@ -56,7 +56,7 @@ func (c *DNSPolicyRefsConfig) PolicyRefsAnnotation() string {
 // DNSPolicyReconciler reconciles a DNSPolicy object
 type DNSPolicyReconciler struct {
 	reconcilers.TargetRefReconciler
-	DNSProvider dns.Provider
+	DNSProvider dns.DNSProviderFactory
 	Placement   gateway.GatewayPlacer
 }
 

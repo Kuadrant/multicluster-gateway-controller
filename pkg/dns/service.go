@@ -179,7 +179,7 @@ func (s *Service) SetEndpoints(ctx context.Context, mcgTarget *MultiClusterGatew
 			defaultEndpoint = endpoint
 			// continue here as we will add the `defaultEndpoint` later
 			continue
-		} else if (geoCode == mcgTarget.getDefaultGeo()) || defaultEndpoint == nil {
+		} else if (geoCode == mcgTarget.GetDefaultGeo()) || defaultEndpoint == nil {
 			// Ensure that a `defaultEndpoint` is always set, but the expected default takes precedence
 			defaultEndpoint = createOrUpdateEndpoint(lbName, []string{geoLbName}, v1alpha1.CNAMERecordType, "default", DefaultCnameTTL, currentEndpoints)
 		}

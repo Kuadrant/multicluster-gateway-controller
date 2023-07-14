@@ -286,7 +286,6 @@ func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.C
 	downstream := upstreamGateway.DeepCopy()
 	downstreamNS := fmt.Sprintf("%s-%s", "kuadrant", downstream.Namespace)
 	downstream.Status = gatewayv1beta1.GatewayStatus{}
-	upstreamAccessor := traffic.NewGateway(upstreamGateway)
 
 	// reset this for the sync as we don't want control plane level UID, creation etc etc
 	downstream.ObjectMeta = metav1.ObjectMeta{

@@ -34,7 +34,6 @@ import (
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 )
 
@@ -49,7 +48,6 @@ type DNSRecordReconciler struct {
 	client.Client
 	Scheme      *runtime.Scheme
 	DNSProvider dns.DNSProviderFactory
-	HostService gateway.HostService
 }
 
 //+kubebuilder:rbac:groups=kuadrant.io,resources=dnsrecords,verbs=get;list;watch;create;update;patch;delete
@@ -133,11 +131,21 @@ func (r *DNSRecordReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
+func (r *DNSRecordReconciler) getDNSRecordManagedZone(ctx context.Context, dnsRecord *v1alpha1.DNSRecord) (*v1alpha1.ManagedZone, error) {
+	mz := &v1alpha1.ManagedZone{}
+	mz.Name = dnsRecord.Spec.ManagedZoneRef.Name
+	mz.Namespace = dnsRecord.Namespace
+	if err := r.Get(ctx, client.ObjectKeyFromObject(mz), mz, &client.GetOptions{}); err != nil {
+		return nil, err
+	}
+	return mz, nil
+}
+
 // deleteRecord deletes record(s) in the DNSPRovider(i.e. route53) configured by the ManagedZone assigned to this
 // DNSRecord (dnsRecord.Status.ParentManagedZone).
 func (r *DNSRecordReconciler) deleteRecord(ctx context.Context, dnsRecord *v1alpha1.DNSRecord) error {
 
-	managedZone, err := r.HostService.GetDNSRecordManagedZone(ctx, dnsRecord)
+	managedZone, err := r.getDNSRecordManagedZone(ctx, dnsRecord)
 	if err != nil {
 		// If the Managed Zone isn't found, just continue
 		return client.IgnoreNotFound(err)
@@ -173,7 +181,7 @@ func (r *DNSRecordReconciler) deleteRecord(ctx context.Context, dnsRecord *v1alp
 // DNSRecord (dnsRecord.Status.ParentManagedZone).
 func (r *DNSRecordReconciler) publishRecord(ctx context.Context, dnsRecord *v1alpha1.DNSRecord) error {
 
-	managedZone, err := r.HostService.GetDNSRecordManagedZone(ctx, dnsRecord)
+	managedZone, err := r.getDNSRecordManagedZone(ctx, dnsRecord)
 	if err != nil {
 		return err
 	}
