@@ -22,8 +22,14 @@ This document describes a proposal to extend the current health check implementa
 * Current status of the defined health checks is visible to the end user
 
 ### Nongoals
-* Ability for the health checks to reach endpoints in private networks
+* Ability for the health checks to reach endpoints in separate private networks
 * Transparently keep support for other health check providers like Route53
+* Having health checks for wildcard listeners
+
+## Use-cases
+* As a gateway administrator, I would like to define a health check that each service sitting behind a particular 
+listener across the production clusters has to implement to ensure we can automatically respond, failover and 
+mitigate a failing instance of the service
 
 ## Proposal
 
@@ -56,6 +62,11 @@ spec:
         value: "..."
       - name: "..."
         value: "..."
+    healthyResponseCodes:
+      - 200
+      - 301
+      - 302
+      - 407
   targetRef:
     group: gateway.networking.k8s.io
     kind: Gateway
