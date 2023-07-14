@@ -18,6 +18,8 @@ package google
 
 import (
 	"context"
+	"net"
+	"sort"
 	"strings"
 	"time"
 
@@ -36,10 +38,14 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 )
 
+type action string
+
 const (
-	GoogleBatchChangeSize     = 1000
-	GoogleBatchChangeInterval = time.Second
-	DryRun                    = false
+	GoogleBatchChangeSize            = 1000
+	GoogleBatchChangeInterval        = time.Second
+	DryRun                           = false
+	upsertAction              action = "UPSERT"
+	deleteAction              action = "DELETE"
 )
 
 // Based on the external-dnsv1 google provider https://github.com/kubernetes-sigs/external-dns/blob/master/provider/google/google.go
@@ -171,13 +177,11 @@ func NewProviderFromSecret(ctx context.Context, s *v1.Secret) (*GoogleDNSProvide
 }
 
 func (g GoogleDNSProvider) Ensure(record *v1alpha1.DNSRecord, managedZone *v1alpha1.ManagedZone) error {
-	//TODO implement me
-	panic("implement me")
+	return g.updateRecord(record, managedZone.Status.ID, upsertAction)
 }
 
 func (g GoogleDNSProvider) Delete(record *v1alpha1.DNSRecord, managedZone *v1alpha1.ManagedZone) error {
-	//TODO implement me
-	panic("implement me")
+	return g.updateRecord(record, managedZone.Status.ID, deleteAction)
 }
 
 func (g GoogleDNSProvider) EnsureManagedZone(managedZone *v1alpha1.ManagedZone) (dns.ManagedZoneOutput, error) {
@@ -221,4 +225,150 @@ func (g GoogleDNSProvider) HealthCheckReconciler() dns.HealthCheckReconciler {
 
 func (g GoogleDNSProvider) ProviderSpecific() dns.ProviderSpecificLabels {
 	return dns.ProviderSpecificLabels{}
+}
+
+func (g *GoogleDNSProvider) updateRecord(record *v1alpha1.DNSRecord, zoneID string, action action) error {
+	var addingRecords []*dnsv1.ResourceRecordSet
+	var deletingRecords []*dnsv1.ResourceRecordSet
+	change := &dnsv1.Change{}
+
+	for _, endpoint := range record.Spec.Endpoints {
+		addingRecords = append(addingRecords, newRecord(endpoint))
+	}
+
+	for _, endpoint := range record.Status.Endpoints {
+		deletingRecords = append(deletingRecords, newRecord(endpoint))
+	}
+
+	if action == deleteAction {
+		change.Deletions = deletingRecords
+	} else {
+		change.Deletions = deletingRecords
+		change.Additions = addingRecords
+	}
+
+	return g.submitChange(change, zoneID)
+}
+
+func (g *GoogleDNSProvider) submitChange(change *dnsv1.Change, zone string) error {
+	if len(change.Additions) == 0 && len(change.Deletions) == 0 {
+		g.logger.Info("All records are already up to date")
+		return nil
+	}
+
+	for _, c := range g.batchChange(change, g.batchChangeSize) {
+		//g.logger.V(1).Info("Change zone: %v batch #%d", zone, batch)
+		//for _, del := range c.Deletions {
+		//g.logger.V(1).Info("Del records: %s %s %s %d", del.Name, del.Type, del.Rrdatas, del.Ttl)
+		//}
+		//for _, add := range c.Additions {
+		//g.logger.V(1).Info("Add records: %s %s %s %d", add.Name, add.Type, add.Rrdatas, add.Ttl)
+		//}
+
+		if g.dryRun {
+			continue
+		}
+
+		if _, err := g.changesClient.Create(g.project, zone, c).Do(); err != nil {
+			return err
+		}
+		time.Sleep(g.batchChangeInterval)
+	}
+	return nil
+}
+
+func (g *GoogleDNSProvider) batchChange(change *dnsv1.Change, batchSize int) []*dnsv1.Change {
+	changes := []*dnsv1.Change{}
+
+	if batchSize == 0 {
+		return append(changes, change)
+	}
+
+	type dnsv1Change struct {
+		additions []*dnsv1.ResourceRecordSet
+		deletions []*dnsv1.ResourceRecordSet
+	}
+
+	changesByName := map[string]*dnsv1Change{}
+
+	for _, a := range change.Additions {
+		change, ok := changesByName[a.Name]
+		if !ok {
+			change = &dnsv1Change{}
+			changesByName[a.Name] = change
+		}
+
+		change.additions = append(change.additions, a)
+	}
+
+	for _, a := range change.Deletions {
+		change, ok := changesByName[a.Name]
+		if !ok {
+			change = &dnsv1Change{}
+			changesByName[a.Name] = change
+		}
+
+		change.deletions = append(change.deletions, a)
+	}
+
+	names := make([]string, 0)
+	for v := range changesByName {
+		names = append(names, v)
+	}
+	sort.Strings(names)
+
+	currentChange := &dnsv1.Change{}
+	var totalChanges int
+	for _, name := range names {
+		c := changesByName[name]
+
+		totalChangesByName := len(c.additions) + len(c.deletions)
+
+		if totalChangesByName > batchSize {
+			g.logger.V(1).Info("Total changes for %s exceeds max batch size of %d, total changes: %d", name,
+				batchSize, totalChangesByName)
+			continue
+		}
+
+		if totalChanges+totalChangesByName > batchSize {
+			totalChanges = 0
+			changes = append(changes, currentChange)
+			currentChange = &dnsv1.Change{}
+		}
+
+		currentChange.Additions = append(currentChange.Additions, c.additions...)
+		currentChange.Deletions = append(currentChange.Deletions, c.deletions...)
+
+		totalChanges += totalChangesByName
+	}
+
+	if totalChanges > 0 {
+		changes = append(changes, currentChange)
+	}
+
+	return changes
+}
+
+// newRecord returns a RecordSet based on the given endpoint.
+func newRecord(ep *v1alpha1.Endpoint) *dnsv1.ResourceRecordSet {
+	targets := make([]string, len(ep.Targets))
+	copy(targets, []string(ep.Targets))
+	if ep.RecordType == string(v1alpha1.CNAMERecordType) {
+		targets[0] = ensureTrailingDot(targets[0])
+	}
+	return &dnsv1.ResourceRecordSet{
+		Name:    ensureTrailingDot(ep.DNSName),
+		Rrdatas: targets,
+		Ttl:     int64(ep.RecordTTL),
+		Type:    ep.RecordType,
+	}
+}
+
+// ensureTrailingDot ensures that the hostname receives a trailing dot if it hasn't already.
+func ensureTrailingDot(hostname string) string {
+	if net.ParseIP(hostname) != nil {
+		return hostname
+	}
+
+	return strings.TrimSuffix(hostname, ".") + "."
 }
