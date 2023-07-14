@@ -19,7 +19,7 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/placement"
 	"github.com/Kuadrant/multicluster-gateway-controller/test"
-	"github.com/Kuadrant/multicluster-gateway-controller/test/util"
+	testutil "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 )
 
 func TestGatewayReconciler_Reconcile(t *testing.T) {
@@ -267,7 +267,6 @@ func TestGatewayReconciler_Reconcile(t *testing.T) {
 				Client:       tt.fields.Client,
 				Scheme:       tt.fields.Scheme,
 				Certificates: test.NewTestCertificateService(tt.fields.Client),
-				HostService:  test.NewTestHostService(tt.fields.Client),
 				Placement:    test.NewTestGatewayPlacer(),
 			}
 			res, err := r.Reconcile(context.TODO(), tt.args.req)
@@ -347,74 +346,6 @@ func TestGatewayReconciler_reconcileDownstreamFromUpstreamGateway(t *testing.T) 
 			wantRequeue:   true,
 			wantErr:       true,
 			expectedError: testutil.FailEnsureCertHost,
-		},
-		{
-			name: "failed to fech managed zone",
-			fields: fields{
-				Client: fake.NewClientBuilder().
-					WithScheme(testutil.GetBasicScheme()).
-					Build(),
-				Scheme: testutil.GetBasicScheme(),
-			},
-			args: args{
-				gateway: &v1beta1.Gateway{
-					Spec: buildValidTestGatewaySpec(),
-				},
-			},
-			wantStatus:    v1.ConditionFalse,
-			wantClusters:  []string{},
-			wantRequeue:   false,
-			wantErr:       true,
-			expectedError: "no kind is registered for the type",
-		},
-		{
-			name: "externally managed host",
-			fields: fields{
-				Client: testutil.GetValidTestClient(),
-				Scheme: testutil.GetValidTestScheme(),
-			},
-			args: args{
-				gateway: &v1beta1.Gateway{
-					ObjectMeta: v1.ObjectMeta{
-						Labels: getTestGatewayLabels(),
-					},
-					Spec: buildValidTestGatewaySpec(),
-				},
-			},
-			wantStatus:    v1.ConditionFalse,
-			wantClusters:  []string{},
-			wantRequeue:   false,
-			wantErr:       true,
-			expectedError: "no managed hosts found",
-		},
-		{
-			name: "failed to fetch DNSRecord CR",
-			fields: fields{
-				Client: testutil.GetValidTestClient(buildTestMZ()),
-				Scheme: testutil.GetValidTestScheme(),
-			},
-			args: args{
-				gateway: &v1beta1.Gateway{
-					ObjectMeta: v1.ObjectMeta{
-						Labels:    getTestGatewayLabels(),
-						Namespace: testutil.Namespace,
-					},
-					Spec: v1beta1.GatewaySpec{
-						Listeners: []v1beta1.Listener{
-							{
-								Name:     v1beta1.SectionName(testutil.ValidTestHostname),
-								Hostname: getTestHostname(testutil.FailFetchDANSSubdomain + "." + testutil.Domain),
-								Protocol: v1beta1.HTTPSProtocolType,
-							},
-						},
-					},
-				},
-			},
-			wantStatus:    v1.ConditionFalse,
-			wantClusters:  []string{},
-			wantRequeue:   false,
-			wantErr:       true,
-			expectedError: testutil.FailFetchDANSSubdomain,
 		},
 		{
 			name: "created DNSRecord CR, HTTP protocol",
@@ -503,7 +434,6 @@ func TestGatewayReconciler_reconcileDownstreamFromUpstreamGateway(t *testing.T) 
 				Client:       tt.fields.Client,
 				Scheme:       tt.fields.Scheme,
 				Certificates: test.NewTestCertificateService(tt.fields.Client),
-				HostService:  test.NewTestHostService(tt.fields.Client),
 				Placement:    test.NewTestGatewayPlacer(),
 			}
 			requeue, programmedStatus, clusters, err := r.reconcileDownstreamFromUpstreamGateway(context.TODO(), tt.args.gateway, &Params{})
@@ -550,6 +480,16 @@ func TestGatewayReconciler_reconcileTLS(t *testing.T) {
 				upstreamGateway: &v1beta1.Gateway{
 					ObjectMeta: v1.ObjectMeta{
 						Namespace: testutil.Namespace,
+						Name:      testutil.DummyCRName,
+					},
+					Spec: v1beta1.GatewaySpec{
+						Listeners: []v1beta1.Listener{
+							{
+								Name:     testutil.ValidTestHostname,
+								Hostname: getTestHostname(testutil.ValidTestHostname),
+								Protocol: v1beta1.HTTPSProtocolType,
+							},
+						},
 					},
 				},
 				gateway: &v1beta1.Gateway{
@@ -607,10 +547,9 @@ func TestGatewayReconciler_reconcileTLS(t *testing.T) {
 				Client:       tt.fields.Client,
 				Scheme:       tt.fields.Scheme,
 				Certificates: test.NewTestCertificateService(tt.fields.Client),
-				HostService:  test.NewTestHostService(tt.fields.Client),
 				Placement:    test.NewTestGatewayPlacer(),
 			}
-			got, err := r.reconcileTLS(context.TODO(), tt.args.upstreamGateway, tt.args.gateway, tt.args.managedHosts)
+			got, err := r.reconcileTLS(context.TODO(), tt.args.upstreamGateway, tt.args.gateway)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("reconcileTLS() error = %v, wantErr %v", err, tt.wantErr)
 				return

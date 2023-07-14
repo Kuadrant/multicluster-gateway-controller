@@ -34,7 +34,6 @@ import (
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 )
 
@@ -49,7 +48,6 @@ type DNSRecordReconciler struct {
 	client.Client
 	Scheme      *runtime.Scheme
 	DNSProvider dns.DNSProviderFactory
-	HostService gateway.HostService
 }
 
 //+kubebuilder:rbac:groups=kuadrant.io,resources=dnsrecords,verbs=get;list;watch;create;update;patch;delete
@@ -136,8 +134,13 @@ func (r *DNSRecordReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // deleteRecord deletes record(s) in the DNSPRovider(i.e. route53) configured by the ManagedZone assigned to this
 // DNSRecord (dnsRecord.Status.ParentManagedZone).
 func (r *DNSRecordReconciler) deleteRecord(ctx context.Context, dnsRecord *v1alpha1.DNSRecord) error {
-
-	managedZone, err := r.HostService.GetDNSRecordManagedZone(ctx, dnsRecord)
+	managedZone := &v1alpha1.ManagedZone{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      dnsRecord.Spec.ManagedZoneRef.Name,
+			Namespace: dnsRecord.Namespace,
+		},
+	}
+	err := r.Get(ctx, client.ObjectKeyFromObject(managedZone), managedZone, &client.GetOptions{})
 	if err != nil {
 		// If the Managed Zone isn't found, just continue
 		return client.IgnoreNotFound(err)
@@ -173,7 +176,13 @@ func (r *DNSRecordReconciler) deleteRecord(ctx context.Context, dnsRecord *v1alp
 // DNSRecord (dnsRecord.Status.ParentManagedZone).
 func (r *DNSRecordReconciler) publishRecord(ctx context.Context, dnsRecord *v1alpha1.DNSRecord) error {
 
-	managedZone, err := r.HostService.GetDNSRecordManagedZone(ctx, dnsRecord)
+	managedZone := &v1alpha1.ManagedZone{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      dnsRecord.Spec.ManagedZoneRef.Name,
+			Namespace: dnsRecord.Namespace,
+		},
+	}
+	err := r.Get(ctx, client.ObjectKeyFromObject(managedZone), managedZone, &client.GetOptions{})
 	if err != nil {
 		return err
 	}

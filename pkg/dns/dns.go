@@ -23,6 +23,8 @@ import (
 )
 
 const (
+	DefaultTTL                       = 60
+	DefaultCnameTTL                  = 300
 	ProviderSpecificWeight           = "weight"
 	ProviderSpecificGeoContinentCode = "geo-continent-code"
 	ProviderSpecificGeoCountryCode   = "geo-country-code"
