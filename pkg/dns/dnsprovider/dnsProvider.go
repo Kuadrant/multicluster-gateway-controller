@@ -12,6 +12,7 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/aws"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/google"
 )
 
 var errUnsupportedProvider = fmt.Errorf("provider type given is not supported")
@@ -46,6 +47,14 @@ func (p *providerFactory) DNSProviderFactory(ctx context.Context, managedZone *v
 			return nil, fmt.Errorf("unable to create dns provider from secret: %v", err)
 		}
 		log.Log.V(1).Info("Route53 provider created", "managed zone:", managedZone.Name)
+
+		return dnsProvider, nil
+	case "kuadrant.io/google":
+		dnsProvider, err := google.NewProviderFromSecret(ctx, providerSecret)
+		if err != nil {
+			return nil, fmt.Errorf("unable to create dns provider from secret: %v", err)
+		}
+		log.Log.V(1).Info("Google provider created", "managed zone:", managedZone.Name)
 
 		return dnsProvider, nil
 
