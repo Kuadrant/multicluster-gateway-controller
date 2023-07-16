@@ -20,17 +20,18 @@ import (
 	"context"
 	"net"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/linki/instrumented_http"
-	"golang.org/x/oauth2/google"
+	// "github.com/linki/instrumented_http"
+	// "golang.org/x/oauth2/google"
 	dnsv1 "google.golang.org/api/dns/v1"
+
 	googleapi "google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	//"google.golang.org/api/option"
 
 	v1 "k8s.io/api/core/v1"
 
@@ -48,7 +49,7 @@ const (
 	deleteAction              action = "DELETE"
 )
 
-// Based on the external-dnsv1 google provider https://github.com/kubernetes-sigs/external-dns/blob/master/provider/google/google.go
+// Based on the external-dns google provider https://github.com/kubernetes-sigs/external-dns/blob/master/provider/google/google.go
 
 type managedZonesCreateCallInterface interface {
 	Do(opts ...googleapi.CallOption) (*dnsv1.ManagedZone, error)
@@ -139,27 +140,28 @@ type GoogleDNSProvider struct {
 var _ dns.Provider = &GoogleDNSProvider{}
 
 func NewProviderFromSecret(ctx context.Context, s *v1.Secret) (*GoogleDNSProvider, error) {
-
 	//ToDo client should be created using credentials from the secret
-	gcloud, err := google.DefaultClient(ctx, dnsv1.NdevClouddnsReadwriteScope)
-	if err != nil {
-		return nil, err
-	}
+	// gcloud, err := google.DefaultClient(ctx, dnsv1.NdevClouddnsReadwriteScope)
+	// if err != nil {
+	// 	return nil, err
+	// }
 
-	gcloud = instrumented_http.NewClient(gcloud, &instrumented_http.Callbacks{
-		PathProcessor: func(path string) string {
-			parts := strings.Split(path, "/")
-			return parts[len(parts)-1]
-		},
-	})
+	// gcloud = instrumented_http.NewClient(gcloud, &instrumented_http.Callbacks{
+	// 	PathProcessor: func(path string) string {
+	// 		parts := strings.Split(path, "/")
+	// 		return parts[len(parts)-1]
+	// 	},
+	// })
+	log.Log.Info("Google")
+	creds := option.WithCredentialsJSON(s.Data["GOOGLE"])
 
-	dnsClient, err := dnsv1.NewService(ctx, option.WithHTTPClient(gcloud))
+	dnsClient, err := dnsv1.NewService(ctx, creds)
 	if err != nil {
 		return nil, err
 	}
 
 	//Todo This needs to be pulled out of the secret
-	var project = "it-cloud-gcp-rd-midd-san"
+	var project = string(s.Data["PROJECT_ID"])
 
 	provider := &GoogleDNSProvider{
 		logger:                   log.Log.WithName("google-dns").WithValues("project", project),
@@ -227,19 +229,37 @@ func (g GoogleDNSProvider) ProviderSpecific() dns.ProviderSpecificLabels {
 	return dns.ProviderSpecificLabels{}
 }
 
-func (g *GoogleDNSProvider) updateRecord(record *v1alpha1.DNSRecord, zoneID string, action action) error {
-	var addingRecords []*dnsv1.ResourceRecordSet
+func (g *GoogleDNSProvider) updateRecord(dnsRecord *v1alpha1.DNSRecord, zoneID string, action action) error {
+	// When updating records the Google DNS API expects you to delete any existing record and add the new one as part of
+	// the same change request. The record to be deleted must match exactly what currently exists in the provider or the
+	// change request will fail. To make sure we can always remove the records, we first get all records that exist in
+	// the zone and build up the deleting list from `dnsRecord.Status` but use the most recent version of it retrieved
+	// from the provider in the change request.
+	currentRecords, err := g.getResourceRecordSets(g.ctx, zoneID)
+	if err != nil {
+		return err
+	}
+	currentRecordsMap := make(map[string]*dnsv1.ResourceRecordSet)
+	for _, record := range currentRecords {
+		currentRecordsMap[record.Name] = record
+	}
+	statusRecords := toResourceRecordSets(dnsRecord.Status.Endpoints)
+	statusRecordsMap := make(map[string]*dnsv1.ResourceRecordSet)
+	for _, record := range statusRecords {
+		statusRecordsMap[record.Name] = record
+	}
+
 	var deletingRecords []*dnsv1.ResourceRecordSet
+	for name := range statusRecordsMap {
+		if record, ok := currentRecordsMap[name]; ok {
+			deletingRecords = append(deletingRecords, record)
+		}
+	}
+	addingRecords := toResourceRecordSets(dnsRecord.Spec.Endpoints)
+
+	g.logger.V(1).Info("updateRecord", "currentRecords", currentRecords, "deletingRecords", deletingRecords, "addingRecords", addingRecords)
+
 	change := &dnsv1.Change{}
-
-	for _, endpoint := range record.Spec.Endpoints {
-		addingRecords = append(addingRecords, newRecord(endpoint))
-	}
-
-	for _, endpoint := range record.Status.Endpoints {
-		deletingRecords = append(deletingRecords, newRecord(endpoint))
-	}
-
 	if action == deleteAction {
 		change.Deletions = deletingRecords
 	} else {
@@ -256,15 +276,16 @@ func (g *GoogleDNSProvider) submitChange(change *dnsv1.Change, zone string) erro
 		return nil
 	}
 
-	for _, c := range g.batchChange(change, g.batchChangeSize) {
-		//g.logger.V(1).Info("Change zone: %v batch #%d", zone, batch)
-		//for _, del := range c.Deletions {
-		//g.logger.V(1).Info("Del records: %s %s %s %d", del.Name, del.Type, del.Rrdatas, del.Ttl)
-		//}
-		//for _, add := range c.Additions {
-		//g.logger.V(1).Info("Add records: %s %s %s %d", add.Name, add.Type, add.Rrdatas, add.Ttl)
-		//}
-
+	for batch, c := range g.batchChange(change, g.batchChangeSize) {
+		g.logger.V(1).Info("Change zone", "zone", zone, "batch", batch)
+		for _, del := range c.Deletions {
+			g.logger.V(1).Info("Del records", "name", del.Name, "type", del.Type, "Rrdatas",
+				del.Rrdatas, "RoutingPolicy", del.RoutingPolicy, "ttl", del.Ttl)
+		}
+		for _, add := range c.Additions {
+			g.logger.V(1).Info("Add records", "name", add.Name, "type", add.Type, "Rrdatas",
+				add.Rrdatas, "RoutingPolicy", add.RoutingPolicy, "ttl", add.Ttl)
+		}
 		if g.dryRun {
 			continue
 		}
@@ -349,19 +370,101 @@ func (g *GoogleDNSProvider) batchChange(change *dnsv1.Change, batchSize int) []*
 	return changes
 }
 
-// newRecord returns a RecordSet based on the given endpoint.
-func newRecord(ep *v1alpha1.Endpoint) *dnsv1.ResourceRecordSet {
-	targets := make([]string, len(ep.Targets))
-	copy(targets, []string(ep.Targets))
-	if ep.RecordType == string(v1alpha1.CNAMERecordType) {
-		targets[0] = ensureTrailingDot(targets[0])
+// getResourceRecordSets returns the records for a managed zone of the currently configured provider.
+func (g *GoogleDNSProvider) getResourceRecordSets(ctx context.Context, zoneID string) ([]*dnsv1.ResourceRecordSet, error) {
+	var records []*dnsv1.ResourceRecordSet
+
+	f := func(resp *dnsv1.ResourceRecordSetsListResponse) error {
+		records = append(records, resp.Rrsets...)
+		return nil
 	}
-	return &dnsv1.ResourceRecordSet{
-		Name:    ensureTrailingDot(ep.DNSName),
-		Rrdatas: targets,
-		Ttl:     int64(ep.RecordTTL),
-		Type:    ep.RecordType,
+
+	if err := g.resourceRecordSetsClient.List(g.project, zoneID).Pages(ctx, f); err != nil {
+		return nil, err
 	}
+
+	return records, nil
+}
+
+// toResourceRecordSets converts a list of endpoints into `ResourceRecordSet` resources.
+func toResourceRecordSets(allEndpoints []*v1alpha1.Endpoint) []*dnsv1.ResourceRecordSet {
+	var records []*dnsv1.ResourceRecordSet
+
+	// Google DNS requires a record to be created per `dnsName`, so the first thing we need to do is group all the
+	// endpoints with the same dnsName together.
+	endpointMap := make(map[string][]*v1alpha1.Endpoint)
+	for _, ep := range allEndpoints {
+		endpointMap[ep.DNSName] = append(endpointMap[ep.DNSName], ep)
+	}
+
+	for dnsName, endpoints := range endpointMap {
+		// A set of endpoints belonging to the same group(`dnsName`) must always be of the same type, have the same ttl
+		// and contain the same rrdata (weighted or geo), so we can just get that from the first endpoint in the list.
+		ttl := int64(endpoints[0].RecordTTL)
+		recordType := endpoints[0].RecordType
+		_, weighted := endpoints[0].GetProviderSpecificProperty(dns.ProviderSpecificWeight)
+		_, geoContinent := endpoints[0].GetProviderSpecificProperty(dns.ProviderSpecificGeoContinentCode)
+		_, geoCounty := endpoints[0].GetProviderSpecificProperty(dns.ProviderSpecificGeoCountryCode)
+
+		record := &dnsv1.ResourceRecordSet{
+			Name: ensureTrailingDot(dnsName),
+			Ttl:  ttl,
+			Type: recordType,
+		}
+		if weighted {
+			record.RoutingPolicy = &dnsv1.RRSetRoutingPolicy{
+				Wrr: &dnsv1.RRSetRoutingPolicyWrrPolicy{},
+			}
+		} else if geoContinent || geoCounty {
+			record.RoutingPolicy = &dnsv1.RRSetRoutingPolicy{
+				Geo: &dnsv1.RRSetRoutingPolicyGeoPolicy{},
+			}
+		}
+
+		for _, ep := range endpoints {
+			targets := make([]string, len(ep.Targets))
+			copy(targets, ep.Targets)
+			if ep.RecordType == string(v1alpha1.CNAMERecordType) {
+				targets[0] = ensureTrailingDot(targets[0])
+			}
+
+			if !weighted && !geoContinent && !geoCounty {
+				record.Rrdatas = targets
+			}
+			if weighted {
+				weightProp, _ := ep.GetProviderSpecificProperty(dns.ProviderSpecificWeight)
+				weight, err := strconv.ParseFloat(weightProp.Value, 64)
+				if err != nil {
+					weight = 0
+				}
+				item := &dnsv1.RRSetRoutingPolicyWrrPolicyWrrPolicyItem{
+					Rrdatas: targets,
+					Weight:  weight,
+				}
+				record.RoutingPolicy.Wrr.Items = append(record.RoutingPolicy.Wrr.Items, item)
+			}
+			if geoContinent || geoCounty {
+				continentProp, _ := ep.GetProviderSpecificProperty(dns.ProviderSpecificGeoContinentCode)
+				countryProp, _ := ep.GetProviderSpecificProperty(dns.ProviderSpecificGeoCountryCode)
+				item := &dnsv1.RRSetRoutingPolicyGeoPolicyGeoPolicyItem{
+					Location: getGeoPolicyLocation(continentProp.Value, countryProp.Value),
+					Rrdatas:  targets,
+				}
+				record.RoutingPolicy.Geo.Items = append(record.RoutingPolicy.Geo.Items, item)
+			}
+		}
+		records = append(records, record)
+	}
+	return records
+}
+
+// getGeoPolicyLocation converts continent and country codes into compute regions compatible with the geo routing policy.
+//
+// https://cloud.google.com/compute/docs/regions-zones/viewing-regions-zones#viewing_information_about_a_region
+// https://cloud.google.com/compute/docs/regions-zones#available
+func getGeoPolicyLocation(geoContinent, geoCounty string) string {
+	// ToDo Need to map MGC continent and country codes into google regions :-/
+	return "europe-west1"
 }
 
 // ensureTrailingDot ensures that the hostname receives a trailing dot if it hasn't already.
