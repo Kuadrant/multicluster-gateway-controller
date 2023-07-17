@@ -37,7 +37,7 @@ gcloud projects add-iam-policy-binding $DNS_PROJECT_ID \
 Create ManagedZone
 
 ```bash
-kubectl apply -f samples/google_provider/google-credentials-secret.yaml -n multi-cluster-gateways
+kubectl create secret generic mgc-google-credentials --type=kuadrant.io/google --from-file=GOOGLE=/home/mnairn/.config/gcloud/application_default_credentials.json --from-literal=PROJECT_ID=it-cloud-gcp-rd-midd-san -n multi-cluster-gateways
 kubectl apply -f samples/google_provider/mn.google.hcpapps.net.com-managedzone.yaml -n multi-cluster-gateways
 kubectl get secrets -n multi-cluster-gateways
 NAME                     TYPE                 DATA   AGE
