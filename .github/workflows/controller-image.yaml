@@ -69,9 +69,9 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          repository: redhat-cps/glbc-deployments
+          repository: Kuadrant/deployments
           ref: 'main'
-          ssh-key: ${{ secrets.HCG_DEPLOYMENTS_SSH_DEPLOY_KEY }}
+          ssh-key: ${{ secrets.KUADRANT_DEPLOYMENTS_SSH_DEPLOY_KEY }}
       - name: Install kustomize
         run: make kustomize
       - name: Setup git config
