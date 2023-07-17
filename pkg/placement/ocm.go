@@ -173,7 +173,22 @@ func (op *ocmPlacer) Place(ctx context.Context, upStreamGateway *gatewayv1beta1.
 			return existingClusters, err
 		}
 
-		if err := gracePeriod.GracefulDelete(ctx, op.c, w); err != nil {
+		// Check if the ManagedCluster still exists,
+		// otherwise delete without any grace period.
+		// This can happen if a ManagedCluster is deleted,
+		// as opposed to just a placement decision changing
+		ignoreGrace := false
+		managedCluster := &clusterv1.ManagedCluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: cluster,
+			},
+		}
+		err = op.c.Get(ctx, client.ObjectKeyFromObject(managedCluster), managedCluster)
+		if k8serrors.IsNotFound(err) {
+			log.V(3).Info(fmt.Sprintf("ManagedCluster not found '%s', ignoring grace period", cluster))
+			ignoreGrace = true
+		}
+		if err := gracePeriod.GracefulDelete(ctx, op.c, w, ignoreGrace); err != nil {
 			// use a multi-error
 			log.V(3).Info("error during graceful delete", "error", err)
 			return existingClusters, err
@@ -209,8 +224,9 @@ func (op *ocmPlacer) GetPlacedClusters(ctx context.Context, gateway *gatewayv1be
 	//where the gateway currently exists
 
 	for _, e := range existing.Items {
+		deleting := e.DeletionTimestamp != nil
 		applied := meta.IsStatusConditionTrue(e.Status.Conditions, string(workv1.ManifestApplied))
-		if applied {
+		if !deleting && applied {
 			existingClusters = existingClusters.Insert(e.GetNamespace())
 		}
 	}

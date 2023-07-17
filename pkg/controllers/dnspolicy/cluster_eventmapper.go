@@ -33,6 +33,14 @@ func (m *ClusterEventMapper) MapToDNSPolicy(obj client.Object) []reconcile.Reque
 func (m *ClusterEventMapper) mapToPolicyRequest(obj client.Object, policyKind string, policyRefsConfig common.PolicyRefsConfig) []reconcile.Request {
 	logger := m.Logger.V(1).WithValues("object", client.ObjectKeyFromObject(obj))
 
+	if obj.GetDeletionTimestamp() != nil {
+		// Ignore ManagedCluster delete events.
+		// Create/Update events are OK as ManagedCluster custom attributes may change, affecting DNSPolicies.
+		// However, deleting a ManagedCluster shouldn't affect the DNSPolicy directly until the related
+		// Gateway is deleted from that ManagedCluster (and reconciled then via watching Gateways, not ManagedClusters)
+		return []reconcile.Request{}
+	}
+
 	clusterName := obj.GetName()
 
 	allGwList := &gatewayapiv1beta1.GatewayList{}

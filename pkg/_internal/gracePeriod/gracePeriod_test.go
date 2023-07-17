@@ -60,7 +60,7 @@ func TestGracefulDelete(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
 			fc := fake.NewClientBuilder().WithObjects(tc.Object).Build()
-			err := GracefulDelete(context.TODO(), fc, tc.Object)
+			err := GracefulDelete(context.TODO(), fc, tc.Object, false)
 			mw := &workv1.ManifestWork{}
 			getErr := fc.Get(context.TODO(), client.ObjectKeyFromObject(tc.Object), mw)
 			tc.Verify(t, mw, err, getErr)

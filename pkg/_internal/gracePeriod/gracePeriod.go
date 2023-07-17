@@ -20,7 +20,7 @@ const (
 
 var ErrGracePeriodNotExpired = fmt.Errorf("grace period has not yet expired")
 
-func GracefulDelete(ctx context.Context, c client.Client, obj client.Object) error {
+func GracefulDelete(ctx context.Context, c client.Client, obj client.Object, ignoreGrace bool) error {
 	log := log.Log
 	at := time.Now().Add(DefaultGracePeriod)
 	if err := c.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
@@ -28,8 +28,8 @@ func GracefulDelete(ctx context.Context, c client.Client, obj client.Object) err
 		return err
 	}
 
-	// if At is before the current time, just delete it
-	if at.Before(time.Now()) || at.Equal(time.Now()) {
+	// If ignored the grace, of if At is before the current time, just delete it
+	if ignoreGrace || at.Before(time.Now()) || at.Equal(time.Now()) {
 		return c.Delete(ctx, obj)
 	}
 
