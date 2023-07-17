@@ -18,6 +18,7 @@ package google
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"sort"
 	"strconv"
@@ -25,10 +26,9 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	// "github.com/linki/instrumented_http"
-	// "golang.org/x/oauth2/google"
+	"github.com/linki/instrumented_http"
+	"golang.org/x/oauth2/google"
 	dnsv1 "google.golang.org/api/dns/v1"
-
 	googleapi "google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -140,27 +140,28 @@ type GoogleDNSProvider struct {
 var _ dns.Provider = &GoogleDNSProvider{}
 
 func NewProviderFromSecret(ctx context.Context, s *v1.Secret) (*GoogleDNSProvider, error) {
-	//ToDo client should be created using credentials from the secret
-	// gcloud, err := google.DefaultClient(ctx, dnsv1.NdevClouddnsReadwriteScope)
-	// if err != nil {
-	// 	return nil, err
-	// }
 
-	// gcloud = instrumented_http.NewClient(gcloud, &instrumented_http.Callbacks{
-	// 	PathProcessor: func(path string) string {
-	// 		parts := strings.Split(path, "/")
-	// 		return parts[len(parts)-1]
-	// 	},
-	// })
-	log.Log.Info("Google")
-	creds := option.WithCredentialsJSON(s.Data["GOOGLE"])
+	if string(s.Data["GOOGLE"]) == "" || string(s.Data["PROJECT_ID"]) == "" {
+		return nil, fmt.Errorf("AWS Provider credentials is empty")
+	}
 
-	dnsClient, err := dnsv1.NewService(ctx, creds)
+	gcloud, err := google.DefaultClient(ctx, dnsv1.NdevClouddnsReadwriteScope)
 	if err != nil {
 		return nil, err
 	}
 
-	//Todo This needs to be pulled out of the secret
+	gcloud = instrumented_http.NewClient(gcloud, &instrumented_http.Callbacks{
+		PathProcessor: func(path string) string {
+			parts := strings.Split(path, "/")
+			return parts[len(parts)-1]
+		},
+	})
+
+	dnsClient, err := dnsv1.NewService(ctx, option.WithHTTPClient(gcloud), option.WithCredentialsJSON(s.Data["GOOGLE"]))
+	if err != nil {
+		return nil, err
+	}
+
 	var project = string(s.Data["PROJECT_ID"])
 
 	provider := &GoogleDNSProvider{
