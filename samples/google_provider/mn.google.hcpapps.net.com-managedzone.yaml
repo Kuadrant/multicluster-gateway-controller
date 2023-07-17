@@ -1,0 +1,12 @@
+apiVersion: kuadrant.io/v1alpha1
+kind: ManagedZone
+metadata:
+  name: mn.google.hcpapps.net
+spec:
+  id: mn-google-hcpapps-net
+  domainName: mn.google.hcpapps.net
+  description: "mn.google.hcpapps.net managed domain"
+  dnsProviderSecretRef:
+    name: mgc-google-credentials
+    namespace: multi-cluster-gateways
+    type: Google
