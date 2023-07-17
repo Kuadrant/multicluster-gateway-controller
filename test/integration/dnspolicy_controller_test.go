@@ -463,6 +463,11 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 		})
 
+		AfterAll(func() {
+			err := k8sClient.Delete(ctx, gateway)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
 		It("should not create a dns record", func() {
 			Consistently(func() []v1alpha1.DNSRecord { // DNS record exists
 				dnsRecords := v1alpha1.DNSRecordList{}

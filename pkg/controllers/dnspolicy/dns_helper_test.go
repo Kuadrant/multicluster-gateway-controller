@@ -1,13 +1,15 @@
+//go:build unit
+
 package dnspolicy
 
 import (
 	"context"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 
 	"k8s.io/apimachinery/pkg/api/equality"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -192,18 +194,7 @@ func Test_dnsHelper_findMatchingManagedZone(t *testing.T) {
 					},
 				},
 			},
-			Assert: func(t *testing.T, zone *v1alpha1.ManagedZone, subdomain string, err error) {
-				if err != nil {
-					t.Fatalf("expected no error, got %v", err)
-				}
-
-				if subdomain != "sub.domain.test" {
-					t.Fatalf("expected subdomain 'sub.domain.test', got '%v'", subdomain)
-				}
-				if zone.Spec.DomainName != "example.com" {
-					t.Fatalf("expected zone with domain name 'example.com' got %v", zone.Spec.DomainName)
-				}
-			},
+			Assert: assertSub("example.com", "sub.domain.test", ""),
 		},
 		{
 			Name: "finds the most exactly matching managed zone",
@@ -228,15 +219,7 @@ func Test_dnsHelper_findMatchingManagedZone(t *testing.T) {
 					},
 				},
 			},
-			Assert: func(t *testing.T, zone *v1alpha1.ManagedZone, subdomain string, err error) {
-				if zone.Spec.DomainName != "test.example.com" {
-					t.Fatalf("expected found zone to be the longest matching zone, expected test.example.com, got %v", zone.Spec.DomainName)
-				}
-
-				if subdomain != "sub.domain" {
-					t.Fatalf("expected subdomain 'sub.domain', got '%v'", subdomain)
-				}
-			},
+			Assert: assertSub("test.example.com", "sub.domain", ""),
 		},
 		{
 			Name: "returns a single subdomain",
@@ -252,15 +235,7 @@ func Test_dnsHelper_findMatchingManagedZone(t *testing.T) {
 					},
 				},
 			},
-			Assert: func(t *testing.T, zone *v1alpha1.ManagedZone, subdomain string, err error) {
-				if zone.Spec.DomainName != "test.example.com" {
-					t.Fatalf("expected found zone to be the longest matching zone, expected test.example.com, got %v", zone.Spec.DomainName)
-				}
-
-				if subdomain != "sub" {
-					t.Fatalf("expected subdomain 'sub', got '%v'", subdomain)
-				}
-			},
+			Assert: assertSub("test.example.com", "sub", ""),
 		},
 		{
 			Name: "returns an error when nothing matches",
@@ -276,19 +251,7 @@ func Test_dnsHelper_findMatchingManagedZone(t *testing.T) {
 					},
 				},
 			},
-			Assert: func(t *testing.T, zone *v1alpha1.ManagedZone, subdomain string, err error) {
-				if zone != nil {
-					t.Fatalf("expected no zone to match, got: %v", zone.Name)
-				}
-
-				if subdomain != "" {
-					t.Fatalf("expected subdomain '', got '%v'", subdomain)
-				}
-
-				if err == nil {
-					t.Fatal("expected an error, got nil")
-				}
-			},
+			Assert: assertSub("", "", "no valid zone found"),
 		},
 		{
 			Name: "handles TLD with a dot",
@@ -304,18 +267,7 @@ func Test_dnsHelper_findMatchingManagedZone(t *testing.T) {
 					},
 				},
 			},
-			Assert: func(t *testing.T, zone *v1alpha1.ManagedZone, subdomain string, err error) {
-				if err != nil {
-					t.Fatalf("expected no error, got %v", err)
-				}
-
-				if subdomain != "sub.domain.test" {
-					t.Fatalf("expected subdomain 'sub.domain.test', got '%v'", subdomain)
-				}
-				if zone.Spec.DomainName != "example.co.uk" {
-					t.Fatalf("expected zone with domain name 'example.co.uk' got %v", zone.Spec.DomainName)
-				}
-			},
+			Assert: assertSub("example.co.uk", "sub.domain.test", ""),
 		},
 		{
 			Name: "TLD with a . will not match against a managedzone of the TLD",
@@ -331,18 +283,7 @@ func Test_dnsHelper_findMatchingManagedZone(t *testing.T) {
 					},
 				},
 			},
-			Assert: func(t *testing.T, zone *v1alpha1.ManagedZone, subdomain string, err error) {
-				if err == nil {
-					t.Fatalf("expected error, got %v", err)
-				}
-
-				if subdomain != "" {
-					t.Fatalf("expected subdomain '', got '%v'", subdomain)
-				}
-				if zone != nil {
-					t.Fatalf("expected zone to be nil, got %v", zone.Name)
-				}
-			},
+			Assert: assertSub("", "", "no valid zone found"),
 		},
 		{
 			Name:  "no managed zones for host give error",
@@ -368,24 +309,14 @@ func Test_dnsHelper_findMatchingManagedZone(t *testing.T) {
 					},
 				},
 			},
-			Assert: func(t *testing.T, zone *v1alpha1.ManagedZone, subdomain string, err error) {
-				if err == nil {
-					t.Fatalf("expected error, got %v", err)
-				}
-				if subdomain != "" {
-					t.Fatalf("expected subdomain '', got '%v'", subdomain)
-				}
-				if zone != nil {
-					t.Fatalf("expected zone to be nil, got %v", zone.Name)
-				}
-			},
+			Assert: assertSub("", "", "no valid zone found"),
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
-			mx, subDomian, err := findMatchingManagedZone(tc.Host, tc.Host, tc.Zones)
-			tc.Assert(t, mx, subDomian, err)
+			mx, subDomain, err := findMatchingManagedZone(tc.Host, tc.Host, tc.Zones)
+			tc.Assert(t, mx, subDomain, err)
 		})
 	}
 }
@@ -733,24 +664,23 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 func Test_dnsHelper_getDNSRecords(t *testing.T) {
 	cases := []struct {
 		Name      string
-		MZ        func() *v1alpha1.ManagedZone
+		MZ        *v1alpha1.ManagedZone
 		SubDomain string
-		Assert    func(t *testing.T, dnsRecord *v1alpha1.DNSRecord, err error)
+		Assert    func(t *testing.T, err error)
 		DNSRecord *v1alpha1.DNSRecord
 		Gateway   *gatewayv1beta1.Gateway
 	}{
 		{
 			Name: "test get dns record returns record",
-			MZ: func() *v1alpha1.ManagedZone {
-				return &v1alpha1.ManagedZone{
-					ObjectMeta: v1.ObjectMeta{
-						Name:      "b.c.com",
-						Namespace: "test",
-					},
-					Spec: v1alpha1.ManagedZoneSpec{
-						DomainName: "b.c.com",
-					},
-				}
+			MZ: &v1alpha1.ManagedZone{
+
+				ObjectMeta: v1.ObjectMeta{
+					Name:      "b.c.com",
+					Namespace: "test",
+				},
+				Spec: v1alpha1.ManagedZoneSpec{
+					DomainName: "b.c.com",
+				},
 			},
 			SubDomain: "a",
 			DNSRecord: &v1alpha1.DNSRecord{
@@ -768,24 +698,18 @@ func Test_dnsHelper_getDNSRecords(t *testing.T) {
 				},
 			},
 
-			Assert: func(t *testing.T, dnsRecord *v1alpha1.DNSRecord, err error) {
-				if err != nil {
-					t.Fatalf("expectd no error but got %s", err)
-				}
-			},
+			Assert: testutil.AssertError(""),
 		},
 		{
 			Name: "test get dns error when not found",
-			MZ: func() *v1alpha1.ManagedZone {
-				return &v1alpha1.ManagedZone{
-					ObjectMeta: v1.ObjectMeta{
-						Name:      "b.c.com",
-						Namespace: "test",
-					},
-					Spec: v1alpha1.ManagedZoneSpec{
-						DomainName: "b.c.com",
-					},
-				}
+			MZ: &v1alpha1.ManagedZone{
+				ObjectMeta: v1.ObjectMeta{
+					Name:      "b.c.com",
+					Namespace: "test",
+				},
+				Spec: v1alpha1.ManagedZoneSpec{
+					DomainName: "b.c.com",
+				},
 			},
 			SubDomain: "a",
 			DNSRecord: &v1alpha1.DNSRecord{
@@ -795,27 +719,18 @@ func Test_dnsHelper_getDNSRecords(t *testing.T) {
 				},
 			},
 			Gateway: &gatewayv1beta1.Gateway{},
-			Assert: func(t *testing.T, dnsRecord *v1alpha1.DNSRecord, err error) {
-				if err == nil {
-					t.Fatalf("expected an error but got none")
-				}
-				if !k8serrors.IsNotFound(err) {
-					t.Fatalf("expected a not found error but got %s", err)
-				}
-			},
+			Assert:  testutil.AssertError("not found"),
 		},
 		{
 			Name: "test get dns error when referencing different Gateway",
-			MZ: func() *v1alpha1.ManagedZone {
-				return &v1alpha1.ManagedZone{
-					ObjectMeta: v1.ObjectMeta{
-						Name:      "b.c.com",
-						Namespace: "test",
-					},
-					Spec: v1alpha1.ManagedZoneSpec{
-						DomainName: "b.c.com",
-					},
-				}
+			MZ: &v1alpha1.ManagedZone{
+				ObjectMeta: v1.ObjectMeta{
+					Name:      "b.c.com",
+					Namespace: "test",
+				},
+				Spec: v1alpha1.ManagedZoneSpec{
+					DomainName: "b.c.com",
+				},
 			},
 			SubDomain: "a",
 			DNSRecord: &v1alpha1.DNSRecord{
@@ -832,27 +747,18 @@ func Test_dnsHelper_getDNSRecords(t *testing.T) {
 					UID: types.UID("test"),
 				},
 			},
-			Assert: func(t *testing.T, dnsRecord *v1alpha1.DNSRecord, err error) {
-				if err == nil {
-					t.Fatalf("expected an error but got none")
-				}
-				if k8serrors.IsNotFound(err) {
-					t.Fatalf("expected a custom error but got %s", err)
-				}
-			},
+			Assert: testutil.AssertError("host already in use"),
 		},
 		{
 			Name: "test get dns error when not owned by Gateway",
-			MZ: func() *v1alpha1.ManagedZone {
-				return &v1alpha1.ManagedZone{
-					ObjectMeta: v1.ObjectMeta{
-						Name:      "b.c.com",
-						Namespace: "test",
-					},
-					Spec: v1alpha1.ManagedZoneSpec{
-						DomainName: "b.c.com",
-					},
-				}
+			MZ: &v1alpha1.ManagedZone{
+				ObjectMeta: v1.ObjectMeta{
+					Name:      "b.c.com",
+					Namespace: "test",
+				},
+				Spec: v1alpha1.ManagedZoneSpec{
+					DomainName: "b.c.com",
+				},
 			},
 			SubDomain: "a",
 			DNSRecord: &v1alpha1.DNSRecord{
@@ -869,24 +775,17 @@ func Test_dnsHelper_getDNSRecords(t *testing.T) {
 					UID: types.UID("not"),
 				},
 			},
-			Assert: func(t *testing.T, dnsRecord *v1alpha1.DNSRecord, err error) {
-				if err == nil {
-					t.Fatalf("expected an error but got none")
-				}
-				if !k8serrors.IsNotFound(err) {
-					t.Fatalf("expected a not found error but got %s", err)
-				}
-			},
+			Assert: testutil.AssertError("not found"),
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
 			gw := traffic.NewGateway(tc.Gateway)
-			f := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(tc.DNSRecord).Build()
+			f := fake.NewClientBuilder().WithScheme(testutil.GetValidTestScheme()).WithObjects(tc.DNSRecord).Build()
 			s := &dnsHelper{Client: f}
-			record, err := s.getDNSRecord(context.TODO(), tc.SubDomain, tc.MZ(), gw)
-			tc.Assert(t, record, err)
+			_, err := s.getDNSRecord(context.TODO(), tc.SubDomain, tc.MZ, gw)
+			tc.Assert(t, err)
 		})
 	}
 
@@ -1074,5 +973,25 @@ func Test_dnsHelper_getManagedHosts(t *testing.T) {
 				t.Errorf("GetManagedHosts() got = \n%v, want \n%v", got, tt.want)
 			}
 		})
+	}
+}
+
+func assertSub(domain string, subdomain string, err string) func(t *testing.T, expectedzone *v1alpha1.ManagedZone, expectedsubdomain string, expectedErr error) {
+	return func(t *testing.T, expectedzone *v1alpha1.ManagedZone, expectedsubdomain string, expectedErr error) {
+		if (err == "") != (expectedErr == nil) {
+			t.Errorf("expected error '%s' but got '%s'", err, expectedErr)
+		}
+		if expectedErr != nil && !strings.Contains(expectedErr.Error(), err) {
+			t.Errorf("expected error to be '%s' but got '%s'", err, expectedErr)
+		}
+		if subdomain != expectedsubdomain {
+			t.Fatalf("expected subdomain '%v', got '%v'", subdomain, expectedsubdomain)
+		}
+		if expectedzone != nil && domain != expectedzone.Spec.DomainName {
+			t.Fatalf("expected zone with domain name '%v', got '%v'", domain, expectedzone)
+		}
+		if expectedzone == nil && domain != "" {
+			t.Fatalf("expected zone to be '%v', got '%v'", domain, expectedzone)
+		}
 	}
 }

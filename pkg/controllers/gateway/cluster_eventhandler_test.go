@@ -16,26 +16,36 @@ import (
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/clusterSecret"
-	"github.com/Kuadrant/multicluster-gateway-controller/test/util"
+	testutil "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 )
 
 func TestClusterEventHandler(t *testing.T) {
-	testHostName := gatewayv1beta1.Hostname("test.listener.com")
-	testNS := gatewayv1beta1.Namespace("test-ns")
+	tlsConfig := `
+				{
+					"tlsClientConfig":
+					  {
+					    "insecure": false,
+					    "caData": "test",
+					    "certData": "test",
+					    "keyData": "test"
+					  }
+				}
+				`
 	cases := []struct {
-		name string
-
+		name             string
+		scheme           *runtime.Scheme
 		gateways         []gatewayv1beta1.Gateway
 		secret           corev1.Secret
 		enqueuedGateways []gatewayv1beta1.Gateway
 	}{
 		{
-			name: "Queued one",
+			name:   "Queued one",
+			scheme: testutil.GetValidTestScheme(),
 			gateways: []gatewayv1beta1.Gateway{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-gateway",
-						Namespace: "test-ns",
+						Name:      testutil.GatewayClassName,
+						Namespace: testutil.Namespace,
 						Annotations: map[string]string{
 							GatewayClusterLabelSelectorAnnotation: "type=test",
 						},
@@ -43,13 +53,13 @@ func TestClusterEventHandler(t *testing.T) {
 					Spec: gatewayv1beta1.GatewaySpec{
 						Listeners: []gatewayv1beta1.Listener{
 							{
-								Hostname: &testHostName,
+								Hostname: testutil.Pointer(gatewayv1beta1.Hostname(testutil.ValidTestHostname)),
 								Protocol: gatewayv1beta1.HTTPSProtocolType,
 								TLS: &gatewayv1beta1.GatewayTLSConfig{
 									CertificateRefs: []gatewayv1beta1.SecretObjectReference{
 										{
-											Name:      gatewayv1beta1.ObjectName("test.listener.com"),
-											Namespace: &testNS,
+											Name:      gatewayv1beta1.ObjectName(testutil.ValidTestHostname),
+											Namespace: testutil.Pointer(gatewayv1beta1.Namespace(testutil.Namespace)),
 										},
 									},
 								},
@@ -60,7 +70,7 @@ func TestClusterEventHandler(t *testing.T) {
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test-another-gateway",
-						Namespace: "test-ns",
+						Namespace: testutil.Namespace,
 						Annotations: map[string]string{
 							GatewayClusterLabelSelectorAnnotation: "another",
 						},
@@ -72,75 +82,46 @@ func TestClusterEventHandler(t *testing.T) {
 					Labels: map[string]string{
 						clusterSecret.CLUSTER_SECRET_LABEL: clusterSecret.CLUSTER_SECRET_LABEL_VALUE,
 					},
-					Name:      "test.listener.com",
-					Namespace: "test-ns",
+					Name:      testutil.ValidTestHostname,
+					Namespace: testutil.Namespace,
 				},
 				Data: map[string][]byte{
-					"name": []byte(testutil.Cluster),
-					"config": []byte(
-						`
-				{
-					"tlsClientConfig":
-					  {
-					    "insecure": false,
-					    "caData": "test",
-					    "certData": "test",
-					    "keyData": "test"
-					  }
-				}
-				`),
+					"name":   []byte(testutil.Cluster),
+					"config": []byte(tlsConfig),
 				},
 			},
 			enqueuedGateways: []gatewayv1beta1.Gateway{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-gateway",
-						Namespace: "test-ns",
+						Name:      testutil.GatewayClassName,
+						Namespace: testutil.Namespace,
 					},
 				},
 			},
 		},
 		{
-			name: "Not enqueued. Not a cluster secret",
-			gateways: []gatewayv1beta1.Gateway{
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-gateway",
-						Namespace: "test-ns",
-						Annotations: map[string]string{
-							GatewayClusterLabelSelectorAnnotation: "type=test",
-						},
-					},
-				},
-			},
+			name:     "Not enqueued. Not a cluster secret",
+			scheme:   testutil.GetValidTestScheme(),
+			gateways: testGateway(),
 			secret: corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "unrelated-secret",
-					Namespace: "test-ns",
+					Namespace: testutil.Namespace,
 				},
 			},
 			enqueuedGateways: make([]gatewayv1beta1.Gateway, 0),
 		},
 		{
-			name: "Not enqueued. Error parsing cluster config",
-			gateways: []gatewayv1beta1.Gateway{
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-gateway",
-						Namespace: "test-ns",
-						Annotations: map[string]string{
-							GatewayClusterLabelSelectorAnnotation: "type=test",
-						},
-					},
-				},
-			},
+			name:     "Not enqueued. Error parsing cluster config",
+			scheme:   testutil.GetValidTestScheme(),
+			gateways: testGateway(),
 			secret: corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
 						clusterSecret.CLUSTER_SECRET_LABEL: clusterSecret.CLUSTER_SECRET_LABEL_VALUE,
 					},
 					Name:      "cluster",
-					Namespace: "test-ns",
+					Namespace: testutil.Namespace,
 				},
 				Data: map[string][]byte{
 					"name": []byte(testutil.Cluster),
@@ -157,6 +138,7 @@ func TestClusterEventHandler(t *testing.T) {
 		},
 		{
 			name:     "Not enqueued. Error listing gateways",
+			scheme:   testutil.GetBasicScheme(),
 			gateways: nil,
 			secret: corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
@@ -164,41 +146,20 @@ func TestClusterEventHandler(t *testing.T) {
 						clusterSecret.CLUSTER_SECRET_LABEL: clusterSecret.CLUSTER_SECRET_LABEL_VALUE,
 					},
 					Name:      "cluster",
-					Namespace: "test-ns",
+					Namespace: testutil.Namespace,
 				},
 				Data: map[string][]byte{
-					"name": []byte(testutil.Cluster),
-					"config": []byte(
-						`
-				{
-					"tlsClientConfig":
-					  {
-					    "insecure": false,
-					    "caData": "test",
-					    "certData": "test",
-					    "keyData": "test"
-					  }
-				}
-				`),
+					"name":   []byte(testutil.Cluster),
+					"config": []byte(tlsConfig),
 				},
 			},
 			enqueuedGateways: make([]gatewayv1beta1.Gateway, 0),
 		},
 	}
 
-	scheme := runtime.NewScheme()
-	if err := gatewayv1beta1.AddToScheme(scheme); err != nil {
-		t.Fatal("unexpected error building scheme", err)
-	}
-
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
-
-			if testCase.gateways == nil {
-				// reset scheme to simulate client.client error
-				scheme = runtime.NewScheme()
-			}
-			client := fake.NewClientBuilder().WithScheme(scheme).WithLists(
+			client := fake.NewClientBuilder().WithScheme(testCase.scheme).WithLists(
 				&gatewayv1beta1.GatewayList{
 					Items: testCase.gateways,
 				},
@@ -256,6 +217,20 @@ func (q *TestQueue) MustHaveEnqueued(gateways []gatewayv1beta1.Gateway) {
 
 	for obj := range enqueuedCopy {
 		q.t.Errorf("Object %s expected not to be enqueued, but was", obj)
+	}
+}
+
+func testGateway() []gatewayv1beta1.Gateway {
+	return []gatewayv1beta1.Gateway{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      testutil.GatewayClassName,
+				Namespace: testutil.Namespace,
+				Annotations: map[string]string{
+					GatewayClusterLabelSelectorAnnotation: "type=test",
+				},
+			},
+		},
 	}
 }
 

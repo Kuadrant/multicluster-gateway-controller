@@ -1,3 +1,5 @@
+//go:build unit
+
 package gracePeriod
 
 import (
@@ -25,8 +27,8 @@ func init() {
 
 func TestGracefulDelete(t *testing.T) {
 	now := time.Now()
-	oneSecondAway := now.Add(time.Second)
-	oneSecondAwayUnix := fmt.Sprint(oneSecondAway)
+	tenMinuteAway := now.Add(time.Minute * 10)
+	tenMinuteAwayUnix := fmt.Sprint(tenMinuteAway.Unix())
 	cases := []struct {
 		Name   string
 		Object client.Object
@@ -42,7 +44,7 @@ func TestGracefulDelete(t *testing.T) {
 				},
 			},
 			Verify: func(t *testing.T, updatedObj client.Object, err, getErr error) {
-				if errors.Is(err, ErrGracePeriodNotExpired) {
+				if !errors.Is(err, ErrGracePeriodNotExpired) {
 					t.Fatalf("expected graceful delete error to be nil, got: %v", err)
 				}
 				if getErr != nil {
@@ -51,8 +53,8 @@ func TestGracefulDelete(t *testing.T) {
 				if updatedObj.GetName() != "gateway-test-test" {
 					t.Fatalf("expected updated object, got %v", updatedObj)
 				}
-				if metadata.GetAnnotation(updatedObj, GraceTimestampAnnotation) != oneSecondAwayUnix {
-					t.Fatalf("expected grace timestamp: '%v' got '%v'", oneSecondAwayUnix, metadata.GetAnnotation(updatedObj, GraceTimestampAnnotation))
+				if metadata.GetAnnotation(updatedObj, GraceTimestampAnnotation) != tenMinuteAwayUnix {
+					t.Fatalf("expected grace timestamp: '%v' got '%v'", tenMinuteAwayUnix, metadata.GetAnnotation(updatedObj, GraceTimestampAnnotation))
 				}
 			},
 		},
