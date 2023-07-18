@@ -10,7 +10,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -36,7 +36,7 @@ func TestDNS_GetDNSRecords(t *testing.T) {
 			Name: "test get dns record returns record",
 			MZ: func() *v1alpha1.ManagedZone {
 				return &v1alpha1.ManagedZone{
-					ObjectMeta: v1.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Name:      "b.c.com",
 						Namespace: "test",
 					},
@@ -47,7 +47,7 @@ func TestDNS_GetDNSRecords(t *testing.T) {
 			},
 			SubDomain: "a",
 			DNSRecord: &v1alpha1.DNSRecord{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      "a.b.c.com",
 					Namespace: "test",
 					Labels: map[string]string{
@@ -56,7 +56,7 @@ func TestDNS_GetDNSRecords(t *testing.T) {
 				},
 			},
 			Gateway: &gatewayv1beta1.Gateway{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					UID: types.UID("test"),
 				},
 			},
@@ -71,7 +71,7 @@ func TestDNS_GetDNSRecords(t *testing.T) {
 			Name: "test get dns error when not found",
 			MZ: func() *v1alpha1.ManagedZone {
 				return &v1alpha1.ManagedZone{
-					ObjectMeta: v1.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Name:      "b.c.com",
 						Namespace: "test",
 					},
@@ -82,7 +82,7 @@ func TestDNS_GetDNSRecords(t *testing.T) {
 			},
 			SubDomain: "a",
 			DNSRecord: &v1alpha1.DNSRecord{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      "other.com",
 					Namespace: "test",
 				},
@@ -101,7 +101,7 @@ func TestDNS_GetDNSRecords(t *testing.T) {
 			Name: "test get dns error when referencing different Gateway",
 			MZ: func() *v1alpha1.ManagedZone {
 				return &v1alpha1.ManagedZone{
-					ObjectMeta: v1.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Name:      "b.c.com",
 						Namespace: "test",
 					},
@@ -112,7 +112,7 @@ func TestDNS_GetDNSRecords(t *testing.T) {
 			},
 			SubDomain: "a",
 			DNSRecord: &v1alpha1.DNSRecord{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      "a.b.c.com",
 					Namespace: "test",
 					Labels: map[string]string{
@@ -121,7 +121,7 @@ func TestDNS_GetDNSRecords(t *testing.T) {
 				},
 			},
 			Gateway: &gatewayv1beta1.Gateway{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					UID: types.UID("test"),
 				},
 			},
@@ -138,7 +138,7 @@ func TestDNS_GetDNSRecords(t *testing.T) {
 			Name: "test get dns error when not owned by Gateway",
 			MZ: func() *v1alpha1.ManagedZone {
 				return &v1alpha1.ManagedZone{
-					ObjectMeta: v1.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Name:      "b.c.com",
 						Namespace: "test",
 					},
@@ -149,7 +149,7 @@ func TestDNS_GetDNSRecords(t *testing.T) {
 			},
 			SubDomain: "a",
 			DNSRecord: &v1alpha1.DNSRecord{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      "other.com",
 					Namespace: "test",
 					Labels: map[string]string{
@@ -158,7 +158,7 @@ func TestDNS_GetDNSRecords(t *testing.T) {
 				},
 			},
 			Gateway: &gatewayv1beta1.Gateway{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					UID: types.UID("not"),
 				},
 			},
@@ -213,7 +213,7 @@ func TestDNS_findMatchingManagedZone(t *testing.T) {
 			Host: "sub.domain.test.example.com",
 			Zones: []v1alpha1.ManagedZone{
 				{
-					ObjectMeta: v1.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Name:      "example.com",
 						Namespace: "test",
 					},
@@ -240,7 +240,7 @@ func TestDNS_findMatchingManagedZone(t *testing.T) {
 			Host: "sub.domain.test.example.com",
 			Zones: []v1alpha1.ManagedZone{
 				{
-					ObjectMeta: v1.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Name:      "example.com",
 						Namespace: "test",
 					},
@@ -249,7 +249,7 @@ func TestDNS_findMatchingManagedZone(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: v1.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test.example.com",
 						Namespace: "test",
 					},
@@ -273,7 +273,7 @@ func TestDNS_findMatchingManagedZone(t *testing.T) {
 			Host: "sub.test.example.com",
 			Zones: []v1alpha1.ManagedZone{
 				{
-					ObjectMeta: v1.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test.example.com",
 						Namespace: "test",
 					},
@@ -297,7 +297,7 @@ func TestDNS_findMatchingManagedZone(t *testing.T) {
 			Host: "sub.test.example.com",
 			Zones: []v1alpha1.ManagedZone{
 				{
-					ObjectMeta: v1.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Name:      "testing.example.com",
 						Namespace: "test",
 					},
@@ -325,7 +325,7 @@ func TestDNS_findMatchingManagedZone(t *testing.T) {
 			Host: "sub.domain.test.example.co.uk",
 			Zones: []v1alpha1.ManagedZone{
 				{
-					ObjectMeta: v1.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Name:      "example.co.uk",
 						Namespace: "test",
 					},
@@ -352,7 +352,7 @@ func TestDNS_findMatchingManagedZone(t *testing.T) {
 			Host: "sub.domain.test.example.co.uk",
 			Zones: []v1alpha1.ManagedZone{
 				{
-					ObjectMeta: v1.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Name:      "co.uk",
 						Namespace: "test",
 					},
@@ -404,12 +404,12 @@ func TestService_CleanupDNSRecords(t *testing.T) {
 		{
 			name: "DNS record gets deleted",
 			gateway: &gatewayv1beta1.Gateway{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					UID: types.UID("test"),
 				},
 			},
 			record: &v1alpha1.DNSRecord{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
 						dns.LabelGatewayReference: "test",
 					},
@@ -420,7 +420,7 @@ func TestService_CleanupDNSRecords(t *testing.T) {
 		{
 			name: "no DNS records do be deleted",
 			gateway: &gatewayv1beta1.Gateway{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					UID: types.UID("test"),
 				},
 			},
@@ -454,14 +454,14 @@ func TestService_GetManagedZoneForHost(t *testing.T) {
 			name: "found MZ",
 			host: "example.com",
 			gateway: &gatewayv1beta1.Gateway{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "test",
 				},
 			},
 			mz: &v1alpha1.ManagedZoneList{
 				Items: []v1alpha1.ManagedZone{
 					{
-						ObjectMeta: v1.ObjectMeta{
+						ObjectMeta: metav1.ObjectMeta{
 							Name:      "example.com",
 							Namespace: "test",
 						},
@@ -479,7 +479,7 @@ func TestService_GetManagedZoneForHost(t *testing.T) {
 			name: "unable to list MZ",
 			host: "example.com",
 			gateway: &gatewayv1beta1.Gateway{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "test",
 				},
 			},
@@ -522,7 +522,7 @@ func TestService_SetEndpoints(t *testing.T) {
 			name: "sets weighted endpoints",
 			mcgTarget: &dns.MultiClusterGatewayTarget{
 				Gateway: &gatewayv1beta1.Gateway{
-					ObjectMeta: v1.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Name:      "testgw",
 						Namespace: "testns",
 					},
@@ -563,7 +563,7 @@ func TestService_SetEndpoints(t *testing.T) {
 				},
 			},
 			dnsRecord: &v1alpha1.DNSRecord{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name: "test.example.com",
 				},
 			},
@@ -627,7 +627,7 @@ func TestService_SetEndpoints(t *testing.T) {
 			name: "sets geo weighted endpoints",
 			mcgTarget: &dns.MultiClusterGatewayTarget{
 				Gateway: &gatewayv1beta1.Gateway{
-					ObjectMeta: v1.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Name:      "testgw",
 						Namespace: "testns",
 					},
@@ -673,7 +673,7 @@ func TestService_SetEndpoints(t *testing.T) {
 				},
 			},
 			dnsRecord: &v1alpha1.DNSRecord{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name: "test.example.com",
 				},
 			},
@@ -763,7 +763,7 @@ func TestService_SetEndpoints(t *testing.T) {
 			name: "sets no endpoints when no target addresses",
 			mcgTarget: &dns.MultiClusterGatewayTarget{
 				Gateway: &gatewayv1beta1.Gateway{
-					ObjectMeta: v1.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Name:      "testgw",
 						Namespace: "testns",
 					},
@@ -795,7 +795,7 @@ func TestService_SetEndpoints(t *testing.T) {
 				},
 			},
 			dnsRecord: &v1alpha1.DNSRecord{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name: "test.example.com",
 				},
 			},
@@ -843,7 +843,7 @@ func TestService_CreateDNSRecord(t *testing.T) {
 	type args struct {
 		subDomain   string
 		managedZone *v1alpha1.ManagedZone
-		owner       v1.Object
+		owner       metav1.Object
 	}
 	tests := []struct {
 		name       string
@@ -857,7 +857,7 @@ func TestService_CreateDNSRecord(t *testing.T) {
 			args: args{
 				subDomain: "sub",
 				managedZone: &v1alpha1.ManagedZone{
-					ObjectMeta: v1.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Name:      "mz",
 						Namespace: "test",
 					},
@@ -866,21 +866,21 @@ func TestService_CreateDNSRecord(t *testing.T) {
 					},
 				},
 				owner: &gatewayv1beta1.Gateway{
-					ObjectMeta: v1.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						UID: types.UID("gatewayUID"),
 					},
 				},
 			},
 			recordList: &v1alpha1.DNSRecordList{},
 			wantRecord: &v1alpha1.DNSRecord{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      "sub.domain.com",
 					Namespace: "test",
 					Labels: map[string]string{
 						dns.LabelRecordID:         "sub",
 						dns.LabelGatewayReference: "gatewayUID",
 					},
-					OwnerReferences: []v1.OwnerReference{
+					OwnerReferences: []metav1.OwnerReference{
 						{
 							APIVersion: "gateway.networking.k8s.io/v1beta1",
 							Kind:       "Gateway",
@@ -908,7 +908,7 @@ func TestService_CreateDNSRecord(t *testing.T) {
 			args: args{
 				subDomain: "sub",
 				managedZone: &v1alpha1.ManagedZone{
-					ObjectMeta: v1.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Name:      "mz",
 						Namespace: "test",
 					},
@@ -917,7 +917,7 @@ func TestService_CreateDNSRecord(t *testing.T) {
 					},
 				},
 				owner: &gatewayv1beta1.Gateway{
-					ObjectMeta: v1.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						UID: types.UID("gatewayUID"),
 					},
 				},
@@ -925,7 +925,7 @@ func TestService_CreateDNSRecord(t *testing.T) {
 			recordList: &v1alpha1.DNSRecordList{
 				Items: []v1alpha1.DNSRecord{
 					{
-						ObjectMeta: v1.ObjectMeta{
+						ObjectMeta: metav1.ObjectMeta{
 							Name:      "sub.domain.com",
 							Namespace: "test",
 						},
@@ -933,12 +933,12 @@ func TestService_CreateDNSRecord(t *testing.T) {
 				},
 			},
 			wantRecord: &v1alpha1.DNSRecord{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:            "sub.domain.com",
 					Namespace:       "test",
 					ResourceVersion: "999",
 				},
-				TypeMeta: v1.TypeMeta{
+				TypeMeta: metav1.TypeMeta{
 					Kind:       "DNSRecord",
 					APIVersion: "kuadrant.io/v1alpha1",
 				},
@@ -973,7 +973,7 @@ func TestService_GetManagedHosts(t *testing.T) {
 		{
 			name: "got managed hosts",
 			gateway: &gatewayv1beta1.Gateway{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "test",
 					UID:       types.UID("gatewayUID"),
 				},
@@ -989,7 +989,7 @@ func TestService_GetManagedHosts(t *testing.T) {
 				&v1alpha1.ManagedZoneList{
 					Items: []v1alpha1.ManagedZone{
 						{
-							ObjectMeta: v1.ObjectMeta{
+							ObjectMeta: metav1.ObjectMeta{
 								Namespace: "test",
 							},
 							Spec: v1alpha1.ManagedZoneSpec{
@@ -1001,7 +1001,7 @@ func TestService_GetManagedHosts(t *testing.T) {
 				&v1alpha1.DNSRecordList{
 					Items: []v1alpha1.DNSRecord{
 						{
-							ObjectMeta: v1.ObjectMeta{
+							ObjectMeta: metav1.ObjectMeta{
 								Name:      "sub.domain.com",
 								Namespace: "test",
 								Labels: map[string]string{
@@ -1017,7 +1017,7 @@ func TestService_GetManagedHosts(t *testing.T) {
 					Subdomain: "sub",
 					Host:      "sub.domain.com",
 					ManagedZone: &v1alpha1.ManagedZone{
-						ObjectMeta: v1.ObjectMeta{
+						ObjectMeta: metav1.ObjectMeta{
 							Namespace:       "test",
 							ResourceVersion: "999",
 						},
@@ -1026,7 +1026,7 @@ func TestService_GetManagedHosts(t *testing.T) {
 						},
 					},
 					DnsRecord: &v1alpha1.DNSRecord{
-						ObjectMeta: v1.ObjectMeta{
+						ObjectMeta: metav1.ObjectMeta{
 							Name:            "sub.domain.com",
 							Namespace:       "test",
 							ResourceVersion: "999",
@@ -1034,7 +1034,7 @@ func TestService_GetManagedHosts(t *testing.T) {
 								dns.LabelGatewayReference: "gatewayUID",
 							},
 						},
-						TypeMeta: v1.TypeMeta{
+						TypeMeta: metav1.TypeMeta{
 							Kind:       "DNSRecord",
 							APIVersion: "kuadrant.io/v1alpha1",
 						},
@@ -1045,7 +1045,7 @@ func TestService_GetManagedHosts(t *testing.T) {
 		{
 			name: "No hosts retrieved for CNAME or externaly managed host",
 			gateway: &gatewayv1beta1.Gateway{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "test",
 					UID:       types.UID("gatewayUID"),
 				},

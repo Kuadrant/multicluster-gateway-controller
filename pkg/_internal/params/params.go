@@ -1,4 +1,4 @@
-package gateway
+package params
 
 import (
 	"context"
@@ -43,13 +43,13 @@ func IsInvalidParamsError(err error) (is bool) {
 	return
 }
 
-type ParamsResolver func(context.Context, client.Client, gatewayv1beta1.ParametersReference) (*Params, error)
+type Resolver func(context.Context, client.Client, gatewayv1beta1.ParametersReference) (*Params, error)
 
-var paramsResolvers = map[schema.GroupKind]ParamsResolver{
+var paramsResolvers = map[schema.GroupKind]Resolver{
 	{Group: corev1.GroupName, Kind: "ConfigMap"}: fromNamespacedObject(fromConfigMap),
 }
 
-func fromNamespacedObject[T client.Object](getParams func(T) (*Params, error)) ParamsResolver {
+func fromNamespacedObject[T client.Object](getParams func(T) (*Params, error)) Resolver {
 	template := *new(T)
 	objectType := reflect.TypeOf(template).Elem()
 
@@ -86,7 +86,7 @@ func fromConfigMap(configMap *corev1.ConfigMap) (*Params, error) {
 	return result, nil
 }
 
-func getParams(ctx context.Context, c client.Client, gatewayClassName string) (*Params, error) {
+func GetGatewayClassParams(ctx context.Context, c client.Client, gatewayClassName string) (*Params, error) {
 
 	gatewayClass := &gatewayv1beta1.GatewayClass{}
 	err := c.Get(ctx, client.ObjectKey{Name: gatewayClassName}, gatewayClass)

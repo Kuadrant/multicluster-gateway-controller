@@ -14,11 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package gateway
+package gatewayclass
 
 import (
 	"context"
 	"fmt"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/params"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -37,12 +38,12 @@ const (
 	ControllerName = "kuadrant.io/mgc-gw-controller"
 )
 
-func getSupportedClasses() []string {
+func GetSupportedClasses() []string {
 	return []string{"kuadrant-multi-cluster-gateway-instance-per-cluster"}
 }
 
-// GatewayClassReconciler reconciles a GatewayClass object
-type GatewayClassReconciler struct {
+// Reconciler reconciles a GatewayClass object
+type Reconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 }
@@ -51,7 +52,7 @@ type GatewayClassReconciler struct {
 //+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gatewayclasses/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gatewayclasses/finalizers,verbs=update
 
-func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := ctrllog.FromContext(ctx)
 
 	previous := &gatewayv1beta1.GatewayClass{}
@@ -70,9 +71,9 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	gatewayclass := previous.DeepCopy()
-	supportedClasses := getSupportedClasses()
+	supportedClasses := GetSupportedClasses()
 
-	_, err = getParams(ctx, r.Client, previous.Name)
+	_, err = params.GetGatewayClassParams(ctx, r.Client, previous.Name)
 
 	if !slice.ContainsString(supportedClasses, previous.Name) {
 		gatewayclass.Status = gatewayv1beta1.GatewayClassStatus{
@@ -87,7 +88,7 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 				},
 			},
 		}
-	} else if IsInvalidParamsError(err) {
+	} else if params.IsInvalidParamsError(err) {
 		gatewayclass.Status = gatewayv1beta1.GatewayClassStatus{
 			Conditions: []metav1.Condition{
 				{
@@ -126,11 +127,11 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 func gatewayClassIsAccepted(gatewayClass *gatewayv1beta1.GatewayClass) bool {
 	acceptedCondition := meta.FindStatusCondition(gatewayClass.Status.Conditions, string(gatewayv1beta1.GatewayConditionAccepted))
-	return (acceptedCondition != nil && acceptedCondition.Status == metav1.ConditionTrue)
+	return acceptedCondition != nil && acceptedCondition.Status == metav1.ConditionTrue
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *GatewayClassReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		// Uncomment the following line adding a pointer to an instance of the controlled resource as an argument
 		For(&gatewayv1beta1.GatewayClass{}).

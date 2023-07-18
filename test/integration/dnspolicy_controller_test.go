@@ -292,7 +292,7 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 					// must exist
 					Expect(err).ToNot(HaveOccurred())
 					return existingGateway.GetAnnotations()
-				}, time.Second*5, time.Second).Should(HaveKeyWithValue(DNSPolicyBackRefAnnotation, policyBackRefValue))
+				}, time.Second*5, time.Second).Should(HaveKeyWithValue(BackRefAnnotation, policyBackRefValue))
 				Eventually(func() map[string]string {
 					// Check gateway back references
 					err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: testNamespace}, existingGateway)
@@ -314,7 +314,7 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 					// must exist
 					Expect(err).ToNot(HaveOccurred())
 					return existingGateway.GetAnnotations()
-				}, time.Second*5, time.Second).Should(HaveKeyWithValue(DNSPolicyBackRefAnnotation, policyBackRefValue))
+				}, time.Second*5, time.Second).Should(HaveKeyWithValue(BackRefAnnotation, policyBackRefValue))
 				Eventually(func() map[string]string {
 					// Check gateway back references
 					err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: testNamespace}, existingGateway)
@@ -331,7 +331,7 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 					// must exist
 					Expect(err).ToNot(HaveOccurred())
 					return existingGateway.GetAnnotations()
-				}, time.Second*5, time.Second).ShouldNot(HaveKey(DNSPolicyBackRefAnnotation))
+				}, time.Second*5, time.Second).ShouldNot(HaveKey(BackRefAnnotation))
 				Eventually(func() map[string]string {
 					// Check gateway back references
 					err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: testNamespace}, existingGateway)
@@ -493,7 +493,7 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 				// must exist
 				Expect(err).ToNot(HaveOccurred())
 				return existingGateway.GetAnnotations()
-			}, time.Second*5, time.Second).Should(HaveKeyWithValue(DNSPolicyBackRefAnnotation, policyBackRefValue))
+			}, time.Second*5, time.Second).Should(HaveKeyWithValue(BackRefAnnotation, policyBackRefValue))
 			Eventually(func() map[string]string {
 				// Check gateway back references
 				err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: testNamespace}, existingGateway)

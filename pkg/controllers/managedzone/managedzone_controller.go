@@ -44,7 +44,7 @@ const (
 type ManagedZoneReconciler struct {
 	client.Client
 	Scheme      *runtime.Scheme
-	DNSProvider dns.DNSProviderFactory
+	DNSProvider dns.ProviderFactory
 }
 
 //+kubebuilder:rbac:groups=kuadrant.io,resources=managedzones,verbs=get;list;watch;create;update;patch;delete

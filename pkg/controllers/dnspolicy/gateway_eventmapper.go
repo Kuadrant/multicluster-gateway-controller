@@ -18,7 +18,7 @@ type GatewayEventMapper struct {
 }
 
 func (m *GatewayEventMapper) MapToDNSPolicy(obj client.Object) []reconcile.Request {
-	return m.mapToPolicyRequest(obj, "dnspolicy", &DNSPolicyRefsConfig{})
+	return m.mapToPolicyRequest(obj, "dnspolicy", &RefsConfig{})
 }
 
 func (m *GatewayEventMapper) mapToPolicyRequest(obj client.Object, policyKind string, policyRefsConfig common.PolicyRefsConfig) []reconcile.Request {

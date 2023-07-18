@@ -37,7 +37,7 @@ func TestClusterEventHandler(t *testing.T) {
 						Name:      "test-gateway",
 						Namespace: "test-ns",
 						Annotations: map[string]string{
-							GatewayClusterLabelSelectorAnnotation: "type=test",
+							ClusterLabelSelectorAnnotation: "type=test",
 						},
 					},
 					Spec: gatewayv1beta1.GatewaySpec{
@@ -62,7 +62,7 @@ func TestClusterEventHandler(t *testing.T) {
 						Name:      "test-another-gateway",
 						Namespace: "test-ns",
 						Annotations: map[string]string{
-							GatewayClusterLabelSelectorAnnotation: "another",
+							ClusterLabelSelectorAnnotation: "another",
 						},
 					},
 				},
@@ -108,7 +108,7 @@ func TestClusterEventHandler(t *testing.T) {
 						Name:      "test-gateway",
 						Namespace: "test-ns",
 						Annotations: map[string]string{
-							GatewayClusterLabelSelectorAnnotation: "type=test",
+							ClusterLabelSelectorAnnotation: "type=test",
 						},
 					},
 				},
@@ -129,7 +129,7 @@ func TestClusterEventHandler(t *testing.T) {
 						Name:      "test-gateway",
 						Namespace: "test-ns",
 						Annotations: map[string]string{
-							GatewayClusterLabelSelectorAnnotation: "type=test",
+							ClusterLabelSelectorAnnotation: "type=test",
 						},
 					},
 				},

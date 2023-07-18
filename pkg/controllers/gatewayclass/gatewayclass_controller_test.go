@@ -1,6 +1,6 @@
 //go:build unit
 
-package gateway
+package gatewayclass
 
 import (
 	"context"
@@ -65,7 +65,7 @@ func TestGatewayClassReconciler_Reconcile(t *testing.T) {
 						Items: []gatewayv1beta1.GatewayClass{
 							{
 								ObjectMeta: v1.ObjectMeta{
-									Name: getSupportedClasses()[0],
+									Name: GetSupportedClasses()[0],
 								},
 								Spec: gatewayv1beta1.GatewayClassSpec{
 									ParametersRef: &gatewayv1beta1.ParametersReference{
@@ -96,11 +96,11 @@ func TestGatewayClassReconciler_Reconcile(t *testing.T) {
 			args: args{
 				req: ctrl.Request{
 					NamespacedName: types.NamespacedName{
-						Name: getSupportedClasses()[0],
+						Name: GetSupportedClasses()[0],
 					},
 				},
 			},
-			verify: verifyGatewayClassAcceptance(getSupportedClasses()[0], true),
+			verify: verifyGatewayClassAcceptance(GetSupportedClasses()[0], true),
 		},
 		{
 			name: "Unsupported class name",
@@ -130,7 +130,7 @@ func TestGatewayClassReconciler_Reconcile(t *testing.T) {
 						Items: []gatewayv1beta1.GatewayClass{
 							{
 								ObjectMeta: v1.ObjectMeta{
-									Name: getSupportedClasses()[0],
+									Name: GetSupportedClasses()[0],
 								},
 								Spec: gatewayv1beta1.GatewayClassSpec{
 									ParametersRef: &gatewayv1beta1.ParametersReference{
@@ -161,11 +161,11 @@ func TestGatewayClassReconciler_Reconcile(t *testing.T) {
 			args: args{
 				req: ctrl.Request{
 					NamespacedName: types.NamespacedName{
-						Name: getSupportedClasses()[0],
+						Name: GetSupportedClasses()[0],
 					},
 				},
 			},
-			verify: verifyGatewayClassAcceptance(getSupportedClasses()[0], false),
+			verify: verifyGatewayClassAcceptance(GetSupportedClasses()[0], false),
 		},
 		{
 			name: "Gateway class not found",
@@ -175,7 +175,7 @@ func TestGatewayClassReconciler_Reconcile(t *testing.T) {
 						Items: []gatewayv1beta1.GatewayClass{
 							{
 								ObjectMeta: v1.ObjectMeta{
-									Name: getSupportedClasses()[0],
+									Name: GetSupportedClasses()[0],
 								},
 							},
 						},
@@ -194,7 +194,7 @@ func TestGatewayClassReconciler_Reconcile(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := &GatewayClassReconciler{
+			r := Reconciler{
 				Client: tt.fields.Client,
 				Scheme: testutil.GetValidTestScheme(),
 			}

@@ -4,6 +4,7 @@ package gateway
 
 import (
 	"context"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/params"
 	"reflect"
 	"strings"
 	"testing"
@@ -47,7 +48,7 @@ func TestGatewayReconciler_Reconcile(t *testing.T) {
 									Name:       testutil.DummyCRName,
 									Namespace:  testutil.Namespace,
 									Labels:     getTestGatewayLabels(),
-									Finalizers: []string{GatewayFinalizer},
+									Finalizers: []string{Finalizer},
 								},
 								Spec: v1beta1.GatewaySpec{
 									GatewayClassName: testutil.DummyCRName,
@@ -143,7 +144,7 @@ func TestGatewayReconciler_Reconcile(t *testing.T) {
 								ObjectMeta: v1.ObjectMeta{
 									Name:       testutil.DummyCRName,
 									Namespace:  testutil.Namespace,
-									Finalizers: []string{GatewayFinalizer},
+									Finalizers: []string{Finalizer},
 								},
 								Spec: v1beta1.GatewaySpec{
 									GatewayClassName: testutil.DummyCRName,
@@ -175,7 +176,7 @@ func TestGatewayReconciler_Reconcile(t *testing.T) {
 								ObjectMeta: v1.ObjectMeta{
 									Name:       testutil.DummyCRName,
 									Namespace:  testutil.Namespace,
-									Finalizers: []string{GatewayFinalizer},
+									Finalizers: []string{Finalizer},
 								},
 								Spec: v1beta1.GatewaySpec{
 									GatewayClassName: testutil.DummyCRName,
@@ -225,7 +226,7 @@ func TestGatewayReconciler_Reconcile(t *testing.T) {
 									Name:       testutil.DummyCRName,
 									Namespace:  testutil.Namespace,
 									Labels:     getTestGatewayLabels(),
-									Finalizers: []string{GatewayFinalizer},
+									Finalizers: []string{Finalizer},
 								},
 								Spec: v1beta1.GatewaySpec{
 									GatewayClassName: testutil.DummyCRName,
@@ -263,7 +264,7 @@ func TestGatewayReconciler_Reconcile(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := &GatewayReconciler{
+			r := &Reconciler{
 				Client:       tt.fields.Client,
 				Scheme:       tt.fields.Scheme,
 				Certificates: test.NewTestCertificateService(tt.fields.Client),
@@ -499,14 +500,14 @@ func TestGatewayReconciler_reconcileDownstreamFromUpstreamGateway(t *testing.T) 
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := &GatewayReconciler{
+			r := &Reconciler{
 				Client:       tt.fields.Client,
 				Scheme:       tt.fields.Scheme,
 				Certificates: test.NewTestCertificateService(tt.fields.Client),
 				HostService:  test.NewTestHostService(tt.fields.Client),
 				Placement:    test.NewTestGatewayPlacer(),
 			}
-			requeue, programmedStatus, clusters, err := r.reconcileDownstreamFromUpstreamGateway(context.TODO(), tt.args.gateway, &Params{})
+			requeue, programmedStatus, clusters, err := r.reconcileDownstreamFromUpstreamGateway(context.TODO(), tt.args.gateway, &params.Params{})
 			if (err != nil) != tt.wantErr || !testutil.GotExpectedError(tt.expectedError, err) {
 				t.Errorf("reconcileGateway() error = %v, wantErr %v, expectedError %v", err, tt.wantErr, tt.expectedError)
 			}
@@ -603,7 +604,7 @@ func TestGatewayReconciler_reconcileTLS(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := &GatewayReconciler{
+			r := &Reconciler{
 				Client:       tt.fields.Client,
 				Scheme:       tt.fields.Scheme,
 				Certificates: test.NewTestCertificateService(tt.fields.Client),

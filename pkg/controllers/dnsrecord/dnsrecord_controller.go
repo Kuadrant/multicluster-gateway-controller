@@ -22,11 +22,10 @@ import (
 	"strings"
 
 	"k8s.io/apimachinery/pkg/api/equality"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/utils/clock"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -39,16 +38,14 @@ import (
 )
 
 const (
-	DNSRecordFinalizer = "kuadrant.io/dns-record"
+	Finalizer = "kuadrant.io/dns-record"
 )
 
-var Clock clock.Clock = clock.RealClock{}
-
-// DNSRecordReconciler reconciles a DNSRecord object
-type DNSRecordReconciler struct {
+// Reconciler reconciles a DNSRecord object
+type Reconciler struct {
 	client.Client
 	Scheme      *runtime.Scheme
-	DNSProvider dns.DNSProviderFactory
+	DNSProvider dns.ProviderFactory
 	HostService gateway.HostService
 }
 
@@ -56,7 +53,7 @@ type DNSRecordReconciler struct {
 //+kubebuilder:rbac:groups=kuadrant.io,resources=dnsrecords/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=kuadrant.io,resources=dnsrecords/finalizers,verbs=update
 
-func (r *DNSRecordReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
 
 	previous := &v1alpha1.DNSRecord{}
@@ -70,14 +67,14 @@ func (r *DNSRecordReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 	dnsRecord := previous.DeepCopy()
 
-	log.Log.V(3).Info("DNSRecordReconciler Reconcile", "dnsRecord", dnsRecord)
+	log.Log.V(3).Info("Reconciler Reconcile", "dnsRecord", dnsRecord)
 
 	if dnsRecord.DeletionTimestamp != nil && !dnsRecord.DeletionTimestamp.IsZero() {
 		if err := r.deleteRecord(ctx, dnsRecord); err != nil {
 			log.Log.Error(err, "Failed to delete DNSRecord", "record", dnsRecord)
 			return ctrl.Result{}, err
 		}
-		controllerutil.RemoveFinalizer(dnsRecord, DNSRecordFinalizer)
+		controllerutil.RemoveFinalizer(dnsRecord, Finalizer)
 
 		err = r.Update(ctx, dnsRecord)
 		if err != nil {
@@ -86,8 +83,8 @@ func (r *DNSRecordReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, nil
 	}
 
-	if !controllerutil.ContainsFinalizer(dnsRecord, DNSRecordFinalizer) {
-		controllerutil.AddFinalizer(dnsRecord, DNSRecordFinalizer)
+	if !controllerutil.ContainsFinalizer(dnsRecord, Finalizer) {
+		controllerutil.AddFinalizer(dnsRecord, Finalizer)
 		err = r.Update(ctx, dnsRecord)
 		if err != nil {
 			return ctrl.Result{}, err
@@ -116,7 +113,7 @@ func (r *DNSRecordReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		updateErr := r.Status().Update(ctx, dnsRecord)
 		if updateErr != nil {
 			// Ignore conflicts, resource might just be outdated.
-			if apierrors.IsConflict(updateErr) {
+			if k8serrors.IsConflict(updateErr) {
 				return ctrl.Result{Requeue: true}, nil
 			}
 			return ctrl.Result{}, updateErr
@@ -127,7 +124,7 @@ func (r *DNSRecordReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *DNSRecordReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.DNSRecord{}).
 		Complete(r)
@@ -135,7 +132,7 @@ func (r *DNSRecordReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // deleteRecord deletes record(s) in the DNSPRovider(i.e. route53) configured by the ManagedZone assigned to this
 // DNSRecord (dnsRecord.Status.ParentManagedZone).
-func (r *DNSRecordReconciler) deleteRecord(ctx context.Context, dnsRecord *v1alpha1.DNSRecord) error {
+func (r *Reconciler) deleteRecord(ctx context.Context, dnsRecord *v1alpha1.DNSRecord) error {
 
 	managedZone, err := r.HostService.GetDNSRecordManagedZone(ctx, dnsRecord)
 	if err != nil {
@@ -169,9 +166,9 @@ func (r *DNSRecordReconciler) deleteRecord(ctx context.Context, dnsRecord *v1alp
 	return nil
 }
 
-// publishRecord publishes record(s) to the DNSPRovider(i.e. route53) configured by the ManagedZone assigned to this
+// publishRecord publishes record(s) to the DNSProvider(i.e. route53) configured by the ManagedZone assigned to this
 // DNSRecord (dnsRecord.Status.ParentManagedZone).
-func (r *DNSRecordReconciler) publishRecord(ctx context.Context, dnsRecord *v1alpha1.DNSRecord) error {
+func (r *Reconciler) publishRecord(ctx context.Context, dnsRecord *v1alpha1.DNSRecord) error {
 
 	managedZone, err := r.HostService.GetDNSRecordManagedZone(ctx, dnsRecord)
 	if err != nil {

@@ -52,7 +52,7 @@ func (s *Service) GetManagedHosts(ctx context.Context, traffic traffic.Interface
 			return nil, err
 		}
 		if managedZone == nil {
-			// its ok for no managedzone to be present as this could be a CNAME or externally managed host
+			// it's ok for no managedZone to be present as this could be a CNAME or externally managed host
 			continue
 		}
 		dnsRecord, err := s.GetDNSRecord(ctx, subDomain, managedZone, traffic)
@@ -338,7 +338,7 @@ func (s *Service) CleanupDNSRecords(ctx context.Context, owner traffic.Interface
 	return nil
 }
 
-// getDNSRecordManagedZone returns the current ManagedZone for the given DNSRecord.
+// GetDNSRecordManagedZone returns the current ManagedZone for the given DNSRecord.
 func (s *Service) GetDNSRecordManagedZone(ctx context.Context, dnsRecord *v1alpha1.DNSRecord) (*v1alpha1.ManagedZone, error) {
 
 	if dnsRecord.Spec.ManagedZoneRef == nil {

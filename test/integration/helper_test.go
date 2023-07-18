@@ -11,7 +11,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	v1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -133,7 +133,7 @@ func DeleteNamespace(namespace *string) {
 	existingNamespace := &v1.Namespace{}
 	Eventually(func() bool {
 		err := testClient().Get(context.Background(), types.NamespacedName{Name: *namespace}, existingNamespace)
-		if err != nil && apierrors.IsNotFound(err) {
+		if err != nil && k8serrors.IsNotFound(err) {
 			return true
 		}
 		return false

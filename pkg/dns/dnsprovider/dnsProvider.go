@@ -21,13 +21,12 @@ type providerFactory struct {
 }
 
 func NewProvider(c client.Client) *providerFactory {
-
 	return &providerFactory{
 		Client: c,
 	}
 }
 
-// depending on the provider type specified in the form of a custom secret type https://kubernetes.io/docs/concepts/configuration/secret/#secret-types in the dnsprovider secret it returns a dnsprovider.
+// DNSProviderFactory depending on the provider type specified in the form of a custom secret type https://kubernetes.io/docs/concepts/configuration/secret/#secret-types in the dnsprovider secret it returns a dnsprovider.
 func (p *providerFactory) DNSProviderFactory(ctx context.Context, managedZone *v1alpha1.ManagedZone) (dns.Provider, error) {
 	providerSecret := &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{

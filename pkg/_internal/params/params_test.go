@@ -1,6 +1,6 @@
 //go:build unit
 
-package gateway
+package params
 
 import (
 	"context"
@@ -213,7 +213,7 @@ func TestGetParams(t *testing.T) {
 				WithObjects(testCase.gatewayClass, testCase.paramsObj).
 				Build()
 
-			params, err := getParams(context.TODO(), client, testCase.gatewayClass.Name)
+			params, err := GetGatewayClassParams(context.TODO(), client, testCase.gatewayClass.Name)
 
 			if err := testCase.assertParams(params, err); err != nil {
 				t.Error(err)

@@ -28,7 +28,7 @@ const (
 	ProviderSpecificGeoCountryCode   = "geo-country-code"
 )
 
-type DNSProviderFactory func(ctx context.Context, managedZone *v1alpha1.ManagedZone) (Provider, error)
+type ProviderFactory func(ctx context.Context, managedZone *v1alpha1.ManagedZone) (Provider, error)
 
 // Provider knows how to manage DNS zones only as pertains to routing.
 type Provider interface {
@@ -39,13 +39,13 @@ type Provider interface {
 	// Delete will delete record.
 	Delete(record *v1alpha1.DNSRecord, managedZone *v1alpha1.ManagedZone) error
 
-	// Ensure will create or update a managed zone, returns an array of NameServers for that zone.
+	// EnsureManagedZone will create or update a managed zone, returns an array of NameServers for that zone.
 	EnsureManagedZone(managedZone *v1alpha1.ManagedZone) (ManagedZoneOutput, error)
 
-	// Delete will delete a managed zone.
+	// DeleteManagedZone will delete a managed zone.
 	DeleteManagedZone(managedZone *v1alpha1.ManagedZone) error
 
-	// Get an instance of HealthCheckReconciler for this provider
+	// HealthCheckReconciler Get an instance of HealthCheckReconciler for this provider
 	HealthCheckReconciler() HealthCheckReconciler
 
 	ProviderSpecific() ProviderSpecificLabels
@@ -66,16 +66,16 @@ var _ Provider = &FakeProvider{}
 
 type FakeProvider struct{}
 
-func (*FakeProvider) Ensure(dnsRecord *v1alpha1.DNSRecord, managedZone *v1alpha1.ManagedZone) error {
+func (*FakeProvider) Ensure(_ *v1alpha1.DNSRecord, _ *v1alpha1.ManagedZone) error {
 	return nil
 }
-func (*FakeProvider) Delete(dnsRecord *v1alpha1.DNSRecord, managedZone *v1alpha1.ManagedZone) error {
+func (*FakeProvider) Delete(_ *v1alpha1.DNSRecord, _ *v1alpha1.ManagedZone) error {
 	return nil
 }
-func (*FakeProvider) EnsureManagedZone(managedZone *v1alpha1.ManagedZone) (ManagedZoneOutput, error) {
+func (*FakeProvider) EnsureManagedZone(_ *v1alpha1.ManagedZone) (ManagedZoneOutput, error) {
 	return ManagedZoneOutput{}, nil
 }
-func (*FakeProvider) DeleteManagedZone(managedZone *v1alpha1.ManagedZone) error { return nil }
+func (*FakeProvider) DeleteManagedZone(_ *v1alpha1.ManagedZone) error { return nil }
 
 func (*FakeProvider) HealthCheckReconciler() HealthCheckReconciler {
 	return &FakeHealthCheckReconciler{}

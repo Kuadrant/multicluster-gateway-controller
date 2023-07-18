@@ -135,7 +135,7 @@ var _ = BeforeSuite(func() {
 		k8sManager.GetEventRecorderFor("DNSPolicy"),
 	)
 
-	err = (&DNSPolicyReconciler{
+	err = (&Reconciler{
 		TargetRefReconciler: reconcilers.TargetRefReconciler{
 			BaseReconciler: dnsPolicyBaseReconciler,
 		},
@@ -145,13 +145,13 @@ var _ = BeforeSuite(func() {
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 
-	err = (&GatewayClassReconciler{
+	err = (&Reconciler{
 		Client: k8sManager.GetClient(),
 		Scheme: k8sManager.GetScheme(),
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 
-	err = (&GatewayReconciler{
+	err = (&Reconciler{
 		Client:       k8sManager.GetClient(),
 		Scheme:       k8sManager.GetScheme(),
 		Certificates: certificates,

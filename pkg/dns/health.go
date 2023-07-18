@@ -53,11 +53,11 @@ const HealthCheckProtocolHTTPS HealthCheckProtocol = "HTTPS"
 
 type FakeHealthCheckReconciler struct{}
 
-func (*FakeHealthCheckReconciler) Reconcile(ctx context.Context, _ HealthCheckSpec, _ *v1alpha1.Endpoint) (HealthCheckResult, error) {
+func (*FakeHealthCheckReconciler) Reconcile(_ context.Context, _ HealthCheckSpec, _ *v1alpha1.Endpoint) (HealthCheckResult, error) {
 	return HealthCheckResult{HealthCheckCreated, ""}, nil
 }
 
-func (*FakeHealthCheckReconciler) Delete(ctx context.Context, _ *v1alpha1.Endpoint) (HealthCheckResult, error) {
+func (*FakeHealthCheckReconciler) Delete(_ context.Context, _ *v1alpha1.Endpoint) (HealthCheckResult, error) {
 	return HealthCheckResult{HealthCheckDeleted, ""}, nil
 }
 

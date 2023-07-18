@@ -16,7 +16,7 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/traffic"
 )
 
-func (r *DNSPolicyReconciler) reconcileDNSRecords(ctx context.Context, dnsPolicy *v1alpha1.DNSPolicy, gwDiffObj *reconcilers.GatewayDiff) error {
+func (r *Reconciler) reconcileDNSRecords(ctx context.Context, dnsPolicy *v1alpha1.DNSPolicy, gwDiffObj *reconcilers.GatewayDiff) error {
 	log := crlog.FromContext(ctx)
 
 	for _, gw := range gwDiffObj.GatewaysWithInvalidPolicyRef {
@@ -36,7 +36,7 @@ func (r *DNSPolicyReconciler) reconcileDNSRecords(ctx context.Context, dnsPolicy
 	return nil
 }
 
-func (r *DNSPolicyReconciler) reconcileGatewayDNSRecords(ctx context.Context, gateway *gatewayv1beta1.Gateway, dnsPolicy *v1alpha1.DNSPolicy) error {
+func (r *Reconciler) reconcileGatewayDNSRecords(ctx context.Context, gateway *gatewayv1beta1.Gateway, dnsPolicy *v1alpha1.DNSPolicy) error {
 	log := crlog.FromContext(ctx)
 
 	gatewayAccessor := traffic.NewGateway(gateway)

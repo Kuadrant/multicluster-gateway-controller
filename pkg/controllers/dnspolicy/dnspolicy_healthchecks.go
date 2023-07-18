@@ -26,7 +26,7 @@ type healthChecksConfig struct {
 	Protocol         *dns.HealthCheckProtocol
 }
 
-func (r *DNSPolicyReconciler) reconcileHealthChecks(ctx context.Context, dnsPolicy *v1alpha1.DNSPolicy, gwDiffObj *reconcilers.GatewayDiff) error {
+func (r *Reconciler) reconcileHealthChecks(ctx context.Context, dnsPolicy *v1alpha1.DNSPolicy, gwDiffObj *reconcilers.GatewayDiff) error {
 	log := crlog.FromContext(ctx)
 
 	// Delete Health checks for each gateway no longer referred by this policy
@@ -54,7 +54,7 @@ func (r *DNSPolicyReconciler) reconcileHealthChecks(ctx context.Context, dnsPoli
 	return r.reconcileHealthCheckStatus(allResults, dnsPolicy)
 }
 
-func (r *DNSPolicyReconciler) reconcileGatewayHealthChecks(ctx context.Context, gateway *gatewayv1beta1.Gateway, config *healthChecksConfig) ([]dns.HealthCheckResult, error) {
+func (r *Reconciler) reconcileGatewayHealthChecks(ctx context.Context, gateway *gatewayv1beta1.Gateway, config *healthChecksConfig) ([]dns.HealthCheckResult, error) {
 	allResults := []dns.HealthCheckResult{}
 
 	gatewayAccessor := traffic.NewGateway(gateway)
@@ -89,13 +89,13 @@ func (r *DNSPolicyReconciler) reconcileGatewayHealthChecks(ctx context.Context, 
 	return allResults, nil
 }
 
-func (r *DNSPolicyReconciler) reconcileDNSRecordHealthChecks(ctx context.Context, dnsRecord *v1alpha1.DNSRecord, config *healthChecksConfig) ([]dns.HealthCheckResult, error) {
+func (r *Reconciler) reconcileDNSRecordHealthChecks(ctx context.Context, dnsRecord *v1alpha1.DNSRecord, config *healthChecksConfig) ([]dns.HealthCheckResult, error) {
 
-	managedzone, err := r.HostService.GetDNSRecordManagedZone(ctx, dnsRecord)
+	managedZone, err := r.HostService.GetDNSRecordManagedZone(ctx, dnsRecord)
 	if err != nil {
 		return nil, err
 	}
-	dnsProvider, err := r.DNSProvider(ctx, managedzone)
+	dnsProvider, err := r.DNSProvider(ctx, managedZone)
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +141,7 @@ func (r *DNSPolicyReconciler) reconcileDNSRecordHealthChecks(ctx context.Context
 	return results, nil
 }
 
-func (r *DNSPolicyReconciler) reconcileHealthCheckStatus(results []dns.HealthCheckResult, policy *v1alpha1.DNSPolicy) error {
+func (r *Reconciler) reconcileHealthCheckStatus(results []dns.HealthCheckResult, policy *v1alpha1.DNSPolicy) error {
 	for _, result := range results {
 		if result.Result == dns.HealthCheckNoop {
 			continue

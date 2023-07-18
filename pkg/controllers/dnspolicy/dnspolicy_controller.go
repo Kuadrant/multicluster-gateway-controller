@@ -21,7 +21,7 @@ import (
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/api/equality"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
@@ -42,23 +42,23 @@ import (
 )
 
 const (
-	DNSPolicyFinalizer           = "kuadrant.io/dns-policy"
+	Finalizer                    = "kuadrant.io/dns-policy"
 	DNSPoliciesBackRefAnnotation = "kuadrant.io/dnspolicies"
-	DNSPolicyBackRefAnnotation   = "kuadrant.io/dnspolicy"
+	BackRefAnnotation            = "kuadrant.io/dnspolicy"
 )
 
-type DNSPolicyRefsConfig struct{}
+type RefsConfig struct{}
 
-func (c *DNSPolicyRefsConfig) PolicyRefsAnnotation() string {
+func (c *RefsConfig) PolicyRefsAnnotation() string {
 	return DNSPoliciesBackRefAnnotation
 }
 
-// DNSPolicyReconciler reconciles a DNSPolicy object
-type DNSPolicyReconciler struct {
+// Reconciler reconciles a DNSPolicy object
+type Reconciler struct {
 	reconcilers.TargetRefReconciler
-	DNSProvider dns.DNSProviderFactory
+	DNSProvider dns.ProviderFactory
 	HostService gateway.HostService
-	Placement   gateway.GatewayPlacer
+	Placement   gateway.Placer
 }
 
 //+kubebuilder:rbac:groups=kuadrant.io,resources=dnspolicies,verbs=get;list;watch;create;update;patch;delete
@@ -66,7 +66,7 @@ type DNSPolicyReconciler struct {
 //+kubebuilder:rbac:groups=kuadrant.io,resources=dnspolicies/finalizers,verbs=update
 //+kubebuilder:rbac:groups=cluster.open-cluster-management.io,resources=managedclusters,verbs=get;list;watch
 
-func (r *DNSPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := r.Logger().WithValues("DNSPolicy", req.NamespacedName)
 	log.Info("Reconciling DNSPolicy")
 	ctx = crlog.IntoContext(ctx, log)
@@ -88,7 +88,7 @@ func (r *DNSPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	targetNetworkObject, err := r.FetchValidTargetRef(ctx, dnsPolicy.GetTargetRef(), dnsPolicy.Namespace)
 	if err != nil {
 		if !markedForDeletion {
-			if apierrors.IsNotFound(err) {
+			if k8serrors.IsNotFound(err) {
 				log.V(3).Info("Network object not found. Cleaning up")
 				err := r.deleteResources(ctx, dnsPolicy, nil)
 				if err != nil {
@@ -101,11 +101,11 @@ func (r *DNSPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	if markedForDeletion {
-		if controllerutil.ContainsFinalizer(dnsPolicy, DNSPolicyFinalizer) {
+		if controllerutil.ContainsFinalizer(dnsPolicy, Finalizer) {
 			if err := r.deleteResources(ctx, dnsPolicy, targetNetworkObject); err != nil {
 				return ctrl.Result{}, err
 			}
-			if err := r.RemoveFinalizer(ctx, dnsPolicy, DNSPolicyFinalizer); err != nil {
+			if err := r.RemoveFinalizer(ctx, dnsPolicy, Finalizer); err != nil {
 				return ctrl.Result{}, err
 			}
 		}
@@ -113,8 +113,8 @@ func (r *DNSPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	// add finalizer to the dnsPolicy
-	if !controllerutil.ContainsFinalizer(dnsPolicy, DNSPolicyFinalizer) {
-		if err := r.AddFinalizer(ctx, dnsPolicy, DNSPolicyFinalizer); client.IgnoreNotFound(err) != nil {
+	if !controllerutil.ContainsFinalizer(dnsPolicy, Finalizer) {
+		if err := r.AddFinalizer(ctx, dnsPolicy, Finalizer); client.IgnoreNotFound(err) != nil {
 			return ctrl.Result{Requeue: true}, err
 		}
 	}
@@ -128,7 +128,7 @@ func (r *DNSPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		updateErr := r.Client().Status().Update(ctx, dnsPolicy)
 		if updateErr != nil {
 			// Ignore conflicts, resource might just be outdated.
-			if apierrors.IsConflict(updateErr) {
+			if k8serrors.IsConflict(updateErr) {
 				return ctrl.Result{Requeue: true}, nil
 			}
 			return ctrl.Result{}, updateErr
@@ -142,7 +142,7 @@ func (r *DNSPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	return ctrl.Result{}, nil
 }
 
-func (r *DNSPolicyReconciler) reconcileResources(ctx context.Context, dnsPolicy *v1alpha1.DNSPolicy, targetNetworkObject client.Object) error {
+func (r *Reconciler) reconcileResources(ctx context.Context, dnsPolicy *v1alpha1.DNSPolicy, targetNetworkObject client.Object) error {
 	// validate
 	err := dnsPolicy.Validate()
 	if err != nil {
@@ -150,7 +150,7 @@ func (r *DNSPolicyReconciler) reconcileResources(ctx context.Context, dnsPolicy 
 	}
 
 	// reconcile based on gateway diffs
-	gatewayDiffObj, err := r.ComputeGatewayDiffs(ctx, dnsPolicy, targetNetworkObject, &DNSPolicyRefsConfig{})
+	gatewayDiffObj, err := r.ComputeGatewayDiffs(ctx, dnsPolicy, targetNetworkObject, &RefsConfig{})
 	if err != nil {
 		return err
 	}
@@ -164,7 +164,7 @@ func (r *DNSPolicyReconciler) reconcileResources(ctx context.Context, dnsPolicy 
 	}
 
 	// set direct back ref - i.e. claim the target network object as taken asap
-	if err := r.ReconcileTargetBackReference(ctx, client.ObjectKeyFromObject(dnsPolicy), targetNetworkObject, DNSPolicyBackRefAnnotation); err != nil {
+	if err := r.ReconcileTargetBackReference(ctx, client.ObjectKeyFromObject(dnsPolicy), targetNetworkObject, BackRefAnnotation); err != nil {
 		return err
 	}
 
@@ -172,10 +172,10 @@ func (r *DNSPolicyReconciler) reconcileResources(ctx context.Context, dnsPolicy 
 	return r.ReconcileGatewayPolicyReferences(ctx, dnsPolicy, gatewayDiffObj)
 }
 
-func (r *DNSPolicyReconciler) deleteResources(ctx context.Context, dnsPolicy *v1alpha1.DNSPolicy, targetNetworkObject client.Object) error {
+func (r *Reconciler) deleteResources(ctx context.Context, dnsPolicy *v1alpha1.DNSPolicy, targetNetworkObject client.Object) error {
 	// delete based on gateway diffs
 
-	gatewayDiffObj, err := r.ComputeGatewayDiffs(ctx, dnsPolicy, targetNetworkObject, &DNSPolicyRefsConfig{})
+	gatewayDiffObj, err := r.ComputeGatewayDiffs(ctx, dnsPolicy, targetNetworkObject, &RefsConfig{})
 	if err != nil {
 		return err
 	}
@@ -190,7 +190,7 @@ func (r *DNSPolicyReconciler) deleteResources(ctx context.Context, dnsPolicy *v1
 
 	// remove direct back ref
 	if targetNetworkObject != nil {
-		if err := r.DeleteTargetBackReference(ctx, client.ObjectKeyFromObject(dnsPolicy), targetNetworkObject, DNSPolicyBackRefAnnotation); err != nil {
+		if err := r.DeleteTargetBackReference(ctx, client.ObjectKeyFromObject(dnsPolicy), targetNetworkObject, BackRefAnnotation); err != nil {
 			return err
 		}
 	}
@@ -199,7 +199,7 @@ func (r *DNSPolicyReconciler) deleteResources(ctx context.Context, dnsPolicy *v1
 	return r.ReconcileGatewayPolicyReferences(ctx, dnsPolicy, gatewayDiffObj)
 }
 
-func (r *DNSPolicyReconciler) calculateStatus(dnsPolicy *v1alpha1.DNSPolicy, specErr error) *v1alpha1.DNSPolicyStatus {
+func (r *Reconciler) calculateStatus(dnsPolicy *v1alpha1.DNSPolicy, specErr error) *v1alpha1.DNSPolicyStatus {
 	newStatus := dnsPolicy.Status.DeepCopy()
 	if specErr != nil {
 		newStatus.ObservedGeneration = dnsPolicy.Generation
@@ -209,12 +209,12 @@ func (r *DNSPolicyReconciler) calculateStatus(dnsPolicy *v1alpha1.DNSPolicy, spe
 	return newStatus
 }
 
-func (r *DNSPolicyReconciler) readyCondition(targetNetworkObjectectKind string, specErr error) *metav1.Condition {
+func (r *Reconciler) readyCondition(targetNetworkObjectKind string, specErr error) *metav1.Condition {
 	cond := &metav1.Condition{
 		Type:    conditions.ConditionTypeReady,
 		Status:  metav1.ConditionTrue,
-		Reason:  fmt.Sprintf("%sDNSEnabled", targetNetworkObjectectKind),
-		Message: fmt.Sprintf("%s is DNS Enabled", targetNetworkObjectectKind),
+		Reason:  fmt.Sprintf("%sDNSEnabled", targetNetworkObjectKind),
+		Message: fmt.Sprintf("%s is DNS Enabled", targetNetworkObjectKind),
 	}
 
 	if specErr != nil {
@@ -226,7 +226,7 @@ func (r *DNSPolicyReconciler) readyCondition(targetNetworkObjectectKind string, 
 	return cond
 }
 
-func (r *DNSPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	gatewayEventMapper := &GatewayEventMapper{
 		Logger: r.Logger().WithName("gatewayEventMapper"),
 	}

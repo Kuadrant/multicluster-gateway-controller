@@ -27,7 +27,7 @@ type ClusterEventMapper struct {
 }
 
 func (m *ClusterEventMapper) MapToDNSPolicy(obj client.Object) []reconcile.Request {
-	return m.mapToPolicyRequest(obj, "dnspolicy", &DNSPolicyRefsConfig{})
+	return m.mapToPolicyRequest(obj, "dnspolicy", &RefsConfig{})
 }
 
 func (m *ClusterEventMapper) mapToPolicyRequest(obj client.Object, policyKind string, policyRefsConfig common.PolicyRefsConfig) []reconcile.Request {
@@ -44,7 +44,7 @@ func (m *ClusterEventMapper) mapToPolicyRequest(obj client.Object, policyKind st
 
 	requests := make([]reconcile.Request, 0)
 	for _, gw := range allGwList.Items {
-		val := metadata.GetAnnotation(&gw, gateway.GatewayClustersAnnotation)
+		val := metadata.GetAnnotation(&gw, gateway.ClustersAnnotation)
 		if val == "" {
 			continue
 		}
