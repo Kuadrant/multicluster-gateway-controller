@@ -110,7 +110,6 @@ type changesServiceInterface interface {
 	Create(project string, managedZone string, change *dnsv1.Change) changesCreateCallInterface
 }
 
-
 type changesService struct {
 	service *dnsv1.ChangesService
 }
@@ -126,7 +125,6 @@ type resourceRecordSetsService struct {
 func (r resourceRecordSetsService) List(project string, managedZone string) resourceRecordSetsListCallInterface {
 	return r.service.List(project, managedZone)
 }
-
 
 type GoogleDNSProvider struct {
 	logger logr.Logger
@@ -193,12 +191,11 @@ func NewProviderFromSecret(ctx context.Context, s *v1.Secret) (*GoogleDNSProvide
 
 // Managedzones
 
-func (g GoogleDNSProvider) createManagedZone(managedZone *v1alpha1.ManagedZone) error{
+func (g GoogleDNSProvider) createManagedZone(managedZone *v1alpha1.ManagedZone) error {
 	domainNameDash := strings.Replace(managedZone.Spec.DomainName, ".", "-", -1)
-	
-	
+
 	zone := dnsv1.ManagedZone{
-		Name:       domainNameDash,
+		Name:        domainNameDash,
 		DnsName:     managedZone.Spec.DomainName + ".",
 		Description: managedZone.Spec.Description,
 	}
@@ -244,14 +241,14 @@ func (g GoogleDNSProvider) EnsureManagedZone(managedZone *v1alpha1.ManagedZone) 
 	}
 
 	err := g.createManagedZone(managedZone)
-	if err != nil{
+	if err != nil {
 		return managedZoneOutput, err
 	}
-	
+
 	return managedZoneOutput, nil
 }
 
-// DNS records 
+// DNS records
 func (g GoogleDNSProvider) Ensure(record *v1alpha1.DNSRecord, managedZone *v1alpha1.ManagedZone) error {
 	return g.updateRecord(record, managedZone.Status.ID, upsertAction)
 }
