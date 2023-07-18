@@ -298,7 +298,7 @@ func FindMatchingManagedZone(originalHost, host string, zones []v1alpha1.Managed
 	//get the TLD from this host
 	tld, _ := publicsuffix.PublicSuffix(host)
 
-	//The host is just the TLD, or the detected TLD is not an ICANN TLD
+	//The host is a TLD, so we now know `originalHost` can't possibly have a valid `ManagedZone` available.
 	if host == tld {
 		return nil, "", fmt.Errorf("no valid zone found for host: %v", originalHost)
 	}
@@ -306,6 +306,14 @@ func FindMatchingManagedZone(originalHost, host string, zones []v1alpha1.Managed
 	hostParts := strings.SplitN(host, ".", 2)
 	if len(hostParts) < 2 {
 		return nil, "", fmt.Errorf("no valid zone found for host: %s", originalHost)
+	}
+	parentDomain := hostParts[1]
+
+	// We do not currently support creating records for Apex domains, and a ManagedZone represents an Apex domain, as such
+	// we should never be trying to find a managed zone that matches the `originalHost` exactly. Instead, we just continue
+	// on to the next possible valid host to try i.e. the parent domain.
+	if host == originalHost {
+		return FindMatchingManagedZone(originalHost, parentDomain, zones)
 	}
 
 	zone, ok := slice.Find(zones, func(zone v1alpha1.ManagedZone) bool {
@@ -316,7 +324,6 @@ func FindMatchingManagedZone(originalHost, host string, zones []v1alpha1.Managed
 		subdomain := strings.Replace(strings.ToLower(originalHost), "."+strings.ToLower(zone.Spec.DomainName), "", 1)
 		return &zone, subdomain, nil
 	} else {
-		parentDomain := hostParts[1]
 		return FindMatchingManagedZone(originalHost, parentDomain, zones)
 	}
 
