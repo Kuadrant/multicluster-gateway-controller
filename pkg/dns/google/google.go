@@ -51,12 +51,16 @@ const (
 
 // Based on the external-dns google provider https://github.com/kubernetes-sigs/external-dns/blob/master/provider/google/google.go
 
+// Managed zone interfaces
 type managedZonesCreateCallInterface interface {
 	Do(opts ...googleapi.CallOption) (*dnsv1.ManagedZone, error)
 }
 
 type managedZonesGetCallInterface interface {
 	Do(opts ...googleapi.CallOption) (*dnsv1.ManagedZone, error)
+}
+type managedZonesDeleteCallInterface interface {
+	Do(opts ...googleapi.CallOption) error
 }
 
 type managedZonesListCallInterface interface {
@@ -67,30 +71,7 @@ type managedZonesServiceInterface interface {
 	Create(project string, managedzone *dnsv1.ManagedZone) managedZonesCreateCallInterface
 	Get(project string, managedZone string) managedZonesGetCallInterface
 	List(project string) managedZonesListCallInterface
-}
-
-type resourceRecordSetsListCallInterface interface {
-	Pages(ctx context.Context, f func(*dnsv1.ResourceRecordSetsListResponse) error) error
-}
-
-type resourceRecordSetsClientInterface interface {
-	List(project string, managedZone string) resourceRecordSetsListCallInterface
-}
-
-type changesCreateCallInterface interface {
-	Do(opts ...googleapi.CallOption) (*dnsv1.Change, error)
-}
-
-type changesServiceInterface interface {
-	Create(project string, managedZone string, change *dnsv1.Change) changesCreateCallInterface
-}
-
-type resourceRecordSetsService struct {
-	service *dnsv1.ResourceRecordSetsService
-}
-
-func (r resourceRecordSetsService) List(project string, managedZone string) resourceRecordSetsListCallInterface {
-	return r.service.List(project, managedZone)
+	Delete(project string, managedzone string) managedZonesDeleteCallInterface
 }
 
 type managedZonesService struct {
@@ -108,6 +89,26 @@ func (m managedZonesService) Get(project string, managedZone string) managedZone
 func (m managedZonesService) List(project string) managedZonesListCallInterface {
 	return m.service.List(project)
 }
+func (m managedZonesService) Delete(project string, managedzone string) managedZonesDeleteCallInterface {
+	return m.service.Delete(project, managedzone)
+}
+
+// Record set interfaces
+type resourceRecordSetsListCallInterface interface {
+	Pages(ctx context.Context, f func(*dnsv1.ResourceRecordSetsListResponse) error) error
+}
+
+type resourceRecordSetsClientInterface interface {
+	List(project string, managedZone string) resourceRecordSetsListCallInterface
+}
+
+type changesCreateCallInterface interface {
+	Do(opts ...googleapi.CallOption) (*dnsv1.Change, error)
+}
+
+type changesServiceInterface interface {
+	Create(project string, managedZone string, change *dnsv1.Change) changesCreateCallInterface
+}
 
 type changesService struct {
 	service *dnsv1.ChangesService
@@ -115,6 +116,14 @@ type changesService struct {
 
 func (c changesService) Create(project string, managedZone string, change *dnsv1.Change) changesCreateCallInterface {
 	return c.service.Create(project, managedZone, change)
+}
+
+type resourceRecordSetsService struct {
+	service *dnsv1.ResourceRecordSetsService
+}
+
+func (r resourceRecordSetsService) List(project string, managedZone string) resourceRecordSetsListCallInterface {
+	return r.service.List(project, managedZone)
 }
 
 type GoogleDNSProvider struct {
@@ -139,6 +148,7 @@ type GoogleDNSProvider struct {
 
 var _ dns.Provider = &GoogleDNSProvider{}
 
+// Creating provider from dns provider given
 func NewProviderFromSecret(ctx context.Context, s *v1.Secret) (*GoogleDNSProvider, error) {
 
 	if string(s.Data["GOOGLE"]) == "" || string(s.Data["PROJECT_ID"]) == "" {
@@ -179,16 +189,35 @@ func NewProviderFromSecret(ctx context.Context, s *v1.Secret) (*GoogleDNSProvide
 	return provider, nil
 }
 
-func (g GoogleDNSProvider) Ensure(record *v1alpha1.DNSRecord, managedZone *v1alpha1.ManagedZone) error {
-	return g.updateRecord(record, managedZone.Status.ID, upsertAction)
-}
+// Managedzones
 
-func (g GoogleDNSProvider) Delete(record *v1alpha1.DNSRecord, managedZone *v1alpha1.ManagedZone) error {
-	return g.updateRecord(record, managedZone.Status.ID, deleteAction)
+func (g GoogleDNSProvider) createManagedZone(managedZone *v1alpha1.ManagedZone) (*dnsv1.ManagedZone, error) {
+	domainNameDash := strings.Replace(managedZone.Spec.DomainName, ".", "-", -1)
+
+	zone := dnsv1.ManagedZone{
+		Name:        domainNameDash,
+		DnsName:     managedZone.Spec.DomainName + ".",
+		Description: managedZone.Spec.Description,
+	}
+	mz, err := g.managedZonesClient.Create(g.project, &zone).Do()
+	if err != nil {
+		return mz, err
+	}
+	return mz, nil
+}
+func (g GoogleDNSProvider) DeleteManagedZone(managedZone *v1alpha1.ManagedZone) error {
+	domainNameDash := strings.Replace(managedZone.Status.ID, ".", "-", -1)
+	err := g.managedZonesClient.Delete(g.project, domainNameDash).Do()
+	if err != nil {
+		return err
+	}
+	return err
 }
 
 func (g GoogleDNSProvider) EnsureManagedZone(managedZone *v1alpha1.ManagedZone) (dns.ManagedZoneOutput, error) {
 	var zoneID string
+	var err error
+
 	if managedZone.Spec.ID != "" {
 		zoneID = managedZone.Spec.ID
 	} else {
@@ -196,29 +225,40 @@ func (g GoogleDNSProvider) EnsureManagedZone(managedZone *v1alpha1.ManagedZone) 
 	}
 
 	var managedZoneOutput dns.ManagedZoneOutput
-
+	mz := &dnsv1.ManagedZone{}
 	if zoneID != "" {
 		//Get existing managed zone
-		mz, err := g.managedZonesClient.Get(g.project, zoneID).Do()
+		mz, err = g.managedZonesClient.Get(g.project, zoneID).Do()
 		if err != nil {
 			return managedZoneOutput, err
 		}
-		var nameservers []*string
-		for _, ns := range mz.NameServers {
-			nameservers = append(nameservers, &ns)
-		}
-		managedZoneOutput.ID = mz.Name
-		managedZoneOutput.RecordCount = -1
-		managedZoneOutput.NameServers = nameservers
-		return managedZoneOutput, nil
 	}
-	//ToDo Create a new managed zone
+
+	if zoneID == "" {
+		mz, err = g.createManagedZone(managedZone)
+		if err != nil {
+			return managedZoneOutput, err
+		}
+	}
+
+	var nameservers []*string
+	for _, ns := range mz.NameServers {
+		nameservers = append(nameservers, &ns)
+	}
+	managedZoneOutput.ID = mz.Name
+	managedZoneOutput.RecordCount = -1
+	managedZoneOutput.NameServers = nameservers
+
 	return managedZoneOutput, nil
 }
 
-func (g GoogleDNSProvider) DeleteManagedZone(managedZone *v1alpha1.ManagedZone) error {
-	//TODO implement me
-	return nil
+// DNS records
+func (g GoogleDNSProvider) Ensure(record *v1alpha1.DNSRecord, managedZone *v1alpha1.ManagedZone) error {
+	return g.updateRecord(record, managedZone.Status.ID, upsertAction)
+}
+
+func (g GoogleDNSProvider) Delete(record *v1alpha1.DNSRecord, managedZone *v1alpha1.ManagedZone) error {
+	return g.updateRecord(record, managedZone.Status.ID, deleteAction)
 }
 
 func (g GoogleDNSProvider) HealthCheckReconciler() dns.HealthCheckReconciler {
