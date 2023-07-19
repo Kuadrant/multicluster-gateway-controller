@@ -54,11 +54,6 @@ func (r *DNSPolicyReconciler) reconcileGatewayDNSRecords(ctx context.Context, ga
 	log.Info("DNSPolicyReconciler.reconcileResources", "clusters", clusters, "managedHosts", managedHosts)
 
 	log.V(3).Info("checking gateway for attached routes ", "gateway", gateway.Name, "clusters", placed, "managed hosts", len(managedHosts))
-	if len(placed) == 0 {
-		//nothing to do
-		log.V(3).Info("reconcileDNSRecords gateway has not been placed on to any downstream clusters nothing to do")
-		return nil
-	}
 
 	for _, mh := range managedHosts {
 		var clusterGateways []dns.ClusterGateway
