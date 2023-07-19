@@ -110,7 +110,6 @@ type changesServiceInterface interface {
 	Create(project string, managedZone string, change *dnsv1.Change) changesCreateCallInterface
 }
 
-
 type changesService struct {
 	service *dnsv1.ChangesService
 }
@@ -126,7 +125,6 @@ type resourceRecordSetsService struct {
 func (r resourceRecordSetsService) List(project string, managedZone string) resourceRecordSetsListCallInterface {
 	return r.service.List(project, managedZone)
 }
-
 
 type GoogleDNSProvider struct {
 	logger logr.Logger
@@ -193,23 +191,22 @@ func NewProviderFromSecret(ctx context.Context, s *v1.Secret) (*GoogleDNSProvide
 
 // Managedzones
 
-func (g GoogleDNSProvider) createManagedZone(managedZone *v1alpha1.ManagedZone) error{
+func (g GoogleDNSProvider) createManagedZone(managedZone *v1alpha1.ManagedZone) (*dnsv1.ManagedZone, error) {
 	domainNameDash := strings.Replace(managedZone.Spec.DomainName, ".", "-", -1)
-	
-	
+
 	zone := dnsv1.ManagedZone{
-		Name:       domainNameDash,
+		Name:        domainNameDash,
 		DnsName:     managedZone.Spec.DomainName + ".",
 		Description: managedZone.Spec.Description,
 	}
-	_, err := g.managedZonesClient.Create(g.project, &zone).Do()
+	mz, err := g.managedZonesClient.Create(g.project, &zone).Do()
 	if err != nil {
-		return err
+		return mz, err
 	}
-	return nil
+	return mz, nil
 }
 func (g GoogleDNSProvider) DeleteManagedZone(managedZone *v1alpha1.ManagedZone) error {
-	domainNameDash := strings.Replace(managedZone.Spec.DomainName, ".", "-", -1)
+	domainNameDash := strings.Replace(managedZone.Status.ID, ".", "-", -1)
 	err := g.managedZonesClient.Delete(g.project, domainNameDash).Do()
 	if err != nil {
 		return err
@@ -219,6 +216,8 @@ func (g GoogleDNSProvider) DeleteManagedZone(managedZone *v1alpha1.ManagedZone) 
 
 func (g GoogleDNSProvider) EnsureManagedZone(managedZone *v1alpha1.ManagedZone) (dns.ManagedZoneOutput, error) {
 	var zoneID string
+	var err error
+
 	if managedZone.Spec.ID != "" {
 		zoneID = managedZone.Spec.ID
 	} else {
@@ -226,32 +225,34 @@ func (g GoogleDNSProvider) EnsureManagedZone(managedZone *v1alpha1.ManagedZone) 
 	}
 
 	var managedZoneOutput dns.ManagedZoneOutput
-
+	mz := &dnsv1.ManagedZone{}
 	if zoneID != "" {
 		//Get existing managed zone
-		mz, err := g.managedZonesClient.Get(g.project, zoneID).Do()
+		mz, err = g.managedZonesClient.Get(g.project, zoneID).Do()
 		if err != nil {
 			return managedZoneOutput, err
 		}
-		var nameservers []*string
-		for _, ns := range mz.NameServers {
-			nameservers = append(nameservers, &ns)
-		}
-		managedZoneOutput.ID = mz.Name
-		managedZoneOutput.RecordCount = -1
-		managedZoneOutput.NameServers = nameservers
-		return managedZoneOutput, nil
 	}
 
-	err := g.createManagedZone(managedZone)
-	if err != nil{
-		return managedZoneOutput, err
+	if zoneID == "" {
+		mz, err = g.createManagedZone(managedZone)
+		if err != nil {
+			return managedZoneOutput, err
+		}
 	}
-	
+
+	var nameservers []*string
+	for _, ns := range mz.NameServers {
+		nameservers = append(nameservers, &ns)
+	}
+	managedZoneOutput.ID = mz.Name
+	managedZoneOutput.RecordCount = -1
+	managedZoneOutput.NameServers = nameservers
+
 	return managedZoneOutput, nil
 }
 
-// DNS records 
+// DNS records
 func (g GoogleDNSProvider) Ensure(record *v1alpha1.DNSRecord, managedZone *v1alpha1.ManagedZone) error {
 	return g.updateRecord(record, managedZone.Status.ID, upsertAction)
 }
