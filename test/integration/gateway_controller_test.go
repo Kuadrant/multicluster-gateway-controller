@@ -376,7 +376,7 @@ var _ = Describe("GatewayController", func() {
 				if err := k8sClient.Get(ctx, upstreamGatewayType, gateway); err != nil {
 					return false
 				}
-				return gateway.Labels["kuadarant.io/managed"] == "true"
+				return gateway.Labels["kuadrant.io/managed"] == "true"
 
 			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 
