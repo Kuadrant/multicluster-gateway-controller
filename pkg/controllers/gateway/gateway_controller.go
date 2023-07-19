@@ -58,7 +58,7 @@ const (
 	GatewayClusterLabelSelectorAnnotation                            = "kuadrant.io/gateway-cluster-label-selector"
 	GatewayClustersAnnotation                                        = "kuadrant.io/gateway-clusters"
 	GatewayFinalizer                                                 = "kuadrant.io/gateway"
-	ManagedLabel                                                     = "kuadarant.io/managed"
+	ManagedLabel                                                     = "kuadrant.io/managed"
 	MultiClusterIPAddressType             gatewayv1beta1.AddressType = "kuadrant.io/MultiClusterIPAddress"
 	MultiClusterHostnameAddressType       gatewayv1beta1.AddressType = "kuadrant.io/MultiClusterHostnameAddress"
 )
