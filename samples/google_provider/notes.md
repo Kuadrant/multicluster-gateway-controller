@@ -38,7 +38,7 @@ Create ManagedZone
 
 ```bash
 kubectl create secret generic mgc-google-credentials --type=kuadrant.io/google --from-file=GOOGLE=/home/mnairn/.config/gcloud/application_default_credentials.json --from-literal=PROJECT_ID=it-cloud-gcp-rd-midd-san -n multi-cluster-gateways
-kubectl apply -f samples/google_provider/mn.google.hcpapps.net.com-managedzone.yaml -n multi-cluster-gateways
+kubectl apply -f samples/google_provider/mn.google.hcpapps.net-managedzone.yaml -n multi-cluster-gateways
 kubectl get secrets -n multi-cluster-gateways
 NAME                     TYPE                 DATA   AGE
 mgc-aws-credentials      kuadrant.io/aws      3      25h
@@ -53,4 +53,24 @@ Create DNSRecord
 
 ```bash
 kubectl apply -f samples/google_provider/geo.mn.google.hcpapps.net-dnsrecord.yaml -n multi-cluster-gateways
+```
+
+Create ManagedZone with parent
+```bash
+kubectl apply -f samples/google_provider/test1.mn.google.hcpapps.net-managedzone.yaml -n multi-cluster-gateways
+```
+
+Create DNSRecord
+
+```bash
+kubectl apply -f samples/google_provider/myapp.test1.mn.google.hcpapps.net-dnsrecord.yaml -n multi-cluster-gateways
+```
+
+```bash
+kubectl tree managedzones mn.google.hcpapps.net -n multi-cluster-gateways
+```
+
+Delete Parent ManagedZone
+```bash
+kubectl delete managedzone mn.google.hcpapps.net -n multi-cluster-gateways --cascade=foreground
 ```
