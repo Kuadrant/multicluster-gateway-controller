@@ -39,11 +39,12 @@ import (
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnspolicy"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/tlspolicy"
+
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnsrecord"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/managedzone"
 
-	controller "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/tlspolicy"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/dnsprovider"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/placement"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/tls"
@@ -129,10 +130,19 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "DNSPolicy")
 		os.Exit(1)
 	}
+	//+kubebuilder:scaffold:builder
 
-	if err = (&controller.TLSPolicyReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+	tlsPolicyBaseReconciler := reconcilers.NewBaseReconciler(
+		mgr.GetClient(), mgr.GetScheme(), mgr.GetAPIReader(),
+		log.Log.WithName("dnspolicy"),
+		mgr.GetEventRecorderFor("DNSPolicy"),
+	)
+
+	if err = (&tlspolicy.TLSPolicyReconciler{
+		TargetRefReconciler: reconcilers.TargetRefReconciler{
+			BaseReconciler: tlsPolicyBaseReconciler,
+		},
+		Placement: placement,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "TLSPolicy")
 		os.Exit(1)

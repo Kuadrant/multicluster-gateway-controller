@@ -14,41 +14,45 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+package tlspolicy
 
 import (
 	"context"
 
+	crlog "sigs.k8s.io/controller-runtime/pkg/log"
+
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
+	"github.com/kuadrant/kuadrant-operator/pkg/reconcilers"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // TLSPolicyReconciler reconciles a TLSPolicy object
 type TLSPolicyReconciler struct {
-	client.Client
-	Scheme *runtime.Scheme
+	reconcilers.TargetRefReconciler
+	Placement gateway.GatewayPlacer
+	Scheme    *runtime.Scheme
 }
 
 //+kubebuilder:rbac:groups=kuadrant.io.kuadrant.io,resources=tlspolicies,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=kuadrant.io.kuadrant.io,resources=tlspolicies/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=kuadrant.io.kuadrant.io,resources=tlspolicies/finalizers,verbs=update
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the TLSPolicy object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.15.0/pkg/reconcile
 func (r *TLSPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+	log := r.Logger().WithValues("TLSPolicy", req.NamespacedName)
+	log.Info("Reconciling TLSPolicy")
+	ctx = crlog.IntoContext(ctx, log)
 
-	// TODO(user): your logic here
+	previous := &v1alpha1.TLSPolicy{}
+	if err := r.Client().Get(ctx, req.NamespacedName, previous); err != nil {
+		if err := client.IgnoreNotFound(err); err == nil {
+			return ctrl.Result{}, nil
+		} else {
+			return ctrl.Result{}, err
+		}
+	}
 
 	return ctrl.Result{}, nil
 }
