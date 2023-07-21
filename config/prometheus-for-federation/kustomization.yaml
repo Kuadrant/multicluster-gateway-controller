@@ -3,7 +3,20 @@ kind: Kustomization
 
 resources:
   - github.com/prometheus-operator/kube-prometheus?ref=release-0.11
-#  - ingress.yaml
+# To scrape istio metrics, 3 configurations are required:
+# 1. Envoy metrics directly from the istio ingress gateway pod
+  - podmonitor-envoy.yaml
+# 2. Istiod metrics via the istiod service
+  - servicemonitor-istiod.yaml
+# 3. Istio metrics exposed via envoy on 15020 in each application.
+# We're using the additionalScrapeConfigs field of the Prometheus CR
+# here to read existing prometheus scrape annotations on pods.
+# Ideally this would be done via another PodMonitor or ServicMonitor,
+# however that isn't possible as the container port 15020 is not 
+# exposed or named, so we need to drop to raw custom prometheus
+# scrape config.
+# See https://github.com/prometheus-operator/prometheus-operator/issues/3071#issuecomment-763746836
+  - additional-scrape-configs.yaml
 
 patchesStrategicMerge:
   - cluster_role.yaml
@@ -20,6 +33,9 @@ patches:
         replicas: 1
         remoteWrite:
           - url: http://thanos-receive-router.172.32.0.2.nip.io/api/v1/receive
+        additionalScrapeConfigs:
+          name: additional-scrape-configs
+          key: prometheus-additional.yaml
   - target:
       kind: AlertManager
       name: k8s
