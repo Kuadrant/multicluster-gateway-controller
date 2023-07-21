@@ -1,4 +1,4 @@
-package dnspolicy
+package events
 
 import (
 	"fmt"
@@ -10,6 +10,8 @@ import (
 	gatewayapiv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/kuadrant/kuadrant-operator/pkg/common"
+
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/shared"
 )
 
 // GatewayEventMapper is an EventHandler that maps Gateway object events to policy events.
@@ -18,7 +20,7 @@ type GatewayEventMapper struct {
 }
 
 func (m *GatewayEventMapper) MapToDNSPolicy(obj client.Object) []reconcile.Request {
-	return m.mapToPolicyRequest(obj, "dnspolicy", &DNSPolicyRefsConfig{})
+	return m.mapToPolicyRequest(obj, "dnspolicy", &shared.DNSPolicyRefsConfig{})
 }
 
 func (m *GatewayEventMapper) mapToPolicyRequest(obj client.Object, policyKind string, policyRefsConfig common.PolicyRefsConfig) []reconcile.Request {

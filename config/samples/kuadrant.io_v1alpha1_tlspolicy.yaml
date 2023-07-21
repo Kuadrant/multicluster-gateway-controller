@@ -1,0 +1,12 @@
+apiVersion: kuadrant.io/v1alpha1
+kind: TLSPolicy
+metadata:
+  labels:
+    app.kubernetes.io/name: tlspolicy
+    app.kubernetes.io/instance: tlspolicy-sample
+    app.kubernetes.io/part-of: tmp
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: tmp
+  name: tlspolicy-sample
+spec:
+  # TODO(user): Add fields here
