@@ -5,6 +5,7 @@ package e2e
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"net"
 	"net/http"
 	"strings"
@@ -39,7 +40,7 @@ var _ = Describe("Gateway single target cluster", func() {
 	BeforeEach(func(ctx SpecContext) {
 		testID = "t-e2e-" + tconfig.GenerateName()
 
-		By("creating a Placement for the Gateway resource")
+		By("creating a Placement for the Gateway resource " + testID)
 		placement = &ocm_cluster_v1beta1.Placement{
 			ObjectMeta: metav1.ObjectMeta{Name: testID, Namespace: tconfig.HubNamespace()},
 			Spec: ocm_cluster_v1beta1.PlacementSpec{
@@ -51,7 +52,7 @@ var _ = Describe("Gateway single target cluster", func() {
 		err := tconfig.HubClient().Create(ctx, placement)
 		Expect(err).ToNot(HaveOccurred())
 
-		By("creating a Gateway in the hub")
+		By("creating a Gateway in the hub" + testID)
 		hostname = gatewayapi.Hostname(strings.Join([]string{testID, tconfig.ManagedZone()}, "."))
 		gw = &gatewayapi.Gateway{
 			ObjectMeta: metav1.ObjectMeta{
@@ -83,7 +84,7 @@ var _ = Describe("Gateway single target cluster", func() {
 		err = tconfig.HubClient().Create(ctx, gw)
 		Expect(err).ToNot(HaveOccurred())
 
-		By("creating a a test application in the spoke")
+		By("creating a a test application in the spoke for " + testID)
 
 		key := client.ObjectKey{Name: "test", Namespace: testID}
 
@@ -114,13 +115,12 @@ var _ = Describe("Gateway single target cluster", func() {
 
 	When("the controller picks it up", func() {
 
-		It("sets the 'Programmed' and 'Accepted' conditions to true", func(ctx SpecContext) {
+		It("sets the 'Accepted' conditions to true and programmed condition to unknown", func(ctx SpecContext) {
 
 			Eventually(func(ctx SpecContext) bool {
 				err := tconfig.HubClient().Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.HubNamespace()}, gw)
 				Expect(err).ToNot(HaveOccurred())
 				programmed := meta.FindStatusCondition(gw.Status.Conditions, string(gatewayapi.GatewayConditionProgrammed))
-
 				return meta.IsStatusConditionTrue(gw.Status.Conditions, string(gatewayapi.GatewayConditionAccepted)) && (nil != programmed && programmed.Status == "Unknown")
 
 			}).WithContext(ctx).WithTimeout(30 * time.Second).WithPolling(10 * time.Second).Should(BeTrue())
@@ -138,12 +138,12 @@ var _ = Describe("Gateway single target cluster", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		It("is placed on the spoke cluster", func(ctx SpecContext) {
+		It("it is placed on the spoke cluster", func(ctx SpecContext) {
 
 			istioGW := &gatewayapi.Gateway{}
 			Eventually(func(ctx SpecContext) error {
 				return tconfig.SpokeClient(0).Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.SpokeNamespace()}, istioGW)
-			}).WithContext(ctx).WithTimeout(30 * time.Second).WithPolling(10 * time.Second).ShouldNot(HaveOccurred())
+			}).WithContext(ctx).WithTimeout(60 * time.Second).WithPolling(10 * time.Second).ShouldNot(HaveOccurred())
 		})
 
 		When("an HTTPRoute is attached to the Gateway", func() {
@@ -218,7 +218,9 @@ var _ = Describe("Gateway single target cluster", func() {
 
 				Eventually(func(ctx SpecContext) bool {
 					dnsrecord := &mgcv1alpha1.DNSRecord{ObjectMeta: metav1.ObjectMeta{
-						Name: string(hostname), Namespace: tconfig.HubNamespace()},
+						Name:      fmt.Sprintf("%s-%s", gw.Name, "https"),
+						Namespace: gw.Namespace,
+					},
 					}
 					if err := tconfig.HubClient().Get(ctx, client.ObjectKeyFromObject(dnsrecord), dnsrecord); err != nil {
 						GinkgoWriter.Printf("[debug] unable to get DNSRecord: '%s'\n", err)

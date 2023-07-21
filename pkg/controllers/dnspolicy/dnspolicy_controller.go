@@ -88,9 +88,7 @@ func (r *DNSPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			if apierrors.IsNotFound(err) {
 				log.V(3).Info("Network object not found. Cleaning up")
 				err := r.deleteResources(ctx, dnsPolicy, nil)
-				if err != nil {
-					return ctrl.Result{}, err
-				}
+				return ctrl.Result{}, err
 			}
 			return ctrl.Result{}, err
 		}

@@ -24,11 +24,14 @@ import (
 
 const (
 	TestTimeoutMedium         = time.Second * 10
+	TestTimeoutLong           = time.Second * 30
 	ConsistentlyTimeoutMedium = time.Second * 60
 	TestRetryIntervalMedium   = time.Millisecond * 250
 	TestPlacedGatewayName     = "test-placed-gateway"
 	TestPlacedClusterName     = "test-placed-cluster"
 	TestAttachedRouteName     = "test.example.com"
+	TestWildCardListenerName  = "wildcard"
+	TestWildCardListenerHost  = "*.example.com"
 	TestAttachedRouteAddress  = "172.0.0.3"
 	nsSpoke1Name              = "test-spoke-cluster-1"
 	nsSpoke2Name              = "test-spoke-cluster-2"
@@ -77,7 +80,7 @@ func (f FakeOCMPlacer) GetClusters(ctx context.Context, gateway *gatewayv1beta1.
 
 func (f FakeOCMPlacer) ListenerTotalAttachedRoutes(ctx context.Context, gateway *gatewayv1beta1.Gateway, listenerName string, downstream string) (int, error) {
 	count := 0
-	if gateway.Name == f.placedGatewayName && listenerName == f.attachedRouteName && downstream == f.placedClusterName {
+	if gateway.Name == f.placedGatewayName && (listenerName == f.attachedRouteName || listenerName == TestWildCardListenerName) && downstream == f.placedClusterName {
 		count = 1
 	}
 	return count, nil

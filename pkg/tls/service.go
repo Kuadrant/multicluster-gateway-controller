@@ -19,8 +19,9 @@ import (
 )
 
 const (
-	TlsIssuerAnnotation = "kuadrant.dev/tls-issuer"
-	certFinalizer       = "kuadrant.dev/certificates-cleanup"
+	TlsIssuerAnnotation  = "kuadrant.dev/tls-issuer"
+	certFinalizer        = "kuadrant.dev/certificates-cleanup"
+	TLSGatewayOwnerLabel = "kuadrant.io/gateway-id"
 )
 
 type Service struct {
@@ -32,8 +33,8 @@ func NewService(controlClient client.Client, defaultIssuer string) *Service {
 	return &Service{controlClient: controlClient, defaultIssuer: defaultIssuer}
 }
 
-func (s *Service) EnsureCertificate(ctx context.Context, host string, owner metav1.Object) error {
-	cert := s.certificate(host, s.defaultIssuer, owner.GetNamespace())
+func (s *Service) EnsureCertificate(ctx context.Context, name, host string, owner metav1.Object) error {
+	cert := s.certificate(host, name, s.defaultIssuer, owner.GetNamespace(), string(owner.GetUID()))
 	if err := controllerutil.SetOwnerReference(owner, cert, scheme.Scheme); err != nil {
 		return err
 	}
@@ -43,10 +44,10 @@ func (s *Service) EnsureCertificate(ctx context.Context, host string, owner meta
 	return nil
 }
 
-func (s *Service) GetCertificateSecret(ctx context.Context, host string, namespace string) (*v1.Secret, error) {
+func (s *Service) GetCertificateSecret(ctx context.Context, name string, namespace string) (*v1.Secret, error) {
 	//the secret is expected to be named after the host
 	tlsSecret := &v1.Secret{ObjectMeta: metav1.ObjectMeta{
-		Name:      host,
+		Name:      name,
 		Namespace: namespace,
 	}}
 	if err := s.controlClient.Get(ctx, client.ObjectKeyFromObject(tlsSecret), tlsSecret); err != nil {
@@ -72,19 +73,21 @@ func (s *Service) CleanupCertificates(ctx context.Context, owner traffic.Interfa
 
 }
 
-func (s *Service) certificate(host, issuer, controlNS string) *certman.Certificate {
+func (s *Service) certificate(host, name, issuer, controlNS, ownerID string) *certman.Certificate {
 	// this will be created in the control plane
 	annotations := map[string]string{TlsIssuerAnnotation: issuer}
-	labels := map[string]string{}
+	labels := map[string]string{
+		TLSGatewayOwnerLabel: ownerID,
+	}
 	return &certman.Certificate{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        host,
+			Name:        name,
 			Namespace:   controlNS,
 			Labels:      labels,
 			Annotations: annotations,
 		},
 		Spec: certman.CertificateSpec{
-			SecretName: host,
+			SecretName: name,
 			SecretTemplate: &certman.CertificateSecretTemplate{
 				Labels:      labels,
 				Annotations: annotations,

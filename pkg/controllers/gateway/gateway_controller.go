@@ -24,6 +24,7 @@ import (
 	"reflect"
 	"time"
 
+	certman "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
 	clusterv1beta2 "open-cluster-management.io/api/cluster/v1beta1"
 	workv1 "open-cluster-management.io/api/work/v1"
 
@@ -52,6 +53,7 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/tls"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/traffic"
 )
 
@@ -65,9 +67,8 @@ const (
 )
 
 type CertificateService interface {
-	EnsureCertificate(ctx context.Context, host string, owner metav1.Object) error
-	GetCertificateSecret(ctx context.Context, host string, namespace string) (*corev1.Secret, error)
-	CleanupCertificates(ctx context.Context, owner traffic.Interface) error
+	EnsureCertificate(ctx context.Context, name, host string, owner metav1.Object) error
+	GetCertificateSecret(ctx context.Context, name string, namespace string) (*corev1.Secret, error)
 }
 
 type GatewayPlacer interface {
@@ -85,6 +86,8 @@ type GatewayPlacer interface {
 	// GetClusterGateway
 	GetClusterGateway(ctx context.Context, gateway *gatewayv1beta1.Gateway, clusterName string) (dns.ClusterGateway, error)
 }
+
+var ReconcileErrTLS = fmt.Errorf("failed to reconcile TLS")
 
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways/status,verbs=get;update;patch
@@ -116,6 +119,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 		return ctrl.Result{}, nil
 	}
+	fmt.Println("previous", previous.ObjectMeta, previous.Spec, previous.Status)
 	upstreamGateway := previous.DeepCopy()
 	log.V(3).Info("reconciling gateway", "classname", upstreamGateway.Spec.GatewayClassName)
 	if isDeleting(upstreamGateway) {
@@ -163,14 +167,28 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if err != nil && !IsInvalidParamsError(err) {
 		return ctrl.Result{}, fmt.Errorf("gateway class err %s ", err)
 	}
+	//if we get to the point where we are going to reconcile the gateway in to the downstream then the upstream gateway is considered accepted
+	// checking not true covers "unknown" and false
+	if !meta.IsStatusConditionTrue(upstreamGateway.Status.Conditions, string(gatewayv1beta1.GatewayConditionAccepted)) {
+		log.V(3).Info("gateway is accepted setting initial programmed and accepted status")
+		acceptedCondition := buildAcceptedCondition(upstreamGateway.Generation, metav1.ConditionTrue)
+		programmedCondition := buildProgrammedCondition(upstreamGateway.Generation, []string{}, metav1.ConditionUnknown, nil)
+		meta.SetStatusCondition(&upstreamGateway.Status.Conditions, acceptedCondition)
+		meta.SetStatusCondition(&upstreamGateway.Status.Conditions, programmedCondition)
+		return reconcile.Result{}, r.Status().Update(ctx, upstreamGateway)
+	}
+
+	log.V(3).Info("gateway pre downstream", "labels", upstreamGateway.Labels)
 	requeue, programmedStatus, clusters, reconcileErr := r.reconcileDownstreamFromUpstreamGateway(ctx, upstreamGateway, params)
+	log.V(3).Info("gateway post downstream", "labels", upstreamGateway.Labels)
 	// gateway now in expected state, place gateway and its associated objects in correct places. Update gateway spec/metadata
+	log.V(3).Info("reconcileDownstreamFromUpstreamGateway result ", "requeue", requeue, "status", programmedStatus, "clusters", clusters, "Err", reconcileErr)
 	if reconcileErr != nil {
-		if errors.Is(reconcileErr, gracePeriod.ErrGracePeriodNotExpired) {
-			log.V(3).Info("grace period not yet expired, requeueing gateway")
+		if errors.Is(reconcileErr, gracePeriod.ErrGracePeriodNotExpired) || requeue {
+			log.V(3).Info("requeueing gateway ", "error", reconcileErr, "requeue", requeue)
 			return reconcile.Result{
 				Requeue:      true,
-				RequeueAfter: 60 * time.Second,
+				RequeueAfter: 30 * time.Second,
 			}, nil
 		}
 		log.Error(fmt.Errorf("gateway reconcile failed %s", reconcileErr), "gateway failed to reconcile", "gateway", upstreamGateway.Name)
@@ -183,6 +201,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	metadata.AddAnnotation(upstreamGateway, GatewayClustersAnnotation, string(serialized))
 
 	if reconcileErr == nil && !reflect.DeepEqual(upstreamGateway, previous) {
+		log.Info("updating upstream gateway")
 		return reconcile.Result{}, r.Update(ctx, upstreamGateway)
 	}
 
@@ -248,6 +267,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	if requeue {
+		log.V(3).Info("requeuing gateay in ", "namespace", upstreamGateway.Namespace, "with name", upstreamGateway.Name)
 		return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 10}, reconcileErr
 	}
 	return ctrl.Result{}, reconcileErr
@@ -255,6 +275,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 // reconcileDownstreamGateway takes the upstream definition and transforms it as needed to apply it to the downstream spokes
 func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.Context, upstreamGateway *gatewayv1beta1.Gateway, params *Params) (bool, metav1.ConditionStatus, []string, error) {
+	fmt.Println("downstream from upstream")
 	log := crlog.FromContext(ctx)
 	clusters := []string{}
 	downstream := upstreamGateway.DeepCopy()
@@ -265,25 +286,17 @@ func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.C
 	downstream.ObjectMeta = metav1.ObjectMeta{
 		Name:        upstreamGateway.Name,
 		Namespace:   downstreamNS,
-		Labels:      upstreamGateway.Labels,
-		Annotations: upstreamGateway.Annotations,
+		Labels:      downstream.Labels,
+		Annotations: downstream.Annotations,
 	}
 	if downstream.Labels == nil {
 		downstream.Labels = map[string]string{}
 	}
 	downstream.Labels[ManagedLabel] = "true"
-	accessor := traffic.NewGateway(upstreamGateway)
 	if isDeleting(upstreamGateway) {
 		log.Info("deleting downstream gateways owned by upstream gateway ", "name", downstream.Name, "namespace", downstream.Namespace)
 		targets, err := r.Placement.Place(ctx, upstreamGateway, downstream)
 		if err != nil {
-			return false, metav1.ConditionFalse, clusters, err
-		}
-
-		// Cleanup certificates
-		err = r.Certificates.CleanupCertificates(ctx, accessor)
-		if err != nil {
-			log.Error(err, "Error deleting certs")
 			return false, metav1.ConditionFalse, clusters, err
 		}
 		return false, metav1.ConditionTrue, targets.UnsortedList(), nil
@@ -296,7 +309,8 @@ func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.C
 	// ensure tls is set up first before doing anything else. TLS is not affected by placement changes
 	tlsSecrets, err := r.reconcileTLS(ctx, upstreamGateway, downstream)
 	if err != nil {
-		return true, metav1.ConditionFalse, clusters, fmt.Errorf("failed to reconcle tls : %s", err)
+		log.Info("TLS is not ready for downstream gateway ", "gateway", downstream.Name, "namespace", downstream.Namespace, "err", err)
+		return true, metav1.ConditionFalse, clusters, errors.Join(ReconcileErrTLS, err)
 	}
 	log.Info("TLS reconciled for downstream gateway ", "gateway", downstream.Name, "namespace", downstream.Namespace)
 
@@ -334,24 +348,24 @@ func (r *GatewayReconciler) reconcileTLS(ctx context.Context, upstreamGateway *g
 	accessor := traffic.NewGateway(gateway)
 	for _, listener := range upstreamGateway.Spec.Listeners {
 		host := string(*listener.Hostname)
+		if host == "" {
+			log.Info("skipping listener with no host", listener.Name, "in namespace", gateway.Namespace)
+			continue
+		}
 
 		if listener.Protocol != gatewayv1beta1.HTTPSProtocolType {
 			continue
 		}
-
+		certName := certname(upstreamGateway.Name, string(listener.Name))
 		// create certificate resource for assigned host
-		if err := r.Certificates.EnsureCertificate(ctx, host, upstreamGateway); err != nil && !k8serrors.IsAlreadyExists(err) {
+		if err := r.Certificates.EnsureCertificate(ctx, certName, host, upstreamGateway); err != nil && !k8serrors.IsAlreadyExists(err) {
 			return tlsSecrets, err
 		}
 
 		// Check if certificate secret is ready
-		secret, err := r.Certificates.GetCertificateSecret(ctx, host, upstreamGateway.Namespace)
-		if err != nil && !k8serrors.IsNotFound(err) {
-			return tlsSecrets, err
-		}
+		secret, err := r.Certificates.GetCertificateSecret(ctx, certName, upstreamGateway.Namespace)
 		if err != nil {
-			log.V(3).Info("tls secret does not exist yet for host " + host + " requeue")
-			return tlsSecrets, nil
+			return tlsSecrets, err
 		}
 
 		//sync secret to clusters
@@ -365,8 +379,35 @@ func (r *GatewayReconciler) reconcileTLS(ctx context.Context, upstreamGateway *g
 			accessor.AddTLS(host, downstreamSecret)
 			tlsSecrets = append(tlsSecrets, downstreamSecret)
 		}
+
+	}
+	// ensure only certificates for active listeners are in place not this logic will move to a TLSPolicy controller in the future
+	labelSelector := &client.MatchingLabels{
+		tls.TLSGatewayOwnerLabel: string(upstreamGateway.GetUID()),
+	}
+	certList := &certman.CertificateList{}
+	if err := r.List(ctx, certList, labelSelector); err != nil {
+		return tlsSecrets, err
+	}
+	for _, cert := range certList.Items {
+		validCert := false
+		for _, listener := range upstreamGateway.Spec.Listeners {
+			if cert.Name == certname(upstreamGateway.Name, string(listener.Name)) {
+				validCert = true
+				break
+			}
+		}
+		if !validCert {
+			if err := r.Delete(ctx, &cert, &client.DeleteOptions{}); err != nil {
+				return tlsSecrets, err
+			}
+		}
 	}
 	return tlsSecrets, nil
+}
+
+func certname(gatwayName, listenerName string) string {
+	return fmt.Sprintf("%s-%s", gatwayName, listenerName)
 }
 
 func (r *GatewayReconciler) reconcileParams(_ context.Context, gateway *gatewayv1beta1.Gateway, params *Params) error {

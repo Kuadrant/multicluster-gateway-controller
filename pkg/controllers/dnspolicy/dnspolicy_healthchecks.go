@@ -75,7 +75,7 @@ func (r *DNSPolicyReconciler) createOrUpdateProbes(ctx context.Context, expected
 func (r *DNSPolicyReconciler) deleteUnexpectedGatewayProbes(ctx context.Context, expectedProbes []*v1alpha1.DNSHealthCheckProbe, gw common.GatewayWrapper, dnsPolicy *v1alpha1.DNSPolicy) error {
 	// remove any probes for this gateway and DNS Policy that are no longer expected
 	existingProbes := &v1alpha1.DNSHealthCheckProbeList{}
-	dnsLabels := dnsRecordLabels(client.ObjectKeyFromObject(gw), client.ObjectKeyFromObject(dnsPolicy))
+	dnsLabels := commonDNSRecordLabels(client.ObjectKeyFromObject(gw), client.ObjectKeyFromObject(dnsPolicy))
 	listOptions := &client.ListOptions{LabelSelector: labels.SelectorFromSet(dnsLabels)}
 	if err := r.Client().List(ctx, existingProbes, listOptions); client.IgnoreNotFound(err) != nil {
 		return err
@@ -138,7 +138,7 @@ func (r *DNSPolicyReconciler) expectedProbesForGateway(ctx context.Context, gw c
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      fmt.Sprintf("%s-%s", target, endpoint.DNSName),
 						Namespace: gw.Namespace,
-						Labels:    dnsRecordLabels(client.ObjectKeyFromObject(gw), client.ObjectKeyFromObject(dnsPolicy)),
+						Labels:    commonDNSRecordLabels(client.ObjectKeyFromObject(gw), client.ObjectKeyFromObject(dnsPolicy)),
 					},
 					Spec: v1alpha1.DNSHealthCheckProbeSpec{
 						Port:              *port,

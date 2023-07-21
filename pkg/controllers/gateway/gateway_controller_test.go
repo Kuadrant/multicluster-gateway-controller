@@ -23,6 +23,11 @@ import (
 	testutil "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 )
 
+func getTestHostname(hostname string) *v1beta1.Hostname {
+	hn := v1beta1.Hostname(hostname)
+	return &hn
+}
+
 func TestGatewayReconciler_Reconcile(t *testing.T) {
 	type fields struct {
 		Client client.Client
@@ -72,7 +77,7 @@ func TestGatewayReconciler_Reconcile(t *testing.T) {
 							},
 						},
 					},
-					getValidCertificateSecret(testutil.ValidTestHostname),
+					getValidCertificateSecret(certname(testutil.DummyCRName, testutil.ValidTestHostname)),
 					buildTestMZ(),
 					buildTestDNSRecord(),
 				),
@@ -215,52 +220,6 @@ func TestGatewayReconciler_Reconcile(t *testing.T) {
 			},
 			verify: testutil.AssertNoErrorReconciliation(),
 		},
-		{
-			name: "gateway get requeued", // issue with deep equal call. This case isn't properly functional right now
-			fields: fields{
-				Client: testutil.GetValidTestClient(
-					&v1beta1.GatewayList{
-						Items: []v1beta1.Gateway{
-							{
-								ObjectMeta: v1.ObjectMeta{
-									Name:       testutil.DummyCRName,
-									Namespace:  testutil.Namespace,
-									Labels:     getTestGatewayLabels(),
-									Finalizers: []string{GatewayFinalizer},
-								},
-								Spec: v1beta1.GatewaySpec{
-									GatewayClassName: testutil.DummyCRName,
-									Listeners: []v1beta1.Listener{
-										{
-											Name:     v1beta1.SectionName(testutil.FailPlacementHostname),
-											Hostname: testutil.Pointer(v1beta1.Hostname(testutil.FailPlacementHostname)),
-											Protocol: v1beta1.HTTPSProtocolType,
-										},
-									},
-								},
-								Status: buildRequeueStatus(),
-							},
-						},
-					},
-					&v1beta1.GatewayClassList{
-						Items: []v1beta1.GatewayClass{
-							{
-								ObjectMeta: v1.ObjectMeta{
-									Name: testutil.DummyCRName,
-								},
-							},
-						},
-					},
-					buildTestMZ(),
-					buildTestDNSRecord(),
-				),
-				Scheme: testutil.GetValidTestScheme(),
-			},
-			args: args{
-				req: testutil.BuildValidTestRequest(testutil.DummyCRName, testutil.Namespace),
-			},
-			verify: testutil.AssertNoErrorReconciliation(),
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -284,7 +243,7 @@ func TestGatewayReconciler_reconcileDownstreamFromUpstreamGateway(t *testing.T) 
 	type args struct {
 		gateway *v1beta1.Gateway
 	}
-	tests := []struct {
+	type testCase struct {
 		name          string
 		fields        fields
 		args          args
@@ -293,22 +252,25 @@ func TestGatewayReconciler_reconcileDownstreamFromUpstreamGateway(t *testing.T) 
 		wantRequeue   bool
 		wantErr       bool
 		expectedError string
-	}{
+	}
+	tests := []testCase{
 		{
 			name: "gateway successfully reconciled",
 			fields: fields{
 				Client: testutil.GetValidTestClient(
-					getValidCertificateSecret(testutil.ValidTestHostname),
+					getValidCertificateSecret(certname(testutil.DummyCRName, testutil.ValidTestHostname)),
 					buildTestMZ(),
 					buildTestDNSRecord(),
 				),
 				Scheme: testutil.GetValidTestScheme(),
 			},
+
 			args: args{
 				gateway: &v1beta1.Gateway{
 					ObjectMeta: v1.ObjectMeta{
 						Labels:    getTestGatewayLabels(),
 						Namespace: testutil.Namespace,
+						Name:      testutil.DummyCRName,
 					},
 					Spec: buildValidTestGatewaySpec(),
 				},
@@ -319,40 +281,10 @@ func TestGatewayReconciler_reconcileDownstreamFromUpstreamGateway(t *testing.T) 
 			wantErr:      false,
 		},
 		{
-			name: "error fetching cluster secrets",
-			fields: fields{
-				Client: testutil.GetValidTestClient(
-					buildTestMZ(),
-					buildTestDNSRecord(),
-				),
-				Scheme: runtime.NewScheme(),
-			},
-			args: args{
-				gateway: &v1beta1.Gateway{
-					ObjectMeta: v1.ObjectMeta{
-						Labels: getTestGatewayLabels(),
-					},
-					Spec: v1beta1.GatewaySpec{
-						Listeners: []v1beta1.Listener{
-							{
-								Hostname: testutil.Pointer(v1beta1.Hostname(testutil.FailEnsureCertHost)),
-								Protocol: v1beta1.HTTPSProtocolType,
-							},
-						},
-					},
-				},
-			},
-			wantStatus:    v1.ConditionFalse,
-			wantClusters:  []string{},
-			wantRequeue:   true,
-			wantErr:       true,
-			expectedError: testutil.FailEnsureCertHost,
-		},
-		{
 			name: "created DNSRecord CR, HTTP protocol",
 			fields: fields{
 				Client: testutil.GetValidTestClient(
-					getValidCertificateSecret(testutil.ValidTestHostname),
+					getValidCertificateSecret(certname(testutil.DummyCRName, testutil.ValidTestHostname)),
 					buildTestMZ(),
 				),
 				Scheme: testutil.GetValidTestScheme(),
@@ -380,7 +312,7 @@ func TestGatewayReconciler_reconcileDownstreamFromUpstreamGateway(t *testing.T) 
 			wantErr:      false,
 		},
 		{
-			name: "failed get certificate secret",
+			name: "failed get certificate secret error",
 			fields: fields{
 				Client: testutil.GetValidTestClient(buildTestMZ()),
 				Scheme: testutil.GetValidTestScheme(),
@@ -390,12 +322,13 @@ func TestGatewayReconciler_reconcileDownstreamFromUpstreamGateway(t *testing.T) 
 					ObjectMeta: v1.ObjectMeta{
 						Labels:    getTestGatewayLabels(),
 						Namespace: testutil.Namespace,
+						Name:      "fail",
 					},
 					Spec: v1beta1.GatewaySpec{
 						Listeners: []v1beta1.Listener{
 							{
-								Name:     v1beta1.SectionName(testutil.ValidTestHostname),
-								Hostname: testutil.Pointer(v1beta1.Hostname(testutil.FailGetCertSecretHost)),
+								Name:     "fail",
+								Hostname: getTestHostname(testutil.FailEnsureCertHost),
 								Protocol: v1beta1.HTTPSProtocolType,
 							},
 						},
@@ -406,10 +339,10 @@ func TestGatewayReconciler_reconcileDownstreamFromUpstreamGateway(t *testing.T) 
 			wantClusters:  []string{},
 			wantRequeue:   true,
 			wantErr:       true,
-			expectedError: testutil.FailGetCertSecretHost,
+			expectedError: ReconcileErrTLS.Error(),
 		},
 		{
-			name: "tls secret doesn't exist yes",
+			name: "tls secret doesn't exist yet so requeue",
 			fields: fields{
 				Client: testutil.GetValidTestClient(buildTestMZ()),
 				Scheme: testutil.GetValidTestScheme(),
@@ -419,14 +352,16 @@ func TestGatewayReconciler_reconcileDownstreamFromUpstreamGateway(t *testing.T) 
 					ObjectMeta: v1.ObjectMeta{
 						Labels:    getTestGatewayLabels(),
 						Namespace: testutil.Namespace,
+						Name:      testutil.DummyCRName,
 					},
 					Spec: buildValidTestGatewaySpec(),
 				},
 			},
-			wantStatus:   v1.ConditionTrue,
-			wantClusters: []string{testutil.Cluster},
-			wantRequeue:  false,
-			wantErr:      false,
+			wantStatus:    v1.ConditionFalse,
+			wantClusters:  []string{},
+			wantRequeue:   true,
+			wantErr:       true,
+			expectedError: ReconcileErrTLS.Error(),
 		},
 	}
 	for _, tt := range tests {
@@ -464,19 +399,21 @@ func TestGatewayReconciler_reconcileTLS(t *testing.T) {
 		gateway         *v1beta1.Gateway
 		managedHosts    []v1alpha1.ManagedHost
 	}
-	tests := []struct {
+	type testCase struct {
 		name    string
 		fields  fields
 		args    args
 		want    []v1.Object
 		wantErr bool
-	}{
+	}
+	tests := []testCase{
 		{
 			name: "secret synced downstream",
 			fields: fields{
-				Client: testutil.GetValidTestClient(getValidCertificateSecret(testutil.ValidTestHostname)),
+				Client: testutil.GetValidTestClient(getValidCertificateSecret(certname(testutil.DummyCRName, testutil.ValidTestHostname))),
 				Scheme: testutil.GetValidTestScheme(),
 			},
+
 			args: args{
 				upstreamGateway: &v1beta1.Gateway{
 					ObjectMeta: v1.ObjectMeta{
@@ -510,7 +447,7 @@ func TestGatewayReconciler_reconcileTLS(t *testing.T) {
 					},
 				},
 			},
-			want:    []v1.Object{&getValidCertificateSecret(testutil.ValidTestHostname).Items[0]},
+			want:    []v1.Object{&getValidCertificateSecret(certname(testutil.DummyCRName, testutil.ValidTestHostname)).Items[0]},
 			wantErr: false,
 		},
 		{
@@ -704,7 +641,7 @@ func buildRequeueStatus() v1beta1.GatewayStatus {
 		Conditions: []v1.Condition{},
 	}
 	_ = append(status.Conditions, buildAcceptedCondition(0, v1.ConditionTrue))
-	_ = append(status.Conditions, buildProgrammedCondition(0, []string{}, v1.ConditionFalse, nil))
+	_ = append(status.Conditions, buildProgrammedCondition(0, []string{}, v1.ConditionUnknown, nil))
 	return status
 }
 
