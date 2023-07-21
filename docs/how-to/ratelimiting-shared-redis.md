@@ -27,8 +27,8 @@ Open three windows, which we'll refer to throughout this walkthrough as:
     ``` bash
     kubectl get nodes -o wide
     ```
-1. If needs be update the URL located in `config/kuadrant/redis/limitador` to include the ip address from above step.
-1. In the clusters that have Kuadrant operator installed i.e `T1 & T3` run the following to configure limitador to use Redis as storage rather then local cluster storage:
+1. If needs be, update the URL located in `config/kuadrant/redis/limitador` to include the ip address from above step.
+1. In the clusters that have Kuadrant operator installed i.e. `T1 & T3` run the following to configure limitador to use Redis as storage rather than local cluster storage:
     ```bash
     kustomize build config/kuadrant/limitador/ | kubectl apply -f -
     ```
@@ -65,5 +65,5 @@ Open three windows, which we'll refer to throughout this walkthrough as:
     ```bash
     while true; do curl -k -s -o /dev/null -w "%{http_code}\n"  replace.this.with.host && sleep 1; done
     ```
-2. You should see your host be limited to whatever limit you've chosen. This will be across **all** clusters. Meaning if you trying make a curl request to both clusters at the same time, it will maintain the limit and wont reset allowoing successful requests when it should be limited.
+2. You should see your host be limited to whatever limit you've chosen. This will be across **all** clusters. Meaning if you are trying to make a curl request to both clusters at the same time, it will maintain the limit and won't reset, allowing successful requests when it should be limited.
 

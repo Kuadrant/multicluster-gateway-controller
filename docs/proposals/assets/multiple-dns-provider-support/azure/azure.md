@@ -3,13 +3,13 @@
 
 https://portal.azure.com/
 
-Azure supports Weighted and Geolocation routing policies, but requires records to alias to a Traffic Manager resource that must also be created in the users acocunt https://learn.microsoft.com/en-us/azure/traffic-manager/traffic-manager-routing-methods
+Azure supports Weighted and Geolocation routing policies, but requires records to alias to a Traffic Manager resource that must also be created in the users account https://learn.microsoft.com/en-us/azure/traffic-manager/traffic-manager-routing-methods
 
 Notes:
 
 * A Traffic Manager Profile is created per record set and is created with a routing method (Weighted or Geographic) https://portal.azure.com/#view/Microsoft_Azure_Network/LoadBalancingHubMenuBlade/~/TrafficManagers
 * Only a singe IP can be added to a DNSRecord set. A traffic manager profile must be created and aliased from a DNSRecord set for anything that involves more than a single target.
-* Significantly more resources to manage in order to achieve functionality comparable with google and aws. 
+* Significantly more resources to manage in order to achieve functionality comparable with Google and AWS. 
 * The modelling of the records is significantly different from AWS Route53, but the current DNSRecord spec could still work. The azure implementation will have to process the endpoint list and create traffic manager policies as required to satisfy the record set.
 
 Given the example DNSRecord [here](dnsrecord-geo.azure.hcpapps.net.yaml) describing a record set for a geo location routing policy with four clusters, two in two regions (North America and Europe), the following Azure resources are required.

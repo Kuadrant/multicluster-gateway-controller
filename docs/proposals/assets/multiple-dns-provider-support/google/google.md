@@ -12,7 +12,7 @@ Notes:
 * There appears to be no way to set a default region, google just routes requests to the nearest supported region.
 * The current approach used in AWS Route53 for geo routing will work in the same way on Google DNS. A single CNAME record with geo routing policy specifying multiple geo specific A record entries as targets.
 * Geo and weighted routing can be combined, as with AWS Route53, allowing traffic with a region to be routed using weightings.
-* The modelling of the records is slightly different from AWS, but the current DNSRecord spec could still work. The google implemention of AddRecords will have to process the list of endpoints in order to group related endpoints in order to build up the required API request.
+* The modelling of the records is slightly different from AWS, but the current DNSRecord spec could still work. The Google implementation of AddRecords will have to process the list of endpoints in order to group related endpoints in order to build up the required API request.
 In this case there would not be a 1:1 mapping between an endpoint in a DNSRecord and the dns provider, but the DNSRecord contents would be kept consistent across all providers and compatibility with external-dns would be maintained.
 
 

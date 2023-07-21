@@ -24,7 +24,7 @@ blah blah amazing and wonderful feature blah blah gateway blah blah DNS
     LOG_LEVEL=1
     ```   
 
-1. setup a `./aws-credentials.env` with credentials to access route 53
+1. Setup a `./aws-credentials.env` with credentials to access route 53
 
     For example:
 

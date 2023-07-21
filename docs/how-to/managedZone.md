@@ -7,7 +7,7 @@ These gateways can use a subdomain of the ManagedZone.
 
 If a gateway attempts to a use a domain as a host, and there is no matching ManagedZone for that host, then that host on that gateway will fail to function.
 
-A gateway's host will be matched to any ManagedZone that the host is a subdomain of, i.e. `test.api.hcpapps.net` will be matched by any managedzone (in the same namespace) of: `test.api.hcpapps.net`, `api.hcpapps.net` or `hcpapps.net`.
+A gateway's host will be matched to any ManagedZone that the host is a subdomain of, i.e. `test.api.hcpapps.net` will be matched by any ManagedZone (in the same namespace) of: `test.api.hcpapps.net`, `api.hcpapps.net` or `hcpapps.net`.
 
 When MGC wants to create the DNS Records for a host, it will create them in the most exactly matching ManagedZone.
 e.g. given the zones `hcpapps.net` and `api.hcpapps.net` the DNS Records for the host `test.api.hcpapps.net` will be created in the `api.hcpapps.net` zone.

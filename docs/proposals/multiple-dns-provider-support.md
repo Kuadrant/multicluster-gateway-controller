@@ -37,12 +37,12 @@ MGC will continue to provide Zone management and DNS Health checks support on a 
 
 Support will be added for AWS(Route53), Google(Google Cloud DNS), Azure and investigation into possible adding CoreDNS (intended for local dev purposes), with the following proposed initial support:
 
-| Provider  | DNS Records | DNS Zones | DNS Health |
-| ------------ | ------------- |  ------------- |---|
-| AWS Route53 | X | X | X |
-| Google Cloud DNS | X | X | - |
-| AzureDNS| X | X | - |
-| CoreDNS| X | - | - |
+| Provider         | DNS Records | DNS Zones | DNS Health |
+|------------------|-------------|-----------|------------|
+| AWS Route53      | X           | X         | X          |
+| Google Cloud DNS | X           | X         | -          |
+| AzureDNS         | X           | X         | -          |
+| CoreDNS          | X           | -         | -          |
 
 
 Add DNSProvider as an API for MGC which contains all the required config for that particular provider including the credentials. This can be thought of in a similar way to a cert manager Issuer.
