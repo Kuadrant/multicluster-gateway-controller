@@ -30,7 +30,7 @@ We will start with a single cluster and move to multiple clusters to illustrate 
   | `AWS_DNS_PUBLIC_ZONE_ID` | `Z01234567US0IQE3YLO00` | AWS Route 53 Zone ID for specified `ZONE_ROOT_DOMAIN` |
   | `LOG_LEVEL`              | `1`                     | Log level for the Controller                          |
 
-* setup a `./aws-credentials.env` with credentials to access route 53
+* Setup a `./aws-credentials.env` with credentials to access route 53
 
   For example:
 
@@ -163,7 +163,7 @@ Open two windows, which we'll refer to throughout this walkthrough as:
 
 ### Check the managed zone
 
-1. Lets ensure our `managedzone` is present. In `T1`, run the following:
+1. Let's ensure our `managedzone` is present. In `T1`, run the following:
 
     ```bash
     export KUBECONFIG=$(pwd)/local/kube/control-plane.yaml
@@ -228,7 +228,7 @@ This is because we haven't placed the gateway yet onto any of our ingress cluste
     multi-cluster-gateways            prod-web   kuadrant-multi-cluster-gateway-instance-per-cluster                  True         2m42s
     ```
 
-    The instantiated gateway in this case is handled by Istio and has been assigned the 172.x address. You can definition of this gateway is handled in multi-cluster-gateways namespace. 
+    The instantiated gateway in this case is handled by Istio and has been assigned the 172.x address. You can define this gateway to be handled in the multi-cluster-gateways namespace. 
     As we are in a single cluster you can see both. Later on we will add in another ingress cluster and in that case you will only see the instantiated gateway.
 
 
@@ -262,7 +262,7 @@ We only configure DNS once a HTTPRoute has been attached to a listener in the ga
     No resources found
     ```
 
-1. Lets create a simple echo app with a HTTPRoute in one of the gateway clusters. Remember to replace the hostnames. Again we are creating this in the single hub cluster for now. In `T1`, run:
+1. Let's create a simple echo app with a HTTPRoute in one of the gateway clusters. Remember to replace the hostnames. Again we are creating this in the single hub cluster for now. In `T1`, run:
 
     ```bash
     kubectl apply -f - <<EOF
@@ -337,7 +337,7 @@ We only configure DNS once a HTTPRoute has been attached to a listener in the ga
     kubectl get dnsrecord -n multi-cluster-gateways -o=yaml
     ```
 
-1. Give DNS a minute or two to update. You should then be able to executethe following and get back the correct A record. 
+1. Give DNS a minute or two to update. You should then be able to execute the following and get back the correct A record. 
 
     ```bash
     dig $MGC_SUB_DOMAIN

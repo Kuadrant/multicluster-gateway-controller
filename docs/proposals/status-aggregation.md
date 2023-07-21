@@ -45,7 +45,7 @@ status:
 
 In this example, the `Ready` status condition type is `False` because two of the three Gateway instances (gateway-1 and gateway-3) have issues with their listeners. For gateway-1, the reason for the `False` condition is that the listener certificate is expired, and for gateway-3, the reason is that no listener is configured for port 80. These reasons are included as status messages in the `Gateway` resource in the control plane.
 
-As there may be different reasons for the condition being `False` across different clusters, it doesn't make sense to aggregate the `reason` field. The `reason` field is intended to be a programatic identifier, while the `message` field allows for a human readable message i.e. a semi-colon separated list of messages.
+As there may be different reasons for the condition being `False` across different clusters, it doesn't make sense to aggregate the `reason` field. The `reason` field is intended to be a programmatic identifier, while the `message` field allows for a human readable message i.e. a semi-colon separated list of messages.
 
 The `lastTransitionTime` and `observedGeneration` fields will behave as normal for the resource in the control plane.
 

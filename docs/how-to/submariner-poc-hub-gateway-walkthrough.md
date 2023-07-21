@@ -18,7 +18,7 @@ If the Service is unavailable in either workload cluster, it will be routed to t
 
 >**Note:** :exclamation: this walkthrough will setup a zone in your AWS account and make changes to it for DNS purposes
 
->**Note:** :exclamation: `replace.this` is a place holder that you will need to replace with your own domain
+>**Note:** :exclamation: `replace.this` is a placeholder that you will need to replace with your own domain
 
 ## Installation and Setup
 
@@ -272,7 +272,7 @@ kubectl --kubeconfig ./tmp/kubeconfigs/external/mgc-control-plane.kubeconfig get
 
 ### Create and attach a HTTPRoute and Service
 
-Lets create a HTTPRoute and a Service (that uses an externalName) in the hub cluster.
+Let's create a HTTPRoute and a Service (that uses an externalName) in the hub cluster.
 Remember to replace the hostnames. In `T1`, run:
 
 ```bash
@@ -320,13 +320,13 @@ kubectl get dnsrecord -n multi-cluster-gateways -o=yaml
 ## Verify the HttpRoute works
 
 At this point you should get a 200 response.
-It might take a minute for dns to propegate internally by submariner after importing the services above.
+It might take a minute for dns to propagate internally by submariner after importing the services above.
 
 ```bash
 curl -Ik https://sub.replace.this
 ```
 
-If DNS is not resolving for you yet you may get a 503.
+If DNS is not resolving for you yet, you may get a 503.
 In that case you can force resolve the IP to the hub cluster and verify a 200 is returned.
 
 ```bash
@@ -339,4 +339,4 @@ At the time of writing, Istio does *not* support adding a ServiceImport as a bac
 This is why the walkthrough uses a Service of type ExternalName to route to the clusterset host instead.
 There is an [issue](https://github.com/istio/istio/issues/44415) questioning the current state of support.
 
-The install of the `subctl` cli [fails on macs with arm architecture](https://github.com/submariner-io/get.submariner.io/issues/50). The error is `curl: (22) The requested URL returned error: 404`. A workaround for this is to download the amd64 darwin release manually [from the releases page](https://github.com/submariner-io/subctl/releases) and extract it to the `./bin` directory.
+The installation of the `subctl` cli [fails on macs with arm architecture](https://github.com/submariner-io/get.submariner.io/issues/50). The error is `curl: (22) The requested URL returned error: 404`. A workaround for this is to download the amd64 darwin release manually [from the releases page](https://github.com/submariner-io/subctl/releases) and extract it to the `./bin` directory.

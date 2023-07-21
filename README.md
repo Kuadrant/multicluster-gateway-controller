@@ -29,8 +29,8 @@ When deploying the multicluster gateway controller using the make targets, the f
 * Various dependencies installed into $(pwd)/bin e.g. kind, yq etc.
   * Run `make dependencies`
 * openssl>=3
-    * On macos a later version is available with `brew install openssl`. You'll need to update your PATH as macos provides an older version via libressl as well
-    * On fedora use `dnf install openssl`
+    * On macOS a later version is available with `brew install openssl`. You'll need to update your PATH as macOS provides an older version via libressl as well
+    * On Fedora use `dnf install openssl`
 * go >= 1.20
 
 ### 1. Running the controller in the cluster:

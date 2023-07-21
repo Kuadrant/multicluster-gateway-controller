@@ -43,12 +43,12 @@ Below is a draft API for what we anticipate the DNSPolicy to look like
 apiVersion: kuadrant.io/v1alpha1
 kind: DNSPolicy
 spec:
-  targetRef: # defaults to gateway gvk and currrent namespace
+  targetRef: # defaults to gateway gvk and current namespace
     name: gateway-name
   health:
    ...
   loadBalancing:
-    weighted: # always requird
+    weighted: # always required
      defaultWeight: 10  #always required
      custom: #optional
      - value: AWS  #optional with both GEO and weighted. With GEO the custom weight is applied to gateways within a Geographic region
@@ -56,7 +56,7 @@ spec:
      - value: GCP
        weight: 20
     GEO: #optional
-      defaultGeo: IE # required with GEO. Choses a default DNS response when no particular response is defined for a request from an unknown GEO.
+      defaultGeo: IE # required with GEO. Chooses a default DNS response when no particular response is defined for a request from an unknown GEO.
 ```  
 
 ### Available Load Balancing Strategies  
@@ -72,7 +72,7 @@ apiVersion: kuadrant.io/v1alpha1
 kind: DNSPolicy
 name: default-policy
 spec:
-  targetRef: # defaults to gateway gvk and currrent namespace
+  targetRef: # defaults to gateway gvk and current namespace
     name: gateway-name
   loadBalancing:
     weighted: # required
@@ -81,7 +81,7 @@ spec:
    ...   
 ```  
 
-In order to provide GEO based DNS and allow customisation of the weighting, we need some additional information to be provided by the gateway / cluster admin about where this gateway has been placed. For example if they want to use GEO based DNS as a strategy, we need to know what GEO identifier(s) to use for each record we create and a default GEO to use as a catch all. Also if the desired load balancing approach is to provide custom weighting and no longer simply use Round Robin, we will need a way to identify which records to apply that custom weighting to based on the clusters the gateway is placed on.
+In order to provide GEO based DNS and allow customisation of the weighting, we need some additional information to be provided by the gateway / cluster admin about where this gateway has been placed. For example if they want to use GEO based DNS as a strategy, we need to know what GEO identifier(s) to use for each record we create and a default GEO to use as a catch-all. Also, if the desired load balancing approach is to provide custom weighting and no longer simply use Round Robin, we will need a way to identify which records to apply that custom weighting to based on the clusters the gateway is placed on.
 
 To solve this we will allow two new attributes to be added to the `ManagedCluster` resource as labels:
 
@@ -140,7 +140,7 @@ So any gateway targeted by a DNSPolicy with the above definition that is placed 
 
 ### Status
 
-DNSPolicy should have a ready condition that reflect that the DNSrecords have been created and configured as expected. In the case that there is an invalid policy, the status message should reflect this and indicate to the user that the old DNS has been preserved.
+DNSPolicy should have a ready condition that reflect that the DNSRecords have been created and configured as expected. In the case that there is an invalid policy, the status message should reflect this and indicate to the user that the old DNS has been preserved.
 
 We will also want to add a status condition to the gateway status indicating it is effected by this policy. Gateway API recommends the following status condition 
 
@@ -166,7 +166,7 @@ apiVersion: kuadrant.io/v1alpha1
 kind: DNSPolicy
 name: RoundRobinPolicy
 spec:
-  targetRef: # defaults to gateway gvk and currrent namespace
+  targetRef: # defaults to gateway gvk and current namespace
     name: gateway-name
   loadBalancing:
     weighted:
@@ -181,7 +181,7 @@ apiVersion: kuadrant.io/v1alpha1
 kind: DNSPolicy
 name: GEODNS
 spec:
-  targetRef: # defaults to gateway gvk and currrent namespace
+  targetRef: # defaults to gateway gvk and current namespace
     name: gateway-name
   loadBalancing:
     weighted:
@@ -199,7 +199,7 @@ apiVersion: kuadrant.io/v1alpha1
 kind: DNSPolicy
 name: SendMoreToAzure
 spec:
-  targetRef: # defaults to gateway gvk and currrent namespace
+  targetRef: # defaults to gateway gvk and current namespace
     name: gateway-name
   loadBalancing:
     weighted:
@@ -220,7 +220,7 @@ apiVersion: kuadrant.io/v1alpha1
 kind: DNSPolicy
 name: GEODNSAndSendMoreToAzure
 spec:
-  targetRef: # defaults to gateway gvk and currrent namespace
+  targetRef: # defaults to gateway gvk and current namespace
     name: gateway-name
   loadBalancing:
     weighted:
@@ -263,7 +263,7 @@ spec:
 
 The DNS policy targeting this gateway will apply to both myapp.hcpapps.net and other.hcpapps.net
 
-However there is still significant value even with this limitation. This limitation is something we will likely revisit in the future
+However, there is still significant value even with this limitation. This limitation is something we will likely revisit in the future
 
 
 ## Background Docs
