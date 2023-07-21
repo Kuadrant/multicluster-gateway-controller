@@ -58,7 +58,7 @@ func (r *DNSPolicyReconciler) reconcileGatewayHealthChecks(ctx context.Context, 
 	allResults := []dns.HealthCheckResult{}
 
 	gatewayAccessor := traffic.NewGateway(gateway)
-	managedHosts, err := r.HostService.GetManagedHosts(ctx, gatewayAccessor)
+	managedHosts, err := r.dnsHelper.getManagedHosts(ctx, gatewayAccessor)
 	if err != nil {
 		return allResults, err
 	}
@@ -91,7 +91,7 @@ func (r *DNSPolicyReconciler) reconcileGatewayHealthChecks(ctx context.Context, 
 
 func (r *DNSPolicyReconciler) reconcileDNSRecordHealthChecks(ctx context.Context, dnsRecord *v1alpha1.DNSRecord, config *healthChecksConfig) ([]dns.HealthCheckResult, error) {
 
-	managedzone, err := r.HostService.GetDNSRecordManagedZone(ctx, dnsRecord)
+	managedzone, err := r.dnsHelper.getDNSRecordManagedZone(ctx, dnsRecord)
 	if err != nil {
 		return nil, err
 	}

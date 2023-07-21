@@ -28,6 +28,7 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -62,17 +63,6 @@ const (
 	MultiClusterIPAddressType             gatewayv1beta1.AddressType = "kuadrant.io/MultiClusterIPAddress"
 	MultiClusterHostnameAddressType       gatewayv1beta1.AddressType = "kuadrant.io/MultiClusterHostnameAddress"
 )
-
-type HostService interface {
-	CreateDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone, owner metav1.Object) (*v1alpha1.DNSRecord, error)
-	GetDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone, owner metav1.Object) (*v1alpha1.DNSRecord, error)
-	GetManagedZoneForHost(ctx context.Context, domain string, t traffic.Interface) (*v1alpha1.ManagedZone, string, error)
-	SetEndpoints(ctx context.Context, mcgTarget *dns.MultiClusterGatewayTarget, dnsRecord *v1alpha1.DNSRecord) error
-	CleanupDNSRecords(ctx context.Context, owner traffic.Interface) error
-	// GetManagedHosts will return the list of hosts in this gateways listeners that are associated with a managedzone managed by this controller
-	GetManagedHosts(ctx context.Context, traffic traffic.Interface) ([]v1alpha1.ManagedHost, error)
-	GetDNSRecordManagedZone(ctx context.Context, dnsRecord *v1alpha1.DNSRecord) (*v1alpha1.ManagedZone, error)
-}
 
 type CertificateService interface {
 	EnsureCertificate(ctx context.Context, host string, owner metav1.Object) error
@@ -109,7 +99,6 @@ type GatewayReconciler struct {
 	client.Client
 	Scheme       *runtime.Scheme
 	Certificates CertificateService
-	HostService  HostService
 	Placement    GatewayPlacer
 }
 
@@ -133,6 +122,10 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		log.Info("gateway being deleted ", "gateway", upstreamGateway.Name, "namespace", upstreamGateway.Namespace)
 		if _, _, _, err := r.reconcileDownstreamFromUpstreamGateway(ctx, upstreamGateway, nil); err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to reconcile downstream gateway after upstream gateway deleted: %s ", err)
+		}
+		//TODO remove as part of https://github.com/Kuadrant/multicluster-gateway-controller/issues/359
+		if err := r.cleanupDNSRecords(ctx, traffic.NewGateway(upstreamGateway)); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to remove dns records associated with gateway : %s", err)
 		}
 		controllerutil.RemoveFinalizer(upstreamGateway, GatewayFinalizer)
 		if err := r.Update(ctx, upstreamGateway); err != nil {
@@ -299,7 +292,6 @@ func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.C
 	downstream := upstreamGateway.DeepCopy()
 	downstreamNS := fmt.Sprintf("%s-%s", "kuadrant", downstream.Namespace)
 	downstream.Status = gatewayv1beta1.GatewayStatus{}
-	upstreamAccessor := traffic.NewGateway(upstreamGateway)
 
 	// reset this for the sync as we don't want control plane level UID, creation etc etc
 	downstream.ObjectMeta = metav1.ObjectMeta{
@@ -319,11 +311,6 @@ func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.C
 		if err != nil {
 			return false, metav1.ConditionFalse, clusters, err
 		}
-		log.V(3).Info("cleaning up associated DNSRecords")
-		if err := r.HostService.CleanupDNSRecords(ctx, accessor); err != nil {
-			log.Error(err, "Error deleting DNS record")
-			return false, metav1.ConditionFalse, clusters, err
-		}
 
 		// Cleanup certificates
 		err = r.Certificates.CleanupCertificates(ctx, accessor)
@@ -334,16 +321,12 @@ func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.C
 		return false, metav1.ConditionTrue, targets.UnsortedList(), nil
 	}
 
-	managedHosts, err := r.HostService.GetManagedHosts(ctx, upstreamAccessor)
-	if err != nil {
-		return false, metav1.ConditionFalse, clusters, fmt.Errorf("failed to get managed hosts : %s", err)
-	}
-	if len(managedHosts) == 0 {
-		return false, metav1.ConditionFalse, clusters, fmt.Errorf("no managed hosts found")
+	if len(upstreamGateway.Spec.Listeners) == 0 {
+		return false, metav1.ConditionFalse, clusters, fmt.Errorf("no managed listeners found")
 	}
 
 	// ensure tls is set up first before doing anything else. TLS is not affected by placement changes
-	tlsSecrets, err := r.reconcileTLS(ctx, upstreamGateway, downstream, managedHosts)
+	tlsSecrets, err := r.reconcileTLS(ctx, upstreamGateway, downstream)
 	if err != nil {
 		return true, metav1.ConditionFalse, clusters, fmt.Errorf("failed to reconcle tls : %s", err)
 	}
@@ -370,37 +353,36 @@ func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.C
 	}
 	//update the cluster set, needs to be ordered or the status update can continually change and cause spurious updates
 	clusters = sets.List(placed)
-	if placed.Equal(targets) {
+	if placed.Equal(targets) && placed.Len() > 0 {
 		return false, metav1.ConditionTrue, clusters, nil
 	}
 	log.Info("Gateway Reconciled Successfully ", "gateway", upstreamGateway.Name, "namespace", upstreamGateway.Namespace)
 	return false, metav1.ConditionUnknown, clusters, nil
 }
 
-func (r *GatewayReconciler) reconcileTLS(ctx context.Context, upstreamGateway *gatewayv1beta1.Gateway, gateway *gatewayv1beta1.Gateway, managedHosts []v1alpha1.ManagedHost) ([]metav1.Object, error) {
+func (r *GatewayReconciler) reconcileTLS(ctx context.Context, upstreamGateway *gatewayv1beta1.Gateway, gateway *gatewayv1beta1.Gateway) ([]metav1.Object, error) {
 	log := crlog.FromContext(ctx)
 	tlsSecrets := []metav1.Object{}
 	accessor := traffic.NewGateway(gateway)
+	for _, listener := range upstreamGateway.Spec.Listeners {
+		host := string(*listener.Hostname)
 
-	for _, mh := range managedHosts {
-		// Only generate cert for https listeners
-		listener := accessor.GetListenerByHost(mh.Host)
-		if listener == nil || listener.Protocol != gatewayv1beta1.HTTPSProtocolType {
+		if listener.Protocol != gatewayv1beta1.HTTPSProtocolType {
 			continue
 		}
 
 		// create certificate resource for assigned host
-		if err := r.Certificates.EnsureCertificate(ctx, mh.Host, upstreamGateway); err != nil && !k8serrors.IsAlreadyExists(err) {
+		if err := r.Certificates.EnsureCertificate(ctx, host, upstreamGateway); err != nil && !k8serrors.IsAlreadyExists(err) {
 			return tlsSecrets, err
 		}
 
 		// Check if certificate secret is ready
-		secret, err := r.Certificates.GetCertificateSecret(ctx, mh.Host, upstreamGateway.Namespace)
+		secret, err := r.Certificates.GetCertificateSecret(ctx, host, upstreamGateway.Namespace)
 		if err != nil && !k8serrors.IsNotFound(err) {
 			return tlsSecrets, err
 		}
 		if err != nil {
-			log.V(3).Info("tls secret does not exist yet for host " + mh.Host + " requeue")
+			log.V(3).Info("tls secret does not exist yet for host " + host + " requeue")
 			return tlsSecrets, nil
 		}
 
@@ -412,7 +394,7 @@ func (r *GatewayReconciler) reconcileTLS(ctx context.Context, upstreamGateway *g
 			downstreamSecret.Namespace = gateway.Namespace
 			downstreamSecret.Labels = secret.Labels
 			downstreamSecret.Annotations = secret.Annotations
-			accessor.AddTLS(mh.Host, downstreamSecret)
+			accessor.AddTLS(host, downstreamSecret)
 			tlsSecrets = append(tlsSecrets, downstreamSecret)
 		}
 	}
@@ -536,4 +518,24 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager, ctx context.Conte
 			return true
 		})).
 		Complete(r)
+}
+
+//TODO this is duplciated code and here only temp and will be removed as part of https://github.com/Kuadrant/multicluster-gateway-controller/issues/359
+
+const labelGatewayReference = "kuadrant.io/Gateway-uid"
+
+// CleanupDNSRecords removes all DNS records that were created for a provided traffic.Interface object
+func (r *GatewayReconciler) cleanupDNSRecords(ctx context.Context, owner traffic.Interface) error {
+	recordsToCleaunup := &v1alpha1.DNSRecordList{}
+	selector, _ := labels.Parse(fmt.Sprintf("%s=%s", labelGatewayReference, owner.GetUID()))
+
+	if err := r.List(ctx, recordsToCleaunup, &client.ListOptions{LabelSelector: selector}); err != nil {
+		return err
+	}
+	for _, record := range recordsToCleaunup.Items {
+		if err := r.Delete(ctx, &record); err != nil {
+			return err
+		}
+	}
+	return nil
 }

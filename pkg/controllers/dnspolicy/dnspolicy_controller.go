@@ -57,7 +57,7 @@ func (c *DNSPolicyRefsConfig) PolicyRefsAnnotation() string {
 type DNSPolicyReconciler struct {
 	reconcilers.TargetRefReconciler
 	DNSProvider dns.DNSProviderFactory
-	HostService gateway.HostService
+	dnsHelper   dnsHelper
 	Placement   gateway.GatewayPlacer
 }
 
@@ -230,6 +230,9 @@ func (r *DNSPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	gatewayEventMapper := &GatewayEventMapper{
 		Logger: r.Logger().WithName("gatewayEventMapper"),
 	}
+	client := r.Client()
+	dnsHelper := dnsHelper{Client: client}
+	r.dnsHelper = dnsHelper
 	clusterEventMapper := &ClusterEventMapper{
 		Logger:             r.Logger().WithName("clusterEventMapper"),
 		GatewayEventMapper: gatewayEventMapper,

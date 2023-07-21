@@ -125,7 +125,6 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 
 	certificates := tls.NewService(k8sManager.GetClient(), "glbc-ca")
-	dns := dns.NewService(k8sManager.GetClient())
 	plc := placement.NewOCMPlacer(k8sManager.GetClient())
 	testPlc := NewTestOCMPlacer()
 
@@ -140,7 +139,6 @@ var _ = BeforeSuite(func() {
 			BaseReconciler: dnsPolicyBaseReconciler,
 		},
 		DNSProvider: providerFactory,
-		HostService: dns,
 		Placement:   testPlc,
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
@@ -155,7 +153,6 @@ var _ = BeforeSuite(func() {
 		Client:       k8sManager.GetClient(),
 		Scheme:       k8sManager.GetScheme(),
 		Certificates: certificates,
-		HostService:  dns,
 		Placement:    plc,
 	}).SetupWithManager(k8sManager, ctx)
 	Expect(err).ToNot(HaveOccurred())

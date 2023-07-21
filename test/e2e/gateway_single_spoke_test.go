@@ -117,8 +117,10 @@ var _ = Describe("Gateway single target cluster", func() {
 			Eventually(func(ctx SpecContext) bool {
 				err := tconfig.HubClient().Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.HubNamespace()}, gw)
 				Expect(err).ToNot(HaveOccurred())
-				return meta.IsStatusConditionTrue(gw.Status.Conditions, string(gatewayapi.GatewayConditionAccepted)) &&
-					meta.IsStatusConditionTrue(gw.Status.Conditions, string(gatewayapi.GatewayConditionProgrammed))
+				programmed := meta.FindStatusCondition(gw.Status.Conditions, string(gatewayapi.GatewayConditionProgrammed))
+
+				return meta.IsStatusConditionTrue(gw.Status.Conditions, string(gatewayapi.GatewayConditionAccepted)) && (nil != programmed && programmed.Status == "Unknown")
+
 			}).WithContext(ctx).WithTimeout(30 * time.Second).WithPolling(10 * time.Second).Should(BeTrue())
 
 		})
