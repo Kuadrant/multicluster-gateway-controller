@@ -1,4 +1,4 @@
-package dnspolicy
+package events
 
 import (
 	"context"
@@ -15,6 +15,7 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/metadata"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/shared"
 )
 
 // ClusterEventMapper is an EventHandler that maps Cluster object events to policy events.
@@ -23,11 +24,11 @@ import (
 type ClusterEventMapper struct {
 	Logger             logr.Logger
 	GatewayEventMapper *GatewayEventMapper
-	client             client.Client
+	Client             client.Client
 }
 
 func (m *ClusterEventMapper) MapToDNSPolicy(obj client.Object) []reconcile.Request {
-	return m.mapToPolicyRequest(obj, "dnspolicy", &DNSPolicyRefsConfig{})
+	return m.mapToPolicyRequest(obj, "dnspolicy", &shared.DNSPolicyRefsConfig{})
 }
 
 func (m *ClusterEventMapper) mapToPolicyRequest(obj client.Object, policyKind string, policyRefsConfig common.PolicyRefsConfig) []reconcile.Request {
@@ -44,7 +45,7 @@ func (m *ClusterEventMapper) mapToPolicyRequest(obj client.Object, policyKind st
 	clusterName := obj.GetName()
 
 	allGwList := &gatewayapiv1beta1.GatewayList{}
-	err := m.client.List(context.TODO(), allGwList)
+	err := m.Client.List(context.TODO(), allGwList)
 	if err != nil {
 		logger.Info("mapToPolicyRequest:", "error", "failed to get gateways")
 		return []reconcile.Request{}
