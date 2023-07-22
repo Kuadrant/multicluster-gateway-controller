@@ -8,3 +8,7 @@ verify-code: vet ## Verify code formatting
 verify-manifests: manifests ## Verify manifests update.
 	git diff --exit-code ./config
 	[ -z "$$(git ls-files --other --exclude-standard --directory --no-empty-directory ./config)" ]
+
+.PHONY: verify-imports
+verify-imports: ## Verify go imports are sorted and grouped correctly.
+	hack/verify-imports.sh

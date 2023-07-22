@@ -21,7 +21,7 @@ CLUSTERADM ?= $(LOCALBIN)/clusteradm
 SUBCTL ?= $(LOCALBIN)/subctl
 GINKGO ?= $(LOCALBIN)/ginkgo
 YQ ?= $(LOCALBIN)/yq
-
+OPENSHIFT_GOIMPORTS ?= $(LOCALBIN)/openshift-goimports
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v4.5.4
@@ -34,6 +34,7 @@ OPERATOR_SDK_VERSION ?= 1.28.0
 CLUSTERADM_VERSION ?= 0.6.0
 SUBCTL_VERSION ?= release-0.15
 GINKGO_VERSION ?= v2.6.1
+OPENSHIFT_GOIMPORTS_VERSION ?= c70783e636f2213cac683f6865d88c5edace3157
 
 .PHONY: dependencies
 dependencies: kustomize operator-sdk controller-gen envtest kind helm yq istioctl clusteradm subctl ginkgo
@@ -111,3 +112,8 @@ $(SUBCTL):
 ginkgo: $(GINKGO) ## Download ginkgo locally if necessary
 $(GINKGO):
 	test -s $(GINKGO) || GOBIN=$(LOCALBIN) go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo@$(GINKGO_VERSION)
+
+.PHONY: openshift-goimports
+openshift-goimports: $(OPENSHIFT_GOIMPORTS) ## Download openshift-goimports locally if necessary
+$(OPENSHIFT_GOIMPORTS):
+	GOBIN=$(LOCALBIN) go install github.com/openshift-eng/openshift-goimports@$(OPENSHIFT_GOIMPORTS_VERSION)
