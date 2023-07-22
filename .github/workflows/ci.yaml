@@ -61,6 +61,20 @@ jobs:
       - name: Run make verify-manifests
         run: |
           make verify-manifests
+  verify-imports:
+    name: Verify imports
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Go 1.19.x
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.19.x
+        id: go
+      - name: Check out code
+        uses: actions/checkout@v2
+      - name: Run make verify-manifests
+        run: |
+          make verify-imports
   integration_test_suite:
     name: Integration Test Suite
     runs-on: ubuntu-latest
