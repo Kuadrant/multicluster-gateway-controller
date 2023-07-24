@@ -6,7 +6,7 @@ resources:
 helmCharts:
   - name: cert-manager
     repo: https://charts.jetstack.io
-    version: v1.7.1
+    version: v1.12.2
     releaseName: mgc
     namespace: cert-manager
     valuesInline:
@@ -14,11 +14,5 @@ helmCharts:
         leaderElection:
           namespace: cert-manager
       installCRDs: true
-      # The Job API is not present
-      startupapicheck:
-        enabled: false
-      # The APIService API is not present
-      cainjector:
-        enabled: false
       # Customize active controllers
       extraArgs: ["--controllers=*,-ingress-shim"]
