@@ -66,6 +66,10 @@ vet: ## Run go vet against code.
 lint: ## Run golangci-lint against code.
 	golangci-lint run ./...
 
+.PHONY: imports
+imports: openshift-goimports ## Run openshift goimports against code.
+	$(OPENSHIFT_GOIMPORTS) -m github.com/Kuadrant/multicluster-gateway-controller -i github.com/kuadrant/kuadrant-operator
+
 .PHONY: test-unit
 test-unit: manifests generate fmt vet envtest ## Run unit tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -tags=unit -coverprofile cover-unit.out -v

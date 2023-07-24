@@ -10,18 +10,19 @@ import (
 	"strings"
 	"time"
 
-	. "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	ocm_cluster_v1beta1 "open-cluster-management.io/api/cluster/v1beta1"
+
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	gatewayapi "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
 	mgcv1alpha1 "github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	ocm_cluster_v1beta1 "open-cluster-management.io/api/cluster/v1beta1"
-	gatewayapi "sigs.k8s.io/gateway-api/apis/v1beta1"
+	. "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 )
 
 var _ = Describe("Gateway single target cluster", func() {

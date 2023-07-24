@@ -5,11 +5,13 @@ package e2e
 import (
 	"testing"
 
-	. "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
+	. "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 )
 
 var tconfig SuiteConfig

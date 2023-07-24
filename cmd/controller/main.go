@@ -20,25 +20,22 @@ import (
 	"flag"
 	"os"
 
+	certmanv1 "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
+	clusterv1 "open-cluster-management.io/api/cluster/v1"
+	clusterv1beta2 "open-cluster-management.io/api/cluster/v1beta1"
+	workv1 "open-cluster-management.io/api/work/v1"
+
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-
-	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
-	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-
-	certmanv1 "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
-
 	gatewayapi "sigs.k8s.io/gateway-api/apis/v1beta1"
 
-	clusterv1 "open-cluster-management.io/api/cluster/v1"
-	clusterv1beta2 "open-cluster-management.io/api/cluster/v1beta1"
-	workv1 "open-cluster-management.io/api/work/v1"
+	"github.com/kuadrant/kuadrant-operator/pkg/reconcilers"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnspolicy"
@@ -48,7 +45,6 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/dnsprovider"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/placement"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/tls"
-	"github.com/kuadrant/kuadrant-operator/pkg/reconcilers"
 	//+kubebuilder:scaffold:imports
 )
 

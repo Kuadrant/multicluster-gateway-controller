@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"open-cluster-management.io/addon-framework/pkg/agent"
-
 	workapiv1 "open-cluster-management.io/api/work/v1"
 )
 
