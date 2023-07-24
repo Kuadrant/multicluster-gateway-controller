@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	gatewayapiv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gatewayapi "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
@@ -190,6 +191,25 @@ var _ = Describe("Gateway single target cluster", func() {
 			})
 
 			It("makes available a hostname that can be resolved and reachable through HTTPS", func(ctx SpecContext) {
+
+				By("creating a DNSPolicy in the hub")
+
+				dnsPolicy := &mgcv1alpha1.DNSPolicy{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      testID,
+						Namespace: tconfig.HubNamespace(),
+					},
+					Spec: mgcv1alpha1.DNSPolicySpec{
+						TargetRef: gatewayapiv1alpha2.PolicyTargetReference{
+							Group:     "gateway.networking.k8s.io",
+							Kind:      "Gateway",
+							Name:      gatewayapi.ObjectName(testID),
+							Namespace: Pointer(gatewayapi.Namespace(tconfig.HubNamespace())),
+						},
+					},
+				}
+				err := tconfig.HubClient().Create(ctx, dnsPolicy)
+				Expect(err).ToNot(HaveOccurred())
 
 				// Wait for the DNSrecord to exists: this shouldn't be necessary but I have found out that AWS dns servers
 				// cache the "no such host" response for a period of aprox 10-15 minutes, which makes the test run for a

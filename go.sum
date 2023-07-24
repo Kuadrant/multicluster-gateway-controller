@@ -276,7 +276,6 @@ github.com/onsi/ginkgo/v2 v2.6.1/go.mod h1:yjiuMwPokqY1XauOgju45q3sJt6VzQ/Fict1L
 github.com/onsi/gomega v1.24.2 h1:J/tulyYK6JwBldPViHJReihxxZ+22FHs0piGjQAvoUE=
 github.com/onsi/gomega v1.24.2/go.mod h1:gs3J10IS7Z7r7eXRoNJIrNqU4ToQukCJhFtKrWgHWnk=
 github.com/openshift/library-go v0.0.0-20220525173854-9b950a41acdc h1:j+upvKc1uLzuL+q/JXie8+IMohOooTCaEC9w+4d1Ztk=
-github.com/openshift/library-go v0.0.0-20220525173854-9b950a41acdc/go.mod h1:AMZwYwSdbvALDl3QobEzcJ2IeDO7DYLsr42izKzh524=
 github.com/operator-framework/api v0.17.5 h1:9d0pc6m1Vp4QeS8i5dhl/B0nifhKQdtw+iFsNx0An0Q=
 github.com/operator-framework/api v0.17.5/go.mod h1:l/cuwtPxkVUY7fzYgdust2m9tlmb8I4pOvbsUufRb24=
 github.com/pkg/errors v0.8.0/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=

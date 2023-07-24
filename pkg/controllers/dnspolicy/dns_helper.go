@@ -24,11 +24,6 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/traffic"
 )
 
-const (
-	LabelRecordID         = "kuadrant.io/record-id"
-	LabelGatewayReference = "kuadrant.io/Gateway-uid"
-)
-
 var (
 	ErrNoManagedZoneForHost = fmt.Errorf("no managed zone for host")
 	ErrAlreadyAssigned      = fmt.Errorf("managed host already assigned")
@@ -96,19 +91,13 @@ func dnsRecordLabels(gwKey, apKey client.ObjectKey) map[string]string {
 	}
 }
 
-// createDNSRecord creates a new DNSRecord, if one does not already exist, in the given managed zone with the given subdomain.
-// Needs traffic.Interface owner to block other traffic objects from accessing this record
-func (dh *dnsHelper) createDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone, owner metav1.Object) (*v1alpha1.DNSRecord, error) {
+func (dh *dnsHelper) buildDNSRecord(gateway *gatewayv1beta1.Gateway, dnsPolicy *v1alpha1.DNSPolicy, subDomain string, managedZone *v1alpha1.ManagedZone) *v1alpha1.DNSRecord {
 	managedHost := strings.ToLower(fmt.Sprintf("%s.%s", subDomain, managedZone.Spec.DomainName))
-
-	dnsRecord := v1alpha1.DNSRecord{
+	dnsRecord := &v1alpha1.DNSRecord{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      managedHost,
 			Namespace: managedZone.Namespace,
-			Labels: map[string]string{
-				LabelRecordID:         subDomain,
-				LabelGatewayReference: string(owner.GetUID()),
-			},
+			Labels:    dnsRecordLabels(client.ObjectKeyFromObject(gateway), client.ObjectKeyFromObject(dnsPolicy)),
 		},
 		Spec: v1alpha1.DNSRecordSpec{
 			ManagedZoneRef: &v1alpha1.ManagedZoneReference{
@@ -116,32 +105,38 @@ func (dh *dnsHelper) createDNSRecord(ctx context.Context, subDomain string, mana
 			},
 		},
 	}
-	if err := controllerutil.SetOwnerReference(owner, &dnsRecord, dh.Scheme()); err != nil {
-		return nil, err
-	}
-	err := controllerutil.SetControllerReference(managedZone, &dnsRecord, dh.Scheme())
+	return dnsRecord
+}
+
+// createDNSRecord creates a new DNSRecord, if one does not already exist, in the given managed zone with the given subdomain.
+// Needs traffic.Interface owner to block other traffic objects from accessing this record
+func (dh *dnsHelper) createDNSRecord(ctx context.Context, gateway *gatewayv1beta1.Gateway, dnsPolicy *v1alpha1.DNSPolicy, subDomain string, managedZone *v1alpha1.ManagedZone) (*v1alpha1.DNSRecord, error) {
+	dnsRecord := dh.buildDNSRecord(gateway, dnsPolicy, subDomain, managedZone)
+
+	err := controllerutil.SetControllerReference(managedZone, dnsRecord, dh.Scheme())
 	if err != nil {
 		return nil, err
 	}
 
-	err = dh.Create(ctx, &dnsRecord, &client.CreateOptions{})
+	err = dh.Create(ctx, dnsRecord, &client.CreateOptions{})
 	if err != nil && !k8serrors.IsAlreadyExists(err) {
 		return nil, err
 	}
 	//host may already be present
 	if err != nil && k8serrors.IsAlreadyExists(err) {
-		err = dh.Get(ctx, client.ObjectKeyFromObject(&dnsRecord), &dnsRecord)
+		err = dh.Get(ctx, client.ObjectKeyFromObject(dnsRecord), dnsRecord)
 		if err != nil {
 			return nil, err
 		}
 	}
-	return &dnsRecord, nil
+	return dnsRecord, nil
 }
 
-func (dh *dnsHelper) getManagedHosts(ctx context.Context, traffic traffic.Interface) ([]v1alpha1.ManagedHost, error) {
+func (dh *dnsHelper) getManagedHosts(ctx context.Context, gateway *gatewayv1beta1.Gateway, dnsPolicy *v1alpha1.DNSPolicy) ([]v1alpha1.ManagedHost, error) {
 	var managed []v1alpha1.ManagedHost
-	for _, host := range traffic.GetHosts() {
-		managedZone, subDomain, err := dh.getManagedZoneForHost(ctx, host, traffic)
+	gatewayAccessor := traffic.NewGateway(gateway)
+	for _, host := range gatewayAccessor.GetHosts() {
+		managedZone, subDomain, err := dh.getManagedZoneForHost(ctx, host, gatewayAccessor)
 		if err != nil && !errors.Is(err, ErrNoManagedZoneForHost) {
 			return nil, err
 		}
@@ -149,7 +144,7 @@ func (dh *dnsHelper) getManagedHosts(ctx context.Context, traffic traffic.Interf
 			// its ok for no managedzone to be present as this could be a CNAME or externally managed host
 			continue
 		}
-		dnsRecord, err := dh.getDNSRecord(ctx, subDomain, managedZone, traffic)
+		dnsRecord, err := dh.getDNSRecord(ctx, gateway, dnsPolicy, subDomain, managedZone)
 		if err != nil && !k8serrors.IsNotFound(err) {
 			return nil, err
 		}
@@ -167,7 +162,7 @@ func (dh *dnsHelper) getManagedHosts(ctx context.Context, traffic traffic.Interf
 
 // getDNSRecord returns a v1alpha1.DNSRecord, if one exists, for the given subdomain in the given v1alpha1.ManagedZone.
 // It needs a reference string to enforce DNS record serving a single traffic.Interface owner
-func (dh *dnsHelper) getDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone, owner metav1.Object) (*v1alpha1.DNSRecord, error) {
+func (dh *dnsHelper) getDNSRecord(ctx context.Context, gateway *gatewayv1beta1.Gateway, dnsPolicy *v1alpha1.DNSPolicy, subDomain string, managedZone *v1alpha1.ManagedZone) (*v1alpha1.DNSRecord, error) {
 	managedHost := strings.ToLower(fmt.Sprintf("%s.%s", subDomain, managedZone.Spec.DomainName))
 
 	dnsRecord := &v1alpha1.DNSRecord{}
@@ -177,7 +172,7 @@ func (dh *dnsHelper) getDNSRecord(ctx context.Context, subDomain string, managed
 		}
 		return nil, err
 	}
-	if dnsRecord.GetLabels()[LabelGatewayReference] != string(owner.GetUID()) {
+	if dnsRecord.GetLabels()[DNSPolicyBackRefAnnotation] != client.ObjectKeyFromObject(dnsPolicy).Name {
 		return nil, fmt.Errorf("attempting to get a DNSrecord for a host already in use by a different traffic object. Host: %s", managedHost)
 	}
 	return dnsRecord, nil
