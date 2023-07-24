@@ -6,7 +6,7 @@ resources:
 helmCharts:
   - name: cert-manager
     repo: https://charts.jetstack.io
-    version: v1.7.1
+    version: v1.12.2
     releaseName: mgc
     namespace: cert-manager
     valuesInline:
