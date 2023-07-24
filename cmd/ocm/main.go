@@ -7,15 +7,17 @@ import (
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"open-cluster-management.io/addon-framework/pkg/addonfactory"
+	"open-cluster-management.io/addon-framework/pkg/addonmanager"
 
-	hub "github.com/Kuadrant/multicluster-gateway-controller/pkg/ocm/hub"
-	kuadrantv1beta1 "github.com/kuadrant/kuadrant-operator/api/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/klog/v2"
-	"open-cluster-management.io/addon-framework/pkg/addonfactory"
-	"open-cluster-management.io/addon-framework/pkg/addonmanager"
 	ctrl "sigs.k8s.io/controller-runtime"
+
+	kuadrantv1beta1 "github.com/kuadrant/kuadrant-operator/api/v1beta1"
+
+	hub "github.com/Kuadrant/multicluster-gateway-controller/pkg/ocm/hub"
 )
 
 //go:embed addon-manager/manifests
