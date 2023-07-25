@@ -3,7 +3,6 @@
 package metadata
 
 import (
-	"reflect"
 	"testing"
 
 	v1 "k8s.io/api/core/v1"
@@ -26,16 +25,9 @@ func Test_addFinalizer(t *testing.T) {
 				},
 			},
 			finalizer: "test-finalizer",
-			verify: func(obj metav1.Object, t *testing.T) {
-				if len(obj.GetFinalizers()) != 1 {
-					t.Errorf("expected 1 finalizer, got: %v", len(obj.GetFinalizers()))
-				}
-				for _, v := range obj.GetFinalizers() {
-					if v != "test-finalizer" {
-						t.Errorf("expected only finalizer value to be 'test-finalizer' but found '%v'", v)
-					}
-				}
-			},
+			verify: assertFinalizers([]string{
+				"test-finalizer",
+			}),
 		},
 		{
 			name: "adding a finalizer when finalizers are empty",
@@ -46,16 +38,9 @@ func Test_addFinalizer(t *testing.T) {
 				},
 			},
 			finalizer: "test-finalizer",
-			verify: func(obj metav1.Object, t *testing.T) {
-				if len(obj.GetFinalizers()) != 1 {
-					t.Errorf("expected 1 finalizer, got: %v", len(obj.GetFinalizers()))
-				}
-				for _, v := range obj.GetFinalizers() {
-					if v != "test-finalizer" {
-						t.Errorf("expected only finalizer value to be 'test-finalizer' but found '%v'", v)
-					}
-				}
-			},
+			verify: assertFinalizers([]string{
+				"test-finalizer",
+			}),
 		},
 		{
 			name: "adding a finalizer when that finalizer already exists",
@@ -68,16 +53,9 @@ func Test_addFinalizer(t *testing.T) {
 				},
 			},
 			finalizer: "test-finalizer",
-			verify: func(obj metav1.Object, t *testing.T) {
-				if len(obj.GetFinalizers()) != 1 {
-					t.Errorf("expected 1 finalizer, got: %v", len(obj.GetFinalizers()))
-				}
-				for _, v := range obj.GetFinalizers() {
-					if v != "test-finalizer" {
-						t.Errorf("expected only finalizer value to be 'test-finalizer' but found '%v'", v)
-					}
-				}
-			},
+			verify: assertFinalizers([]string{
+				"test-finalizer",
+			}),
 		},
 		{
 			name: "adding a finalizer when that finalizer already exists",
@@ -92,19 +70,11 @@ func Test_addFinalizer(t *testing.T) {
 				},
 			},
 			finalizer: "test-finalizer",
-			verify: func(obj metav1.Object, t *testing.T) {
-				if len(obj.GetFinalizers()) != 3 {
-					t.Errorf("expected 3 finalizer, got: %v", len(obj.GetFinalizers()))
-				}
-				expectedFinalizers := []string{
-					"test-finalizer",
-					"second-test-finalizer",
-					"third-test-finalizer",
-				}
-				if !reflect.DeepEqual(obj.GetFinalizers(), expectedFinalizers) {
-					t.Errorf("expected finalizers '%+v' to match expectedFinalizers: '%+v'", obj.GetFinalizers(), expectedFinalizers)
-				}
-			},
+			verify: assertFinalizers([]string{
+				"test-finalizer",
+				"second-test-finalizer",
+				"third-test-finalizer",
+			}),
 		},
 	}
 	for _, tt := range tests {
@@ -132,11 +102,7 @@ func Test_removeFinalizer(t *testing.T) {
 				},
 			},
 			finalizer: "test-finalizer", //We are trying to remove this key, even though it doesn't exist
-			verify: func(obj metav1.Object, t *testing.T) {
-				if len(obj.GetFinalizers()) != 0 {
-					t.Errorf("expected 0 finalizer, got: %v", len(obj.GetFinalizers()))
-				}
-			},
+			verify:    assertFinalizers(nil),
 		},
 		{
 			name: "removing a finalizer when finalizers are empty",
@@ -147,11 +113,7 @@ func Test_removeFinalizer(t *testing.T) {
 				},
 			},
 			finalizer: "test-finalizer",
-			verify: func(obj metav1.Object, t *testing.T) {
-				if len(obj.GetFinalizers()) != 0 {
-					t.Errorf("expected 0 finalizer, got: %v", len(obj.GetFinalizers()))
-				}
-			},
+			verify:    assertFinalizers(nil),
 		},
 
 		{
@@ -165,11 +127,7 @@ func Test_removeFinalizer(t *testing.T) {
 				},
 			},
 			finalizer: "test-finalizer", //this is what we are passing to the function
-			verify: func(obj metav1.Object, t *testing.T) {
-				if len(obj.GetFinalizers()) != 0 {
-					t.Errorf("expected 0 finalizer, got: %v", len(obj.GetFinalizers()))
-				}
-			},
+			verify:    assertFinalizers(nil),
 		},
 		{
 			name: "remove an existing finalizer",
@@ -184,18 +142,10 @@ func Test_removeFinalizer(t *testing.T) {
 				},
 			},
 			finalizer: "test-finalizer",
-			verify: func(obj metav1.Object, t *testing.T) {
-				if len(obj.GetFinalizers()) != 2 {
-					t.Errorf("expected 2 finalizers, got: %v", len(obj.GetFinalizers()))
-				}
-				expectedFinalizers := []string{
-					"first-test-finalizer",
-					"second-test-finalizer",
-				}
-				if !reflect.DeepEqual(obj.GetFinalizers(), expectedFinalizers) {
-					t.Errorf("expected finalizers '%+v' to match expectedFinalizers: '%+v'", obj.GetFinalizers(), expectedFinalizers)
-				}
-			},
+			verify: assertFinalizers([]string{
+				"first-test-finalizer",
+				"second-test-finalizer",
+			}),
 		},
 		{
 			name: "remove a finalizer that does not exist in the map",
@@ -210,19 +160,11 @@ func Test_removeFinalizer(t *testing.T) {
 				},
 			},
 			finalizer: "fourth-key",
-			verify: func(obj metav1.Object, t *testing.T) {
-				if len(obj.GetFinalizers()) != 3 {
-					t.Errorf("expected 3 finalizers, got: %v", len(obj.GetFinalizers()))
-				}
-				expectedFinalizers := []string{
-					"first-test-finalizer",
-					"second-test-finalizer",
-					"third-test-finalizer",
-				}
-				if !reflect.DeepEqual(obj.GetFinalizers(), expectedFinalizers) {
-					t.Errorf("expected finalizers '%+v' to match expectedFinalizers: '%+v'", obj.GetFinalizers(), expectedFinalizers)
-				}
-			},
+			verify: assertFinalizers([]string{
+				"first-test-finalizer",
+				"second-test-finalizer",
+				"third-test-finalizer",
+			}),
 		},
 	}
 
@@ -276,5 +218,27 @@ func Test_hasFinalizer(t *testing.T) {
 				t.Errorf("expected '%v' got '%v'", tt.expect, got)
 			}
 		})
+	}
+}
+
+func assertFinalizers(expectedFinalizers []string) func(obj metav1.Object, t *testing.T) {
+	return func(obj metav1.Object, t *testing.T) {
+		finalizers := obj.GetFinalizers()
+		if len(finalizers) != len(expectedFinalizers) {
+			t.Fatalf("expected %d finalizer(s), but got %d", len(expectedFinalizers), len(finalizers))
+		}
+
+		for _, v := range finalizers {
+			found := false
+			for _, expectedValue := range expectedFinalizers {
+				if v == expectedValue {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("expected only finalizer value to be '%s' but found '%v'", expectedFinalizers[0], v)
+			}
+		}
 	}
 }

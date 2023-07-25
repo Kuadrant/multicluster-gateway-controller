@@ -72,15 +72,14 @@ imports: openshift-goimports ## Run openshift goimports against code.
 
 .PHONY: test-unit
 test-unit: manifests generate fmt vet envtest ## Run unit tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -tags=unit -coverprofile cover-unit.out -v
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $(shell find ./pkg/_internal -mindepth 1  -type d) ./...  -tags=unit -coverprofile cover-unit.out
 
 .PHONY: test-integration
 test-integration: ginkgo manifests generate fmt vet envtest ## Run integration tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" $(GINKGO) -tags=integration -v ./test/integration
 
 .PHONY: test
-test: manifests generate fmt vet envtest ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -tags=integration,unit -coverprofile cover.out
+test: test-unit test-integration ## Run tests.
 
 .PHONY: test-e2e
 test-e2e: ginkgo kind-load-controller deploy-controller

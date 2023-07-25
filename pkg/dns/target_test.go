@@ -1,3 +1,5 @@
+//go:build unit
+
 package dns
 
 import (
@@ -64,7 +66,15 @@ type TestCluster struct {
 	metav1.ObjectMeta
 }
 
+const (
+	testAddress1 = "127.0.0.1"
+	testAddress2 = "127.0.0.2"
+	clusterName1 = "tst-cluster"
+	clusterName2 = "tst-cluster2"
+)
+
 func TestNewClusterGateway(t *testing.T) {
+
 	type args struct {
 		cluster          v1.Object
 		gatewayAddresses []gatewayv1beta1.GatewayAddress
@@ -79,24 +89,14 @@ func TestNewClusterGateway(t *testing.T) {
 			args: args{
 				cluster: &TestCluster{
 					ObjectMeta: v1.ObjectMeta{
-						Name: "tst-cluster",
+						Name: clusterName1,
 					},
 				},
-				gatewayAddresses: []gatewayv1beta1.GatewayAddress{
-					{
-						Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
-						Value: "127.0.0.1",
-					},
-				},
+				gatewayAddresses: buildGatewayAddress(testAddress1),
 			},
 			want: &ClusterGateway{
-				ClusterName: "tst-cluster",
-				GatewayAddresses: []gatewayv1beta1.GatewayAddress{
-					{
-						Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
-						Value: "127.0.0.1",
-					},
-				},
+				ClusterName:       clusterName1,
+				GatewayAddresses:  buildGatewayAddress(testAddress1),
 				ClusterAttributes: ClusterAttributes{},
 			},
 		},
@@ -105,27 +105,17 @@ func TestNewClusterGateway(t *testing.T) {
 			args: args{
 				cluster: &TestCluster{
 					ObjectMeta: v1.ObjectMeta{
-						Name: "tst-cluster",
+						Name: clusterName1,
 						Labels: map[string]string{
 							"kuadrant.io/lb-attribute-geo-code": "IE",
 						},
 					},
 				},
-				gatewayAddresses: []gatewayv1beta1.GatewayAddress{
-					{
-						Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
-						Value: "127.0.0.1",
-					},
-				},
+				gatewayAddresses: buildGatewayAddress(testAddress1),
 			},
 			want: &ClusterGateway{
-				ClusterName: "tst-cluster",
-				GatewayAddresses: []gatewayv1beta1.GatewayAddress{
-					{
-						Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
-						Value: "127.0.0.1",
-					},
-				},
+				ClusterName:      clusterName1,
+				GatewayAddresses: buildGatewayAddress(testAddress1),
 				ClusterAttributes: ClusterAttributes{
 					Geo: testutil.Pointer(GeoCode("IE")),
 				},
@@ -136,27 +126,17 @@ func TestNewClusterGateway(t *testing.T) {
 			args: args{
 				cluster: &TestCluster{
 					ObjectMeta: v1.ObjectMeta{
-						Name: "tst-cluster",
+						Name: clusterName1,
 						Labels: map[string]string{
 							"kuadrant.io/lb-attribute-geo-code": "NOTACODE",
 						},
 					},
 				},
-				gatewayAddresses: []gatewayv1beta1.GatewayAddress{
-					{
-						Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
-						Value: "127.0.0.1",
-					},
-				},
+				gatewayAddresses: buildGatewayAddress(testAddress1),
 			},
 			want: &ClusterGateway{
-				ClusterName: "tst-cluster",
-				GatewayAddresses: []gatewayv1beta1.GatewayAddress{
-					{
-						Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
-						Value: "127.0.0.1",
-					},
-				},
+				ClusterName:       clusterName1,
+				GatewayAddresses:  buildGatewayAddress(testAddress1),
 				ClusterAttributes: ClusterAttributes{},
 			},
 		},
@@ -165,27 +145,17 @@ func TestNewClusterGateway(t *testing.T) {
 			args: args{
 				cluster: &TestCluster{
 					ObjectMeta: v1.ObjectMeta{
-						Name: "tst-cluster",
+						Name: clusterName1,
 						Labels: map[string]string{
 							"kuadrant.io/lb-attribute-custom-weight": "MYATTR",
 						},
 					},
 				},
-				gatewayAddresses: []gatewayv1beta1.GatewayAddress{
-					{
-						Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
-						Value: "127.0.0.1",
-					},
-				},
+				gatewayAddresses: buildGatewayAddress(testAddress1),
 			},
 			want: &ClusterGateway{
-				ClusterName: "tst-cluster",
-				GatewayAddresses: []gatewayv1beta1.GatewayAddress{
-					{
-						Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
-						Value: "127.0.0.1",
-					},
-				},
+				ClusterName:      clusterName1,
+				GatewayAddresses: buildGatewayAddress(testAddress1),
 				ClusterAttributes: ClusterAttributes{
 					CustomWeight: testutil.Pointer("MYATTR"),
 				},
@@ -196,7 +166,7 @@ func TestNewClusterGateway(t *testing.T) {
 			args: args{
 				cluster: &TestCluster{
 					ObjectMeta: v1.ObjectMeta{
-						Name: "tst-cluster",
+						Name: clusterName1,
 						Labels: map[string]string{
 							"label1":                                 "label1",
 							"kuadrant.io/lb-attribute-geo-code":      "IE",
@@ -206,21 +176,11 @@ func TestNewClusterGateway(t *testing.T) {
 						},
 					},
 				},
-				gatewayAddresses: []gatewayv1beta1.GatewayAddress{
-					{
-						Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
-						Value: "127.0.0.1",
-					},
-				},
+				gatewayAddresses: buildGatewayAddress(testAddress1),
 			},
 			want: &ClusterGateway{
-				ClusterName: "tst-cluster",
-				GatewayAddresses: []gatewayv1beta1.GatewayAddress{
-					{
-						Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
-						Value: "127.0.0.1",
-					},
-				},
+				ClusterName:      clusterName1,
+				GatewayAddresses: buildGatewayAddress(testAddress1),
 				ClusterAttributes: ClusterAttributes{
 					CustomWeight: testutil.Pointer("MYATTR"),
 					Geo:          testutil.Pointer(GeoCode("IE")),
@@ -260,23 +220,13 @@ func TestNewMultiClusterGatewayTarget(t *testing.T) {
 				gateway: gateway,
 				clusterGateways: []ClusterGateway{
 					{
-						ClusterName: "tst-cluster",
-						GatewayAddresses: []gatewayv1beta1.GatewayAddress{
-							{
-								Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
-								Value: "127.0.0.1",
-							},
-						},
+						ClusterName:       clusterName1,
+						GatewayAddresses:  buildGatewayAddress(testAddress1),
 						ClusterAttributes: ClusterAttributes{},
 					},
 					{
-						ClusterName: "tst-cluster2",
-						GatewayAddresses: []gatewayv1beta1.GatewayAddress{
-							{
-								Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
-								Value: "127.0.0.2",
-							},
-						},
+						ClusterName:       clusterName2,
+						GatewayAddresses:  buildGatewayAddress(testAddress2),
 						ClusterAttributes: ClusterAttributes{},
 					},
 				},
@@ -287,13 +237,8 @@ func TestNewMultiClusterGatewayTarget(t *testing.T) {
 				ClusterGatewayTargets: []ClusterGatewayTarget{
 					{
 						ClusterGateway: &ClusterGateway{
-							ClusterName: "tst-cluster",
-							GatewayAddresses: []gatewayv1beta1.GatewayAddress{
-								{
-									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
-									Value: "127.0.0.1",
-								},
-							},
+							ClusterName:       clusterName1,
+							GatewayAddresses:  buildGatewayAddress(testAddress1),
 							ClusterAttributes: ClusterAttributes{},
 						},
 						Geo:    testutil.Pointer(DefaultGeo),
@@ -301,13 +246,8 @@ func TestNewMultiClusterGatewayTarget(t *testing.T) {
 					},
 					{
 						ClusterGateway: &ClusterGateway{
-							ClusterName: "tst-cluster2",
-							GatewayAddresses: []gatewayv1beta1.GatewayAddress{
-								{
-									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
-									Value: "127.0.0.2",
-								},
-							},
+							ClusterName:       clusterName2,
+							GatewayAddresses:  buildGatewayAddress(testAddress2),
 							ClusterAttributes: ClusterAttributes{},
 						},
 						Geo:    testutil.Pointer(DefaultGeo),
@@ -323,23 +263,13 @@ func TestNewMultiClusterGatewayTarget(t *testing.T) {
 				gateway: gateway,
 				clusterGateways: []ClusterGateway{
 					{
-						ClusterName: "tst-cluster",
-						GatewayAddresses: []gatewayv1beta1.GatewayAddress{
-							{
-								Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
-								Value: "127.0.0.1",
-							},
-						},
+						ClusterName:       clusterName1,
+						GatewayAddresses:  buildGatewayAddress(testAddress1),
 						ClusterAttributes: ClusterAttributes{},
 					},
 					{
-						ClusterName: "tst-cluster2",
-						GatewayAddresses: []gatewayv1beta1.GatewayAddress{
-							{
-								Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
-								Value: "127.0.0.2",
-							},
-						},
+						ClusterName:       clusterName2,
+						GatewayAddresses:  buildGatewayAddress(testAddress2),
 						ClusterAttributes: ClusterAttributes{},
 					},
 				},
@@ -357,13 +287,8 @@ func TestNewMultiClusterGatewayTarget(t *testing.T) {
 				ClusterGatewayTargets: []ClusterGatewayTarget{
 					{
 						ClusterGateway: &ClusterGateway{
-							ClusterName: "tst-cluster",
-							GatewayAddresses: []gatewayv1beta1.GatewayAddress{
-								{
-									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
-									Value: "127.0.0.1",
-								},
-							},
+							ClusterName:       clusterName1,
+							GatewayAddresses:  buildGatewayAddress(testAddress1),
 							ClusterAttributes: ClusterAttributes{},
 						},
 						Geo:    testutil.Pointer(GeoCode("IE")),
@@ -371,13 +296,8 @@ func TestNewMultiClusterGatewayTarget(t *testing.T) {
 					},
 					{
 						ClusterGateway: &ClusterGateway{
-							ClusterName: "tst-cluster2",
-							GatewayAddresses: []gatewayv1beta1.GatewayAddress{
-								{
-									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
-									Value: "127.0.0.2",
-								},
-							},
+							ClusterName:       clusterName2,
+							GatewayAddresses:  buildGatewayAddress(testAddress2),
 							ClusterAttributes: ClusterAttributes{},
 						},
 						Geo:    testutil.Pointer(GeoCode("IE")),
@@ -400,26 +320,16 @@ func TestNewMultiClusterGatewayTarget(t *testing.T) {
 				gateway: gateway,
 				clusterGateways: []ClusterGateway{
 					{
-						ClusterName: "tst-cluster",
-						GatewayAddresses: []gatewayv1beta1.GatewayAddress{
-							{
-								Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
-								Value: "127.0.0.1",
-							},
-						},
+						ClusterName:      clusterName1,
+						GatewayAddresses: buildGatewayAddress(testAddress1),
 						ClusterAttributes: ClusterAttributes{
 							CustomWeight: testutil.Pointer("TSTATTR"),
 							Geo:          testutil.Pointer(GeoCode("EU")),
 						},
 					},
 					{
-						ClusterName: "tst-cluster2",
-						GatewayAddresses: []gatewayv1beta1.GatewayAddress{
-							{
-								Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
-								Value: "127.0.0.2",
-							},
-						},
+						ClusterName:       clusterName2,
+						GatewayAddresses:  buildGatewayAddress(testAddress2),
 						ClusterAttributes: ClusterAttributes{},
 					},
 				},
@@ -443,13 +353,8 @@ func TestNewMultiClusterGatewayTarget(t *testing.T) {
 				ClusterGatewayTargets: []ClusterGatewayTarget{
 					{
 						ClusterGateway: &ClusterGateway{
-							ClusterName: "tst-cluster",
-							GatewayAddresses: []gatewayv1beta1.GatewayAddress{
-								{
-									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
-									Value: "127.0.0.1",
-								},
-							},
+							ClusterName:      clusterName1,
+							GatewayAddresses: buildGatewayAddress(testAddress1),
 							ClusterAttributes: ClusterAttributes{
 								CustomWeight: testutil.Pointer("TSTATTR"),
 								Geo:          testutil.Pointer(GeoCode("EU")),
@@ -460,13 +365,8 @@ func TestNewMultiClusterGatewayTarget(t *testing.T) {
 					},
 					{
 						ClusterGateway: &ClusterGateway{
-							ClusterName: "tst-cluster2",
-							GatewayAddresses: []gatewayv1beta1.GatewayAddress{
-								{
-									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
-									Value: "127.0.0.2",
-								},
-							},
+							ClusterName:       clusterName2,
+							GatewayAddresses:  buildGatewayAddress(testAddress2),
 							ClusterAttributes: ClusterAttributes{},
 						},
 						Geo:    testutil.Pointer(GeoCode("IE")),
@@ -524,5 +424,14 @@ func TestToBase36hash(t *testing.T) {
 				t.Errorf("ToBase36hash() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func buildGatewayAddress(value string) []gatewayv1beta1.GatewayAddress {
+	return []gatewayv1beta1.GatewayAddress{
+		{
+			Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+			Value: value,
+		},
 	}
 }

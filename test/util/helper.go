@@ -1,4 +1,4 @@
-//go:build unit
+//go:build unit || integration
 
 package testutil
 
@@ -81,6 +81,17 @@ func AssertNoErrorReconciliation() func(res ctrl.Result, err error, t *testing.T
 	return func(res ctrl.Result, err error, t *testing.T) {
 		if err != nil || !res.IsZero() {
 			t.Errorf("failed. Expected no error and empty response but got: err: %s, res: %v", err, res)
+		}
+	}
+}
+
+func AssertError(expectedError string) func(t *testing.T, err error) {
+	return func(t *testing.T, err error) {
+		if (expectedError == "") != (err == nil) {
+			t.Errorf("expected error %s but got %s", expectedError, err)
+		}
+		if err != nil && !strings.Contains(err.Error(), expectedError) {
+			t.Errorf("expected error to be %s but got %s", expectedError, err)
 		}
 	}
 }
