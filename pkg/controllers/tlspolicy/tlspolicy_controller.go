@@ -19,14 +19,15 @@ package tlspolicy
 import (
 	"context"
 
-	crlog "sigs.k8s.io/controller-runtime/pkg/log"
-
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
-	"github.com/kuadrant/kuadrant-operator/pkg/reconcilers"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	crlog "sigs.k8s.io/controller-runtime/pkg/log"
+
+	"github.com/kuadrant/kuadrant-operator/pkg/reconcilers"
+
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
 )
 
 // TLSPolicyReconciler reconciles a TLSPolicy object

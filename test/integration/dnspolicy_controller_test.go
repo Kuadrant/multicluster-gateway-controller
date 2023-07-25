@@ -19,6 +19,7 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnspolicy"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/shared"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 )
 
@@ -299,7 +300,7 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 					// must exist
 					Expect(err).ToNot(HaveOccurred())
 					return existingGateway.GetAnnotations()
-				}, time.Second*5, time.Second).Should(HaveKeyWithValue(DNSPoliciesBackRefAnnotation, policiesBackRefValue))
+				}, time.Second*5, time.Second).Should(HaveKeyWithValue(shared.DNSPoliciesBackRefAnnotation, policiesBackRefValue))
 			})
 
 			It("should remove gateway back reference on policy deletion", func() {
@@ -321,7 +322,7 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 					// must exist
 					Expect(err).ToNot(HaveOccurred())
 					return existingGateway.GetAnnotations()
-				}, time.Second*5, time.Second).Should(HaveKeyWithValue(DNSPoliciesBackRefAnnotation, policiesBackRefValue))
+				}, time.Second*5, time.Second).Should(HaveKeyWithValue(shared.DNSPoliciesBackRefAnnotation, policiesBackRefValue))
 
 				Expect(k8sClient.Delete(ctx, dnsPolicy)).To(BeNil())
 
@@ -338,7 +339,7 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 					// must exist
 					Expect(err).ToNot(HaveOccurred())
 					return existingGateway.GetAnnotations()
-				}, time.Second*5, time.Second).ShouldNot(HaveKeyWithValue(DNSPoliciesBackRefAnnotation, policiesBackRefValue))
+				}, time.Second*5, time.Second).ShouldNot(HaveKeyWithValue(shared.DNSPoliciesBackRefAnnotation, policiesBackRefValue))
 			})
 		})
 
@@ -500,7 +501,7 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 				// must exist
 				Expect(err).ToNot(HaveOccurred())
 				return existingGateway.GetAnnotations()
-			}, time.Second*5, time.Second).Should(HaveKeyWithValue(DNSPoliciesBackRefAnnotation, policiesBackRefValue))
+			}, time.Second*5, time.Second).Should(HaveKeyWithValue(shared.DNSPoliciesBackRefAnnotation, policiesBackRefValue))
 		})
 
 	})
