@@ -1,0 +1,8 @@
+
+## Create a run list here that just installs all deps and the controller
+
+resources:
+- ../cert-manager
+- ../istio
+- ../ocm
+- controller
