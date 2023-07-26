@@ -19,7 +19,6 @@ package aws
 import (
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -299,14 +298,17 @@ func (p *Route53DNSProvider) changeForEndpoint(endpoint *v1alpha1.Endpoint, acti
 
 	var geolocation = &route53.GeoLocation{}
 	useGeolocation := false
-	if prop, ok := endpoint.GetProviderSpecificProperty(dns.ProviderSpecificGeoContinentCode); ok {
-		geolocation.ContinentCode = aws.String(getAWSContinentCode(prop.Value))
-		useGeolocation = true
-	} else {
-		if prop, ok := endpoint.GetProviderSpecificProperty(dns.ProviderSpecificGeoCountryCode); ok {
+
+	if prop, ok := endpoint.GetProviderSpecificProperty(dns.ProviderSpecificGeoCode); ok {
+		if dns.IsISO3166Alpha2Code(prop.Value) || dns.GeoCode(prop.Value).IsWildcard() {
 			geolocation.CountryCode = aws.String(prop.Value)
-			useGeolocation = true
+		} else {
+			geolocation.ContinentCode = aws.String(prop.Value)
 		}
+		useGeolocation = true
+	}
+
+	if geolocation.ContinentCode == nil {
 		if prop, ok := endpoint.GetProviderSpecificProperty(ProviderSpecificGeolocationSubdivisionCode); ok {
 			geolocation.SubdivisionCode = aws.String(prop.Value)
 			useGeolocation = true
@@ -325,11 +327,6 @@ func (p *Route53DNSProvider) changeForEndpoint(endpoint *v1alpha1.Endpoint, acti
 		ResourceRecordSet: resourceRecordSet,
 	}
 	return change, nil
-}
-
-// getAWSContinentCode maps am mgc geo continent code to an AWS continent code
-func getAWSContinentCode(mcgGeoContinentCode string) string {
-	return strings.ReplaceAll(mcgGeoContinentCode, "C-", "")
 }
 
 // validateServiceEndpoints validates that provider clients can communicate with

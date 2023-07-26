@@ -10,13 +10,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 )
 
 const (
 	DefaultWeight                        = int(v1alpha1.DefaultWeight)
 	DefaultGeo                   GeoCode = "default"
+	WildcardGeo                  GeoCode = "*"
 	LabelLBAttributeGeoCode              = "kuadrant.io/lb-attribute-geo-code"
 	LabelLBAttributeCustomWeight         = "kuadrant.io/lb-attribute-custom-weight"
 )
@@ -53,10 +53,7 @@ func (t *MultiClusterGatewayTarget) GroupTargetsByGeo() map[GeoCode][]ClusterGat
 
 func (t *MultiClusterGatewayTarget) GetDefaultGeo() GeoCode {
 	if t.LoadBalancing != nil && t.LoadBalancing.Geo != nil {
-		geoCode := GeoCode(t.LoadBalancing.Geo.DefaultGeo)
-		if geoCode.IsValid() {
-			return geoCode
-		}
+		return GeoCode(t.LoadBalancing.Geo.DefaultGeo)
 	}
 	return DefaultGeo
 }
@@ -95,31 +92,12 @@ type ClusterAttributes struct {
 
 type GeoCode string
 
-// IsContinentCode returns true if it's a valid continent code
-func (gc GeoCode) IsContinentCode() bool {
-	return slice.ContainsString(getContinentCodes(), string(gc))
-}
-
-// IsCountryCode returns true if it's a valid ISO_3166 Alpha 2 country code (https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2)
-func (gc GeoCode) IsCountryCode() bool {
-	return slice.ContainsString(getCountryCodes(), string(gc))
-}
-
 func (gc GeoCode) IsDefaultCode() bool {
 	return gc == DefaultGeo
 }
 
-func (gc GeoCode) IsValid() bool {
-	return gc.IsContinentCode() || gc.IsCountryCode()
-}
-
-// C-AF: Africa; C-AN: Antarctica; C-AS: Asia; C-EU: Europe; C-OC: Oceania; C-NA: North America; C-SA: South America
-func getContinentCodes() []string {
-	return []string{"C-AF", "C-AN", "C-AS", "C-EU", "C-OC", "C-NA", "C-SA"}
-}
-
-func getCountryCodes() []string {
-	return GetISO3166Alpha2Codes()
+func (gc GeoCode) IsWildcard() bool {
+	return gc == WildcardGeo
 }
 
 func NewClusterGateway(cluster metav1.Object, gatewayAddresses []gatewayv1beta1.GatewayAddress) *ClusterGateway {
@@ -139,9 +117,7 @@ func (t *ClusterGateway) setClusterAttributesFromObject(mc metav1.Object) {
 	}
 	if gc, ok := labels[LabelLBAttributeGeoCode]; ok {
 		geoCode := GeoCode(gc)
-		if geoCode.IsValid() {
-			t.ClusterAttributes.Geo = &geoCode
-		}
+		t.ClusterAttributes.Geo = &geoCode
 	}
 	if cw, ok := labels[LabelLBAttributeCustomWeight]; ok {
 		t.ClusterAttributes.CustomWeight = &cw

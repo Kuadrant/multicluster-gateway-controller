@@ -59,13 +59,11 @@ spec:
                   geo:
                     properties:
                       defaultGeo:
-                        description: "defaultGeo is the country or continent code
+                        description: "defaultGeo is the country/continent/region code
                           to use when no other can be determined for a dns target
-                          cluster. \n 2 digit iso3166 alpha-2 country code (https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2)
-                          or continent code. C-AF: Africa; C-AN: Antarctica; C-AS:
-                          Asia; C-EU: Europe; C-OC: Oceania; C-NA: North America;
-                          C-SA: South America"
-                        pattern: ^([A-Z]{2}|C-AF|C-AN|C-AS|C-EU|C-OS|C-NA|C-SA)$
+                          cluster. \n The values accepted are determined by the target
+                          dns provider, please refer to the appropriate docs below.
+                          \n Route53: https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/resource-record-sets-values-geo.html"
                         type: string
                     type: object
                   weighted:
@@ -76,16 +74,17 @@ spec:
                             value:
                               type: string
                             weight:
-                              maximum: 255
                               minimum: 0
                               type: integer
                           type: object
                         type: array
                       defaultWeight:
                         default: 120
-                        description: defaultWeight is the record weight to use when
-                          no other can be determined for a dns target cluster.
-                        maximum: 255
+                        description: "defaultWeight is the record weight to use when
+                          no other can be determined for a dns target cluster. \n
+                          The maximum value accepted is determined by the target dns
+                          provider, please refer to the appropriate docs below. \n
+                          Route53: https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy-weighted.html"
                         minimum: 0
                         type: integer
                     type: object
@@ -128,7 +127,6 @@ spec:
                 - name
                 type: object
             required:
-            - loadBalancing
             - targetRef
             type: object
           status:

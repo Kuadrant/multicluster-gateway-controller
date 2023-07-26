@@ -14,53 +14,6 @@ import (
 	testutil "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 )
 
-func TestGeoCode_IsContinentCode(t *testing.T) {
-	tests := []struct {
-		gc   GeoCode
-		want bool
-	}{
-		{
-			gc:   "",
-			want: false,
-		},
-		{
-			gc:   "AF",
-			want: false,
-		},
-		{
-			gc:   "af",
-			want: false,
-		},
-		{
-			gc:   "C-AF",
-			want: true,
-		},
-		{
-			gc:   "C-AN",
-			want: true,
-		}, {
-			gc:   "C-AS",
-			want: true,
-		}, {
-			gc:   "C-OC",
-			want: true,
-		}, {
-			gc:   "C-NA",
-			want: true,
-		}, {
-			gc:   "C-SA",
-			want: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(string(tt.gc), func(t *testing.T) {
-			if got := tt.gc.IsContinentCode(); got != tt.want {
-				t.Errorf("IsContinentCode() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 type TestCluster struct {
 	metav1.TypeMeta
 	metav1.ObjectMeta
@@ -119,25 +72,6 @@ func TestNewClusterGateway(t *testing.T) {
 				ClusterAttributes: ClusterAttributes{
 					Geo: testutil.Pointer(GeoCode("IE")),
 				},
-			},
-		},
-		{
-			name: "ignores invalid geo code in geo code attribute label",
-			args: args{
-				cluster: &TestCluster{
-					ObjectMeta: v1.ObjectMeta{
-						Name: clusterName1,
-						Labels: map[string]string{
-							"kuadrant.io/lb-attribute-geo-code": "NOTACODE",
-						},
-					},
-				},
-				gatewayAddresses: buildGatewayAddress(testAddress1),
-			},
-			want: &ClusterGateway{
-				ClusterName:       clusterName1,
-				GatewayAddresses:  buildGatewayAddress(testAddress1),
-				ClusterAttributes: ClusterAttributes{},
 			},
 		},
 		{

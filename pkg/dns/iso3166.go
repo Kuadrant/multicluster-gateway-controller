@@ -1,5 +1,7 @@
 package dns
 
+import "github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
+
 type countryCodes struct {
 	numericCode int
 	countryName string
@@ -265,4 +267,9 @@ func GetISO3166Alpha2Codes() []string {
 		codes = append(codes, v.alpha2Code)
 	}
 	return codes
+}
+
+// IsISO3166Alpha2Code returns true if it's a valid ISO_3166 Alpha 2 country code (https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2)
+func IsISO3166Alpha2Code(code string) bool {
+	return slice.ContainsString(GetISO3166Alpha2Codes(), code)
 }

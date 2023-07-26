@@ -430,7 +430,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						RecordTTL:     dns.DefaultCnameTTL,
 						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
 							{
-								Name:  "geo-country-code",
+								Name:  "geo-code",
 								Value: "*",
 							},
 						},
@@ -470,7 +470,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 								},
 							},
 						},
-						Geo:    testutil.Pointer(dns.GeoCode("C-NA")),
+						Geo:    testutil.Pointer(dns.GeoCode("NA")),
 						Weight: testutil.Pointer(120),
 					},
 					{
@@ -490,7 +490,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 				},
 				LoadBalancing: &v1alpha1.LoadBalancingSpec{
 					Geo: &v1alpha1.LoadBalancingGeo{
-						DefaultGeo: "C-NA",
+						DefaultGeo: "NA",
 					},
 				},
 			},
@@ -508,7 +508,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						RecordTTL:  dns.DefaultTTL,
 					},
 					{
-						DNSName:       "c-na.lb-0ecjaw.test.example.com",
+						DNSName:       "na.lb-0ecjaw.test.example.com",
 						Targets:       []string{"20qri0.lb-0ecjaw.test.example.com"},
 						RecordType:    "CNAME",
 						SetIdentifier: "20qri0.lb-0ecjaw.test.example.com",
@@ -535,27 +535,27 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 					},
 					{
 						DNSName:       "lb-0ecjaw.test.example.com",
-						Targets:       []string{"c-na.lb-0ecjaw.test.example.com"},
+						Targets:       []string{"na.lb-0ecjaw.test.example.com"},
 						RecordType:    "CNAME",
 						SetIdentifier: "default",
 						RecordTTL:     dns.DefaultCnameTTL,
 						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
 							{
-								Name:  "geo-country-code",
+								Name:  "geo-code",
 								Value: "*",
 							},
 						},
 					},
 					{
 						DNSName:       "lb-0ecjaw.test.example.com",
-						Targets:       []string{"c-na.lb-0ecjaw.test.example.com"},
+						Targets:       []string{"na.lb-0ecjaw.test.example.com"},
 						RecordType:    "CNAME",
-						SetIdentifier: "C-NA",
+						SetIdentifier: "NA",
 						RecordTTL:     dns.DefaultCnameTTL,
 						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
 							{
-								Name:  "geo-continent-code",
-								Value: "C-NA",
+								Name:  "geo-code",
+								Value: "NA",
 							},
 						},
 					},
@@ -567,7 +567,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						RecordTTL:     dns.DefaultCnameTTL,
 						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
 							{
-								Name:  "geo-country-code",
+								Name:  "geo-code",
 								Value: "IE",
 							},
 						},
@@ -598,7 +598,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 							ClusterName:      "test-cluster-1",
 							GatewayAddresses: []gatewayv1beta1.GatewayAddress{},
 						},
-						Geo:    testutil.Pointer(dns.GeoCode("C-NA")),
+						Geo:    testutil.Pointer(dns.GeoCode("NA")),
 						Weight: testutil.Pointer(120),
 					},
 					{
@@ -613,7 +613,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 				},
 				LoadBalancing: &v1alpha1.LoadBalancingSpec{
 					Geo: &v1alpha1.LoadBalancingGeo{
-						DefaultGeo: "C-NA",
+						DefaultGeo: "NA",
 					},
 				},
 			},

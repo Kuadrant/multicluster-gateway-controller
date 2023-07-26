@@ -23,11 +23,10 @@ import (
 )
 
 const (
-	DefaultTTL                       = 60
-	DefaultCnameTTL                  = 300
-	ProviderSpecificWeight           = "weight"
-	ProviderSpecificGeoContinentCode = "geo-continent-code"
-	ProviderSpecificGeoCountryCode   = "geo-country-code"
+	DefaultTTL              = 60
+	DefaultCnameTTL         = 300
+	ProviderSpecificWeight  = "weight"
+	ProviderSpecificGeoCode = "geo-code"
 )
 
 type DNSProviderFactory func(ctx context.Context, managedZone *v1alpha1.ManagedZone) (Provider, error)
