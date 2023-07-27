@@ -10,8 +10,10 @@ require (
 	github.com/jetstack/cert-manager v1.7.1
 	github.com/kuadrant/kuadrant-operator v0.1.1-0.20230323151616-58593d01833a
 	github.com/martinlindhe/base36 v1.1.1
+	github.com/miekg/dns v1.1.34
 	github.com/onsi/ginkgo/v2 v2.6.1
 	github.com/onsi/gomega v1.24.2
+	github.com/openshift/library-go v0.0.0-20220525173854-9b950a41acdc
 	github.com/operator-framework/api v0.17.5
 	github.com/prometheus/client_golang v1.14.0
 	github.com/rs/xid v1.4.0
@@ -84,6 +86,7 @@ require (
 	go.uber.org/zap v1.24.0 // indirect
 	golang.org/x/crypto v0.1.0 // indirect
 	golang.org/x/oauth2 v0.4.0 // indirect
+	golang.org/x/sync v0.1.0 // indirect
 	golang.org/x/sys v0.6.0 // indirect
 	golang.org/x/term v0.6.0 // indirect
 	golang.org/x/text v0.8.0 // indirect

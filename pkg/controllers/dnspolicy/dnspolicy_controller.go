@@ -74,11 +74,7 @@ func (r *DNSPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	previous := &v1alpha1.DNSPolicy{}
 	if err := r.Client().Get(ctx, req.NamespacedName, previous); err != nil {
-		if err := client.IgnoreNotFound(err); err == nil {
-			return ctrl.Result{}, nil
-		} else {
-			return ctrl.Result{}, err
-		}
+		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
 	dnsPolicy := previous.DeepCopy()
@@ -102,6 +98,7 @@ func (r *DNSPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	if markedForDeletion {
+		log.V(3).Info("cleaning up dns policy")
 		if controllerutil.ContainsFinalizer(dnsPolicy, DNSPolicyFinalizer) {
 			if err := r.deleteResources(ctx, dnsPolicy, targetNetworkObject); err != nil {
 				return ctrl.Result{}, err
@@ -117,6 +114,8 @@ func (r *DNSPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	if !controllerutil.ContainsFinalizer(dnsPolicy, DNSPolicyFinalizer) {
 		if err := r.AddFinalizer(ctx, dnsPolicy, DNSPolicyFinalizer); client.IgnoreNotFound(err) != nil {
 			return ctrl.Result{Requeue: true}, err
+		} else if apierrors.IsNotFound(err) {
+			return ctrl.Result{}, err
 		}
 	}
 
