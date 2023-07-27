@@ -48,8 +48,7 @@ The easiest way to do this is by following the steps in the [OCM Walkthrough](./
 Use `curl` to send some traffic to the application
 
 ```bash
-while true; do curl -k https://$MGC_SUB_DOMAIN && sleep 5;
-```
+while true; do curl -k https://$MGC_SUB_DOMAIN && sleep 5; done
 
 Open the Thanos Query UI again and try the below query:
 
