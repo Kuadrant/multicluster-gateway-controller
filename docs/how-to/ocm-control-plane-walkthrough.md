@@ -6,7 +6,10 @@ You will also deploy a simple application that uses that gateway for ingress and
 We will start with a single cluster and move to multiple clusters to illustrate how a single gateway definition can be used across multiple clusters and highlight the automatic TLS integration and also the automatic DNS load balancing between gateway instances.
 
 ## Requirements
-- [Kind](https://kind.sigs.k8s.io/)
+- [kind](https://kind.sigs.k8s.io/)
+- [operator-sdk](https://sdk.operatorframework.io/docs/installation/)
+- [yq](https://mikefarah.gitbook.io/yq/v/v3.x/)
+- [istioctl](https://istio.io/latest/docs/ops/diagnostic-tools/istioctl/#install-hahahugoshortcodes2hbhb)
 - go >= 1.20
 - openssl >= 3
 - AWS account with Route 53 enabled
@@ -15,60 +18,34 @@ We will start with a single cluster and move to multiple clusters to illustrate 
 >**Note:** :exclamation: this walkthrough will setup a zone in your AWS account and make changes to it for DNS purposes
 
 ## Installation and Setup
-* Clone this repo locally 
-* Setup a `./controller-config.env` env-var file in the root of the repo with the following keys. Fill in your own values as appropriate. You will need access to a domain or subdomain in Route 53 in AWS:
+* Export env-vars with the keys listed below. Fill in your own values as appropriate. You will need access to a domain or subdomain in Route 53 in AWS:
 
-  ```bash
-  AWS_DNS_PUBLIC_ZONE_ID=Z01234567US0IQE3YLO00
-  ZONE_ROOT_DOMAIN=jbloggs.hcpapps.net
-  LOG_LEVEL=1
-  ```
+ | Env Var                      | Example Value               | Description                                                    |
+|------------------------------|-----------------------------|----------------------------------------------------------------|
+  | `MGC_ZONE_ROOT_DOMAIN`       | `jbloggs.hcpapps.net`       | Hostname for the root Domain                                   |
+  | `MGC_AWS_DNS_PUBLIC_ZONE_ID` | `Z01234567US0IQE3YLO00`     | AWS Route 53 Zone ID for specified `MGC_ZONE_ROOT_DOMAIN`      | | 
+  | `MGC_AWS_ACCESS_KEY_ID`      | `AKIA1234567890000000`      | Access Key ID, with access to resources in Route 53            |
+  | `MGC_AWS_SECRET_ACCESS_KEY`  | `Z01234567US0000000`        | Access Secret Access Key, with access to resources in Route 53 |
+  | `MGC_AWS_REGION`             | `eu-west-1`                 | AWS Region                                                     |
+  | `MGC_SUB_DOMAIN`             | `myapp.jbloggs.hcpapps.net` | AWS Region                                                     |
 
-  | Env Var                  | Example Value           | Description                                           |
-  |--------------------------|-------------------------|-------------------------------------------------------|
-  | `ZONE_ROOT_DOMAIN`       | `jbloggs.hcpapps.net`   | Hostname for the root Domain                          |
-  | `AWS_DNS_PUBLIC_ZONE_ID` | `Z01234567US0IQE3YLO00` | AWS Route 53 Zone ID for specified `ZONE_ROOT_DOMAIN` |
-  | `LOG_LEVEL`              | `1`                     | Log level for the Controller                          |
-
-* Setup a `./aws-credentials.env` with credentials to access route 53
-
-  For example:
-
-    ```bash
-    AWS_ACCESS_KEY_ID=<access_key_id>
-    AWS_SECRET_ACCESS_KEY=<secret_access_key>
-    AWS_REGION=eu-west-1
-    ```
-
-  | Env Var                 | Example Value          | Description                                                    |
-  |-------------------------|------------------------|----------------------------------------------------------------|
-  | `AWS_ACCESS_KEY_ID`     | `AKIA1234567890000000` | Access Key ID, with access to resources in Route 53            |
-  | `AWS_SECRET_ACCESS_KEY` | `Z01234567US0000000`   | Access Secret Access Key, with access to resources in Route 53 |
-  | `AWS_REGION`            | `eu-west-1`            | AWS Region                                                     |
-
-
-* We're going to use an environment variable, `MGC_SUB_DOMAIN`, throughout this walkthrough. Simply run the below in each window you create:
-
-  For example:
-  ```bash
-  export MGC_SUB_DOMAIN=myapp.jbloggs.hcpapps.net
-  ```
-
-* Alternatively, to set a default, add the above environment variable to your `.zshrc` or `.bash_profile`. To override this as a once-off, simply `export MGC_SUB_DOMAIN`.
+* Alternatively, to set defaults, add the above environment variables to your `.zshrc` or `.bash_profile`. 
 
 ## Open terminal sessions
 
-For this walkthrough, we're going to use multiple terminal sessions/windows, all using `multicluster-gateway-controller` as the `pwd`.
+For this walkthrough, we're going to use multiple terminal sessions/windows.
 
 Open two windows, which we'll refer to throughout this walkthrough as:
 
 * `T1` (Hub Cluster)
 * `T2` (Workloads cluster)
 
+* NOTE: MCG_SUB_DOMAIN env var is required in both terminals
+
 1. To setup a local instance, in `T1`, run:
 
     ```bash
-    make local-setup OCM_SINGLE=true MGC_WORKLOAD_CLUSTERS_COUNT=1
+    curl https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/quickstart-script/hack/quickstart-setup.sh | bash
     ```
 
     > :sos: Linux users may encounter the following error:
@@ -77,89 +54,22 @@ Open two windows, which we'll refer to throughout this walkthrough as:
     > make: *** [Makefile:75: local-setup] Error 1` 
     > This is a known issue with Kind. [Follow the steps here](https://kind.sigs.k8s.io/docs/user/known-issues/#pod-errors-due-to-too-many-open-files) to resolve it.
 
+The script will
+- install 2 kind clusters
+- a set of components required for the walkthrough, e.g. ocm, istio, MGC itself.
+- label the control plane managed cluster as an Ingress cluster
+- create the ManagedClusterSet that uses the ingress label to select clusters
+- bind this cluster set to our multi-cluster-gateways namespace so that we can use those clusters to place gateways on
+- set up a placement resource, in order to place our gateways onto clusters
+- lastly, it will set up a multi-cluster gateway class
+
 1. Once this is completed your kubeconfig context should be set to the hub cluster. 
 
     > **Optional Step:** :thought_balloon: If you need to reset this run the following in `T1`:
     > ```bash
     > kind export kubeconfig --name=mgc-control-plane --kubeconfig=$(pwd)/local/kube/control-plane.yaml && export KUBECONFIG=$(pwd)/local/kube/control-plane.yaml
     > ```
-
-1. In the hub cluster (`T1`) we are going to label the control plane managed cluster as an Ingress cluster:
-
-    ```bash
-    kubectl label managedcluster kind-mgc-control-plane ingress-cluster=true
-    ```
-
-1. Next, in `T1`, create the ManagedClusterSet that uses the ingress label to select clusters:
-
-    ```bash
-    kubectl apply -f - <<EOF
-    apiVersion: cluster.open-cluster-management.io/v1beta2
-    kind: ManagedClusterSet
-    metadata:
-      name: gateway-clusters
-    spec:
-      clusterSelector:
-        labelSelector: 
-          matchLabels:
-            ingress-cluster: "true"
-        selectorType: LabelSelector
-    EOF
-    ```    
-
-1. Next, in `T1` we need to bind this cluster set to our multi-cluster-gateways namespace so that we can use those clusters to place gateways on:
-
-    ```bash
-    kubectl apply -f - <<EOF
-    apiVersion: cluster.open-cluster-management.io/v1beta2
-    kind: ManagedClusterSetBinding
-    metadata:
-      name: gateway-clusters
-      namespace: multi-cluster-gateways
-    spec:
-      clusterSet: gateway-clusters
-    EOF
-    ```
-
-### Create a placement for our gateways
-
-1. In order to place our gateways onto clusters, we need to setup a placement resource. Again, in `T1`, run:
-
-    ```bash
-    kubectl apply -f - <<EOF
-    apiVersion: cluster.open-cluster-management.io/v1beta1
-    kind: Placement
-    metadata:
-      name: http-gateway
-      namespace: multi-cluster-gateways
-    spec:
-      numberOfClusters: 1
-      clusterSets:
-        - gateway-clusters
-    EOF
-    ```    
-
-### Create the gateway class
- 
-1. Lastly, we will set up our multi-cluster gateway class. In `T1`, run:
-
-    ```bash
-    kubectl create -f hack/ocm/gatewayclass.yaml
-    ```
-
-### Start the Gateway Controller
-
-1. In `T1` run the following to build and deploy the Gateway Controller in a container:
-
-    ```bash
-    make build-controller kind-load-controller deploy-controller
-    ```
-
-    *Alternatively, in a new window we'll call `T3`, you can run the controller locally instead by running:*
-
-    ```bash
-    (export $(cat ./controller-config.env | xargs) && export $(cat ./aws-credentials.env | xargs) && make build-controller install run-controller)
-    ```
+   
 
 ### Check the managed zone
 
@@ -179,6 +89,9 @@ Open two windows, which we'll refer to throughout this walkthrough as:
     NAME          DOMAIN NAME      ID                                  RECORD COUNT   NAMESERVERS                                                                                        READY
     mgc-dev-mz   test.hcpapps.net   /hostedzone/Z08224701SVEG4XHW89W0   7              ["ns-1414.awsdns-48.org","ns-1623.awsdns-10.co.uk","ns-684.awsdns-21.net","ns-80.awsdns-10.com"]   True
     ```
+
+
+You are now ready to begin creating a gateway! :tada:
 
 ### Create a gateway
 
