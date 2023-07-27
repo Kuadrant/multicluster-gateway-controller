@@ -216,7 +216,7 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 						RecordTTL:     300,
 						ProviderSpecific: v1alpha1.ProviderSpecific{
 							{
-								Name:  "geo-country-code",
+								Name:  "geo-code",
 								Value: "*",
 							},
 						},
@@ -378,7 +378,7 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 						RecordTTL:     300,
 						ProviderSpecific: v1alpha1.ProviderSpecific{
 							{
-								Name:  "geo-country-code",
+								Name:  "geo-code",
 								Value: "IE",
 							},
 						},
@@ -393,7 +393,7 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 						RecordTTL:     300,
 						ProviderSpecific: v1alpha1.ProviderSpecific{
 							{
-								Name:  "geo-country-code",
+								Name:  "geo-code",
 								Value: "*",
 							},
 						},

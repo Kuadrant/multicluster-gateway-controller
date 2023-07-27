@@ -48,8 +48,8 @@ spec:
   health:
    ...
   loadBalancing:
-    weighted: # always required
-     defaultWeight: 10  #always required
+    weighted:
+     defaultWeight: 10
      custom: #optional
      - value: AWS  #optional with both GEO and weighted. With GEO the custom weight is applied to gateways within a Geographic region
        weight: 10
@@ -105,7 +105,7 @@ spec:
 
 The attributes provide the key and value we need in order to understand how to define records for a given LB address based on the DNSPolicy targeting the gateway.
 
-The `kuadrant.io/lb-attribute-geo-code` attribute value must be a two digit ISO3166 Alpha-2 country code (https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2) or a one of the following four digit continent codes: (`C-AF`: Africa; `C-AN`: Antarctica; `C-AS`: Asia; `C-EU`: Europe; `C-OC`: Oceania; `C-NA`: North America; `C-SA`: South America) 
+The `kuadrant.io/lb-attribute-geo-code` attribute value is provider specific, using an invalid code will result in an error status condition in the DNSrecord resource. 
 
 ### DNS Record Structure
 

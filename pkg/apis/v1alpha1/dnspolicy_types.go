@@ -34,20 +34,18 @@ type DNSPolicySpec struct {
 	// +optional
 	HealthCheck *HealthCheckSpec `json:"healthCheck,omitempty"`
 
-	// +kubebuilder:validation:Required
-	// +required
+	// +optional
 	LoadBalancing *LoadBalancingSpec `json:"loadBalancing"`
 }
 
 type LoadBalancingSpec struct {
-	// +required
+	// +optional
 	Weighted *LoadBalancingWeighted `json:"weighted,omitempty"`
 	// +optional
 	Geo *LoadBalancingGeo `json:"geo,omitempty"`
 }
 
 // +kubebuilder:validation:Minimum=0
-// +kubebuilder:validation:Maximum=255
 type Weight int
 
 type CustomWeight struct {
@@ -60,6 +58,9 @@ type CustomWeight struct {
 type LoadBalancingWeighted struct {
 	// defaultWeight is the record weight to use when no other can be determined for a dns target cluster.
 	//
+	// The maximum value accepted is determined by the target dns provider, please refer to the appropriate docs below.
+	//
+	// Route53: https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy-weighted.html
 	// +kubebuilder:default=120
 	DefaultWeight Weight `json:"defaultWeight,omitempty"`
 	// +optional
@@ -67,12 +68,12 @@ type LoadBalancingWeighted struct {
 }
 
 type LoadBalancingGeo struct {
-	// defaultGeo is the country or continent code to use when no other can be determined for a dns target cluster.
+	// defaultGeo is the country/continent/region code to use when no other can be determined for a dns target cluster.
 	//
-	// 2 digit iso3166 alpha-2 country code (https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2) or continent code.
-	// C-AF: Africa; C-AN: Antarctica; C-AS: Asia; C-EU: Europe; C-OC: Oceania; C-NA: North America; C-SA: South America
+	// The values accepted are determined by the target dns provider, please refer to the appropriate docs below.
 	//
-	// +kubebuilder:validation:Pattern="^([A-Z]{2}|C-AF|C-AN|C-AS|C-EU|C-OS|C-NA|C-SA)$"
+	// Route53: https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/resource-record-sets-values-geo.html
+	// +required
 	DefaultGeo string `json:"defaultGeo,omitempty"`
 }
 

@@ -293,17 +293,13 @@ func (dh *dnsHelper) setEndpoints(ctx context.Context, mcgTarget *dns.MultiClust
 			defaultEndpoint = createOrUpdateEndpoint(lbName, []string{geoLbName}, v1alpha1.CNAMERecordType, "default", dns.DefaultCnameTTL, currentEndpoints)
 		}
 
-		if geoCode.IsContinentCode() {
-			endpoint.SetProviderSpecific(dns.ProviderSpecificGeoContinentCode, string(geoCode))
-		} else if geoCode.IsCountryCode() {
-			endpoint.SetProviderSpecific(dns.ProviderSpecificGeoCountryCode, string(geoCode))
-		}
+		endpoint.SetProviderSpecific(dns.ProviderSpecificGeoCode, string(geoCode))
 		newEndpoints = append(newEndpoints, endpoint)
 	}
 
 	if len(newEndpoints) > 0 {
 		// Add the `defaultEndpoint`, this should always be set by this point if `newEndpoints` isn't empty
-		defaultEndpoint.SetProviderSpecific(dns.ProviderSpecificGeoCountryCode, "*")
+		defaultEndpoint.SetProviderSpecific(dns.ProviderSpecificGeoCode, string(dns.WildcardGeo))
 		newEndpoints = append(newEndpoints, defaultEndpoint)
 		//Create gwListenerHost CNAME (shop.example.com -> lb-a1b2.shop.example.com)
 		endpoint = createOrUpdateEndpoint(gwListenerHost, []string{lbName}, v1alpha1.CNAMERecordType, "", dns.DefaultCnameTTL, currentEndpoints)
