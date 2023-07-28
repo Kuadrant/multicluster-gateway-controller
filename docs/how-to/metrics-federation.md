@@ -42,6 +42,11 @@ In the Graph view you should see some data over time as well.
 
 <img src="images/metrics-federation-example-data.png" alt="architecture" width="600"/>
 
+
+## Istio Metrics
+
+### Thanos Query UI
+
 To query Istio workload metrics, you should first deploy a Gateway & HttpRoute, and send traffic to it.
 The easiest way to do this is by following the steps in the [OCM Walkthrough](./ocm-control-plane-walkthrough.md) (without re-running the `make local-setup` step, as that should have already been run with the `METRICS_FEDERATION` flag above).
 
@@ -49,6 +54,7 @@ Use `curl` to send some traffic to the application
 
 ```bash
 while true; do curl -k https://$MGC_SUB_DOMAIN && sleep 5; done
+```
 
 Open the Thanos Query UI again and try the below query:
 
@@ -70,3 +76,26 @@ sum(rate(istio_requests_total{}[5m])) by(pod)
 ```
 
 <img src="images/metrics-federation-traffic-data-per-pod.png" alt="architecture" width="600"/>
+
+### Grafana UI
+
+In the output from `local-setup`, you should see something like the below (you may need to scroll)
+
+```
+	Connect to Grafana Query UI
+
+		URL : https://grafana.172.32.0.2.nip.io
+```
+
+Open Grafana in a browser, accepting the non CA signed certificate.
+The default login is admin/admin.
+In the Grafana UI go to the Explore view on the left menu, then choose the 'thanos-query' datasource at the top.
+In the query box, enter the below query and press 'Run query'.
+
+```
+sum(rate(istio_requests_total{}[5m])) by(destination_workload)
+```
+
+You should see a graph similar to below:
+
+<img src="images/metrics-federation-traffic-data-grafana.png" alt="architecture" width="600"/>
