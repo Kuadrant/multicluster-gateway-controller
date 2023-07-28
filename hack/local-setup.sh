@@ -370,6 +370,9 @@ deployMetalLB ${KIND_CLUSTER_CONTROL_PLANE} ${metalLBSubnetStart}
 # Deploy Thanos components in the hub
 deployThanos ${KIND_CLUSTER_CONTROL_PLANE}
 
+# Deploy Prometheus in the hub too
+deployPrometheusForFederation ${KIND_CLUSTER_CONTROL_PLANE}
+
 # Add workload clusters if MGC_WORKLOAD_CLUSTERS_COUNT environment variable is set
 if [[ -n "${MGC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
   for ((i = 1; i <= ${MGC_WORKLOAD_CLUSTERS_COUNT}; i++)); do
