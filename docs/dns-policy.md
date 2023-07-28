@@ -250,8 +250,10 @@ spec:
     kind: Gateway
   loadBalancing:
     weighted:
-      defaultWeight: 120 # <--- New Default Weight being added
+      defaultWeight: 100 # <--- New Default Weight being added
 ```
+
+The weight of all records is adjusted to reflect the new `defaultWeight` value of `100`. This will still produce the same Round Robin routing strategy as before since all records still have equal weight values.
 
 #### Custom Weights
  

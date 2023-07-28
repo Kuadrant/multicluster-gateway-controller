@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	crlog "sigs.k8s.io/controller-runtime/pkg/log"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
@@ -21,7 +22,10 @@ func (r *DNSPolicyReconciler) reconcileDNSRecords(ctx context.Context, dnsPolicy
 
 	for _, gw := range gwDiffObj.GatewaysWithInvalidPolicyRef {
 		log.V(1).Info("reconcileDNSRecords: gateway with invalid policy ref", "key", gw.Key())
-		//ToDo Since gateways own DNSRecords I don't think there is anything to do here?
+		err := r.deleteGatewayDNSRecords(ctx, gw.Gateway, dnsPolicy)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Reconcile DNSRecords for each gateway directly referred by the policy (existing and new)
@@ -41,7 +45,7 @@ func (r *DNSPolicyReconciler) reconcileGatewayDNSRecords(ctx context.Context, ga
 
 	gatewayAccessor := traffic.NewGateway(gateway)
 
-	managedHosts, err := r.dnsHelper.getManagedHosts(ctx, gatewayAccessor)
+	managedHosts, err := r.dnsHelper.getManagedHosts(ctx, gateway, dnsPolicy)
 	if err != nil {
 		return err
 	}
@@ -93,12 +97,12 @@ func (r *DNSPolicyReconciler) reconcileGatewayDNSRecords(ctx context.Context, ga
 			}
 			return nil
 		}
-		var dnsRecord, err = r.dnsHelper.createDNSRecord(ctx, mh.Subdomain, mh.ManagedZone, gateway)
+		var dnsRecord, err = r.dnsHelper.createDNSRecord(ctx, gateway, dnsPolicy, mh.Subdomain, mh.ManagedZone)
 		if err := client.IgnoreAlreadyExists(err); err != nil {
 			return fmt.Errorf("failed to create dns record for host %s : %s ", mh.Host, err)
 		}
 		if k8serrors.IsAlreadyExists(err) {
-			dnsRecord, err = r.dnsHelper.getDNSRecord(ctx, mh.Subdomain, mh.ManagedZone, gateway)
+			dnsRecord, err = r.dnsHelper.getDNSRecord(ctx, gateway, dnsPolicy, mh.Subdomain, mh.ManagedZone)
 			if err != nil {
 				return fmt.Errorf("failed to get dns record for host %s : %s ", mh.Host, err)
 			}
@@ -110,7 +114,24 @@ func (r *DNSPolicyReconciler) reconcileGatewayDNSRecords(ctx context.Context, ga
 		if err := r.dnsHelper.setEndpoints(ctx, mcgTarget, dnsRecord, listener); err != nil {
 			return fmt.Errorf("failed to add dns record dnsTargets %s %v", err, mcgTarget)
 		}
+	}
+	return nil
+}
 
+func (r *DNSPolicyReconciler) deleteGatewayDNSRecords(ctx context.Context, gateway *gatewayv1beta1.Gateway, dnsPolicy *v1alpha1.DNSPolicy) error {
+	log := crlog.FromContext(ctx)
+
+	listOptions := &client.ListOptions{LabelSelector: labels.SelectorFromSet(dnsRecordLabels(client.ObjectKeyFromObject(gateway), client.ObjectKeyFromObject(dnsPolicy)))}
+	recordsList := &v1alpha1.DNSRecordList{}
+	if err := r.Client().List(ctx, recordsList, listOptions); err != nil {
+		return err
+	}
+
+	for _, record := range recordsList.Items {
+		if err := r.DeleteResource(ctx, &record); client.IgnoreNotFound(err) != nil {
+			log.Error(err, "failed to delete DNSRecord")
+			return err
+		}
 	}
 	return nil
 }

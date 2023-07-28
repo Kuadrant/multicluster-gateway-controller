@@ -31,7 +31,6 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -124,10 +123,6 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		if _, _, _, err := r.reconcileDownstreamFromUpstreamGateway(ctx, upstreamGateway, nil); err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to reconcile downstream gateway after upstream gateway deleted: %s ", err)
 		}
-		//TODO remove as part of https://github.com/Kuadrant/multicluster-gateway-controller/issues/359
-		if err := r.cleanupDNSRecords(ctx, traffic.NewGateway(upstreamGateway)); err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to remove dns records associated with gateway : %s", err)
-		}
 		controllerutil.RemoveFinalizer(upstreamGateway, GatewayFinalizer)
 		if err := r.Update(ctx, upstreamGateway); err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to remove finalizer from gateway : %s", err)
@@ -137,16 +132,11 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	if !controllerutil.ContainsFinalizer(upstreamGateway, GatewayFinalizer) {
-		// The first time we see the gateway we want to make sure a DNSPolicy exists for it
-		if err := r.ensureDefaultDNSPolicy(ctx, upstreamGateway); err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to ensure default dnspolicy for gateway : %s", err)
-		}
 		controllerutil.AddFinalizer(upstreamGateway, GatewayFinalizer)
 		if err = r.Update(ctx, upstreamGateway); err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to add finalizer to gateway : %s", err)
 		}
 		return ctrl.Result{}, nil
-
 	}
 
 	// If the GatewayClass parameters are invalid, update the status and stop reconciling
@@ -261,29 +251,6 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 10}, reconcileErr
 	}
 	return ctrl.Result{}, reconcileErr
-}
-
-// ensureDefaultDNSPolicy creates a default DNS Policy for this gateway if one does not already exist
-func (r *GatewayReconciler) ensureDefaultDNSPolicy(ctx context.Context, upstreamGateway *gatewayv1beta1.Gateway) error {
-	log := crlog.FromContext(ctx)
-
-	defaultDNSPolicy := v1alpha1.NewDefaultDNSPolicy(upstreamGateway)
-
-	var dnsPolicies v1alpha1.DNSPolicyList
-	err := r.List(ctx, &dnsPolicies, client.InNamespace(upstreamGateway.GetNamespace()), client.MatchingFields{policy.POLICY_TARGET_REF_KEY: policy.GetTargetRefValueFromPolicy(&defaultDNSPolicy)})
-	if err != nil {
-		return err
-	}
-	if len(dnsPolicies.Items) == 0 {
-		log.Info("creating default DNSPolicy for gateway", "upstreamGateway", upstreamGateway)
-		//create default DNSPolicy and return
-		err = r.Client.Create(ctx, &defaultDNSPolicy, &client.CreateOptions{})
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 // reconcileDownstreamGateway takes the upstream definition and transforms it as needed to apply it to the downstream spokes
@@ -519,24 +486,4 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager, ctx context.Conte
 			return true
 		})).
 		Complete(r)
-}
-
-//TODO this is duplciated code and here only temp and will be removed as part of https://github.com/Kuadrant/multicluster-gateway-controller/issues/359
-
-const labelGatewayReference = "kuadrant.io/Gateway-uid"
-
-// CleanupDNSRecords removes all DNS records that were created for a provided traffic.Interface object
-func (r *GatewayReconciler) cleanupDNSRecords(ctx context.Context, owner traffic.Interface) error {
-	recordsToCleaunup := &v1alpha1.DNSRecordList{}
-	selector, _ := labels.Parse(fmt.Sprintf("%s=%s", labelGatewayReference, owner.GetUID()))
-
-	if err := r.List(ctx, recordsToCleaunup, &client.ListOptions{LabelSelector: selector}); err != nil {
-		return err
-	}
-	for _, record := range recordsToCleaunup.Items {
-		if err := r.Delete(ctx, &record); err != nil {
-			return err
-		}
-	}
-	return nil
 }

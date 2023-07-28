@@ -13,7 +13,6 @@ require (
 	github.com/miekg/dns v1.1.34
 	github.com/onsi/ginkgo/v2 v2.6.1
 	github.com/onsi/gomega v1.24.2
-	github.com/openshift/library-go v0.0.0-20220525173854-9b950a41acdc
 	github.com/operator-framework/api v0.17.5
 	github.com/prometheus/client_golang v1.14.0
 	github.com/rs/xid v1.4.0

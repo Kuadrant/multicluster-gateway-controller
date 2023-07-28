@@ -251,8 +251,6 @@ So what about DNS how do we bring traffic to these gateways?
 
 ### Create and attach a HTTPRoute
 
-We only configure DNS once a HTTPRoute has been attached to a listener in the gateway. 
-
 1. In `T1`, using the following command in the hub cluster, you will see we currently have no DNSRecord resources.
 
     ```bash
@@ -319,7 +317,26 @@ We only configure DNS once a HTTPRoute has been attached to a listener in the ga
     EOF
     ```
 
-    Once this is done, the Kuadrant multi-cluster gateway controller will pick up that a HTTPRoute has been attached to the Gateway it is managing from the hub and it will setup a DNS record to start bringing traffic to that gateway for the host defined in that listener.
+### Enable DNS
+
+1. In `T1`, create a DNSPolicy and attach it to your Gateway:
+
+    ```bash
+    kubectl apply -f - <<EOF
+    apiVersion: kuadrant.io/v1alpha1
+    kind: DNSPolicy
+    metadata:
+      name: prod-web
+      namespace: multi-cluster-gateways
+    spec:
+      targetRef:
+        name: prod-web
+        group: gateway.networking.k8s.io
+        kind: Gateway     
+    EOF
+    ```
+
+   Once this is done, the Kuadrant multi-cluster gateway controller will pick up that a HTTPRoute has been attached to the Gateway it is managing from the hub and it will setup a DNS record to start bringing traffic to that gateway for the host defined in that listener.
 
 1. You should now see a DNSRecord resource in the hub cluster. In `T1`, run:
 

@@ -12,7 +12,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
@@ -52,9 +51,10 @@ func TestSetProviderSpecific(t *testing.T) {
 
 func Test_dnsHelper_createDNSRecord(t *testing.T) {
 	type args struct {
+		gateway     *gatewayv1beta1.Gateway
+		dnsPolicy   *v1alpha1.DNSPolicy
 		subDomain   string
 		managedZone *v1alpha1.ManagedZone
-		owner       v1.Object
 	}
 	tests := []struct {
 		name       string
@@ -66,6 +66,18 @@ func Test_dnsHelper_createDNSRecord(t *testing.T) {
 		{
 			name: "DNS record gets created",
 			args: args{
+				gateway: &gatewayv1beta1.Gateway{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "tstgateway",
+						Namespace: "test",
+					},
+				},
+				dnsPolicy: &v1alpha1.DNSPolicy{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "tstpolicy",
+						Namespace: "test",
+					},
+				},
 				subDomain: "sub",
 				managedZone: &v1alpha1.ManagedZone{
 					ObjectMeta: v1.ObjectMeta{
@@ -76,11 +88,6 @@ func Test_dnsHelper_createDNSRecord(t *testing.T) {
 						DomainName: "domain.com",
 					},
 				},
-				owner: &gatewayv1beta1.Gateway{
-					ObjectMeta: v1.ObjectMeta{
-						UID: types.UID("gatewayUID"),
-					},
-				},
 			},
 			recordList: &v1alpha1.DNSRecordList{},
 			wantRecord: &v1alpha1.DNSRecord{
@@ -88,15 +95,12 @@ func Test_dnsHelper_createDNSRecord(t *testing.T) {
 					Name:      "sub.domain.com",
 					Namespace: "test",
 					Labels: map[string]string{
-						LabelRecordID:         "sub",
-						LabelGatewayReference: "gatewayUID",
+						"kuadrant.io/dnspolicy":           "tstpolicy",
+						"kuadrant.io/dnspolicy-namespace": "test",
+						"gateway-namespace":               "test",
+						"gateway":                         "tstgateway",
 					},
 					OwnerReferences: []v1.OwnerReference{
-						{
-							APIVersion: "gateway.networking.k8s.io/v1beta1",
-							Kind:       "Gateway",
-							UID:        types.UID("gatewayUID"),
-						},
 						{
 							APIVersion:         "kuadrant.io/v1alpha1",
 							Kind:               "ManagedZone",
@@ -117,6 +121,18 @@ func Test_dnsHelper_createDNSRecord(t *testing.T) {
 		{
 			name: "DNS record already exists",
 			args: args{
+				gateway: &gatewayv1beta1.Gateway{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "tstgateway",
+						Namespace: "test",
+					},
+				},
+				dnsPolicy: &v1alpha1.DNSPolicy{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "tstpolicy",
+						Namespace: "test",
+					},
+				},
 				subDomain: "sub",
 				managedZone: &v1alpha1.ManagedZone{
 					ObjectMeta: v1.ObjectMeta{
@@ -125,11 +141,6 @@ func Test_dnsHelper_createDNSRecord(t *testing.T) {
 					},
 					Spec: v1alpha1.ManagedZoneSpec{
 						DomainName: "domain.com",
-					},
-				},
-				owner: &gatewayv1beta1.Gateway{
-					ObjectMeta: v1.ObjectMeta{
-						UID: types.UID("gatewayUID"),
 					},
 				},
 			},
@@ -161,7 +172,7 @@ func Test_dnsHelper_createDNSRecord(t *testing.T) {
 			f := fake.NewClientBuilder().WithScheme(testScheme(t)).WithLists(tt.recordList).Build()
 			s := dnsHelper{Client: f}
 
-			gotRecord, err := s.createDNSRecord(context.TODO(), tt.args.subDomain, tt.args.managedZone, tt.args.owner)
+			gotRecord, err := s.createDNSRecord(context.TODO(), tt.args.gateway, tt.args.dnsPolicy, tt.args.subDomain, tt.args.managedZone)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("CreateDNSRecord() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -669,6 +680,7 @@ func Test_dnsHelper_getDNSRecords(t *testing.T) {
 		Assert    func(t *testing.T, err error)
 		DNSRecord *v1alpha1.DNSRecord
 		Gateway   *gatewayv1beta1.Gateway
+		DNSPolicy *v1alpha1.DNSPolicy
 	}{
 		{
 			Name: "test get dns record returns record",
@@ -688,16 +700,25 @@ func Test_dnsHelper_getDNSRecords(t *testing.T) {
 					Name:      "a.b.c.com",
 					Namespace: "test",
 					Labels: map[string]string{
-						LabelGatewayReference: "test",
+						"kuadrant.io/dnspolicy":           "tstpolicy",
+						"kuadrant.io/dnspolicy-namespace": "test",
+						"gateway-namespace":               "test",
+						"gateway":                         "tstgateway",
 					},
 				},
 			},
 			Gateway: &gatewayv1beta1.Gateway{
 				ObjectMeta: v1.ObjectMeta{
-					UID: types.UID("test"),
+					Name:      "tstgateway",
+					Namespace: "test",
 				},
 			},
-
+			DNSPolicy: &v1alpha1.DNSPolicy{
+				ObjectMeta: v1.ObjectMeta{
+					Name:      "tstpolicy",
+					Namespace: "test",
+				},
+			},
 			Assert: testutil.AssertError(""),
 		},
 		{
@@ -718,8 +739,19 @@ func Test_dnsHelper_getDNSRecords(t *testing.T) {
 					Namespace: "test",
 				},
 			},
-			Gateway: &gatewayv1beta1.Gateway{},
-			Assert:  testutil.AssertError("not found"),
+			Gateway: &gatewayv1beta1.Gateway{
+				ObjectMeta: v1.ObjectMeta{
+					Name:      "tstgateway",
+					Namespace: "test",
+				},
+			},
+			DNSPolicy: &v1alpha1.DNSPolicy{
+				ObjectMeta: v1.ObjectMeta{
+					Name:      "tstpolicy",
+					Namespace: "test",
+				},
+			},
+			Assert: testutil.AssertError("not found"),
 		},
 		{
 			Name: "test get dns error when referencing different Gateway",
@@ -738,13 +770,23 @@ func Test_dnsHelper_getDNSRecords(t *testing.T) {
 					Name:      "a.b.c.com",
 					Namespace: "test",
 					Labels: map[string]string{
-						LabelGatewayReference: "reference",
+						"kuadrant.io/dnspolicy":           "different-tstpolicy",
+						"kuadrant.io/dnspolicy-namespace": "test",
+						"gateway-namespace":               "test",
+						"gateway":                         "different-gateway",
 					},
 				},
 			},
 			Gateway: &gatewayv1beta1.Gateway{
 				ObjectMeta: v1.ObjectMeta{
-					UID: types.UID("test"),
+					Name:      "tstgateway",
+					Namespace: "test",
+				},
+			},
+			DNSPolicy: &v1alpha1.DNSPolicy{
+				ObjectMeta: v1.ObjectMeta{
+					Name:      "tstpolicy",
+					Namespace: "test",
 				},
 			},
 			Assert: testutil.AssertError("host already in use"),
@@ -766,13 +808,23 @@ func Test_dnsHelper_getDNSRecords(t *testing.T) {
 					Name:      "other.com",
 					Namespace: "test",
 					Labels: map[string]string{
-						LabelGatewayReference: "test",
+						"kuadrant.io/dnspolicy":           "different-tstpolicy",
+						"kuadrant.io/dnspolicy-namespace": "test",
+						"gateway-namespace":               "test",
+						"gateway":                         "different-gateway",
 					},
 				},
 			},
 			Gateway: &gatewayv1beta1.Gateway{
 				ObjectMeta: v1.ObjectMeta{
-					UID: types.UID("not"),
+					Name:      "tstgateway",
+					Namespace: "test",
+				},
+			},
+			DNSPolicy: &v1alpha1.DNSPolicy{
+				ObjectMeta: v1.ObjectMeta{
+					Name:      "tstpolicy",
+					Namespace: "test",
 				},
 			},
 			Assert: testutil.AssertError("not found"),
@@ -781,10 +833,9 @@ func Test_dnsHelper_getDNSRecords(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
-			gw := traffic.NewGateway(tc.Gateway)
 			f := fake.NewClientBuilder().WithScheme(testutil.GetValidTestScheme()).WithObjects(tc.DNSRecord).Build()
 			s := &dnsHelper{Client: f}
-			_, err := s.getDNSRecord(context.TODO(), tc.SubDomain, tc.MZ, gw)
+			_, err := s.getDNSRecord(context.TODO(), tc.Gateway, tc.DNSPolicy, tc.SubDomain, tc.MZ)
 			tc.Assert(t, err)
 		})
 	}
@@ -864,6 +915,7 @@ func Test_dnsHelper_getManagedHosts(t *testing.T) {
 	tests := []struct {
 		name      string
 		gateway   *gatewayv1beta1.Gateway
+		dnsPolicy *v1alpha1.DNSPolicy
 		initLists []client.ObjectList
 		want      []v1alpha1.ManagedHost
 		wantErr   bool
@@ -872,8 +924,8 @@ func Test_dnsHelper_getManagedHosts(t *testing.T) {
 			name: "got managed hosts",
 			gateway: &gatewayv1beta1.Gateway{
 				ObjectMeta: v1.ObjectMeta{
+					Name:      "tstgateway",
 					Namespace: "test",
-					UID:       types.UID("gatewayUID"),
 				},
 				Spec: gatewayv1beta1.GatewaySpec{
 					Listeners: []gatewayv1beta1.Listener{
@@ -881,6 +933,12 @@ func Test_dnsHelper_getManagedHosts(t *testing.T) {
 							Hostname: testutil.Pointer(gatewayv1beta1.Hostname("sub.domain.com")),
 						},
 					},
+				},
+			},
+			dnsPolicy: &v1alpha1.DNSPolicy{
+				ObjectMeta: v1.ObjectMeta{
+					Name:      "tstpolicy",
+					Namespace: "test",
 				},
 			},
 			initLists: []client.ObjectList{
@@ -903,7 +961,10 @@ func Test_dnsHelper_getManagedHosts(t *testing.T) {
 								Name:      "sub.domain.com",
 								Namespace: "test",
 								Labels: map[string]string{
-									LabelGatewayReference: "gatewayUID",
+									"kuadrant.io/dnspolicy":           "tstpolicy",
+									"kuadrant.io/dnspolicy-namespace": "test",
+									"gateway-namespace":               "test",
+									"gateway":                         "gateway",
 								},
 							},
 						},
@@ -928,9 +989,7 @@ func Test_dnsHelper_getManagedHosts(t *testing.T) {
 							Name:            "sub.domain.com",
 							Namespace:       "test",
 							ResourceVersion: "999",
-							Labels: map[string]string{
-								LabelGatewayReference: "gatewayUID",
-							},
+							Labels:          map[string]string{},
 						},
 						TypeMeta: v1.TypeMeta{
 							Kind:       "DNSRecord",
@@ -941,11 +1000,11 @@ func Test_dnsHelper_getManagedHosts(t *testing.T) {
 			},
 		},
 		{
-			name: "No hosts retrieved for CNAME or externaly managed host",
+			name: "No hosts retrieved for CNAME or externally managed host",
 			gateway: &gatewayv1beta1.Gateway{
 				ObjectMeta: v1.ObjectMeta{
+					Name:      "tstgateway",
 					Namespace: "test",
-					UID:       types.UID("gatewayUID"),
 				},
 				Spec: gatewayv1beta1.GatewaySpec{
 					Listeners: []gatewayv1beta1.Listener{
@@ -953,6 +1012,12 @@ func Test_dnsHelper_getManagedHosts(t *testing.T) {
 							Hostname: testutil.Pointer(gatewayv1beta1.Hostname("sub.domain.com")),
 						},
 					},
+				},
+			},
+			dnsPolicy: &v1alpha1.DNSPolicy{
+				ObjectMeta: v1.ObjectMeta{
+					Name:      "tstpolicy",
+					Namespace: "test",
 				},
 			},
 			initLists: []client.ObjectList{},
@@ -964,7 +1029,7 @@ func Test_dnsHelper_getManagedHosts(t *testing.T) {
 			f := fake.NewClientBuilder().WithScheme(testScheme(t)).WithLists(tt.initLists...).Build()
 			s := &dnsHelper{Client: f}
 
-			got, err := s.getManagedHosts(context.TODO(), traffic.NewGateway(tt.gateway))
+			got, err := s.getManagedHosts(context.TODO(), tt.gateway, tt.dnsPolicy)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetManagedHosts() error = %v, wantErr %v", err, tt.wantErr)
 				return

@@ -223,6 +223,25 @@ spec:
 EOF
 ```
 
+### Enable DNS
+
+1. In `T1`, create a DNSPolicy and attach it to your Gateway:
+
+```bash
+kubectl apply -f - <<EOF
+apiVersion: kuadrant.io/v1alpha1
+kind: DNSPolicy
+metadata:
+  name: prod-web
+  namespace: multi-cluster-gateways
+spec:
+  targetRef:
+    name: prod-web
+    group: gateway.networking.k8s.io
+    kind: Gateway     
+EOF
+```
+
 Once this is done, the Kuadrant multi-cluster Gateway controller will pick up that a HTTPRoute has been attached to the Gateway it is managing from the hub and it will setup a DNS record to start bringing traffic to that Gateway for the host defined in that listener.
 
 You should now see a DNSRecord and only 1 endpoint added which corresponds to address assigned to the Gateway where the HTTPRoute was created. In `T1`, run:
