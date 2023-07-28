@@ -103,7 +103,7 @@ func (r *DNSRecordReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	if err != nil {
 		status = metav1.ConditionFalse
 		reason = "ProviderError"
-		message = fmt.Sprintf("The DNS provider failed to ensure the record: %v", err)
+		message = fmt.Sprintf("The DNS provider failed to ensure the record: %v", dns.SanitizeError(err))
 	} else {
 		dnsRecord.Status.ObservedGeneration = dnsRecord.Generation
 		dnsRecord.Status.Endpoints = dnsRecord.Spec.Endpoints
@@ -121,7 +121,7 @@ func (r *DNSRecordReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 	}
 
-	return ctrl.Result{}, nil
+	return ctrl.Result{}, err
 }
 
 // SetupWithManager sets up the controller with the Manager.
