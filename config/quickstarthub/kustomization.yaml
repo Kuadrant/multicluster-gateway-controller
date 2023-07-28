@@ -1,5 +1,0 @@
-resources:
-  - ../metallb
-  - ../cert-manager
-  - ./controller
-

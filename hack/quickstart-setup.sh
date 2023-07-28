@@ -19,17 +19,16 @@
 export KIND_BIN=kind
 export YQ_BIN=yq
 
-source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/Kuadrant/multicluster-gateway-controller/main/hack/.kindUtils)"
-source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/Kuadrant/multicluster-gateway-controller/main/hack/.clusterUtils)"
-source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/Kuadrant/multicluster-gateway-controller/main/hack/.cleanupUtils)"
-source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/laurafitzgerald/multi-cluster-traffic-controller/quickstart-script/hack/.startUtils)"
+source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/laurafitzgerald/multicluster-gateway-controller/quickstart-script/hack/.kindUtils)"
+source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/laurafitzgerald/multicluster-gateway-controller/quickstart-script/hack/.clusterUtils)"
+source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/laurafitzgerald/multicluster-gateway-controller/quickstart-script/hack/.cleanupUtils)"
+source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/laurafitzgerald/multicluster-gateway-controller/quickstart-script/hack/.startUtils)"
 
 
 #TODO this needs to be update to the kuadrant git repo before merge
 MGC_REPO="github.com/laurafitzgerald/multicluster-gateway-controller.git"
-QUICK_START_HUB_KUSTOMIZATION=${MGC_REPO}/config/quickstarthub?ref=quickstart-script
-QUICK_START_SPOKE_KUSTOMIZATION=${MGC_REPO}/config/quickstartspoke?ref=quickstart-script
-ISTIO_KUSTOMIZATION=${MGC_REPO}/config/istio?ref=quickstart-script
+QUICK_START_HUB_KUSTOMIZATION=${MGC_REPO}/config/quick-start/control-cluster?ref=quickstart-script
+QUICK_START_SPOKE_KUSTOMIZATION=${MGC_REPO}/config/quick-start/workload-cluster?ref=quickstart-script
 
 KIND_CLUSTER_PREFIX="mgc-"
 KIND_CLUSTER_CONTROL_PLANE="${KIND_CLUSTER_PREFIX}control-plane"
@@ -60,20 +59,8 @@ EOF
 }
 
 
-deployIstio() {
-  clusterName=${1}
-  echo "Deploying Istio to (${clusterName})"
-
-  kubectl config use-context kind-${clusterName}
-  istioctl operator init
-  kustomize build ${ISTIO_KUSTOMIZATION} --enable-helm --helm-command helm | kubectl apply -f -
-}
 
 
-configureCertManager() {
-  kubectl delete validatingWebhookConfiguration mgc-cert-manager-webhook
-  kubectl delete mutatingWebhookConfiguration mgc-cert-manager-webhook
-}
 
 deployOLM(){
   clusterName=${1}
@@ -88,6 +75,7 @@ deployOCMHub(){
   clusterName=${1}
   echo "installing the hub cluster in kind-(${clusterName}) "
 
+  kubectl config use-context kind-${clusterName}
   clusteradm init --bundle-version='0.11.0' --wait --context kind-${clusterName}
   echo "PATCHING CLUSTERMANAGER: placement image patch to use amd64 image - See https://kubernetes.slack.com/archives/C01GE7YSUUF/p1685016272443249"
   kubectl patch clustermanager cluster-manager --type='merge' -p '{"spec":{"placementImagePullSpec":"quay.io/open-cluster-management/placement:v0.11.0-amd64"}}'
@@ -109,7 +97,6 @@ deployOCMHub(){
       ((++counter))
     done
     deployOLM ${KIND_CLUSTER_CONTROL_PLANE}
-    deployIstio ${KIND_CLUSTER_CONTROL_PLANE}
   fi
 }
 
@@ -182,7 +169,7 @@ spec:
 EOF
 }
 
-deployQuickStartHub() {
+deployQuickStartControl() {
     clusterName=${1}
     kubectl config use-context kind-${clusterName}
     echo "Initialize quickstart setup on ${clusterName}"
@@ -191,9 +178,11 @@ deployQuickStartHub() {
     kubectl -n metallb-system wait --for=condition=ready pod --selector=app=metallb --timeout=300s
     echo "Waiting for cert-manager deployments to be ready"
     kubectl -n cert-manager wait --timeout=300s --for=condition=Available deployments --all
+    echo "Waiting for istio deployments to be ready"
+    kubectl -n cert-manager wait --timeout=300s --for=condition=Available deployments --all
 }
 
-deployQuickStartSpoke() {
+deployQuickStartWorkload() {
    clusterName=${1}
     kubectl config use-context kind-${clusterName}
     echo "Initialize quickstart setup on ${clusterName}"
@@ -267,33 +256,35 @@ docker network create -d bridge --subnet 172.31.0.0/16 mgc --gateway 172.31.0.1 
 # Create Kind control plane cluster
 kindCreateCluster ${KIND_CLUSTER_CONTROL_PLANE} ${port80} ${port443}
 
-# Deploy OCM hub
-deployOCMHub ${KIND_CLUSTER_CONTROL_PLANE}
-
-# Deploy Quick start kustomize
-deployQuickStartHub ${KIND_CLUSTER_CONTROL_PLANE}
-
-# Deploy cert manager
-configureCertManager ${KIND_CLUSTER_CONTROL_PLANE}
-
-# Initialize local dev setup for the controller on the control-plane cluster
-configureController ${KIND_CLUSTER_CONTROL_PLANE}
-
-# Deploy MetalLb
-configureMetalLB ${KIND_CLUSTER_CONTROL_PLANE} ${metalLBSubnetStart}
-
-configureControlCluster ${KIND_CLUSTER_CONTROL_PLANE}
-
-# Add workload clusters if MGC_WORKLOAD_CLUSTERS_COUNT environment variable is set
+# Create Kind workload cluster(s)
 if [[ -n "${MGC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
   for ((i = 1; i <= ${MGC_WORKLOAD_CLUSTERS_COUNT}; i++)); do
     kindCreateCluster ${KIND_CLUSTER_WORKLOAD}-${i} $((${port80} + ${i})) $((${port443} + ${i})) $((${i} + 1))
-    deployIstio ${KIND_CLUSTER_WORKLOAD}-${i}
-    deployQuickStartSpoke ${KIND_CLUSTER_WORKLOAD}-${i}
+  done
+fi
+
+# Apply Cluster Configurations to Control cluster
+# Deploy OCM hub
+deployOCMHub ${KIND_CLUSTER_CONTROL_PLANE}
+# Deploy Quick start kustomize
+deployQuickStartControl ${KIND_CLUSTER_CONTROL_PLANE}
+# Initialize local dev setup for the controller on the control-plane cluster
+configureController ${KIND_CLUSTER_CONTROL_PLANE}
+# Deploy MetalLb
+configureMetalLB ${KIND_CLUSTER_CONTROL_PLANE} ${metalLBSubnetStart}
+configureControlCluster ${KIND_CLUSTER_CONTROL_PLANE}
+
+
+# Apply Cluster Configurations to Workload clusters
+if [[ -n "${MGC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
+  for ((i = 1; i <= ${MGC_WORKLOAD_CLUSTERS_COUNT}; i++)); do
+    deployQuickStartWorkload ${KIND_CLUSTER_WORKLOAD}-${i}
     deployOLM ${KIND_CLUSTER_WORKLOAD}-${i}
     deployOCMSpoke ${KIND_CLUSTER_WORKLOAD}-${i}
   done
 fi
 
+
+kubectl config use-context kind-${KIND_CLUSTER_CONTROL_PLANE}
 
 

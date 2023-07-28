@@ -6,10 +6,13 @@ You will also deploy a simple application that uses that gateway for ingress and
 We will start with a single cluster and move to multiple clusters to illustrate how a single gateway definition can be used across multiple clusters and highlight the automatic TLS integration and also the automatic DNS load balancing between gateway instances.
 
 ## Requirements
+
+The below binary dependencies can be installed using the `make dependencies` command if you've already cloned the repo. If not links are provided.
+
 - [kind](https://kind.sigs.k8s.io/)
 - [operator-sdk](https://sdk.operatorframework.io/docs/installation/)
 - [yq](https://mikefarah.gitbook.io/yq/v/v3.x/)
-- [istioctl](https://istio.io/latest/docs/ops/diagnostic-tools/istioctl/#install-hahahugoshortcodes2hbhb)
+- [clusteradm](https://github.com/open-cluster-management-io/clusteradm#install-the-clusteradm-command-line)
 - go >= 1.20
 - openssl >= 3
 - AWS account with Route 53 enabled
@@ -137,7 +140,7 @@ This is because we haven't placed the gateway yet onto any of our ingress cluste
     you'll see the following:
 
     ```
-    kuadrant-multi-cluster-gateways   prod-web   istio                                         172.32.200.0                29s
+    kuadrant-multi-cluster-gateways   prod-web   istio                                         172.31.200.0                29s
     multi-cluster-gateways            prod-web   kuadrant-multi-cluster-gateway-instance-per-cluster                  True         2m42s
     ```
 

@@ -1,6 +1,6 @@
 resources:
-  - ../../gateway-api
-  - ../../default
+  - ../../../gateway-api
+  - ../../../default
   - configmap.yaml
   - managed_cluster_set.yaml
   - managed_cluster_set_binding.yaml
