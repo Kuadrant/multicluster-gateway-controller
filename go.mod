@@ -9,7 +9,6 @@ require (
 	github.com/goombaio/namegenerator v0.0.0-20181006234301-989e774b106e
 	github.com/jetstack/cert-manager v1.7.1
 	github.com/kuadrant/kuadrant-operator v0.1.1-0.20230323151616-58593d01833a
-	github.com/linki/instrumented_http v0.3.0
 	github.com/martinlindhe/base36 v1.1.1
 	github.com/miekg/dns v1.1.34
 	github.com/onsi/ginkgo/v2 v2.6.1
@@ -18,7 +17,6 @@ require (
 	github.com/prometheus/client_golang v1.14.0
 	github.com/rs/xid v1.4.0
 	golang.org/x/net v0.8.0
-	golang.org/x/oauth2 v0.5.0
 	google.golang.org/api v0.110.0
 	k8s.io/api v0.26.1
 	k8s.io/apimachinery v0.26.1
@@ -93,6 +91,7 @@ require (
 	go.uber.org/multierr v1.8.0 // indirect
 	go.uber.org/zap v1.24.0 // indirect
 	golang.org/x/crypto v0.5.0 // indirect
+	golang.org/x/oauth2 v0.5.0 // indirect
 	golang.org/x/sys v0.6.0 // indirect
 	golang.org/x/term v0.6.0 // indirect
 	golang.org/x/text v0.8.0 // indirect

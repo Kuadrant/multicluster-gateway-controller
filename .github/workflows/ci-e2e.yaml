@@ -43,15 +43,22 @@ jobs:
         run: |
           echo "AWS_DNS_PUBLIC_ZONE_ID=${{ secrets.E2E_AWS_DNS_PUBLIC_ZONE_ID }}" >> controller-config.env
           echo "ZONE_ROOT_DOMAIN=${{ secrets.E2E_AWS_DNS_PUBLIC_ZONE_NAME }}" >> controller-config.env
+          echo "ZONE_NAME"=${{ secrets.E2E_GCP_ZONE_NAME }}" >> controller-config.env 
+          echo "ZONE_DNS_NAME"=${{ secrets.E2E_GCP_ZONE_DNS_NAME }}" >> controller-config.env
 
       - name: Create aws-credentials.env
         run: |
           echo "AWS_ACCESS_KEY_ID=${{ secrets.E2E_AWS_ACCESS_KEY_ID }}" >> aws-credentials.env
           echo "AWS_SECRET_ACCESS_KEY=${{ secrets.E2E_AWS_SECRET_ACCESS_KEY }}" >> aws-credentials.env
           echo "AWS_REGION=${{ env.AWS_REGION }}" >> aws-credentials.env
+      - name: Create gcp-credentials.env
+        run: |
+          echo "GOOGLE=${{ secrets.E2E_GOOGLE }}" >> gcp-credentials.env
+          echo "PROJECT_ID=${{ secrets.E2E_PROJECT_ID }}" >> gcp-credentials.env    
       - name: Setup environment
         run: |
           export OCM_SINGLE=1
+          export DNS=MUTLI
           make local-setup
       - name: Deploy MGC
         run: |
@@ -64,6 +71,8 @@ jobs:
           export TEST_HUB_NAMESPACE=multi-cluster-gateways
           export TEST_HUB_KUBE_CONTEXT=kind-mgc-control-plane
           export TEST_MANAGED_ZONE=${{ secrets.E2E_AWS_DNS_PUBLIC_ZONE_NAME }}
+          export TEST_MANAGED_ZONE_GCP=${{ secrets.E2E_GCP_DNS_PUBLIC_ZONE_NAME }}
+
           make test-e2e
       - name: Dump MGC logs
         if: ${{ failure() }}
