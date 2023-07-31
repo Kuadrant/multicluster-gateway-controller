@@ -1,0 +1,25 @@
+FROM registry.access.redhat.com/ubi8/ubi:8.1
+
+WORKDIR /
+
+RUN cat <<EOF | tee /etc/yum.repos.d/kubernetes.repo
+[kubernetes]
+name=Kubernetes
+baseurl=https://packages.cloud.google.com/yum/repos/kubernetes-el7-\$basearch
+enabled=1
+gpgcheck=1
+gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+EOF
+
+# Install deps
+RUN dnf update -y && dnf install -y make curl golang git kubectl
+
+COPY hack/make/dependencies.make hack/make/dependencies.make
+COPY Makefile Makefile
+
+# run make
+RUN make kustomize operator-sdk kind helm yq istioctl clusteradm LOCALBIN=/usr/local/bin
+
+ENV HOME /home
+
+ENTRYPOINT [ "/bin/bash" ]
