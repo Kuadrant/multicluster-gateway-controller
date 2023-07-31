@@ -24,18 +24,17 @@ The below binary dependencies can be installed using the `make dependencies` com
 >**Note:** :exclamation: this walkthrough will setup a zone in your AWS account and make changes to it for DNS purposes
 
 ## Installation and Setup
-* Export env-vars with the keys listed below. Fill in your own values as appropriate. You will need access to a domain or subdomain in Route 53 in AWS:
+* Clone this repo locally 
+* Set up your DNS Provider by following these [steps](providers/providers.md)
 
-  | Env Var                      | Example Value               | Description                                                    |
-  |------------------------------|-----------------------------|----------------------------------------------------------------|
-  | `MGC_ZONE_ROOT_DOMAIN`       | `jbloggs.hcpapps.net`       | Hostname for the root Domain                                   |
-  | `MGC_AWS_DNS_PUBLIC_ZONE_ID` | `Z01234567US0IQE3YLO00`     | AWS Route 53 Zone ID for specified `MGC_ZONE_ROOT_DOMAIN`      | 
-  | `MGC_AWS_ACCESS_KEY_ID`      | `AKIA1234567890000000`      | Access Key ID, with access to resources in Route 53            |
-  | `MGC_AWS_SECRET_ACCESS_KEY`  | `Z01234567US0000000`        | Access Secret Access Key, with access to resources in Route 53 |
-  | `MGC_AWS_REGION`             | `eu-west-1`                 | AWS Region                                                     |
-  | `MGC_SUB_DOMAIN`             | `myapp.jbloggs.hcpapps.net` | AWS Region                                                     |
+* We're going to use an environment variable, `MGC_SUB_DOMAIN`, throughout this walkthrough. Simply run the below in each window you create:
 
-* Alternatively, to set defaults, add the above environment variables to your `.zshrc` or `.bash_profile`. 
+  For example:
+  ```bash
+  export MGC_SUB_DOMAIN=myapp.jbloggs.hcpapps.net
+  ```
+
+* Alternatively, to set a default, add the above environment variable to your `.zshrc` or `.bash_profile`. To override this as a once-off, simply `export MGC_SUB_DOMAIN`.
 
 ## Open terminal sessions
 
@@ -77,7 +76,6 @@ The script will
     > ```
    
 ### Create a gateway
-
 
 #### Check the managed zone
 
