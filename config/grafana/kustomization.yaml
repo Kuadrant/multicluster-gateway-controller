@@ -1,0 +1,13 @@
+namespace: monitoring
+
+resources:
+- ingress.yaml
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+secretGenerator:
+- name: grafana-datasources
+  files:
+  - datasources.yaml
+
