@@ -446,8 +446,7 @@ func toResourceRecordSets(allEndpoints []*v1alpha1.Endpoint) []*dnsv1.ResourceRe
 		ttl := int64(endpoints[0].RecordTTL)
 		recordType := endpoints[0].RecordType
 		_, weighted := endpoints[0].GetProviderSpecificProperty(dns.ProviderSpecificWeight)
-		_, geoContinent := endpoints[0].GetProviderSpecificProperty(dns.ProviderSpecificGeoContinentCode)
-		_, geoCounty := endpoints[0].GetProviderSpecificProperty(dns.ProviderSpecificGeoCountryCode)
+		_, geoCode := endpoints[0].GetProviderSpecificProperty(dns.ProviderSpecificGeoCode)
 
 		record := &dnsv1.ResourceRecordSet{
 			Name: ensureTrailingDot(dnsName),
@@ -458,45 +457,46 @@ func toResourceRecordSets(allEndpoints []*v1alpha1.Endpoint) []*dnsv1.ResourceRe
 			record.RoutingPolicy = &dnsv1.RRSetRoutingPolicy{
 				Wrr: &dnsv1.RRSetRoutingPolicyWrrPolicy{},
 			}
-		} else if geoContinent || geoCounty {
+		} else if geoCode {
 			record.RoutingPolicy = &dnsv1.RRSetRoutingPolicy{
 				Geo: &dnsv1.RRSetRoutingPolicyGeoPolicy{},
 			}
 		}
 
 		for _, ep := range endpoints {
-			targets := make([]string, len(ep.Targets))
-			copy(targets, ep.Targets)
-			if ep.RecordType == string(v1alpha1.CNAMERecordType) {
-				targets[0] = ensureTrailingDot(targets[0])
-			}
+			countryProp, _ := ep.GetProviderSpecificProperty(dns.ProviderSpecificGeoCode)
+			if countryProp.Value != "*" {
+				targets := make([]string, len(ep.Targets))
+				copy(targets, ep.Targets)
+				if ep.RecordType == string(v1alpha1.CNAMERecordType) {
+					targets[0] = ensureTrailingDot(targets[0])
+				}
 
-			if !weighted && !geoContinent && !geoCounty {
-				record.Rrdatas = targets
-			}
-			if weighted {
-				weightProp, _ := ep.GetProviderSpecificProperty(dns.ProviderSpecificWeight)
-				weight, err := strconv.ParseFloat(weightProp.Value, 64)
-				if err != nil {
-					weight = 0
+				if !weighted && !geoCode {
+					record.Rrdatas = targets
 				}
-				item := &dnsv1.RRSetRoutingPolicyWrrPolicyWrrPolicyItem{
-					Rrdatas: targets,
-					Weight:  weight,
+				if weighted {
+					weightProp, _ := ep.GetProviderSpecificProperty(dns.ProviderSpecificWeight)
+					weight, err := strconv.ParseFloat(weightProp.Value, 64)
+					if err != nil {
+						weight = 0
+					}
+					item := &dnsv1.RRSetRoutingPolicyWrrPolicyWrrPolicyItem{
+						Rrdatas: targets,
+						Weight:  weight,
+					}
+					record.RoutingPolicy.Wrr.Items = append(record.RoutingPolicy.Wrr.Items, item)
 				}
-				record.RoutingPolicy.Wrr.Items = append(record.RoutingPolicy.Wrr.Items, item)
-			}
-			if geoContinent || geoCounty {
-				continentProp, _ := ep.GetProviderSpecificProperty(dns.ProviderSpecificGeoContinentCode)
-				countryProp, _ := ep.GetProviderSpecificProperty(dns.ProviderSpecificGeoCountryCode)
-				item := &dnsv1.RRSetRoutingPolicyGeoPolicyGeoPolicyItem{
-					Location: getGeoPolicyLocation(continentProp.Value, countryProp.Value),
-					Rrdatas:  targets,
+				if geoCode {
+					item := &dnsv1.RRSetRoutingPolicyGeoPolicyGeoPolicyItem{
+						Location: countryProp.Value,
+						Rrdatas:  targets,
+					}
+					record.RoutingPolicy.Geo.Items = append(record.RoutingPolicy.Geo.Items, item)
 				}
-				record.RoutingPolicy.Geo.Items = append(record.RoutingPolicy.Geo.Items, item)
+				records = append(records, record)
 			}
 		}
-		records = append(records, record)
 	}
 	return records
 }
@@ -505,10 +505,13 @@ func toResourceRecordSets(allEndpoints []*v1alpha1.Endpoint) []*dnsv1.ResourceRe
 //
 // https://cloud.google.com/compute/docs/regions-zones/viewing-regions-zones#viewing_information_about_a_region
 // https://cloud.google.com/compute/docs/regions-zones#available
-func getGeoPolicyLocation(geoContinent, geoCounty string) string {
-	// ToDo Need to map MGC continent and country codes into google regions :-/
-	return "europe-west1"
-}
+// func getGeoPolicyLocation( geoCountry string,) []string {
+// 	// ToDo Need to map MGC continent and country codes into google regions :-/
+// 	dnsprovider:= "GCP"
+// 	accepted, _  := dns.ProviderMapping(geoCountry,dnsprovider)
+
+// 	return accepted
+// }
 
 // ensureTrailingDot ensures that the hostname receives a trailing dot if it hasn't already.
 func ensureTrailingDot(hostname string) string {
