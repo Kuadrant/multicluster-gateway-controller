@@ -271,7 +271,11 @@ initController() {
     # Add the mgc CRDs
     ${KUSTOMIZE_BIN} build config/crd | kubectl apply -f -
     # Create the mgc ns and dev managed zone
-    ${KUSTOMIZE_BIN} --reorder none --load-restrictor LoadRestrictionsNone build config/local-setup/controller | kubectl apply -f -
+    if [[ -n "${GCP}" ]]; then
+    ${KUSTOMIZE_BIN} --reorder none --load-restrictor LoadRestrictionsNone build config/local-setup/controller/gcp | kubectl apply -f -
+    else 
+    ${KUSTOMIZE_BIN} --reorder none --load-restrictor LoadRestrictionsNone build config/local-setup/controller/aws | kubectl apply -f -
+    fi   
 }
 
 deploySubmarinerBroker() {

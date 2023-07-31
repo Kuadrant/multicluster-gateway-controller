@@ -1,0 +1,18 @@
+namespace: multi-cluster-gateways
+
+namePrefix: mgc-
+
+resources:
+  - namespace.yaml
+  - managed_zone.yaml
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+secretGenerator:
+  - name: gcp-credentials
+    envs:
+      - ../../../../gcp-credentials.env
+    type: "kuadrant.io/gcp"
+
+

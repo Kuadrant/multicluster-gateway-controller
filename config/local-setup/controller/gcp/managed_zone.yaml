@@ -1,0 +1,13 @@
+apiVersion: kuadrant.io/v1alpha1
+kind: ManagedZone
+metadata:
+  name: dev-mz-gcp
+spec:
+  id: hcpapps.google.net
+  domainName: test.hcpapps.net
+  description: "Dev Managed Zone"
+  dnsProviderSecretRef:
+    name: mgc-gcp-credentials
+    namespace: multi-cluster-gateways
+    type: GCP
+

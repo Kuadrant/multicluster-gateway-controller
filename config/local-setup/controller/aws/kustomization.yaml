@@ -17,7 +17,7 @@ configMapGenerator:
 secretGenerator:
   - name: aws-credentials
     envs:
-      - ../../../aws-credentials.env
+      - ../../../../aws-credentials.env
     type: "kuadrant.io/aws"
 
 replacements:

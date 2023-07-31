@@ -1,7 +1,7 @@
 apiVersion: kuadrant.io/v1alpha1
 kind: ManagedZone
 metadata:
-  name: dev-mz
+  name: dev-mz-aws
 spec:
   id: DUMMY_ID
   domainName: DUMMY_DOMAIN_NAME
