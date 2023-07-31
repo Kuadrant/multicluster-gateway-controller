@@ -18,6 +18,8 @@ package dns
 
 import (
 	"context"
+	"errors"
+	"regexp"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 )
@@ -86,4 +88,11 @@ func (*FakeProvider) ProviderSpecific() ProviderSpecificLabels {
 		Weight:        "weight",
 		HealthCheckID: "fake/health-check-id",
 	}
+}
+
+// SanitizeError removes request specific data from error messages in order to make them consistent across multiple similar requests to the provider.  e.g AWS SDK Request ids `request id: 051c860b-9b30-4c19-be1a-1280c3e9fdc4`
+func SanitizeError(err error) error {
+	regexp := regexp.MustCompile(`request id: [^\s]+`)
+	sanitizedErr := regexp.ReplaceAllString(err.Error(), "")
+	return errors.New(sanitizedErr)
 }
