@@ -12,6 +12,9 @@ We want to be able to support Gateway definitions that use the following listene
 - We want to offer default weighted and custom weighted DNS as part of DNSPolicy
 - We want to allow root or apex domain to be used as listener hosts
 
+## Diagram
+
+https://lucid.app/lucidchart/2f95c9c9-8ddf-4609-af37-48145c02ef7f/edit?viewport_loc=-188%2C-61%2C2400%2C1183%2C0_0&invitationId=inv_d5f35eb7-16a9-40ec-b568-38556de9b568
 
 ## Proposal
 
