@@ -5,12 +5,18 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/go-logr/logr"
+
 	v1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	gatewayapiv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/health"
 )
@@ -104,7 +110,11 @@ func (r *DNSHealthCheckProbeReconciler) Reconcile(ctx context.Context, req ctrl.
 			p.AllowInsecureCertificate = probeObj.Spec.AllowInsecureCertificate
 		})
 	} else {
-		notifier := NewStatusUpdateProbeNotifier(r.Client, previous)
+		notifier, err := r.newProbeNotifierFor(ctx, logger, previous)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+
 		r.HealthMonitor.AddProbeQueuer(&health.ProbeQueuer{
 			ID:                       probeId,
 			Interval:                 interval,
@@ -168,4 +178,100 @@ func getAdditionalHeaders(ctx context.Context, clt client.Client, probeObj *v1al
 		}
 	}
 	return additionalHeaders, nil
+}
+
+func (r *DNSHealthCheckProbeReconciler) getGatewayFor(ctx context.Context, probe *v1alpha1.DNSHealthCheckProbe) (*gatewayapiv1beta1.Gateway, bool, error) {
+	if probe.Labels == nil {
+		return nil, false, nil
+	}
+
+	name, nameOk := probe.Labels["kuadrant.io/gateway"]
+	namespace, namespaceOk := probe.Labels["kuadrant.io/gateway-namespace"]
+
+	if !nameOk || !namespaceOk {
+		return nil, false, nil
+	}
+
+	objKey := client.ObjectKey{
+		Name:      name,
+		Namespace: namespace,
+	}
+
+	gw := &gatewayapiv1beta1.Gateway{}
+	if err := r.Client.Get(ctx, objKey, gw); err != nil {
+		return nil, false, err
+	}
+
+	return gw, true, nil
+}
+
+func (r *DNSHealthCheckProbeReconciler) newProbeNotifierFor(ctx context.Context, logger logr.Logger, probe *v1alpha1.DNSHealthCheckProbe) (health.ProbeNotifier, error) {
+	// Base notifier to update the probe CR
+	notifier := NewStatusUpdateProbeNotifier(r.Client, probe)
+
+	// Try to find the associated Gateway, if not fount, return the base
+	// notifier
+	gateway, ok, err := r.getGatewayFor(ctx, probe)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		logger.V(3).Info("no gateway associated to probe. Creating status update notifier")
+		return notifier, nil
+	}
+
+	// Try to find the associated DNSRecord, if not found, return the base
+	// notifier
+	dnsRecord, ok, err := getDNSRecord(ctx, r.Client, probe)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		logger.V(3).Info("no DNSRecord associated to probe. Creating status update notifier")
+		return notifier, nil
+	}
+
+	// Find the listener in the Gateway that matches the DNSRecord
+	listener, ok := slice.Find(gateway.Spec.Listeners, func(listener gatewayapiv1beta1.Listener) bool {
+		dnsRecordName := fmt.Sprintf("%s-%s", gateway.Name, listener.Name)
+		return dnsRecord.Name == dnsRecordName
+	})
+	if !ok {
+		return notifier, nil
+	}
+
+	logger.V(3).Info("creating instrumented probe notifier for probe")
+
+	// Wrap the base notifier with the instrumented one that updates metrics
+	return health.NewInstrumentedProbeNotifier(
+		gateway.Name, gateway.Namespace, string(listener.Name),
+		notifier,
+	), nil
+}
+
+func getDNSRecord(ctx context.Context, apiClient client.Client, obj metav1.Object) (*v1alpha1.DNSRecord, bool, error) {
+	if obj.GetAnnotations() == nil {
+		return nil, false, nil
+	}
+
+	name, nameOk := obj.GetAnnotations()["dnsrecord-name"]
+	ns, nsOk := obj.GetAnnotations()["dnsrecord-namespace"]
+
+	if !nameOk || !nsOk {
+		return nil, false, nil
+	}
+
+	dnsRecord := &v1alpha1.DNSRecord{}
+	if err := apiClient.Get(ctx, client.ObjectKey{
+		Name:      name,
+		Namespace: ns,
+	}, dnsRecord); err != nil {
+		if k8serrors.IsNotFound(err) {
+			return nil, false, nil
+		}
+
+		return nil, false, err
+	}
+
+	return dnsRecord, true, nil
 }
