@@ -197,7 +197,6 @@ func (r *ManagedZoneReconciler) deleteManagedZone(ctx context.Context, managedZo
 	}
 	err = dnsProvider.DeleteManagedZone(managedZone)
 	if err != nil {
-		//ToDo Create a generic error type that the providers return for not found and check that here
 		if strings.Contains(err.Error(), "was not found") || strings.Contains(err.Error(), "notFound") {
 			log.Log.Info("ManagedZone was not found, continuing", "managedZone", managedZone.Name)
 			return nil

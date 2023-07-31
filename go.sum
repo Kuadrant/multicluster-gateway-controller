@@ -255,8 +255,6 @@ github.com/kuadrant/kuadrant-operator v0.1.1-0.20230323151616-58593d01833a h1:dK
 github.com/kuadrant/kuadrant-operator v0.1.1-0.20230323151616-58593d01833a/go.mod h1:VkDt2tErj42/a4GeuUqEawFXQEb5VisBlsQvD2gHrpM=
 github.com/kuadrant/limitador-operator v0.4.0 h1:HgJi7LuOsenCUMs2ACCfKMKsKpfHcqmmwVmqpci0hw4=
 github.com/kuadrant/limitador-operator v0.4.0/go.mod h1:5fQo2XwxPr7bDObut9sK5sHCnK4hwAmTsTptaYvGfuc=
-github.com/linki/instrumented_http v0.3.0 h1:dsN92+mXpfZtjJraartcQ99jnuw7fqsnPDjr85ma2dA=
-github.com/linki/instrumented_http v0.3.0/go.mod h1:pjYbItoegfuVi2GUOMhEqzvm/SJKuEL3H0tc8QRLRFk=
 github.com/mailru/easyjson v0.7.7 h1:UGYAvKxe3sBsEDzO8ZeWOSlIQfWFlxbzLZe7hwFURr0=
 github.com/mailru/easyjson v0.7.7/go.mod h1:xzfreul335JAWq5oZzymOObrkdz5UnU4kGfJJLY9Nlc=
 github.com/martinlindhe/base36 v1.1.1 h1:1F1MZ5MGghBXDZ2KJ3QfxmiydlWOGB8HCEtkap5NkVg=
@@ -491,7 +489,6 @@ golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9/go.mod h1:RxMgew5VJxzue5/jJ
 golang.org/x/sync v0.0.0-20201207232520-09787c993a3a/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
 golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
 golang.org/x/sync v0.1.0 h1:wsuoTGHzEhffawBOhz5CYhcrV4IdKZbEyZjBMuTp12o=
-golang.org/x/sync v0.1.0/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
 golang.org/x/sys v0.0.0-20180830151530-49385e6e1522/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
 golang.org/x/sys v0.0.0-20180905080454-ebe1bf3edb33/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
 golang.org/x/sys v0.0.0-20181116152217-5ac8a444bdc5/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=

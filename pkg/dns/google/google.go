@@ -26,14 +26,12 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/linki/instrumented_http"
-	"golang.org/x/oauth2/google"
 	dnsv1 "google.golang.org/api/dns/v1"
 	googleapi "google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	v1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
@@ -47,6 +45,7 @@ const (
 	DryRun                           = false
 	upsertAction              action = "UPSERT"
 	deleteAction              action = "DELETE"
+	defaultGeo                       = "europe-west1"
 )
 
 // Based on the external-dns google provider https://github.com/kubernetes-sigs/external-dns/blob/master/provider/google/google.go
@@ -151,22 +150,10 @@ var _ dns.Provider = &GoogleDNSProvider{}
 func NewProviderFromSecret(ctx context.Context, s *v1.Secret) (*GoogleDNSProvider, error) {
 
 	if string(s.Data["GOOGLE"]) == "" || string(s.Data["PROJECT_ID"]) == "" {
-		return nil, fmt.Errorf("AWS Provider credentials is empty")
+		return nil, fmt.Errorf("GCP Provider credentials is empty")
 	}
 
-	gcloud, err := google.DefaultClient(ctx, dnsv1.NdevClouddnsReadwriteScope)
-	if err != nil {
-		return nil, err
-	}
-
-	gcloud = instrumented_http.NewClient(gcloud, &instrumented_http.Callbacks{
-		PathProcessor: func(path string) string {
-			parts := strings.Split(path, "/")
-			return parts[len(parts)-1]
-		},
-	})
-
-	dnsClient, err := dnsv1.NewService(ctx, option.WithHTTPClient(gcloud), option.WithCredentialsJSON(s.Data["GOOGLE"]))
+	dnsClient, err := dnsv1.NewService(ctx, option.WithCredentialsJSON(s.Data["GOOGLE"]))
 	if err != nil {
 		return nil, err
 	}
@@ -222,7 +209,7 @@ func (g *GoogleDNSProvider) createManagedZone(managedZone *v1alpha1.ManagedZone)
 	if err != nil {
 		return dns.ManagedZoneOutput{}, err
 	}
-	return g.toManagedZoneOutput(mz, err)
+	return g.toManagedZoneOutput(mz)
 }
 
 func (g *GoogleDNSProvider) getManagedZone(zoneID string) (dns.ManagedZoneOutput, error) {
@@ -230,10 +217,10 @@ func (g *GoogleDNSProvider) getManagedZone(zoneID string) (dns.ManagedZoneOutput
 	if err != nil {
 		return dns.ManagedZoneOutput{}, err
 	}
-	return g.toManagedZoneOutput(mz, err)
+	return g.toManagedZoneOutput(mz)
 }
 
-func (g *GoogleDNSProvider) toManagedZoneOutput(mz *dnsv1.ManagedZone, err error) (dns.ManagedZoneOutput, error) {
+func (g *GoogleDNSProvider) toManagedZoneOutput(mz *dnsv1.ManagedZone) (dns.ManagedZoneOutput, error) {
 	var managedZoneOutput dns.ManagedZoneOutput
 
 	zoneID := mz.Name
@@ -253,7 +240,7 @@ func (g *GoogleDNSProvider) toManagedZoneOutput(mz *dnsv1.ManagedZone, err error
 	return managedZoneOutput, nil
 }
 
-// DNSRecords
+//DNSRecords
 
 func (g *GoogleDNSProvider) Ensure(record *v1alpha1.DNSRecord, managedZone *v1alpha1.ManagedZone) error {
 	return g.updateRecord(record, managedZone.Status.ID, upsertAction)
@@ -446,8 +433,7 @@ func toResourceRecordSets(allEndpoints []*v1alpha1.Endpoint) []*dnsv1.ResourceRe
 		ttl := int64(endpoints[0].RecordTTL)
 		recordType := endpoints[0].RecordType
 		_, weighted := endpoints[0].GetProviderSpecificProperty(dns.ProviderSpecificWeight)
-		_, geoContinent := endpoints[0].GetProviderSpecificProperty(dns.ProviderSpecificGeoContinentCode)
-		_, geoCounty := endpoints[0].GetProviderSpecificProperty(dns.ProviderSpecificGeoCountryCode)
+		_, geoCode := endpoints[0].GetProviderSpecificProperty(dns.ProviderSpecificGeoCode)
 
 		record := &dnsv1.ResourceRecordSet{
 			Name: ensureTrailingDot(dnsName),
@@ -458,7 +444,7 @@ func toResourceRecordSets(allEndpoints []*v1alpha1.Endpoint) []*dnsv1.ResourceRe
 			record.RoutingPolicy = &dnsv1.RRSetRoutingPolicy{
 				Wrr: &dnsv1.RRSetRoutingPolicyWrrPolicy{},
 			}
-		} else if geoContinent || geoCounty {
+		} else if geoCode {
 			record.RoutingPolicy = &dnsv1.RRSetRoutingPolicy{
 				Geo: &dnsv1.RRSetRoutingPolicyGeoPolicy{},
 			}
@@ -471,7 +457,7 @@ func toResourceRecordSets(allEndpoints []*v1alpha1.Endpoint) []*dnsv1.ResourceRe
 				targets[0] = ensureTrailingDot(targets[0])
 			}
 
-			if !weighted && !geoContinent && !geoCounty {
+			if !weighted && !geoCode {
 				record.Rrdatas = targets
 			}
 			if weighted {
@@ -486,28 +472,29 @@ func toResourceRecordSets(allEndpoints []*v1alpha1.Endpoint) []*dnsv1.ResourceRe
 				}
 				record.RoutingPolicy.Wrr.Items = append(record.RoutingPolicy.Wrr.Items, item)
 			}
-			if geoContinent || geoCounty {
-				continentProp, _ := ep.GetProviderSpecificProperty(dns.ProviderSpecificGeoContinentCode)
-				countryProp, _ := ep.GetProviderSpecificProperty(dns.ProviderSpecificGeoCountryCode)
+			if geoCode {
+				geoCodeProp, _ := ep.GetProviderSpecificProperty(dns.ProviderSpecificGeoCode)
+				geoCodeValue := geoCodeProp.Value
+				targetIsDefaultGroup := strings.HasPrefix(ep.Targets[0], string(dns.DefaultGeo))
+				// GCP doesn't accept * as value for default geolocations like AWS does.
+				// To ensure the dns chain doesn't break if a * is given we map the value to europe-west1 instead
+				// We cant drop the record as the chain will break
+				if geoCodeValue == "*" {
+					if !targetIsDefaultGroup {
+						continue
+					}
+					geoCodeValue = defaultGeo
+				}
 				item := &dnsv1.RRSetRoutingPolicyGeoPolicyGeoPolicyItem{
-					Location: getGeoPolicyLocation(continentProp.Value, countryProp.Value),
+					Location: geoCodeValue,
 					Rrdatas:  targets,
 				}
 				record.RoutingPolicy.Geo.Items = append(record.RoutingPolicy.Geo.Items, item)
 			}
+			records = append(records, record)
 		}
-		records = append(records, record)
 	}
 	return records
-}
-
-// getGeoPolicyLocation converts continent and country codes into compute regions compatible with the geo routing policy.
-//
-// https://cloud.google.com/compute/docs/regions-zones/viewing-regions-zones#viewing_information_about_a_region
-// https://cloud.google.com/compute/docs/regions-zones#available
-func getGeoPolicyLocation(geoContinent, geoCounty string) string {
-	// ToDo Need to map MGC continent and country codes into google regions :-/
-	return "europe-west1"
 }
 
 // ensureTrailingDot ensures that the hostname receives a trailing dot if it hasn't already.
