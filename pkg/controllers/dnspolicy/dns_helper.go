@@ -178,23 +178,6 @@ func (dh *dnsHelper) getDNSRecord(ctx context.Context, gateway *gatewayv1beta1.G
 	return dnsRecord, nil
 }
 
-// getDNSRecordManagedZone returns the current ManagedZone for the given DNSRecord.
-func (dh *dnsHelper) getDNSRecordManagedZone(ctx context.Context, dnsRecord *v1alpha1.DNSRecord) (*v1alpha1.ManagedZone, error) {
-
-	if dnsRecord.Spec.ManagedZoneRef == nil {
-		return nil, fmt.Errorf("no managed zone configured for : %s", dnsRecord.Name)
-	}
-
-	managedZone := &v1alpha1.ManagedZone{}
-
-	err := dh.Get(ctx, client.ObjectKey{Namespace: dnsRecord.Namespace, Name: dnsRecord.Spec.ManagedZoneRef.Name}, managedZone)
-	if err != nil {
-		return nil, err
-	}
-
-	return managedZone, nil
-}
-
 // setEndpoints sets the endpoints for the given MultiClusterGatewayTarget
 //
 // Builds an array of v1alpha1.Endpoint resources and sets them on the given DNSRecord. The endpoints expected are calculated

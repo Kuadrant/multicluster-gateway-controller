@@ -31,9 +31,9 @@ import (
 	dnsv1 "google.golang.org/api/dns/v1"
 	googleapi "google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	v1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
@@ -222,7 +222,7 @@ func (g *GoogleDNSProvider) createManagedZone(managedZone *v1alpha1.ManagedZone)
 	if err != nil {
 		return dns.ManagedZoneOutput{}, err
 	}
-	return g.toManagedZoneOutput(mz, err)
+	return g.toManagedZoneOutput(mz)
 }
 
 func (g *GoogleDNSProvider) getManagedZone(zoneID string) (dns.ManagedZoneOutput, error) {
@@ -230,10 +230,10 @@ func (g *GoogleDNSProvider) getManagedZone(zoneID string) (dns.ManagedZoneOutput
 	if err != nil {
 		return dns.ManagedZoneOutput{}, err
 	}
-	return g.toManagedZoneOutput(mz, err)
+	return g.toManagedZoneOutput(mz)
 }
 
-func (g *GoogleDNSProvider) toManagedZoneOutput(mz *dnsv1.ManagedZone, err error) (dns.ManagedZoneOutput, error) {
+func (g *GoogleDNSProvider) toManagedZoneOutput(mz *dnsv1.ManagedZone) (dns.ManagedZoneOutput, error) {
 	var managedZoneOutput dns.ManagedZoneOutput
 
 	zoneID := mz.Name
@@ -500,18 +500,6 @@ func toResourceRecordSets(allEndpoints []*v1alpha1.Endpoint) []*dnsv1.ResourceRe
 	}
 	return records
 }
-
-// getGeoPolicyLocation converts continent and country codes into compute regions compatible with the geo routing policy.
-//
-// https://cloud.google.com/compute/docs/regions-zones/viewing-regions-zones#viewing_information_about_a_region
-// https://cloud.google.com/compute/docs/regions-zones#available
-// func getGeoPolicyLocation( geoCountry string,) []string {
-// 	// ToDo Need to map MGC continent and country codes into google regions :-/
-// 	dnsprovider:= "GCP"
-// 	accepted, _  := dns.ProviderMapping(geoCountry,dnsprovider)
-
-// 	return accepted
-// }
 
 // ensureTrailingDot ensures that the hostname receives a trailing dot if it hasn't already.
 func ensureTrailingDot(hostname string) string {
