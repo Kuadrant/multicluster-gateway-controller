@@ -1,0 +1,12 @@
+- op: add
+  path: /spec/template/spec/volumes/-
+  value:
+    name: grafana-istio-workload
+    configMap:
+     defaultMode: 420
+     name: grafana-istio-workload
+- op: add
+  path: /spec/template/spec/containers/0/volumeMounts/-
+  value:
+    name: grafana-istio-workload
+    mountPath: /grafana-dashboard-definitions/0/grafana-istio-workload
