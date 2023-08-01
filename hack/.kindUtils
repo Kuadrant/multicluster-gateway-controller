@@ -61,3 +61,26 @@ ${KIND_BIN} get kubeconfig --name ${cluster} > ./tmp/kubeconfigs/${cluster}.kube
 ${KIND_BIN} export kubeconfig --name ${cluster} --kubeconfig ./tmp/kubeconfigs/internal/${cluster}.kubeconfig --internal
 kindGenExternalKubeconfig
 }
+
+kindSetupMGCClusters() {
+    local controlPlaneName=$1
+    local dataPlaneName=$2
+    local port80=$3
+    local port443=$4
+    local dataPlaneClusterCount=$5
+
+    # Create network for the clusters
+    docker network create -d bridge --subnet 172.32.0.0/16 mgc --gateway 172.32.0.1 \
+      -o "com.docker.network.bridge.enable_ip_masquerade"="true" \
+      -o "com.docker.network.driver.mtu"="1500"
+
+    # Create Kind control plane cluster
+    kindCreateCluster ${controlPlaneName} ${port80} ${port443}
+
+    # Add workload clusters if dataPlaneClusterCount is > 0
+    if [[ -n "${dataPlaneClusterCount}" ]]; then
+      for ((i = 1; i <= ${dataPlaneClusterCount}; i++)); do
+        kindCreateCluster ${dataPlaneName}-${i} $((${port80} + ${i})) $((${port443} + ${i})) $((${i} + 1))
+      done
+    fi
+}

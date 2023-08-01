@@ -1,0 +1,389 @@
+# shellcheck shell=bash
+
+
+# Shared functions between local-setup-mgc and quickstart-setup script
+
+configureMetalLB () {
+  metalLBSubnet=${1}
+  echo "Creating MetalLB AddressPool"
+  cat <<EOF | kubectl apply -f -
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: example
+  namespace: metallb-system
+spec:
+  addresses:
+  - 172.32.${metalLBSubnet}.0/24
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: empty
+  namespace: metallb-system
+EOF
+}
+
+deployOLM(){
+  clusterName=${1}
+
+  kubectl config use-context kind-${clusterName}
+  echo "Installing OLM in ${clusterName}"
+
+  operator-sdk olm install --timeout 6m0s
+}
+
+deployOCMHub(){
+  clusterName=${1}
+  minimal=${2}
+  echo "installing the hub cluster in kind-(${clusterName}) "
+
+  kubectl config use-context kind-${clusterName}
+  ${CLUSTERADM_BIN} init --bundle-version='0.11.0' --wait --context kind-${clusterName}
+  echo "PATCHING CLUSTERMANAGER: placement image patch to use amd64 image - See https://kubernetes.slack.com/archives/C01GE7YSUUF/p1685016272443249"
+  kubectl patch clustermanager cluster-manager --type='merge' -p '{"spec":{"placementImagePullSpec":"quay.io/open-cluster-management/placement:v0.11.0-amd64"}}'
+  echo "checking if cluster is single or multi"
+  if [[ -n "${OCM_SINGLE}" ]]; then
+    clusterName=kind-${KIND_CLUSTER_CONTROL_PLANE}
+    echo "Found single cluster installing hub and spoke on the one cluster (${clusterName})"
+    join=$(${CLUSTERADM_BIN} get token --context ${clusterName} |  grep -o  'clusteradm.*--cluster-name')
+    ${join} ${clusterName} --bundle-version='0.11.0' --feature-gates=RawFeedbackJsonString=true --force-internal-endpoint-lookup --context ${clusterName} | grep clusteradm
+    echo "accepting OCM spoke cluster invite"
+
+    max_retry=18
+    counter=0
+    until ${CLUSTERADM_BIN} accept --clusters ${clusterName}
+    do
+      sleep 10
+      [[ counter -eq $max_retry ]] && echo "Failed!" && exit 1
+      echo "Trying again. Try #$counter"
+      ((++counter))
+    done
+    deployOLM ${KIND_CLUSTER_CONTROL_PLANE}
+
+    if ! [[ -n "${minimal}" ]]; then
+        deployIstio ${KIND_CLUSTER_CONTROL_PLANE}
+    fi
+  fi
+  if ! [[ -n "${minimal}" ]]; then
+      echo "Installing Redis in kind-mgc-control-plane"
+      ${KUSTOMIZE_BIN} build ${REDIS_KUSTOMIZATION_DIR} | kubectl apply -f -
+  fi
+
+}
+
+deployOCMSpoke(){
+
+  clusterName=${1}
+  echo "joining the spoke cluster to the hub cluster kind-(${KIND_CLUSTER_CONTROL_PLANE}),"
+  kubectl config use-context kind-${KIND_CLUSTER_CONTROL_PLANE}
+  join=$(${CLUSTERADM_BIN} get token --context kind-${KIND_CLUSTER_CONTROL_PLANE} |  grep -o  'clusteradm.*--cluster-name')
+  kubectl config use-context kind-${clusterName}
+  ${join} kind-${clusterName} --bundle-version='0.11.0' --feature-gates=RawFeedbackJsonString=true --force-internal-endpoint-lookup --context kind-${clusterName} | grep clusteradm
+  echo "accepting OCM spoke cluster invite"
+  kubectl config use-context kind-${KIND_CLUSTER_CONTROL_PLANE}
+
+  max_retry=18
+  counter=0
+  until ${CLUSTERADM_BIN} accept --clusters kind-${clusterName}
+  do
+     sleep 10
+     [[ counter -eq $max_retry ]] && echo "Failed!" && exit 1
+     echo "Trying again. Try #$counter"
+     ((++counter))
+  done
+
+}
+
+
+
+# local-setup-mgc specific functions
+LOCAL_SETUP_DIR="$(dirname "${BASH_SOURCE[0]}")"
+REDIS_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/kuadrant/redis
+
+deployMetalLB () {
+  local METALLB_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/metallb
+  clusterName=${1}
+  metalLBSubnet=${2}
+
+  kubectl config use-context kind-${clusterName}
+  echo "Deploying MetalLB to ${clusterName}"
+  ${KUSTOMIZE_BIN} build ${METALLB_KUSTOMIZATION_DIR} | kubectl apply -f -
+  echo "Waiting for deployments to be ready ..."
+  kubectl -n metallb-system wait --for=condition=ready pod --selector=app=metallb --timeout=300s
+  configureMetalLB ${metalLBSubnet}
+}
+
+deployIngressController () {
+  local INGRESS_NGINX_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/ingress-nginx
+  clusterName=${1}
+  kubectl config use-context kind-${clusterName}
+  echo "Deploying Ingress controller to ${clusterName}"
+  ${KUSTOMIZE_BIN} build ${INGRESS_NGINX_KUSTOMIZATION_DIR} --enable-helm --helm-command ${HELM_BIN} | kubectl apply -f -
+  echo "Waiting for deployments to be ready ..."
+  kubectl -n ingress-nginx wait --timeout=600s --for=condition=Available deployments --all
+}
+
+deployCertManager() {
+  local CERT_MANAGER_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/cert-manager
+  clusterName=${1}
+  echo "Deploying Cert Manager to (${clusterName})"
+
+  kubectl config use-context kind-${clusterName}
+
+  ${KUSTOMIZE_BIN} build ${CERT_MANAGER_KUSTOMIZATION_DIR} --enable-helm --helm-command ${HELM_BIN} | kubectl apply -f -
+  echo "Waiting for Cert Manager deployments to be ready..."
+  kubectl -n cert-manager wait --timeout=300s --for=condition=Available deployments --all
+
+  kubectl delete validatingWebhookConfiguration mgc-cert-manager-webhook
+  kubectl delete mutatingWebhookConfiguration mgc-cert-manager-webhook
+  # Apply the default glbc-ca issuer
+  kubectl apply -n cert-manager -f ./config/default/issuer.yaml
+}
+
+deployExternalDNS() {
+  local EXTERNAL_DNS_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/external-dns
+  clusterName=${1}
+  echo "Deploying ExternalDNS to (${clusterName})"
+
+  kubectl config use-context kind-${clusterName}
+
+  ${KUSTOMIZE_BIN} build ${EXTERNAL_DNS_KUSTOMIZATION_DIR} --enable-helm --helm-command ${HELM_BIN} | kubectl apply -f -
+  echo "Waiting for External DNS deployments to be ready..."
+  kubectl -n external-dns wait --timeout=300s --for=condition=Available deployments --all
+}
+
+deployArgoCD() {
+  local ARGOCD_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/argocd
+  clusterName=${1}
+  echo "Deploying ArgoCD to (${clusterName})"
+
+  kubectl config use-context kind-${clusterName}
+
+  ${KUSTOMIZE_BIN} build ${ARGOCD_KUSTOMIZATION_DIR} --enable-helm --helm-command ${HELM_BIN} | kubectl apply -f -
+  echo "Waiting for ARGOCD deployments to be ready..."
+  kubectl -n argocd wait --timeout=300s --for=condition=Available deployments --all
+
+  ports=$(docker ps --format '{{json .}}' | jq "select(.Names == \"$clusterName-control-plane\").Ports")
+  httpsport=$(echo $ports | sed -e 's/.*0.0.0.0\:\(.*\)->443\/tcp.*/\1/')
+  argoPassword=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
+  nodeIP=$(kubectl get nodes -o json | jq -r ".items[] | select(.metadata.name == \"$clusterName-control-plane\").status | .addresses[] | select(.type == \"InternalIP\").address")
+
+  echo -ne "\n\n\tConnect to ArgoCD UI\n\n"
+  echo -ne "\t\tLocal URL: https://argocd.127.0.0.1.nip.io:$httpsport\n"
+  echo -ne "\t\tNode URL : https://argocd.$nodeIP.nip.io\n"
+  echo -ne "\t\tUser     : admin\n"
+  echo -ne "\t\tPassword : $argoPassword\n\n\n"
+}
+
+deployIstio() {
+  local ISTIO_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/istio/istio-operator.yaml
+  clusterName=${1}
+  echo "Deploying Istio to (${clusterName})"
+
+  kubectl config use-context kind-${clusterName}
+  ${ISTIOCTL_BIN} operator init
+	kubectl apply -f  ${ISTIO_KUSTOMIZATION_DIR}
+}
+
+installGatewayAPI() {
+  local GATEWAY_API_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/gateway-api
+  clusterName=${1}
+  kubectl config use-context kind-${clusterName}
+  echo "Installing Gateway API in ${clusterName}"
+
+  ${KUSTOMIZE_BIN} build ${GATEWAY_API_KUSTOMIZATION_DIR} | kubectl apply -f -
+}
+
+
+deployRedis(){
+  clusterName=${1}
+
+  kubectl config use-context kind-${clusterName}
+  echo "Installing Redis in kind-${clusterName}"
+  ${KUSTOMIZE_BIN} build ${REDIS_KUSTOMIZATION_DIR} | kubectl apply -f -
+}
+
+deployDashboard() {
+  clusterName=${1}
+  portOffset=${2}
+
+  echo "Deploying Kubernetes Dashboard to (${clusterName})"
+
+  kubectl config use-context kind-${clusterName}
+
+  kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.7.0/aio/deploy/recommended.yaml
+  ${KUSTOMIZE_BIN} build config/dashboard | kubectl apply -f -
+
+  kubectl wait --timeout=-30s --for=condition=Available deployment kubernetes-dashboard -n kubernetes-dashboard
+
+  token=$(kubectl get secret/admin-user-token -n kubernetes-dashboard -o go-template="{{.data.token | base64decode}}")
+
+  port=$((proxyPort + portOffset))
+
+  kubectl proxy --context kind-${clusterName} --port ${port} &
+  proxyPID=$!
+  echo $proxyPID >> /tmp/dashboard_pids
+
+  echo -ne "\n\n\tAccess Kubernetes Dashboard\n\n"
+  echo -ne "\t\t\t* The dashboard is available at http://localhost:$port/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/\n"
+  echo -ne "\t\tAccess the dashboard using the following Bearer Token: $token\n"
+}
+
+deployAgentSecret() {
+  clusterName=${1}
+  localAccess=${2:=LOCAL_ACCESS}
+  if [ $localAccess == "true" ]; then
+    secretName=control-plane-cluster
+  else
+    secretName=control-plane-cluster-internal
+  fi
+  echo "Deploying the agent secret to (${clusterName})"
+
+  kubectl config use-context kind-${clusterName}
+
+  kubectl create namespace mgc-system || true
+
+  makeSecretForCluster $KIND_CLUSTER_CONTROL_PLANE $clusterName $localAccess |
+  setNamespacedName mgc-system ${secretName} |
+  setLabel argocd.argoproj.io/secret-type cluster |
+  kubectl apply -f -
+}
+
+initController() {
+    clusterName=${1}
+    kubectl config use-context kind-${clusterName}
+    echo "Initialize local dev setup for the controller on ${clusterName}"
+
+    # Add the mgc CRDs
+    ${KUSTOMIZE_BIN} build config/crd | kubectl apply -f -
+    # Create the mgc ns and dev managed zone
+    ${KUSTOMIZE_BIN} --reorder none --load-restrictor LoadRestrictionsNone build config/local-setup/controller | kubectl apply -f -
+}
+
+deploySubmarinerBroker() {
+  clusterName=${1}
+  if [[ -n "${SUBMARINER}" ]]; then
+    ${SUBCTL_BIN} deploy-broker --kubeconfig ./tmp/kubeconfigs/external/${clusterName}.kubeconfig
+  fi
+}
+
+joinSubmarinerBroker() {
+  clusterName=${1}
+  if [[ -n "${SUBMARINER}" ]]; then
+    ${SUBCTL_BIN} join --kubeconfig ./tmp/kubeconfigs/external/${clusterName}.kubeconfig broker-info.subm --clusterid ${clusterName} --natt=false --check-broker-certificate=false
+  fi
+}
+
+deployThanos() {
+  local THANOS_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/thanos
+  local GRAFANA_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/grafana
+  clusterName=${1}
+  if [[ -n "${METRICS_FEDERATION}" ]]; then
+    echo "Deploying Thanos in ${clusterName}"
+    kubectl config use-context kind-${clusterName}
+    ${KUSTOMIZE_BIN} build ${THANOS_KUSTOMIZATION_DIR} | kubectl apply -f -
+
+    nodeIP=$(kubectl get nodes -o json | jq -r ".items[] | select(.metadata.name == \"$clusterName-control-plane\").status | .addresses[] | select(.type == \"InternalIP\").address")
+    echo -ne "\n\n\tConnect to Thanos Query UI\n\n"
+    echo -ne "\t\tURL : https://thanos-query.$nodeIP.nip.io\n\n\n"
+    echo -ne "\n\n\tConnect to Grafana UI\n\n"
+    echo -ne "\t\tURL : https://grafana.$nodeIP.nip.io\n\n\n"
+  fi
+}
+
+deployPrometheusForFederation() {
+  local PROMETHEUS_FOR_FEDERATION_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/prometheus-for-federation
+  clusterName=${1}
+  if [[ -n "${METRICS_FEDERATION}" ]]; then
+    echo "Deploying Prometheus for federation in ${clusterName}"
+    kubectl config use-context kind-${clusterName}
+    # Use server-side apply to avoid below error if re-running apply
+    #   'The CustomResourceDefinition "prometheuses.monitoring.coreos.com" is invalid: metadata.annotations: Too long: must have at most 262144 bytes'
+    # Also need to apply the CRDs first to avoid the below error types that seem to be timing related
+    #   'resource mapping not found for name: "alertmanager-main-rules" namespace: "monitoring" from "STDIN": no matches for kind "PrometheusRule" in version "monitoring.coreos.com/v1"''
+    ${KUSTOMIZE_BIN} build ${PROMETHEUS_FOR_FEDERATION_KUSTOMIZATION_DIR} | ${KFILT} -i kind=CustomResourceDefinition | kubectl apply --server-side -f -
+    # Apply remainder of resources
+    ${KUSTOMIZE_BIN} build ${PROMETHEUS_FOR_FEDERATION_KUSTOMIZATION_DIR} | ${KFILT} -x kind=CustomResourceDefinition | kubectl apply -f -
+  fi
+}
+
+
+
+# quickstart-setup specific functions
+
+configureController() {
+    clusterName=${1}
+    kubectl config use-context kind-${clusterName}
+    echo "Initialize local dev setup for the controller on ${clusterName}"
+
+    cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ${KIND_CLUSTER_PREFIX}aws-credentials
+  namespace: multi-cluster-gateways
+type: "kuadrant.io/aws"
+stringData:
+  AWS_ACCESS_KEY_ID: ${MGC_AWS_ACCESS_KEY_ID}
+  AWS_SECRET_ACCESS_KEY: ${MGC_AWS_SECRET_ACCESS_KEY}
+  AWS_REGION: ${MGC_AWS_REGION}
+EOF
+
+    cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ${KIND_CLUSTER_PREFIX}controller-config
+  namespace: multi-cluster-gateways
+data:
+  AWS_DNS_PUBLIC_ZONE_ID: ${MGC_AWS_DNS_PUBLIC_ZONE_ID}
+  ZONE_ROOT_DOMAIN: ${MGC_ZONE_ROOT_DOMAIN}
+  LOG_LEVEL: "${LOG_LEVEL}"
+EOF
+
+    cat <<EOF | kubectl apply -f -
+apiVersion: kuadrant.io/v1alpha1
+kind: ManagedZone
+metadata:
+  name: ${KIND_CLUSTER_PREFIX}dev-mz
+  namespace: multi-cluster-gateways
+spec:
+  id: ${MGC_AWS_DNS_PUBLIC_ZONE_ID}
+  domainName: ${MGC_ZONE_ROOT_DOMAIN}
+  description: "Dev Managed Zone"
+  dnsProviderSecretRef:
+    name: ${KIND_CLUSTER_PREFIX}aws-credentials
+    namespace: multi-cluster-gateways
+    type: AWS
+EOF
+}
+
+deployQuickStartControl() {
+    clusterName=${1}
+    kubectl config use-context kind-${clusterName}
+    echo "Initialize quickstart setup on ${clusterName}"
+    wait_for "kustomize --load-restrictor LoadRestrictionsNone build ${QUICK_START_HUB_KUSTOMIZATION} --enable-helm --helm-command helm | kubectl apply -f -" "${QUICK_START_HUB_KUSTOMIZATION} cluster config apply" "1m" "5"
+    echo "Waiting for metallb-system deployments to be ready"
+    kubectl -n metallb-system wait --for=condition=ready pod --selector=app=metallb --timeout=300s
+    echo "Waiting for cert-manager deployments to be ready"
+    kubectl -n cert-manager wait --timeout=300s --for=condition=Available deployments --all
+    echo "Waiting for istio deployments to be ready"
+    kubectl -n cert-manager wait --timeout=300s --for=condition=Available deployments --all
+}
+
+deployQuickStartWorkload() {
+   clusterName=${1}
+    kubectl config use-context kind-${clusterName}
+    echo "Initialize quickstart setup on ${clusterName}"
+    wait_for "kustomize --load-restrictor LoadRestrictionsNone build ${QUICK_START_SPOKE_KUSTOMIZATION} --enable-helm --helm-command helm | kubectl apply -f -" "${QUICK_START_SPOKE_KUSTOMIZATION} cluster config apply" "1m" "5"
+    echo "Waiting for metallb-system deployments to be ready"
+    kubectl -n metallb-system wait --for=condition=ready pod --selector=app=metallb --timeout=300s
+}
+
+configureControlCluster() {
+    clusterName=${1}
+    # Ensure the current context points to the control plane cluster
+    kubectl config use-context kind-${clusterName}
+    kubectl label managedcluster kind-mgc-control-plane ingress-cluster=true
+}
