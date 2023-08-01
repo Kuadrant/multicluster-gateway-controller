@@ -501,18 +501,6 @@ func toResourceRecordSets(allEndpoints []*v1alpha1.Endpoint) []*dnsv1.ResourceRe
 	return records
 }
 
-// getGeoPolicyLocation converts continent and country codes into compute regions compatible with the geo routing policy.
-//
-// https://cloud.google.com/compute/docs/regions-zones/viewing-regions-zones#viewing_information_about_a_region
-// https://cloud.google.com/compute/docs/regions-zones#available
-// func getGeoPolicyLocation( geoCountry string,) []string {
-// 	// ToDo Need to map MGC continent and country codes into google regions :-/
-// 	dnsprovider:= "GCP"
-// 	accepted, _  := dns.ProviderMapping(geoCountry,dnsprovider)
-
-// 	return accepted
-// }
-
 // ensureTrailingDot ensures that the hostname receives a trailing dot if it hasn't already.
 func ensureTrailingDot(hostname string) string {
 	if net.ParseIP(hostname) != nil {
