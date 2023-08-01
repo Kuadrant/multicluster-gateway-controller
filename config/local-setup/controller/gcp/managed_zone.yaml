@@ -3,8 +3,8 @@ kind: ManagedZone
 metadata:
   name: dev-mz-gcp
 spec:
-  id: hcpapps.google.net
-  domainName: test.hcpapps.net
+  id: DUMMY_ID
+  domainName: DUMMY_DOMAIN_NAME
   description: "Dev Managed Zone"
   dnsProviderSecretRef:
     name: mgc-gcp-credentials

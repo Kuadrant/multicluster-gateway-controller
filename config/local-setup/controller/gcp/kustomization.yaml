@@ -3,11 +3,15 @@ namespace: multi-cluster-gateways
 namePrefix: mgc-
 
 resources:
-  - namespace.yaml
   - managed_zone.yaml
 
 generatorOptions:
   disableNameSuffixHash: true
+
+configMapGenerator:
+- name: controller-config
+  envs:
+    - ../../../../controller-config.env
 
 secretGenerator:
   - name: gcp-credentials
@@ -15,4 +19,28 @@ secretGenerator:
       - ../../../../gcp-credentials.env
     type: "kuadrant.io/gcp"
 
-
+replacements:
+  - source:
+      kind: ConfigMap
+      name: controller-config
+      version: v1
+      fieldPath: data.ZONE_ROOT_DOMAIN_GCP
+    targets:
+      - select:
+          kind: ManagedZone
+          name: mgc-dev-mz-gcp
+        fieldPaths:
+          - spec.id
+  - source:
+      kind: ConfigMap
+      name: controller-config
+      version: v1
+      fieldPath: data.ZONE_ROOT_DOMAIN_GCP
+    targets:
+      - select:
+          kind: ManagedZone
+          name: mgc-dev-mz-gcp
+        fieldPaths:
+          - spec.domainName
+ 
+        

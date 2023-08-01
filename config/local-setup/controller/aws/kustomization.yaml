@@ -3,7 +3,6 @@ namespace: multi-cluster-gateways
 namePrefix: mgc-
 
 resources:
-  - namespace.yaml
   - managed_zone.yaml
 
 generatorOptions:
@@ -12,7 +11,7 @@ generatorOptions:
 configMapGenerator:
   - name: controller-config
     envs:
-      - ../../../controller-config.env
+      - ../../../../controller-config.env
 
 secretGenerator:
   - name: aws-credentials
@@ -29,7 +28,7 @@ replacements:
     targets:
       - select:
           kind: ManagedZone
-          name: mgc-dev-mz
+          name: mgc-dev-mz-aws
         fieldPaths:
           - spec.id
   - source:
@@ -40,6 +39,6 @@ replacements:
     targets:
       - select:
           kind: ManagedZone
-          name: mgc-dev-mz
+          name: mgc-dev-mz-aws
         fieldPaths:
           - spec.domainName

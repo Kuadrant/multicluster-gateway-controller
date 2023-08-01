@@ -49,7 +49,7 @@ func (p *providerFactory) DNSProviderFactory(ctx context.Context, managedZone *v
 		log.Log.V(1).Info("Route53 provider created", "managed zone:", managedZone.Name)
 
 		return dnsProvider, nil
-	case "kuadrant.io/google":
+	case "kuadrant.io/gcp":
 		dnsProvider, err := google.NewProviderFromSecret(ctx, providerSecret)
 		if err != nil {
 			return nil, fmt.Errorf("unable to create dns provider from secret: %v", err)
