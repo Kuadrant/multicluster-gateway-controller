@@ -1,2 +1,4 @@
 resources:
 - monitor.yaml
+
+namespace: multicluster-gateway-controller-system
