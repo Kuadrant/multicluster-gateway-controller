@@ -19,16 +19,15 @@
 export KIND_BIN=kind
 export YQ_BIN=yq
 
-source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/laurafitzgerald/multicluster-gateway-controller/quickstart-script/hack/.kindUtils)"
-source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/laurafitzgerald/multicluster-gateway-controller/quickstart-script/hack/.clusterUtils)"
-source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/laurafitzgerald/multicluster-gateway-controller/quickstart-script/hack/.cleanupUtils)"
-source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/laurafitzgerald/multicluster-gateway-controller/quickstart-script/hack/.startUtils)"
+source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.kindUtils)"
+source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.clusterUtils)"
+source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.cleanupUtils)"
+source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.startUtils)"
 
 
-#TODO this needs to be update to the kuadrant git repo before merge
-MGC_REPO="github.com/laurafitzgerald/multicluster-gateway-controller.git"
-QUICK_START_HUB_KUSTOMIZATION=${MGC_REPO}/config/quick-start/control-cluster?ref=quickstart-script
-QUICK_START_SPOKE_KUSTOMIZATION=${MGC_REPO}/config/quick-start/workload-cluster?ref=quickstart-script
+MGC_REPO="github.com/kuadrant/multicluster-gateway-controller.git"
+QUICK_START_HUB_KUSTOMIZATION=${MGC_REPO}/config/quick-start/control-cluster
+QUICK_START_SPOKE_KUSTOMIZATION=${MGC_REPO}/config/quick-start/workload-cluster
 
 KIND_CLUSTER_PREFIX="mgc-"
 KIND_CLUSTER_CONTROL_PLANE="${KIND_CLUSTER_PREFIX}control-plane"
@@ -288,3 +287,8 @@ fi
 kubectl config use-context kind-${KIND_CLUSTER_CONTROL_PLANE}
 
 
+echo ""
+echo "What's next...
+
+      Now that you have 2 kind clusters configured and with multicluster-gateway-controller installed you are ready to begin creating gateways
+      Visit https://docs.kuadrant.io/multicluster-gateway-controller/docs/how-to/ocm-control-plane-walkthrough/#create-a-gateway for next steps"
