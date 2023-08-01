@@ -96,6 +96,19 @@ export KUBECONFIG=./tmp/kubeconfigs/mgc-workload-1.kubeconfig
 ```sh
 make build-agent run-agent
 ```
+## 5. Clean up local environment
+In any terminal window target control plane cluster by:
+```bash
+kubectl config use-context kind-mgc-control-plane 
+```
+If you want to wipe everything clean consider using:
+```bash
+make local-cleanup # Remove kind clusters created locally and cleanup any generated local files.
+```
+If the intention is to cleanup kind cluster and prepare them for re-installation consider using:
+```bash
+make local-cleanup-mgc MGC_WORKLOAD_CLUSTERS_COUNT=<NUMBER_WORKLOAD_CLUSTER> # prepares clusters for make local-setup-mgc
+```
 
 ## License
 

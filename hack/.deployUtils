@@ -4,7 +4,10 @@
 # Shared functions between local-setup-mgc and quickstart-setup script
 
 configureMetalLB () {
-  metalLBSubnet=${1}
+  clusterName=${1}
+  metalLBSubnet=${2}
+
+  kubectl config use-context kind-${clusterName}
   echo "Creating MetalLB AddressPool"
   cat <<EOF | kubectl apply -f -
 apiVersion: metallb.io/v1beta1
@@ -30,7 +33,7 @@ deployOLM(){
   kubectl config use-context kind-${clusterName}
   echo "Installing OLM in ${clusterName}"
 
-  operator-sdk olm install --timeout 6m0s
+  ${OPERATOR_SDK_BIN} olm install --timeout 6m0s
 }
 
 deployOCMHub(){
@@ -47,7 +50,7 @@ deployOCMHub(){
     clusterName=kind-${KIND_CLUSTER_CONTROL_PLANE}
     echo "Found single cluster installing hub and spoke on the one cluster (${clusterName})"
     join=$(${CLUSTERADM_BIN} get token --context ${clusterName} |  grep -o  'clusteradm.*--cluster-name')
-    ${join} ${clusterName} --bundle-version='0.11.0' --feature-gates=RawFeedbackJsonString=true --force-internal-endpoint-lookup --context ${clusterName} | grep clusteradm
+    ${BIN_DIR}${join} ${clusterName} --bundle-version='0.11.0' --feature-gates=RawFeedbackJsonString=true --force-internal-endpoint-lookup --context ${clusterName} | grep clusteradm
     echo "accepting OCM spoke cluster invite"
 
     max_retry=18
@@ -79,7 +82,7 @@ deployOCMSpoke(){
   kubectl config use-context kind-${KIND_CLUSTER_CONTROL_PLANE}
   join=$(${CLUSTERADM_BIN} get token --context kind-${KIND_CLUSTER_CONTROL_PLANE} |  grep -o  'clusteradm.*--cluster-name')
   kubectl config use-context kind-${clusterName}
-  ${join} kind-${clusterName} --bundle-version='0.11.0' --feature-gates=RawFeedbackJsonString=true --force-internal-endpoint-lookup --context kind-${clusterName} | grep clusteradm
+  ${BIN_DIR}${join} kind-${clusterName} --bundle-version='0.11.0' --feature-gates=RawFeedbackJsonString=true --force-internal-endpoint-lookup --context kind-${clusterName} | grep clusteradm
   echo "accepting OCM spoke cluster invite"
   kubectl config use-context kind-${KIND_CLUSTER_CONTROL_PLANE}
 
@@ -111,7 +114,7 @@ deployMetalLB () {
   ${KUSTOMIZE_BIN} build ${METALLB_KUSTOMIZATION_DIR} | kubectl apply -f -
   echo "Waiting for deployments to be ready ..."
   kubectl -n metallb-system wait --for=condition=ready pod --selector=app=metallb --timeout=300s
-  configureMetalLB ${metalLBSubnet}
+  configureMetalLB ${clusterName} ${metalLBSubnet}
 }
 
 deployIngressController () {
@@ -277,7 +280,6 @@ joinSubmarinerBroker() {
 
 deployThanos() {
   local THANOS_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/thanos
-  local GRAFANA_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/grafana
   clusterName=${1}
   if [[ -n "${METRICS_FEDERATION}" ]]; then
     echo "Deploying Thanos in ${clusterName}"
@@ -366,10 +368,9 @@ deployQuickStartControl() {
     wait_for "kustomize --load-restrictor LoadRestrictionsNone build ${QUICK_START_HUB_KUSTOMIZATION} --enable-helm --helm-command helm | kubectl apply -f -" "${QUICK_START_HUB_KUSTOMIZATION} cluster config apply" "1m" "5"
     echo "Waiting for metallb-system deployments to be ready"
     kubectl -n metallb-system wait --for=condition=ready pod --selector=app=metallb --timeout=300s
-    echo "Waiting for cert-manager deployments to be ready"
-    kubectl -n cert-manager wait --timeout=300s --for=condition=Available deployments --all
     echo "Waiting for istio deployments to be ready"
-    kubectl -n cert-manager wait --timeout=300s --for=condition=Available deployments --all
+    kubectl -n istio-operator wait --timeout=300s --for=condition=Available deployments --all
+    kubectl -n istio-system wait --timeout=300s --for=condition=Available deployments --all
 }
 
 deployQuickStartWorkload() {

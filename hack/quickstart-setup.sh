@@ -19,6 +19,7 @@
 export KIND_BIN=kind
 export YQ_BIN=yq
 export CLUSTERADM_BIN=clusteradm
+export OPERATOR_SDK_BIN=operator-sdk
 
 source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.kindUtils)"
 source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.clusterUtils)"

@@ -34,7 +34,6 @@ GATEWAY_API_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/gateway-api
 REDIS_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/kuadrant/redis
 THANOS_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/thanos
 PROMETHEUS_FOR_FEDERATION_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/prometheus-for-federation
-GRAFANA_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/grafana
 
 set -e pipefail
 

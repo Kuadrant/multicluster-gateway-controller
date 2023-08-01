@@ -88,7 +88,7 @@ test-e2e: ginkgo kind-load-controller deploy-controller
 .PHONY: local-setup
 local-setup: local-setup-kind local-setup-mgc ## Setup multi cluster traffic controller locally using kind.
 	$(info Setup is done! Enjoy)
-	$(info Consider using local-setup-kind or local-setup-mgc targets)
+	$(info Consider using local-setup-kind or local-setup-mgc targets to separate kind clusters creation and deployment of resources)
 
 .PHONY: local-setup-kind
 local-setup-kind: kind ## Setup kind clusters for multi cluster traffic controller.

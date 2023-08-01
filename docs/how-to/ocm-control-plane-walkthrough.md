@@ -376,7 +376,7 @@ So now we have a working gateway with DNS and TLS configured. Let place this gat
   ```
 
 ## Watching DNS changes
-If you want you can use ```watch dig $MGC_SUB_DOMAIN``` to see the DNS switching between the two addresses 
+If you want you can use ```watch dig $MGC_SUB_DOMAIN``` to see the DNS switching between the two addresses
 
 ## Follow on Walkthroughs
 Some good follow on walkthroughs that build on this walkthrough
