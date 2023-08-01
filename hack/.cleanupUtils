@@ -4,7 +4,7 @@ cleanClusters() {
 	# Delete existing kind clusters
 	clusterCount=$(${KIND_BIN} get clusters | grep ${KIND_CLUSTER_PREFIX} | wc -l)
 	if ! [[ $clusterCount =~ "0" ]] ; then
-		echo "Deleting previous kind clusters."
+		echo "Deleting previous kuadrant clusters."
 		${KIND_BIN} get clusters | grep ${KIND_CLUSTER_PREFIX} | xargs ${KIND_BIN} delete clusters
 	fi	
 }

@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gateway-params
+  namespace: multi-cluster-gateways
+data:
+  downstreamClass: "istio"
