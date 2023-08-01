@@ -26,7 +26,7 @@
 * Alternatively, to set defaults, add the above environment variables to your `.zshrc` or `.bash_profile`.
 
 
-For the followon walkthrough, we're going to use multiple terminal sessions/windows.
+For the follow-on walkthrough, we're going to use multiple terminal sessions/windows.
 
 Open two windows, which we'll refer to throughout this walkthrough as:
 

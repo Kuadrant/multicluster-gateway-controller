@@ -99,7 +99,7 @@ The script will
 You are now ready to begin creating a gateway! :tada:
 
 
-1. We know will create a multi-cluster gateway definition in the hub cluster. In `T1`, run the following: 
+1. We will now create a multi-cluster gateway definition in the hub cluster. In `T1`, run the following:
 
   ```bash
   kubectl apply -f - <<EOF
