@@ -73,21 +73,23 @@ The script will
     > kind export kubeconfig --name=mgc-control-plane --kubeconfig=$(pwd)/local/kube/control-plane.yaml && export KUBECONFIG=$(pwd)/local/kube/control-plane.yaml
     > ```
    
+### Create a gateway
 
-### Check the managed zone
 
-1. Let's ensure our `managedzone` is present. In `T1`, run the following:
+#### Check the managed zone
+
+1. First let's ensure the `managedzone` is present. In `T1`, run the following:
 
     ```bash
     export KUBECONFIG=$(pwd)/local/kube/control-plane.yaml
     ```
 
-    followed by:
+   followed by:
 
     ```bash
     kubectl get managedzone -n multi-cluster-gateways
     ```
-1. You should see the following:    
+1. You should see the following:
     ```
     NAME          DOMAIN NAME      ID                                  RECORD COUNT   NAMESERVERS                                                                                        READY
     mgc-dev-mz   test.hcpapps.net   /hostedzone/Z08224701SVEG4XHW89W0   7              ["ns-1414.awsdns-48.org","ns-1623.awsdns-10.co.uk","ns-684.awsdns-21.net","ns-80.awsdns-10.com"]   True
@@ -96,7 +98,6 @@ The script will
 
 You are now ready to begin creating a gateway! :tada:
 
-### Create a gateway
 
 1. We know will create a multi-cluster gateway definition in the hub cluster. In `T1`, run the following: 
 
