@@ -179,6 +179,7 @@ deployQuickStartControl() {
     kubectl -n cert-manager wait --timeout=300s --for=condition=Available deployments --all
     echo "Waiting for istio deployments to be ready"
     kubectl -n istio-operator wait --timeout=300s --for=condition=Available deployments --all
+    kubectl -n istio-system wait --timeout=300s --for=condition=Available deployments --all
 }
 
 deployQuickStartWorkload() {
