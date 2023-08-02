@@ -45,6 +45,8 @@ spec:
                   By default this health check will be applied to each unique DNS
                   A Record for the listeners assigned to the target gateway
                 properties:
+                  AllowInsecureCertificates:
+                    type: boolean
                   additionalHeaders:
                     items:
                       properties:

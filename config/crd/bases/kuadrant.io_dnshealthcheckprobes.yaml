@@ -45,6 +45,8 @@ spec:
           spec:
             description: DNSHealthCheckProbeSpec defines the desired state of DNSHealthCheckProbe
             properties:
+              AllowInsecureCertificate:
+                type: boolean
               additionalHeaders:
                 items:
                   properties:

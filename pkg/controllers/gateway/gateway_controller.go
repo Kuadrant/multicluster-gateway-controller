@@ -314,7 +314,7 @@ func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.C
 	}
 
 	log.Info("Gateway Placed ", "gateway", upstreamGateway.Name, "namespace", upstreamGateway.Namespace, "targets", targets.UnsortedList())
-	//get updatd list of clusters where this gateway has been successfully placed
+	//get updated list of clusters where this gateway has been successfully placed
 	placed, err := r.Placement.GetPlacedClusters(ctx, upstreamGateway)
 	if err != nil {
 		return false, metav1.ConditionUnknown, targets.UnsortedList(), fmt.Errorf("failed to get placed clusters : %s", err)
