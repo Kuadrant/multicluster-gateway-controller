@@ -9,10 +9,13 @@ We will start with a single cluster and move to multiple clusters to illustrate 
 
 The below binary dependencies can be installed using the `make dependencies` command if you've already cloned the repo. If not links are provided.
 
+- [docker](https://docs.docker.com/engine/install/)
 - [kind](https://kind.sigs.k8s.io/)
 - [operator-sdk](https://sdk.operatorframework.io/docs/installation/)
 - [yq](https://mikefarah.gitbook.io/yq/v/v3.x/)
 - [clusteradm](https://github.com/open-cluster-management-io/clusteradm#install-the-clusteradm-command-line)
+- [kustomize](https://kubectl.docs.kubernetes.io/installation/kustomize/)
+- [helm](https://helm.sh/docs/intro/install/)
 - go >= 1.20
 - openssl >= 3
 - AWS account with Route 53 enabled
