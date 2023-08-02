@@ -1,6 +1,5 @@
-namespace: istio-operator
-
 resources:
+  - istio-namespace.yaml
   - namespace.yaml
   - istio-operator-init.yaml
   - istio-operator.yaml
