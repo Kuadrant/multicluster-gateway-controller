@@ -39,7 +39,7 @@ Open two windows, which we'll refer to throughout this walkthrough as:
 ### Setup clusters and Multi-cluster Gateway Controller
 
    ```bash
-    curl https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/quickstart-script/hack/quickstart-setup sh | bash
+    curl https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/quickstart-setup.sh | bash
    ```
 
 ### What is next
