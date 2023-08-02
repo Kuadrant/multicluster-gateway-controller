@@ -198,7 +198,7 @@ func (g *GoogleDNSProvider) EnsureManagedZone(managedZone *v1alpha1.ManagedZone)
 	var zoneID string
 
 	if managedZone.Spec.ID != "" {
-		zoneID = managedZone.Spec.ID
+		zoneID = strings.Replace(managedZone.Spec.ID, ".", "-", -1)
 	} else {
 		zoneID = managedZone.Status.ID
 	}
