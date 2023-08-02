@@ -48,7 +48,7 @@ Open two windows, which we'll refer to throughout this walkthrough as:
 1. To setup a local instance, in `T1`, run:
 
     ```bash
-    curl https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/quickstart-script/hack/quickstart-setup.sh | bash
+    curl https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/quickstart-setup.sh | bash
     ```
 
     > :sos: Linux users may encounter the following error:
@@ -79,12 +79,6 @@ The script will
 #### Check the managed zone
 
 1. First let's ensure the `managedzone` is present. In `T1`, run the following:
-
-    ```bash
-    export KUBECONFIG=$(pwd)/local/kube/control-plane.yaml
-    ```
-
-   followed by:
 
     ```bash
     kubectl get managedzone -n multi-cluster-gateways

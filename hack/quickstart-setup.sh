@@ -47,7 +47,7 @@ metadata:
   namespace: metallb-system
 spec:
   addresses:
-  - 172.32.${metalLBSubnet}.0/24
+  - 172.31.${metalLBSubnet}.0/24
 ---
 apiVersion: metallb.io/v1beta1
 kind: L2Advertisement
