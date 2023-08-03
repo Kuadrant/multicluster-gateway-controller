@@ -21,7 +21,7 @@ type ProbeQueuer struct {
 	Host                     string
 	Port                     int
 	AdditionalHeaders        v1alpha1.AdditionalHeaders
-	ExpectedReponses         []int
+	ExpectedResponses        []int
 	AllowInsecureCertificate bool
 
 	Notifier ProbeNotifier
@@ -67,7 +67,7 @@ func (p *ProbeQueuer) Start() {
 					Address:                  p.IPAddress,
 					Port:                     p.Port,
 					AdditionalHeaders:        p.AdditionalHeaders,
-					ExpectedResponses:        p.ExpectedReponses,
+					ExpectedResponses:        p.ExpectedResponses,
 					Notifier:                 p.Notifier,
 					AllowInsecureCertificate: p.AllowInsecureCertificate,
 				})

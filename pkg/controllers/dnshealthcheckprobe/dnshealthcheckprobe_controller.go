@@ -86,7 +86,7 @@ func (r *DNSHealthCheckProbeReconciler) Reconcile(ctx context.Context, req ctrl.
 			p.Port = previous.Spec.Port
 			p.Protocol = protocol
 			p.AdditionalHeaders = previous.Spec.AdditionalHeaders
-			p.ExpectedReponses = previous.Spec.ExpectedReponses
+			p.ExpectedResponses = previous.Spec.ExpectedResponses
 			p.AllowInsecureCertificate = previous.Spec.AllowInsecureCertificate
 		})
 	} else {
@@ -100,7 +100,7 @@ func (r *DNSHealthCheckProbeReconciler) Reconcile(ctx context.Context, req ctrl.
 			Protocol:                 protocol,
 			IPAddress:                previous.Spec.Address,
 			AdditionalHeaders:        previous.Spec.AdditionalHeaders,
-			ExpectedReponses:         previous.Spec.ExpectedReponses,
+			ExpectedResponses:        previous.Spec.ExpectedResponses,
 			AllowInsecureCertificate: previous.Spec.AllowInsecureCertificate,
 			Notifier:                 notifier,
 			Queue:                    r.Queue,

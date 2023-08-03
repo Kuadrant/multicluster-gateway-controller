@@ -61,7 +61,7 @@ spec:
                 type: array
               address:
                 type: string
-              expectedReponses:
+              expectedResponses:
                 items:
                   type: integer
                 type: array
