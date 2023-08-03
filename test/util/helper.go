@@ -34,6 +34,7 @@ const (
 	Namespace              = "boop-namespace"
 	DummyCRName            = "boop"
 	Placement              = "placement"
+	TLSSecretName          = "test-tls-cert"
 )
 
 func BuildValidTestRequest(name, ns string) ctrl.Request {

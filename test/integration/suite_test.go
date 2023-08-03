@@ -48,7 +48,6 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/health"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/placement"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/tls"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -141,7 +140,6 @@ var _ = BeforeSuite(func() {
 	err = k8sManager.Add(healthServer)
 	Expect(err).ToNot(HaveOccurred())
 
-	certificates := tls.NewService(k8sManager.GetClient(), "glbc-ca")
 	plc := placement.NewOCMPlacer(k8sManager.GetClient())
 	testPlc := NewTestOCMPlacer()
 
@@ -167,10 +165,9 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 
 	err = (&GatewayReconciler{
-		Client:       k8sManager.GetClient(),
-		Scheme:       k8sManager.GetScheme(),
-		Certificates: certificates,
-		Placement:    plc,
+		Client:    k8sManager.GetClient(),
+		Scheme:    k8sManager.GetScheme(),
+		Placement: plc,
 	}).SetupWithManager(k8sManager, ctx)
 	Expect(err).ToNot(HaveOccurred())
 

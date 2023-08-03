@@ -10,17 +10,25 @@ import (
 	gatewayapiv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/kuadrant/kuadrant-operator/pkg/common"
-
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/shared"
 )
 
 // GatewayEventMapper is an EventHandler that maps Gateway object events to policy events.
 type GatewayEventMapper struct {
-	Logger logr.Logger
+	Logger           logr.Logger
+	PolicyRefsConfig common.PolicyRefsConfig
+	PolicyKind       string
 }
 
-func (m *GatewayEventMapper) MapToDNSPolicy(obj client.Object) []reconcile.Request {
-	return m.mapToPolicyRequest(obj, "dnspolicy", &shared.DNSPolicyRefsConfig{})
+func NewGatewayEventMapper(logger logr.Logger, policyRefsConfig common.PolicyRefsConfig, policyKind string) *GatewayEventMapper {
+	return &GatewayEventMapper{
+		Logger:           logger.WithName("GatewayEventMapper"),
+		PolicyRefsConfig: policyRefsConfig,
+		PolicyKind:       policyKind,
+	}
+}
+
+func (m *GatewayEventMapper) MapToPolicy(obj client.Object) []reconcile.Request {
+	return m.mapToPolicyRequest(obj, m.PolicyKind, m.PolicyRefsConfig)
 }
 
 func (m *GatewayEventMapper) mapToPolicyRequest(obj client.Object, policyKind string, policyRefsConfig common.PolicyRefsConfig) []reconcile.Request {

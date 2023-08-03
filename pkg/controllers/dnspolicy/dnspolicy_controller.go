@@ -40,14 +40,20 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/events"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/shared"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 )
 
 const (
-	DNSPolicyFinalizer         = "kuadrant.io/dns-policy"
-	DNSPolicyBackRefAnnotation = "kuadrant.io/dnspolicy"
+	DNSPolicyFinalizer           = "kuadrant.io/dns-policy"
+	DNSPoliciesBackRefAnnotation = "kuadrant.io/dnspolicies"
+	DNSPolicyBackRefAnnotation   = "kuadrant.io/dnspolicy"
 )
+
+type DNSPolicyRefsConfig struct{}
+
+func (c *DNSPolicyRefsConfig) PolicyRefsAnnotation() string {
+	return DNSPoliciesBackRefAnnotation
+}
 
 // DNSPolicyReconciler reconciles a DNSPolicy object
 type DNSPolicyReconciler struct {
@@ -143,7 +149,7 @@ func (r *DNSPolicyReconciler) reconcileResources(ctx context.Context, dnsPolicy 
 	}
 
 	// reconcile based on gateway diffs
-	gatewayDiffObj, err := r.ComputeGatewayDiffs(ctx, dnsPolicy, targetNetworkObject, &shared.DNSPolicyRefsConfig{})
+	gatewayDiffObj, err := r.ComputeGatewayDiffs(ctx, dnsPolicy, targetNetworkObject, &DNSPolicyRefsConfig{})
 	if err != nil {
 		return err
 	}
@@ -168,7 +174,7 @@ func (r *DNSPolicyReconciler) reconcileResources(ctx context.Context, dnsPolicy 
 func (r *DNSPolicyReconciler) deleteResources(ctx context.Context, dnsPolicy *v1alpha1.DNSPolicy, targetNetworkObject client.Object) error {
 	// delete based on gateway diffs
 
-	gatewayDiffObj, err := r.ComputeGatewayDiffs(ctx, dnsPolicy, targetNetworkObject, &shared.DNSPolicyRefsConfig{})
+	gatewayDiffObj, err := r.ComputeGatewayDiffs(ctx, dnsPolicy, targetNetworkObject, &DNSPolicyRefsConfig{})
 	if err != nil {
 		return err
 	}
@@ -220,26 +226,18 @@ func (r *DNSPolicyReconciler) readyCondition(targetNetworkObjectectKind string, 
 }
 
 func (r *DNSPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	gatewayEventMapper := &events.GatewayEventMapper{
-		Logger: r.Logger().WithName("gatewayEventMapper"),
-	}
-	client := r.Client()
-	dnsHelper := dnsHelper{Client: client}
-	r.dnsHelper = dnsHelper
-	clusterEventMapper := &events.ClusterEventMapper{
-		Logger:             r.Logger().WithName("clusterEventMapper"),
-		GatewayEventMapper: gatewayEventMapper,
-		Client:             r.Client(),
-	}
+	gatewayEventMapper := events.NewGatewayEventMapper(r.Logger(), &DNSPolicyRefsConfig{}, "dnspolicy")
+	clusterEventMapper := events.NewClusterEventMapper(r.Logger(), r.Client(), &DNSPolicyRefsConfig{}, "dnspolicy")
+	r.dnsHelper = dnsHelper{Client: r.Client()}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.DNSPolicy{}).
 		Watches(
 			&source.Kind{Type: &gatewayapiv1beta1.Gateway{}},
-			handler.EnqueueRequestsFromMapFunc(gatewayEventMapper.MapToDNSPolicy),
+			handler.EnqueueRequestsFromMapFunc(gatewayEventMapper.MapToPolicy),
 		).
 		Watches(
 			&source.Kind{Type: &clusterv1.ManagedCluster{}},
-			handler.EnqueueRequestsFromMapFunc(clusterEventMapper.MapToDNSPolicy),
+			handler.EnqueueRequestsFromMapFunc(clusterEventMapper.MapToPolicy),
 		).
 		Complete(r)
 }
