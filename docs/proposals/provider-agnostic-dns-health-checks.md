@@ -62,11 +62,12 @@ spec:
         value: "..."
       - name: "..."
         value: "..."
-    healthyResponseCodes:
+    expectedResponses:
       - 200
       - 301
       - 302
       - 407
+    AllowInsecureCertificates: true
   targetRef:
     group: gateway.networking.k8s.io
     kind: Gateway
@@ -96,6 +97,11 @@ spec:
       value: "..."
     - name: "..."
       value: "..."
+  expectedResponses:
+  - 200
+    201
+    301
+  AllowInsecureCertificate: true
 status:
   healthy: true
   consecutiveFailures: 0
@@ -111,6 +117,9 @@ status:
 - **Protocol** The protocol to use for this request
 - **Interval** How frequently this check would ideally be executed.
 - **AdditionalHeaders** Optional headers and their values that can be specified to ensure the health check is successful.
+- **ExpectedResponses** Optional HTTP response codes that should be considered healthy (defaults are 200 and 201).
+- **AllowInsecureCertificate** Optional flag to allow using invalid (e.g. self-signed) certificates, default is false.
+
 
 The reconciliation of this resource results in the configuration of a health probe, which targets the endpoint and 
 updates the status. The status is propagated to the providerSpecific status of the equivalent endpoint in the DNSRecord
@@ -132,11 +141,29 @@ Instead of Route53 health checks, the controller will create `DNSHealthCheckProb
 When reconciling a DNS Record, the DNS Record reconciler will retrieve the relevant DNSHealthCheckProbe CRs, and consult
 the status of them when determining what value to assign to a particular endpoint's weight. 
 
-There are a few scenarios to cover when considering the removal of DNS Record endpoints due to unhealthiness.
+## DNS Record Structure Diagram:
 
-1. All endpoints are reporting unhealthy responses, then the weight will be assigned as if they are all healthy
-1. One or more, but not all endpoints are reporting an unhealthy response, then the weight will be assigned 0 for the 
-unhealthy endpoints, otherwise the usual weight assigning process will be executed.
+https://lucid.app/lucidchart/2f95c9c9-8ddf-4609-af37-48145c02ef7f/edit?viewport_loc=-188%2C-61%2C2400%2C1183%2C0_0&invitationId=inv_d5f35eb7-16a9-40ec-b568-38556de9b568
+How
+
+## Removing unhealthy Endpoints
+When a DNS health check probe is failing, it will update the DNS Record CR with a custom field on that endpoint to mark it as failing.
+
+There are then 3 scenarios which we need to consider:
+1 - All endpoints are healthy
+2 - All endpoints are unhealthy
+3 - Some endpoints are healthy and some are unhealthy.
+
+In the cases 1 and 2, the result should be the same: All records are published to the DNS Provider.
+
+When scenario 3 is encountered the following process should be followed:
+
+    For each gateway IP or CNAME: this should be omitted if unhealthy.
+    For each managed gateway CNAME: This should be omitted if all child records are unhealthy.
+    For each GEO CNAME: This should be omitted if all the managed gateway CNAMEs have been omitted.
+    Load balancer CNAME: This should never be omitted.
+
+If we consider the DNS record to be a hierarchy of parents and children, then whenever any parent has no healthy children that parent is also considered unhealthy. No unhealthy elements are to be included in the DNS Record.
 
 ## Executing the probes
 There will be a DNSHealthCheckProbe CR controller added to the controller. This controller will create an instance of a 
