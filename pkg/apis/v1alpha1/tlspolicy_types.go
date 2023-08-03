@@ -17,7 +17,9 @@ limitations under the License.
 package v1alpha1
 
 import (
-	certman "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
+	"fmt"
+
+	certmanv1 "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
 	cmmeta "github.com/jetstack/cert-manager/pkg/apis/meta/v1"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,20 +29,90 @@ import (
 
 // TLSPolicySpec defines the desired state of TLSPolicy
 type TLSPolicySpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-	TargetRef   gatewayapiv1alpha2.PolicyTargetReference `json:"targetRef"`
-	Certificate certman.CertificateSpec                  `json:",inline"`
+	// +kubebuilder:validation:Required
+	// +required
+	TargetRef gatewayapiv1alpha2.PolicyTargetReference `json:"targetRef"`
+
+	CertificateSpec `json:",inline"`
+}
+
+// CertificateSpec defines the certificate manager certificate spec that can be set via the TLSPolicy.
+// Rather than allowing the whole certmanv1.CertificateSpec to be inlined we are only including the same fields that are
+// currently supported by the annotation approach to securing gateways as outlined here https://cert-manager.io/docs/usage/gateway/#supported-annotations
+type CertificateSpec struct {
+	// IssuerRef is a reference to the issuer for this certificate.
+	// If the `kind` field is not set, or set to `Issuer`, an Issuer resource
+	// with the given name in the same namespace as the Certificate will be used.
+	// If the `kind` field is set to `ClusterIssuer`, a ClusterIssuer with the
+	// provided name will be used.
+	// The `name` field in this stanza is required at all times.
+	IssuerRef cmmeta.ObjectReference `json:"issuerRef"`
+
+	// CommonName is a common name to be used on the Certificate.
+	// The CommonName should have a length of 64 characters or fewer to avoid
+	// generating invalid CSRs.
+	// This value is ignored by TLS clients when any subject alt name is set.
+	// This is x509 behaviour: https://tools.ietf.org/html/rfc6125#section-6.4.4
+	// +optional
+	CommonName string `json:"commonName,omitempty"`
+
+	// The requested 'duration' (i.e. lifetime) of the Certificate. This option
+	// may be ignored/overridden by some issuer types. If unset this defaults to
+	// 90 days. Certificate will be renewed either 2/3 through its duration or
+	// `renewBefore` period before its expiry, whichever is later. Minimum
+	// accepted duration is 1 hour. Value must be in units accepted by Go
+	// time.ParseDuration https://golang.org/pkg/time/#ParseDuration
+	// +optional
+	Duration *metav1.Duration `json:"duration,omitempty"`
+
+	// How long before the currently issued certificate's expiry
+	// cert-manager should renew the certificate. The default is 2/3 of the
+	// issued certificate's duration. Minimum accepted value is 5 minutes.
+	// Value must be in units accepted by Go time.ParseDuration
+	// https://golang.org/pkg/time/#ParseDuration
+	// +optional
+	RenewBefore *metav1.Duration `json:"renewBefore,omitempty"`
+
+	// Usages is the set of x509 usages that are requested for the certificate.
+	// Defaults to `digital signature` and `key encipherment` if not specified.
+	// +optional
+	Usages []certmanv1.KeyUsage `json:"usages,omitempty"`
+
+	// RevisionHistoryLimit is the maximum number of CertificateRequest revisions
+	// that are maintained in the Certificate's history. Each revision represents
+	// a single `CertificateRequest` created by this Certificate, either when it
+	// was created, renewed, or Spec was changed. Revisions will be removed by
+	// oldest first if the number of revisions exceeds this number. If set,
+	// revisionHistoryLimit must be a value of `1` or greater. If unset (`nil`),
+	// revisions will not be garbage collected. Default value is `nil`.
+	// +kubebuilder:validation:ExclusiveMaximum=false
+	// +optional
+	RevisionHistoryLimit *int32 `json:"revisionHistoryLimit,omitempty"`
+
+	// Options to control private keys used for the Certificate.
+	// +optional
+	PrivateKey *certmanv1.CertificatePrivateKey `json:"privateKey,omitempty"`
 }
 
 // TLSPolicyStatus defines the observed state of TLSPolicy
 type TLSPolicyStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// conditions are any conditions associated with the policy
+	//
+	// If configuring the policy fails, the "Failed" condition will be set with a
+	// reason and message describing the cause of the failure.
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
+
+	// observedGeneration is the most recently observed generation of the
+	// TLSPolicy.  When the TLSPolicy is updated, the controller updates the
+	// corresponding configuration. If an update fails, that failure is
+	// recorded in the status condition
+	// +optional
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+//+kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type==\"Ready\")].status",description="TLSPolicy ready."
 
 // TLSPolicy is the Schema for the tlspolicies API
 type TLSPolicy struct {
@@ -49,6 +121,35 @@ type TLSPolicy struct {
 
 	Spec   TLSPolicySpec   `json:"spec,omitempty"`
 	Status TLSPolicyStatus `json:"status,omitempty"`
+}
+
+func (p *TLSPolicy) GetWrappedNamespace() gatewayv1beta1.Namespace {
+	return gatewayv1beta1.Namespace(p.Namespace)
+}
+
+func (p *TLSPolicy) GetRulesHostnames() []string {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (p *TLSPolicy) GetTargetRef() gatewayapiv1alpha2.PolicyTargetReference {
+	return p.Spec.TargetRef
+}
+
+func (p *TLSPolicy) Validate() error {
+	if p.Spec.TargetRef.Group != ("gateway.networking.k8s.io") {
+		return fmt.Errorf("invalid targetRef.Group %s. The only supported group is gateway.networking.k8s.io", p.Spec.TargetRef.Group)
+	}
+
+	if p.Spec.TargetRef.Kind != ("Gateway") {
+		return fmt.Errorf("invalid targetRef.Kind %s. The only supported kind is Gateway", p.Spec.TargetRef.Kind)
+	}
+
+	if p.Spec.TargetRef.Namespace != nil && string(*p.Spec.TargetRef.Namespace) != p.Namespace {
+		return fmt.Errorf("invalid targetRef.Namespace %s. Currently only supporting references to the same namespace", *p.Spec.TargetRef.Namespace)
+	}
+
+	return nil
 }
 
 //+kubebuilder:object:root=true
@@ -62,29 +163,4 @@ type TLSPolicyList struct {
 
 func init() {
 	SchemeBuilder.Register(&TLSPolicy{}, &TLSPolicyList{})
-}
-
-func NewDefaultTLSPolicy(gateway *gatewayv1beta1.Gateway) TLSPolicy {
-	gatewayTypedNamespace := gatewayv1beta1.Namespace(gateway.Namespace)
-	return TLSPolicy{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      gateway.Name,
-			Namespace: gateway.Namespace,
-		},
-		Spec: TLSPolicySpec{
-			TargetRef: gatewayapiv1alpha2.PolicyTargetReference{
-				Group:     gatewayv1beta1.Group(gatewayv1beta1.GroupVersion.Group),
-				Kind:      "Gateway",
-				Name:      gatewayv1beta1.ObjectName(gateway.Name),
-				Namespace: &gatewayTypedNamespace,
-			},
-			Certificate: certman.CertificateSpec{
-				IssuerRef: cmmeta.ObjectReference{
-					Group: "cert-manager.io",
-					Kind:  "ClusterIssuer",
-					Name:  "glbc-ca",
-				},
-			},
-		},
-	}
 }

@@ -24,12 +24,10 @@ import (
 	"reflect"
 	"time"
 
-	certman "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
 	clusterv1beta2 "open-cluster-management.io/api/cluster/v1beta1"
 	workv1 "open-cluster-management.io/api/work/v1"
 
 	corev1 "k8s.io/api/core/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -53,8 +51,6 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/tls"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/traffic"
 )
 
 const (
@@ -65,11 +61,6 @@ const (
 	MultiClusterIPAddressType             gatewayv1beta1.AddressType = "kuadrant.io/MultiClusterIPAddress"
 	MultiClusterHostnameAddressType       gatewayv1beta1.AddressType = "kuadrant.io/MultiClusterHostnameAddress"
 )
-
-type CertificateService interface {
-	EnsureCertificate(ctx context.Context, name, host string, owner metav1.Object) error
-	GetCertificateSecret(ctx context.Context, name string, namespace string) (*corev1.Secret, error)
-}
 
 type GatewayPlacer interface {
 	//Place will use the placement logic to create the needed resources and ensure the objects are synced to the targeted clusters
@@ -87,8 +78,6 @@ type GatewayPlacer interface {
 	GetClusterGateway(ctx context.Context, gateway *gatewayv1beta1.Gateway, clusterName string) (dns.ClusterGateway, error)
 }
 
-var ReconcileErrTLS = fmt.Errorf("failed to reconcile TLS")
-
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways/finalizers,verbs=update
@@ -100,9 +89,8 @@ var ReconcileErrTLS = fmt.Errorf("failed to reconcile TLS")
 // GatewayReconciler reconciles a Gateway object
 type GatewayReconciler struct {
 	client.Client
-	Scheme       *runtime.Scheme
-	Certificates CertificateService
-	Placement    GatewayPlacer
+	Scheme    *runtime.Scheme
+	Placement GatewayPlacer
 }
 
 func isDeleting(g *gatewayv1beta1.Gateway) bool {
@@ -304,13 +292,11 @@ func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.C
 		return false, metav1.ConditionFalse, clusters, fmt.Errorf("no managed listeners found")
 	}
 
-	// ensure tls is set up first before doing anything else. TLS is not affected by placement changes
-	tlsSecrets, err := r.reconcileTLS(ctx, upstreamGateway, downstream)
+	// get tls secrets for all TLS listeners.
+	tlsSecrets, err := r.getTLSSecrets(ctx, upstreamGateway, downstream)
 	if err != nil {
-		log.Info("TLS is not ready for downstream gateway ", "gateway", downstream.Name, "namespace", downstream.Namespace, "err", err)
-		return true, metav1.ConditionFalse, clusters, errors.Join(ReconcileErrTLS, err)
+		return true, metav1.ConditionFalse, clusters, fmt.Errorf("failed to get tls secrets : %s", err)
 	}
-	log.Info("TLS reconciled for downstream gateway ", "gateway", downstream.Name, "namespace", downstream.Namespace)
 
 	// some of this should be pulled from gateway class params
 	if params != nil {
@@ -340,72 +326,37 @@ func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.C
 	return false, metav1.ConditionUnknown, clusters, nil
 }
 
-func (r *GatewayReconciler) reconcileTLS(ctx context.Context, upstreamGateway *gatewayv1beta1.Gateway, gateway *gatewayv1beta1.Gateway) ([]metav1.Object, error) {
+func (r *GatewayReconciler) getTLSSecrets(ctx context.Context, upstreamGateway *gatewayv1beta1.Gateway, downstreamGateway *gatewayv1beta1.Gateway) ([]metav1.Object, error) {
 	log := crlog.FromContext(ctx)
 	tlsSecrets := []metav1.Object{}
-	accessor := traffic.NewGateway(gateway)
 	for _, listener := range upstreamGateway.Spec.Listeners {
-		host := string(*listener.Hostname)
-		if host == "" {
-			log.Info("skipping listener with no host", listener.Name, "in namespace", gateway.Namespace)
-			continue
-		}
+		if listener.TLS != nil {
+			for _, secretRef := range listener.TLS.CertificateRefs {
+				ns := upstreamGateway.GetNamespace()
+				if secretRef.Namespace != nil {
+					ns = string(*secretRef.Namespace)
+				}
+				tlsSecret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
+					Name:      string(secretRef.Name),
+					Namespace: ns,
+				}}
+				if err := r.Client.Get(ctx, client.ObjectKeyFromObject(tlsSecret), tlsSecret); err != nil {
+					log.Error(err, "cant find tls secret")
+					continue
+				}
 
-		if listener.Protocol != gatewayv1beta1.HTTPSProtocolType {
-			continue
-		}
-		certName := certname(upstreamGateway.Name, string(listener.Name))
-		// create certificate resource for assigned host
-		if err := r.Certificates.EnsureCertificate(ctx, certName, host, upstreamGateway); err != nil && !k8serrors.IsAlreadyExists(err) {
-			return tlsSecrets, err
-		}
+				downstreamSecret := tlsSecret.DeepCopy()
+				downstreamSecret.ObjectMeta = metav1.ObjectMeta{}
+				downstreamSecret.Name = tlsSecret.Name
+				downstreamSecret.Namespace = downstreamGateway.Namespace
+				downstreamSecret.Labels = tlsSecret.Labels
+				downstreamSecret.Annotations = tlsSecret.Annotations
 
-		// Check if certificate secret is ready
-		secret, err := r.Certificates.GetCertificateSecret(ctx, certName, upstreamGateway.Namespace)
-		if err != nil {
-			return tlsSecrets, err
-		}
-
-		//sync secret to clusters
-		if secret != nil {
-			downstreamSecret := secret.DeepCopy()
-			downstreamSecret.ObjectMeta = metav1.ObjectMeta{}
-			downstreamSecret.Name = secret.Name
-			downstreamSecret.Namespace = gateway.Namespace
-			downstreamSecret.Labels = secret.Labels
-			downstreamSecret.Annotations = secret.Annotations
-			accessor.AddTLS(host, downstreamSecret)
-			tlsSecrets = append(tlsSecrets, downstreamSecret)
-		}
-
-	}
-	// ensure only certificates for active listeners are in place not this logic will move to a TLSPolicy controller in the future
-	labelSelector := &client.MatchingLabels{
-		tls.TLSGatewayOwnerLabel: string(upstreamGateway.GetUID()),
-	}
-	certList := &certman.CertificateList{}
-	if err := r.List(ctx, certList, labelSelector); err != nil {
-		return tlsSecrets, err
-	}
-	for _, cert := range certList.Items {
-		validCert := false
-		for _, listener := range upstreamGateway.Spec.Listeners {
-			if cert.Name == certname(upstreamGateway.Name, string(listener.Name)) {
-				validCert = true
-				break
-			}
-		}
-		if !validCert {
-			if err := r.Delete(ctx, &cert, &client.DeleteOptions{}); err != nil {
-				return tlsSecrets, err
+				tlsSecrets = append(tlsSecrets, downstreamSecret)
 			}
 		}
 	}
 	return tlsSecrets, nil
-}
-
-func certname(gatwayName, listenerName string) string {
-	return fmt.Sprintf("%s-%s", gatwayName, listenerName)
 }
 
 func (r *GatewayReconciler) reconcileParams(_ context.Context, gateway *gatewayv1beta1.Gateway, params *Params) error {

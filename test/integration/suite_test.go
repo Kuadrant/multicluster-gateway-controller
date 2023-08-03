@@ -45,10 +45,10 @@ import (
 	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnspolicy"
 	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
 	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/managedzone"
+	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/tlspolicy"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/health"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/placement"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/tls"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -141,7 +141,6 @@ var _ = BeforeSuite(func() {
 	err = k8sManager.Add(healthServer)
 	Expect(err).ToNot(HaveOccurred())
 
-	certificates := tls.NewService(k8sManager.GetClient(), "glbc-ca")
 	plc := placement.NewOCMPlacer(k8sManager.GetClient())
 	testPlc := NewTestOCMPlacer()
 
@@ -160,6 +159,19 @@ var _ = BeforeSuite(func() {
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 
+	tlsPolicyBaseReconciler := reconcilers.NewBaseReconciler(
+		k8sManager.GetClient(), k8sManager.GetScheme(), k8sManager.GetAPIReader(),
+		logger.WithName("tlspolicy"),
+		k8sManager.GetEventRecorderFor("TLSPolicy"),
+	)
+
+	err = (&TLSPolicyReconciler{
+		TargetRefReconciler: reconcilers.TargetRefReconciler{
+			BaseReconciler: tlsPolicyBaseReconciler,
+		},
+	}).SetupWithManager(k8sManager)
+	Expect(err).ToNot(HaveOccurred())
+
 	err = (&GatewayClassReconciler{
 		Client: k8sManager.GetClient(),
 		Scheme: k8sManager.GetScheme(),
@@ -167,10 +179,9 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 
 	err = (&GatewayReconciler{
-		Client:       k8sManager.GetClient(),
-		Scheme:       k8sManager.GetScheme(),
-		Certificates: certificates,
-		Placement:    plc,
+		Client:    k8sManager.GetClient(),
+		Scheme:    k8sManager.GetScheme(),
+		Placement: plc,
 	}).SetupWithManager(k8sManager, ctx)
 	Expect(err).ToNot(HaveOccurred())
 

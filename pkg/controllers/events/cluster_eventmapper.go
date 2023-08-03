@@ -15,7 +15,6 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/metadata"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/shared"
 )
 
 // ClusterEventMapper is an EventHandler that maps Cluster object events to policy events.
@@ -25,10 +24,23 @@ type ClusterEventMapper struct {
 	Logger             logr.Logger
 	GatewayEventMapper *GatewayEventMapper
 	Client             client.Client
+	PolicyRefsConfig   common.PolicyRefsConfig
+	PolicyKind         string
 }
 
-func (m *ClusterEventMapper) MapToDNSPolicy(obj client.Object) []reconcile.Request {
-	return m.mapToPolicyRequest(obj, "dnspolicy", &shared.DNSPolicyRefsConfig{})
+func NewClusterEventMapper(logger logr.Logger, client client.Client, policyRefsConfig common.PolicyRefsConfig, policyKind string) *ClusterEventMapper {
+	log := logger.WithName("ClusterEventMapper")
+	return &ClusterEventMapper{
+		Logger:             log,
+		GatewayEventMapper: NewGatewayEventMapper(log, policyRefsConfig, policyKind),
+		Client:             client,
+		PolicyRefsConfig:   policyRefsConfig,
+		PolicyKind:         policyKind,
+	}
+}
+
+func (m *ClusterEventMapper) MapToPolicy(obj client.Object) []reconcile.Request {
+	return m.mapToPolicyRequest(obj, m.PolicyKind, m.PolicyRefsConfig)
 }
 
 func (m *ClusterEventMapper) mapToPolicyRequest(obj client.Object, policyKind string, policyRefsConfig common.PolicyRefsConfig) []reconcile.Request {

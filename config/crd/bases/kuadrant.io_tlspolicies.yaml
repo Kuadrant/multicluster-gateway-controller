@@ -15,7 +15,12 @@ spec:
     singular: tlspolicy
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - description: TLSPolicy ready.
+      jsonPath: .status.conditions[?(@.type=="Ready")].status
+      name: Ready
+      type: string
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: TLSPolicy is the Schema for the tlspolicies API
@@ -35,41 +40,12 @@ spec:
           spec:
             description: TLSPolicySpec defines the desired state of TLSPolicy
             properties:
-              additionalOutputFormats:
-                description: AdditionalOutputFormats defines extra output formats
-                  of the private key and signed certificate chain to be written to
-                  this Certificate's target Secret. This is an Alpha Feature and is
-                  only enabled with the `--feature-gates=AdditionalCertificateOutputFormats=true`
-                  option on both the controller and webhook components.
-                items:
-                  description: CertificateAdditionalOutputFormat defines an additional
-                    output format of a Certificate resource. These contain supplementary
-                    data formats of the signed certificate chain and paired private
-                    key.
-                  properties:
-                    type:
-                      description: Type is the name of the format type that should
-                        be written to the Certificate's target Secret.
-                      enum:
-                      - DER
-                      - CombinedPEM
-                      type: string
-                  required:
-                  - type
-                  type: object
-                type: array
               commonName:
                 description: 'CommonName is a common name to be used on the Certificate.
                   The CommonName should have a length of 64 characters or fewer to
                   avoid generating invalid CSRs. This value is ignored by TLS clients
                   when any subject alt name is set. This is x509 behaviour: https://tools.ietf.org/html/rfc6125#section-6.4.4'
                 type: string
-              dnsNames:
-                description: DNSNames is a list of DNS subjectAltNames to be set on
-                  the Certificate.
-                items:
-                  type: string
-                type: array
               duration:
                 description: The requested 'duration' (i.e. lifetime) of the Certificate.
                   This option may be ignored/overridden by some issuer types. If unset
@@ -78,27 +54,6 @@ spec:
                   whichever is later. Minimum accepted duration is 1 hour. Value must
                   be in units accepted by Go time.ParseDuration https://golang.org/pkg/time/#ParseDuration
                 type: string
-              emailAddresses:
-                description: EmailAddresses is a list of email subjectAltNames to
-                  be set on the Certificate.
-                items:
-                  type: string
-                type: array
-              encodeUsagesInRequest:
-                description: EncodeUsagesInRequest controls whether key usages should
-                  be present in the CertificateRequest
-                type: boolean
-              ipAddresses:
-                description: IPAddresses is a list of IP address subjectAltNames to
-                  be set on the Certificate.
-                items:
-                  type: string
-                type: array
-              isCA:
-                description: IsCA will mark this Certificate as valid for certificate
-                  signing. This will automatically add the `cert sign` usage to the
-                  list of `usages`.
-                type: boolean
               issuerRef:
                 description: IssuerRef is a reference to the issuer for this certificate.
                   If the `kind` field is not set, or set to `Issuer`, an Issuer resource
@@ -118,81 +73,6 @@ spec:
                     type: string
                 required:
                 - name
-                type: object
-              keystores:
-                description: Keystores configures additional keystore output formats
-                  stored in the `secretName` Secret resource.
-                properties:
-                  jks:
-                    description: JKS configures options for storing a JKS keystore
-                      in the `spec.secretName` Secret resource.
-                    properties:
-                      create:
-                        description: Create enables JKS keystore creation for the
-                          Certificate. If true, a file named `keystore.jks` will be
-                          created in the target Secret resource, encrypted using the
-                          password stored in `passwordSecretRef`. The keystore file
-                          will only be updated upon re-issuance. A file named `truststore.jks`
-                          will also be created in the target Secret resource, encrypted
-                          using the password stored in `passwordSecretRef` containing
-                          the issuing Certificate Authority
-                        type: boolean
-                      passwordSecretRef:
-                        description: PasswordSecretRef is a reference to a key in
-                          a Secret resource containing the password used to encrypt
-                          the JKS keystore.
-                        properties:
-                          key:
-                            description: The key of the entry in the Secret resource's
-                              `data` field to be used. Some instances of this field
-                              may be defaulted, in others it may be required.
-                            type: string
-                          name:
-                            description: 'Name of the resource being referred to.
-                              More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names'
-                            type: string
-                        required:
-                        - name
-                        type: object
-                    required:
-                    - create
-                    - passwordSecretRef
-                    type: object
-                  pkcs12:
-                    description: PKCS12 configures options for storing a PKCS12 keystore
-                      in the `spec.secretName` Secret resource.
-                    properties:
-                      create:
-                        description: Create enables PKCS12 keystore creation for the
-                          Certificate. If true, a file named `keystore.p12` will be
-                          created in the target Secret resource, encrypted using the
-                          password stored in `passwordSecretRef`. The keystore file
-                          will only be updated upon re-issuance. A file named `truststore.p12`
-                          will also be created in the target Secret resource, encrypted
-                          using the password stored in `passwordSecretRef` containing
-                          the issuing Certificate Authority
-                        type: boolean
-                      passwordSecretRef:
-                        description: PasswordSecretRef is a reference to a key in
-                          a Secret resource containing the password used to encrypt
-                          the PKCS12 keystore.
-                        properties:
-                          key:
-                            description: The key of the entry in the Secret resource's
-                              `data` field to be used. Some instances of this field
-                              may be defaulted, in others it may be required.
-                            type: string
-                          name:
-                            description: 'Name of the resource being referred to.
-                              More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names'
-                            type: string
-                        required:
-                        - name
-                        type: object
-                    required:
-                    - create
-                    - passwordSecretRef
-                    type: object
                 type: object
               privateKey:
                 description: Options to control private keys used for the Certificate.
@@ -247,7 +127,7 @@ spec:
                   Value must be in units accepted by Go time.ParseDuration https://golang.org/pkg/time/#ParseDuration
                 type: string
               revisionHistoryLimit:
-                description: revisionHistoryLimit is the maximum number of CertificateRequest
+                description: RevisionHistoryLimit is the maximum number of CertificateRequest
                   revisions that are maintained in the Certificate's history. Each
                   revision represents a single `CertificateRequest` created by this
                   Certificate, either when it was created, renewed, or Spec was changed.
@@ -257,78 +137,12 @@ spec:
                   collected. Default value is `nil`.
                 format: int32
                 type: integer
-              secretName:
-                description: SecretName is the name of the secret resource that will
-                  be automatically created and managed by this Certificate resource.
-                  It will be populated with a private key and certificate, signed
-                  by the denoted issuer.
-                type: string
-              secretTemplate:
-                description: SecretTemplate defines annotations and labels to be copied
-                  to the Certificate's Secret. Labels and annotations on the Secret
-                  will be changed as they appear on the SecretTemplate when added
-                  or removed. SecretTemplate annotations are added in conjunction
-                  with, and cannot overwrite, the base set of annotations cert-manager
-                  sets on the Certificate's Secret.
-                properties:
-                  annotations:
-                    additionalProperties:
-                      type: string
-                    description: Annotations is a key value map to be copied to the
-                      target Kubernetes Secret.
-                    type: object
-                  labels:
-                    additionalProperties:
-                      type: string
-                    description: Labels is a key value map to be copied to the target
-                      Kubernetes Secret.
-                    type: object
-                type: object
-              subject:
-                description: Full X509 name specification (https://golang.org/pkg/crypto/x509/pkix/#Name).
-                properties:
-                  countries:
-                    description: Countries to be used on the Certificate.
-                    items:
-                      type: string
-                    type: array
-                  localities:
-                    description: Cities to be used on the Certificate.
-                    items:
-                      type: string
-                    type: array
-                  organizationalUnits:
-                    description: Organizational Units to be used on the Certificate.
-                    items:
-                      type: string
-                    type: array
-                  organizations:
-                    description: Organizations to be used on the Certificate.
-                    items:
-                      type: string
-                    type: array
-                  postalCodes:
-                    description: Postal codes to be used on the Certificate.
-                    items:
-                      type: string
-                    type: array
-                  provinces:
-                    description: State/Provinces to be used on the Certificate.
-                    items:
-                      type: string
-                    type: array
-                  serialNumber:
-                    description: Serial number to be used on the Certificate.
-                    type: string
-                  streetAddresses:
-                    description: Street addresses to be used on the Certificate.
-                    items:
-                      type: string
-                    type: array
-                type: object
               targetRef:
-                description: 'INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-                  Important: Run "make" to regenerate code after modifying this file'
+                description: PolicyTargetReference identifies an API object to apply
+                  policy to. This should be used as part of Policy resources that
+                  can target Gateway API resources. For more information on how this
+                  policy attachment model works, and a sample Policy resource, refer
+                  to the policy attachment documentation for Gateway API.
                 properties:
                   group:
                     description: Group is the group of the target resource.
@@ -360,12 +174,6 @@ spec:
                 - kind
                 - name
                 type: object
-              uris:
-                description: URIs is a list of URI subjectAltNames to be set on the
-                  Certificate.
-                items:
-                  type: string
-                type: array
               usages:
                 description: Usages is the set of x509 usages that are requested for
                   the certificate. Defaults to `digital signature` and `key encipherment`
@@ -408,11 +216,89 @@ spec:
                 type: array
             required:
             - issuerRef
-            - secretName
             - targetRef
             type: object
           status:
             description: TLSPolicyStatus defines the observed state of TLSPolicy
+            properties:
+              conditions:
+                description: "conditions are any conditions associated with the policy
+                  \n If configuring the policy fails, the \"Failed\" condition will
+                  be set with a reason and message describing the cause of the failure."
+                items:
+                  description: "Condition contains details for one aspect of the current
+                    state of this API Resource. --- This struct is intended for direct
+                    use as an array at the field path .status.conditions.  For example,
+                    \n type FooStatus struct{ // Represents the observations of a
+                    foo's current state. // Known .status.conditions.type are: \"Available\",
+                    \"Progressing\", and \"Degraded\" // +patchMergeKey=type // +patchStrategy=merge
+                    // +listType=map // +listMapKey=type Conditions []metav1.Condition
+                    `json:\"conditions,omitempty\" patchStrategy:\"merge\" patchMergeKey:\"type\"
+                    protobuf:\"bytes,1,rep,name=conditions\"` \n // other fields }"
+                  properties:
+                    lastTransitionTime:
+                      description: lastTransitionTime is the last time the condition
+                        transitioned from one status to another. This should be when
+                        the underlying condition changed.  If that is not known, then
+                        using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: message is a human readable message indicating
+                        details about the transition. This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: observedGeneration represents the .metadata.generation
+                        that the condition was set based upon. For instance, if .metadata.generation
+                        is currently 12, but the .status.conditions[x].observedGeneration
+                        is 9, the condition is out of date with respect to the current
+                        state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: reason contains a programmatic identifier indicating
+                        the reason for the condition's last transition. Producers
+                        of specific condition types may define expected values and
+                        meanings for this field, and whether the values are considered
+                        a guaranteed API. The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                        --- Many .condition.type values are consistent across resources
+                        like Available, but because arbitrary conditions can be useful
+                        (see .node.status.conditions), the ability to deconflict is
+                        important. The regex it matches is (dns1123SubdomainFmt/)?(qualifiedNameFmt)
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              observedGeneration:
+                description: observedGeneration is the most recently observed generation
+                  of the TLSPolicy.  When the TLSPolicy is updated, the controller
+                  updates the corresponding configuration. If an update fails, that
+                  failure is recorded in the status condition
+                format: int64
+                type: integer
             type: object
         type: object
     served: true
