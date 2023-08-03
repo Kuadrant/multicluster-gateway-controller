@@ -57,11 +57,7 @@ spec:
     failureThreshold: 5
     port: 443
     protocol: https
-    additionalHeaders:
-      - name: "..."
-        value: "..."
-      - name: "..."
-        value: "..."
+    additionalHeaders: <SecretRef>
     expectedResponses:
       - 200
       - 301
@@ -92,11 +88,7 @@ spec:
   path: "..."
   protocol: "..."
   interval: "..."
-  additionalHeaders:
-    - name: "..."
-      value: "..."
-    - name: "..."
-      value: "..."
+  additionalHeaders: <SecretRef>
   expectedResponses:
   - 200
     201
@@ -116,7 +108,7 @@ status:
 - **Path** The path to request
 - **Protocol** The protocol to use for this request
 - **Interval** How frequently this check would ideally be executed.
-- **AdditionalHeaders** Optional headers and their values that can be specified to ensure the health check is successful.
+- **AdditionalHeaders** Optional secret ref which contains k/v: headers and their values that can be specified to ensure the health check is successful.
 - **ExpectedResponses** Optional HTTP response codes that should be considered healthy (defaults are 200 and 201).
 - **AllowInsecureCertificate** Optional flag to allow using invalid (e.g. self-signed) certificates, default is false.
 
