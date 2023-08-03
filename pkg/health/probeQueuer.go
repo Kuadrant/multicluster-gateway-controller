@@ -14,14 +14,15 @@ import (
 type ProbeQueuer struct {
 	ID string
 
-	Interval          time.Duration
-	Protocol          v1alpha1.HealthProtocol
-	Path              string
-	IPAddress         string
-	Host              string
-	Port              int
-	AdditionalHeaders v1alpha1.AdditionalHeaders
-	ExpectedReponses  []int
+	Interval                 time.Duration
+	Protocol                 v1alpha1.HealthProtocol
+	Path                     string
+	IPAddress                string
+	Host                     string
+	Port                     int
+	AdditionalHeaders        v1alpha1.AdditionalHeaders
+	ExpectedReponses         []int
+	AllowInsecureCertificate bool
 
 	Notifier ProbeNotifier
 	Queue    *QueuedProbeWorker
@@ -60,14 +61,15 @@ func (p *ProbeQueuer) Start() {
 			select {
 			case <-time.After(p.Interval):
 				p.Queue.EnqueueCheck(HealthRequest{
-					Host:              p.Host,
-					Path:              p.Path,
-					Protocol:          p.Protocol,
-					Address:           p.IPAddress,
-					Port:              p.Port,
-					AdditionalHeaders: p.AdditionalHeaders,
-					ExpectedResponses: p.ExpectedReponses,
-					Notifier:          p.Notifier,
+					Host:                     p.Host,
+					Path:                     p.Path,
+					Protocol:                 p.Protocol,
+					Address:                  p.IPAddress,
+					Port:                     p.Port,
+					AdditionalHeaders:        p.AdditionalHeaders,
+					ExpectedResponses:        p.ExpectedReponses,
+					Notifier:                 p.Notifier,
+					AllowInsecureCertificate: p.AllowInsecureCertificate,
 				})
 			case <-ctx.Done():
 				return

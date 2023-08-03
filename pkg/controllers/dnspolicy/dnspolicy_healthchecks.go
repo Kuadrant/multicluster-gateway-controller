@@ -136,20 +136,21 @@ func (r *DNSPolicyReconciler) expectedProbesForGateway(ctx context.Context, gw c
 				log.V(1).Info("reconcileHealthChecks: adding health check for target", "target", target)
 				healthCheck := &v1alpha1.DNSHealthCheckProbe{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      fmt.Sprintf("%s-%s", target, endpoint.DNSName),
+						Name:      fmt.Sprintf("%s-%s", target, dnsRecord.Name),
 						Namespace: gw.Namespace,
 						Labels:    dnsRecordLabels(client.ObjectKeyFromObject(gw), client.ObjectKeyFromObject(dnsPolicy)),
 					},
 					Spec: v1alpha1.DNSHealthCheckProbeSpec{
-						Port:              *port,
-						Host:              endpoint.DNSName,
-						Address:           target,
-						Path:              dnsPolicy.Spec.HealthCheck.Endpoint,
-						Protocol:          *dnsPolicy.Spec.HealthCheck.Protocol,
-						Interval:          metav1.Duration{Duration: 60 * time.Second},
-						AdditionalHeaders: dnsPolicy.Spec.HealthCheck.AdditionalHeaders,
-						FailureThreshold:  dnsPolicy.Spec.HealthCheck.FailureThreshold,
-						ExpectedReponses:  dnsPolicy.Spec.HealthCheck.ExpectedResponses,
+						Port:                     *port,
+						Host:                     dnsRecord.Name,
+						Address:                  target,
+						Path:                     dnsPolicy.Spec.HealthCheck.Endpoint,
+						Protocol:                 *dnsPolicy.Spec.HealthCheck.Protocol,
+						Interval:                 metav1.Duration{Duration: 60 * time.Second},
+						AdditionalHeaders:        dnsPolicy.Spec.HealthCheck.AdditionalHeaders,
+						FailureThreshold:         dnsPolicy.Spec.HealthCheck.FailureThreshold,
+						ExpectedReponses:         dnsPolicy.Spec.HealthCheck.ExpectedResponses,
+						AllowInsecureCertificate: dnsPolicy.Spec.HealthCheck.AllowInsecureCertificates,
 					},
 				}
 				healthChecks = append(healthChecks, healthCheck)

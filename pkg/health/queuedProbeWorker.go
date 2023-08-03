@@ -2,7 +2,9 @@ package health
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
+	"net"
 	"net/http"
 	"runtime"
 	"sync"
@@ -10,7 +12,7 @@ import (
 
 	"github.com/go-logr/logr"
 
-	"k8s.io/apimachinery/pkg/util/net"
+	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
@@ -35,12 +37,13 @@ func NewRequestQueue(throttle time.Duration) *QueuedProbeWorker {
 }
 
 type HealthRequest struct {
-	Host, Path, Address string
-	Protocol            v1alpha1.HealthProtocol
-	Port                int
-	AdditionalHeaders   v1alpha1.AdditionalHeaders
-	ExpectedResponses   []int
-	Notifier            ProbeNotifier
+	Host, Path, Address      string
+	Protocol                 v1alpha1.HealthProtocol
+	Port                     int
+	AdditionalHeaders        v1alpha1.AdditionalHeaders
+	ExpectedResponses        []int
+	AllowInsecureCertificate bool
+	Notifier                 ProbeNotifier
 }
 
 func (q *QueuedProbeWorker) EnqueueCheck(req HealthRequest) {
@@ -123,7 +126,13 @@ func (q *QueuedProbeWorker) process(ctx context.Context, req HealthRequest) {
 func (q *QueuedProbeWorker) performRequest(ctx context.Context, req HealthRequest) ProbeResult {
 	q.logger.V(3).Info("performing health check", "request", req)
 
-	client := http.Client{}
+	probeClient := &http.Client{
+		Transport: TransportWithDNSResponse(map[string]string{req.Host: req.Address}),
+	}
+
+	if req.AllowInsecureCertificate {
+		probeClient.Transport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	}
 
 	// Default port to 80
 	port := 80
@@ -132,13 +141,10 @@ func (q *QueuedProbeWorker) performRequest(ctx context.Context, req HealthReques
 	}
 
 	// Build the http request
-	httpReq, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s://%s:%d%s", req.Protocol.ToScheme(), req.Address, port, req.Path), nil)
+	httpReq, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s://%s:%d%s", req.Protocol.ToScheme(), req.Host, port, req.Path), nil)
 	if err != nil {
 		return ProbeResult{CheckedAt: time.Now(), Healthy: false, Reason: err.Error()}
 	}
-
-	// Set the Host header
-	httpReq.Header.Add("Host", req.Host)
 
 	// add any user-defined additional headers
 	for _, h := range req.AdditionalHeaders {
@@ -146,8 +152,8 @@ func (q *QueuedProbeWorker) performRequest(ctx context.Context, req HealthReques
 	}
 
 	// Send the request
-	res, err := client.Do(httpReq)
-	if net.IsConnectionReset(err) {
+	res, err := probeClient.Do(httpReq)
+	if utilnet.IsConnectionReset(err) {
 		res = &http.Response{StatusCode: 104}
 	} else if err != nil {
 		return ProbeResult{CheckedAt: time.Now(), Healthy: false, Reason: fmt.Sprintf("error: %s, response: %+v", err.Error(), res)}
@@ -180,4 +186,28 @@ func checkResponse(response int, expected []int) bool {
 		}
 	}
 	return false
+}
+
+// TransportWithDNSResponse creates a new transport which overrides hostnames.
+func TransportWithDNSResponse(overrides map[string]string) http.RoundTripper {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	dialer := &net.Dialer{
+		Timeout:   30 * time.Second,
+		KeepAlive: 30 * time.Second,
+	}
+
+	transport.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
+		host, port, err := net.SplitHostPort(address)
+		if err != nil {
+			return nil, err
+		}
+		newHost, ok := overrides[host]
+		if !ok {
+			return dialer.DialContext(ctx, network, address)
+		}
+		overrideAddress := net.JoinHostPort(newHost, port)
+		return dialer.DialContext(ctx, network, overrideAddress)
+	}
+
+	return transport
 }

@@ -22,15 +22,16 @@ import (
 
 // DNSHealthCheckProbeSpec defines the desired state of DNSHealthCheckProbe
 type DNSHealthCheckProbeSpec struct {
-	Port              int               `json:"port,omitempty"`
-	Host              string            `json:"host,omitempty"`
-	Address           string            `json:"address,omitempty"`
-	Path              string            `json:"path,omitempty"`
-	Protocol          HealthProtocol    `json:"protocol,omitempty"`
-	Interval          metav1.Duration   `json:"interval,omitempty"`
-	AdditionalHeaders AdditionalHeaders `json:"additionalHeaders,omitempty"`
-	FailureThreshold  *int              `json:"failureThreshold,omitempty"`
-	ExpectedReponses  []int             `json:"expectedReponses,omitempty"`
+	Port                     int               `json:"port,omitempty"`
+	Host                     string            `json:"host,omitempty"`
+	Address                  string            `json:"address,omitempty"`
+	Path                     string            `json:"path,omitempty"`
+	Protocol                 HealthProtocol    `json:"protocol,omitempty"`
+	Interval                 metav1.Duration   `json:"interval,omitempty"`
+	AdditionalHeaders        AdditionalHeaders `json:"additionalHeaders,omitempty"`
+	FailureThreshold         *int              `json:"failureThreshold,omitempty"`
+	ExpectedReponses         []int             `json:"expectedReponses,omitempty"`
+	AllowInsecureCertificate bool              `json:"AllowInsecureCertificate,omitempty"`
 }
 
 type AdditionalHeaders []AdditionalHeader

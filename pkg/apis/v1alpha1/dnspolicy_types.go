@@ -151,12 +151,13 @@ type DNSPolicyList struct {
 // By default this health check will be applied to each unique DNS A Record for
 // the listeners assigned to the target gateway
 type HealthCheckSpec struct {
-	Endpoint          string            `json:"endpoint,omitempty"`
-	Port              *int              `json:"port,omitempty"`
-	Protocol          *HealthProtocol   `json:"protocol,omitempty"`
-	FailureThreshold  *int              `json:"failureThreshold,omitempty"`
-	AdditionalHeaders AdditionalHeaders `json:"additionalHeaders,omitempty"`
-	ExpectedResponses []int             `json:"expectedResponses,omitempty"`
+	Endpoint                  string            `json:"endpoint,omitempty"`
+	Port                      *int              `json:"port,omitempty"`
+	Protocol                  *HealthProtocol   `json:"protocol,omitempty"`
+	FailureThreshold          *int              `json:"failureThreshold,omitempty"`
+	AdditionalHeaders         AdditionalHeaders `json:"additionalHeaders,omitempty"`
+	ExpectedResponses         []int             `json:"expectedResponses,omitempty"`
+	AllowInsecureCertificates bool              `json:"AllowInsecureCertificates,omitempty"`
 }
 
 type HealthCheckStatus struct {

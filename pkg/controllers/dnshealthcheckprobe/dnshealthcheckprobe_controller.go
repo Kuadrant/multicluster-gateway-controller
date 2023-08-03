@@ -87,21 +87,23 @@ func (r *DNSHealthCheckProbeReconciler) Reconcile(ctx context.Context, req ctrl.
 			p.Protocol = protocol
 			p.AdditionalHeaders = previous.Spec.AdditionalHeaders
 			p.ExpectedReponses = previous.Spec.ExpectedReponses
+			p.AllowInsecureCertificate = previous.Spec.AllowInsecureCertificate
 		})
 	} else {
 		notifier := NewStatusUpdateProbeNotifier(r.Client, previous)
 		r.HealthMonitor.AddProbeQueuer(&health.ProbeQueuer{
-			ID:                probeId,
-			Interval:          interval,
-			Host:              previous.Spec.Host,
-			Path:              previous.Spec.Path,
-			Port:              previous.Spec.Port,
-			Protocol:          protocol,
-			IPAddress:         previous.Spec.Address,
-			AdditionalHeaders: previous.Spec.AdditionalHeaders,
-			ExpectedReponses:  previous.Spec.ExpectedReponses,
-			Notifier:          notifier,
-			Queue:             r.Queue,
+			ID:                       probeId,
+			Interval:                 interval,
+			Host:                     previous.Spec.Host,
+			Path:                     previous.Spec.Path,
+			Port:                     previous.Spec.Port,
+			Protocol:                 protocol,
+			IPAddress:                previous.Spec.Address,
+			AdditionalHeaders:        previous.Spec.AdditionalHeaders,
+			ExpectedReponses:         previous.Spec.ExpectedReponses,
+			AllowInsecureCertificate: previous.Spec.AllowInsecureCertificate,
+			Notifier:                 notifier,
+			Queue:                    r.Queue,
 		})
 	}
 
