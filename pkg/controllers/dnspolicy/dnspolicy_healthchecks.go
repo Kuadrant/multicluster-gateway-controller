@@ -149,7 +149,7 @@ func (r *DNSPolicyReconciler) expectedProbesForGateway(ctx context.Context, gw c
 						Interval:                 metav1.Duration{Duration: 60 * time.Second},
 						AdditionalHeaders:        dnsPolicy.Spec.HealthCheck.AdditionalHeaders,
 						FailureThreshold:         dnsPolicy.Spec.HealthCheck.FailureThreshold,
-						ExpectedReponses:         dnsPolicy.Spec.HealthCheck.ExpectedResponses,
+						ExpectedResponses:        dnsPolicy.Spec.HealthCheck.ExpectedResponses,
 						AllowInsecureCertificate: dnsPolicy.Spec.HealthCheck.AllowInsecureCertificates,
 					},
 				}

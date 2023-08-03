@@ -148,8 +148,8 @@ func (in *DNSHealthCheckProbeSpec) DeepCopyInto(out *DNSHealthCheckProbeSpec) {
 		*out = new(int)
 		**out = **in
 	}
-	if in.ExpectedReponses != nil {
-		in, out := &in.ExpectedReponses, &out.ExpectedReponses
+	if in.ExpectedResponses != nil {
+		in, out := &in.ExpectedResponses, &out.ExpectedResponses
 		*out = make([]int, len(*in))
 		copy(*out, *in)
 	}

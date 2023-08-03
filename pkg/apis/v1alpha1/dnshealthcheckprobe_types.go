@@ -30,7 +30,7 @@ type DNSHealthCheckProbeSpec struct {
 	Interval                 metav1.Duration   `json:"interval,omitempty"`
 	AdditionalHeaders        AdditionalHeaders `json:"additionalHeaders,omitempty"`
 	FailureThreshold         *int              `json:"failureThreshold,omitempty"`
-	ExpectedReponses         []int             `json:"expectedReponses,omitempty"`
+	ExpectedResponses        []int             `json:"expectedResponses,omitempty"`
 	AllowInsecureCertificate bool              `json:"AllowInsecureCertificate,omitempty"`
 }
 
