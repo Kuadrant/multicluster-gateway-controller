@@ -2,6 +2,7 @@ package dns
 
 import "github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
 
+// nolint
 type countryCodes struct {
 	numericCode int
 	countryName string

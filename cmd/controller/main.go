@@ -48,7 +48,6 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/dnsprovider"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/health"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/placement"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/tls"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -104,7 +103,6 @@ func main() {
 
 	placement := placement.NewOCMPlacer(mgr.GetClient())
 	provider := dnsprovider.NewProvider(mgr.GetClient())
-	certService := tls.NewService(mgr.GetClient(), certProvider)
 
 	healthMonitor := health.NewMonitor()
 	healthCheckQueue := health.NewRequestQueue(time.Second * 5)
@@ -148,15 +146,14 @@ func main() {
 
 	tlsPolicyBaseReconciler := reconcilers.NewBaseReconciler(
 		mgr.GetClient(), mgr.GetScheme(), mgr.GetAPIReader(),
-		log.Log.WithName("dnspolicy"),
-		mgr.GetEventRecorderFor("DNSPolicy"),
+		log.Log.WithName("tlspolicy"),
+		mgr.GetEventRecorderFor("TLSPolicy"),
 	)
 
 	if err = (&tlspolicy.TLSPolicyReconciler{
 		TargetRefReconciler: reconcilers.TargetRefReconciler{
 			BaseReconciler: tlsPolicyBaseReconciler,
 		},
-		Placement: placement,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "TLSPolicy")
 		os.Exit(1)
@@ -180,10 +177,9 @@ func main() {
 	}
 
 	if err = (&gateway.GatewayReconciler{
-		Client:       mgr.GetClient(),
-		Scheme:       mgr.GetScheme(),
-		Certificates: certService,
-		Placement:    placement,
+		Client:    mgr.GetClient(),
+		Scheme:    mgr.GetScheme(),
+		Placement: placement,
 	}).SetupWithManager(mgr, ctx); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Gateway")
 		os.Exit(1)

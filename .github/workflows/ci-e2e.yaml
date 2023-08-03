@@ -55,4 +55,4 @@ jobs:
           export TEST_HUB_NAMESPACE=multi-cluster-gateways
           export TEST_HUB_KUBE_CONTEXT=kind-mgc-control-plane
           export TEST_MANAGED_ZONE=${{ secrets.E2E_AWS_DNS_PUBLIC_ZONE_NAME }}
-          make local-setup && make test-e2e
+          make local-setup && make kind-load-controller deploy-controller test-e2e

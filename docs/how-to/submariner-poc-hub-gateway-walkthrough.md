@@ -136,8 +136,50 @@ spec:
     hostname: sub.replace.this
     port: 443
     protocol: HTTPS
+    tls:
+      mode: Terminate
+      certificateRefs:
+        - name: apps-hcpapps-tls
+          kind: Secret
 EOF
 ```
+
+### Enable TLS
+
+1. In `T1`, create a TLSPolicy and attach it to your Gateway:
+
+    ```bash
+    kubectl apply -f - <<EOF
+    apiVersion: kuadrant.io/v1alpha1
+    kind: TLSPolicy
+    metadata:
+      name: prod-web
+      namespace: multi-cluster-gateways
+    spec:
+      targetRef:
+        name: prod-web
+        group: gateway.networking.k8s.io
+        kind: Gateway
+      issuerRef:
+        group: cert-manager.io
+        kind: ClusterIssuer
+        name: glbc-ca   
+    EOF
+    ```
+
+1. You should now see a Certificate resource in the hub cluster. In `T1`, run:
+
+    ```bash
+    kubectl get certificates -A
+    ```
+   you'll see the following:
+
+   ```
+    NAMESPACE                NAME               READY   SECRET             AGE
+    multi-cluster-gateways   apps-hcpapps-tls   True    apps-hcpapps-tls   12m
+    ```
+
+It is possible to also use a letsencrypt certificate, but for simplicity in this walkthrough we are using a self-signed cert.
 
 ### Place the gateway
 

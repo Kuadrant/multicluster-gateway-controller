@@ -18,9 +18,7 @@ package integration
 import (
 	"encoding/json"
 	"fmt"
-	"time"
 
-	certman "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	ocmclusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
@@ -164,7 +162,6 @@ var _ = Describe("GatewayController", func() {
 		var nsSpoke1 *corev1.Namespace
 		var nsSpoke2 *corev1.Namespace
 		var placementDecision *ocmclusterv1beta1.PlacementDecision
-		var tlsSecrets []*corev1.Secret
 		var hostnametest gatewayv1beta1.Hostname
 		var stringified string
 
@@ -291,27 +288,6 @@ var _ = Describe("GatewayController", func() {
 			if err != nil && !k8serrors.IsAlreadyExists(err) {
 				Expect(err).ToNot(HaveOccurred())
 			}
-			// Before: Stub for a tls secret but dont create it until further down
-			tlsSecrets = []*corev1.Secret{
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      noLGateway.Name + "-" + "default",
-						Namespace: "default",
-					},
-					StringData: map[string]string{
-						"tls.key": "some_value",
-					},
-				},
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      gateway.Name + "-" + "default",
-						Namespace: "default",
-					},
-					StringData: map[string]string{
-						"tls.key": "some_value",
-					},
-				},
-			}
 
 		})
 		// Occurs after the test is complete
@@ -373,38 +349,6 @@ var _ = Describe("GatewayController", func() {
 					return false
 				}
 				return controllerutil.ContainsFinalizer(upstreamGateway, gatewayFinalizer)
-			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
-
-			// Test: passes once there are certificate resources in place
-			Eventually(func() bool {
-				cl := &certman.CertificateList{}
-				if err := k8sClient.List(ctx, cl, &client.ListOptions{Namespace: upstreamGateway.Namespace}); err != nil {
-					return false
-				}
-				if len(cl.Items) != 1 {
-					log.Log.Info("waiting for certificates to be in place", "existing", cl.Items)
-				}
-				return len(cl.Items) == 1
-			}, TestTimeoutMedium).ProbeEvery(time.Second).Should(BeTrue())
-			// Mock: Creating tls cert manager would have created
-			for _, tls := range tlsSecrets {
-				log.Log.Info("creating tls ", "secret", tls.Name)
-				err := k8sClient.Create(ctx, tls)
-				if err != nil && !k8serrors.IsAlreadyExists(err) {
-					log.Log.Error(err, "error creating tls secret ")
-					Expect(err).ToNot(HaveOccurred())
-				}
-			}
-			//in the code we re-queue and wait 30 seconds before trying again when waiting for the certs to be ready. To avoid this going to label the gateways to force a fresh reconcile
-			Eventually(func() bool {
-				if err := k8sClient.Get(ctx, upstreamGatewayType, upstreamGateway); err != nil {
-					return false
-				}
-				upstreamGateway.Labels["certs-test"] = "done"
-				if err := k8sClient.Update(ctx, upstreamGateway, &client.UpdateOptions{}); err != nil {
-					return false
-				}
-				return true
 			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 
 			// Test: Passes when manifest1 is found in Namespace test-spoke-cluster-1 and contains the hostname from the gateway

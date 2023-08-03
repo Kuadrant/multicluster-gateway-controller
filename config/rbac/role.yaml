@@ -205,7 +205,7 @@ rules:
   - patch
   - update
 - apiGroups:
-  - kuadrant.io.kuadrant.io
+  - kuadrant.io
   resources:
   - tlspolicies
   verbs:
@@ -217,13 +217,13 @@ rules:
   - update
   - watch
 - apiGroups:
-  - kuadrant.io.kuadrant.io
+  - kuadrant.io
   resources:
   - tlspolicies/finalizers
   verbs:
   - update
 - apiGroups:
-  - kuadrant.io.kuadrant.io
+  - kuadrant.io
   resources:
   - tlspolicies/status
   verbs:

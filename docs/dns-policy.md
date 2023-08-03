@@ -31,8 +31,8 @@ spec:
           from: All
       name: api
       hostname: echo.apps.hcpapps.net
-      port: 443
-      protocol: HTTPS
+      port: 80
+      protocol: HTTP
 ```
 
 In order for the DNSPolicy to act upon that listener, a ManagedZone must exist for that hostnames domain. 
@@ -94,8 +94,8 @@ spec:
       - 201
       - 301
     failureThreshold: 5
-    port: 443
-    protocol: https
+    port: 80
+    protocol: http
 ```
 
 ### Target Reference
