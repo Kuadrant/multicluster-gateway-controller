@@ -119,7 +119,6 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 		return ctrl.Result{}, nil
 	}
-	fmt.Println("previous", previous.ObjectMeta, previous.Spec, previous.Status)
 	upstreamGateway := previous.DeepCopy()
 	log.V(3).Info("reconciling gateway", "classname", upstreamGateway.Spec.GatewayClassName)
 	if isDeleting(upstreamGateway) {
@@ -275,7 +274,6 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 // reconcileDownstreamGateway takes the upstream definition and transforms it as needed to apply it to the downstream spokes
 func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.Context, upstreamGateway *gatewayv1beta1.Gateway, params *Params) (bool, metav1.ConditionStatus, []string, error) {
-	fmt.Println("downstream from upstream")
 	log := crlog.FromContext(ctx)
 	clusters := []string{}
 	downstream := upstreamGateway.DeepCopy()

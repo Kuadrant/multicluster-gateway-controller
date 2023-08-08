@@ -23,8 +23,7 @@ import (
 )
 
 const (
-	LabelRecordID          = "kuadrant.io/record-id"
-	LabelGatewayReference  = "kuadrant.io/gateway-name"
+	LabelGatewayReference  = "kuadrant.io/gateway"
 	LabelGatewayNSRef      = "kuadrant.io/gateway-namespace"
 	LabelListenerReference = "kuadrant.io/listener-name"
 	LabelPolicyReference   = "kuadrant.io/policy-id"
@@ -281,6 +280,7 @@ func (r *dnsHelper) removeDNSForDeletedListeners(ctx context.Context, upstreamGa
 		for _, listener := range upstreamGateway.Spec.Listeners {
 			if listener.Name == gatewayv1beta1.SectionName(dns.Labels[LabelListenerReference]) {
 				listenerExists = true
+				break
 			}
 		}
 		if !listenerExists {
@@ -309,7 +309,6 @@ func dnsRecordName(gatewayName, listenerName string) string {
 }
 
 func (r *dnsHelper) createDNSRecordForListener(ctx context.Context, gateway *gatewayv1beta1.Gateway, dnsPolicy *v1alpha1.DNSPolicy, mz *v1alpha1.ManagedZone, listener gatewayv1beta1.Listener) (*v1alpha1.DNSRecord, error) {
-	//managedHost := strings.ToLower(fmt.Sprintf("%s.%s", subDomain, managedZone.Spec.DomainName))
 
 	log := log.FromContext(ctx)
 	log.Info("creating dns for gateway listener", "listener", listener.Name)

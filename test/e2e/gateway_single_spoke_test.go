@@ -40,7 +40,7 @@ var _ = Describe("Gateway single target cluster", func() {
 	BeforeEach(func(ctx SpecContext) {
 		testID = "t-e2e-" + tconfig.GenerateName()
 
-		By("creating a Placement for the Gateway resource " + testID)
+		By("creating a Placement for the Gateway resource ")
 		placement = &ocm_cluster_v1beta1.Placement{
 			ObjectMeta: metav1.ObjectMeta{Name: testID, Namespace: tconfig.HubNamespace()},
 			Spec: ocm_cluster_v1beta1.PlacementSpec{
@@ -52,7 +52,7 @@ var _ = Describe("Gateway single target cluster", func() {
 		err := tconfig.HubClient().Create(ctx, placement)
 		Expect(err).ToNot(HaveOccurred())
 
-		By("creating a Gateway in the hub" + testID)
+		By("creating a Gateway in the hub")
 		hostname = gatewayapi.Hostname(strings.Join([]string{testID, tconfig.ManagedZone()}, "."))
 		gw = &gatewayapi.Gateway{
 			ObjectMeta: metav1.ObjectMeta{
@@ -84,7 +84,7 @@ var _ = Describe("Gateway single target cluster", func() {
 		err = tconfig.HubClient().Create(ctx, gw)
 		Expect(err).ToNot(HaveOccurred())
 
-		By("creating a a test application in the spoke for " + testID)
+		By("creating a a test application in the spoke for ")
 
 		key := client.ObjectKey{Name: "test", Namespace: testID}
 
