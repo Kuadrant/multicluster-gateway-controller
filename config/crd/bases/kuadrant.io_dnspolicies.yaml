@@ -45,20 +45,15 @@ spec:
                   By default this health check will be applied to each unique DNS
                   A Record for the listeners assigned to the target gateway
                 properties:
-                  AllowInsecureCertificates:
+                  additionalHeadersRef:
+                    properties:
+                      name:
+                        type: string
+                    required:
+                    - name
+                    type: object
+                  allowInsecureCertificates:
                     type: boolean
-                  additionalHeaders:
-                    items:
-                      properties:
-                        name:
-                          type: string
-                        value:
-                          type: string
-                      required:
-                      - name
-                      - value
-                      type: object
-                    type: array
                   endpoint:
                     type: string
                   expectedResponses:

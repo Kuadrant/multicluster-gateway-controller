@@ -147,7 +147,7 @@ func (r *DNSPolicyReconciler) expectedProbesForGateway(ctx context.Context, gw c
 						Path:                     dnsPolicy.Spec.HealthCheck.Endpoint,
 						Protocol:                 *dnsPolicy.Spec.HealthCheck.Protocol,
 						Interval:                 metav1.Duration{Duration: 60 * time.Second},
-						AdditionalHeaders:        dnsPolicy.Spec.HealthCheck.AdditionalHeaders,
+						AdditionalHeadersRef:     dnsPolicy.Spec.HealthCheck.AdditionalHeadersRef,
 						FailureThreshold:         dnsPolicy.Spec.HealthCheck.FailureThreshold,
 						ExpectedResponses:        dnsPolicy.Spec.HealthCheck.ExpectedResponses,
 						AllowInsecureCertificate: dnsPolicy.Spec.HealthCheck.AllowInsecureCertificates,
