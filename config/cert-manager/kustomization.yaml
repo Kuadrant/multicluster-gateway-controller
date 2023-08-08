@@ -15,4 +15,4 @@ helmCharts:
           namespace: cert-manager
       installCRDs: true
       # Customize active controllers
-      extraArgs: ["--controllers=*,-ingress-shim"]
+      extraArgs: ["--controllers=*,-ingress-shim","--enable-certificate-owner-ref=true"]

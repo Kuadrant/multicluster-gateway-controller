@@ -2,7 +2,6 @@ package dnspolicy
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -21,7 +20,13 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/traffic"
+)
+
+const (
+	LabelGatewayReference  = "kuadrant.io/gateway"
+	LabelGatewayNSRef      = "kuadrant.io/gateway-namespace"
+	LabelListenerReference = "kuadrant.io/listener-name"
+	LabelPolicyReference   = "kuadrant.io/policy-id"
 )
 
 var (
@@ -31,17 +36,6 @@ var (
 
 type dnsHelper struct {
 	client.Client
-}
-
-// getManagedZoneForHost returns a ManagedZone and subDomain for the given host if one exists.
-// Currently, this returns the first matching ManagedZone found in the traffic resources own namespace
-func (dh *dnsHelper) getManagedZoneForHost(ctx context.Context, host string, t traffic.Interface) (*v1alpha1.ManagedZone, string, error) {
-	var managedZones v1alpha1.ManagedZoneList
-	if err := dh.List(ctx, &managedZones, client.InNamespace(t.GetNamespace())); err != nil {
-		log.FromContext(ctx).Error(err, "unable to list managed zones in traffic resource NS")
-		return nil, "", err
-	}
-	return findMatchingManagedZone(host, host, managedZones.Items)
 }
 
 func findMatchingManagedZone(originalHost, host string, zones []v1alpha1.ManagedZone) (*v1alpha1.ManagedZone, string, error) {
@@ -82,22 +76,22 @@ func findMatchingManagedZone(originalHost, host string, zones []v1alpha1.Managed
 
 }
 
-func dnsRecordLabels(gwKey, apKey client.ObjectKey) map[string]string {
+func commonDNSRecordLabels(gwKey, apKey client.ObjectKey) map[string]string {
 	return map[string]string{
 		DNSPolicyBackRefAnnotation:                              apKey.Name,
 		fmt.Sprintf("%s-namespace", DNSPolicyBackRefAnnotation): apKey.Namespace,
-		"gateway-namespace":                                     gwKey.Namespace,
-		"gateway":                                               gwKey.Name,
+		LabelGatewayNSRef:                                       gwKey.Namespace,
+		LabelGatewayReference:                                   gwKey.Name,
 	}
 }
 
-func (dh *dnsHelper) buildDNSRecord(gateway *gatewayv1beta1.Gateway, dnsPolicy *v1alpha1.DNSPolicy, subDomain string, managedZone *v1alpha1.ManagedZone) *v1alpha1.DNSRecord {
-	managedHost := strings.ToLower(fmt.Sprintf("%s.%s", subDomain, managedZone.Spec.DomainName))
+func (dh *dnsHelper) buildDNSRecordForListener(gateway *gatewayv1beta1.Gateway, dnsPolicy *v1alpha1.DNSPolicy, targetListener gatewayv1beta1.Listener, managedZone *v1alpha1.ManagedZone) *v1alpha1.DNSRecord {
+
 	dnsRecord := &v1alpha1.DNSRecord{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      managedHost,
+			Name:      dnsRecordName(gateway.Name, string(targetListener.Name)),
 			Namespace: managedZone.Namespace,
-			Labels:    dnsRecordLabels(client.ObjectKeyFromObject(gateway), client.ObjectKeyFromObject(dnsPolicy)),
+			Labels:    commonDNSRecordLabels(client.ObjectKeyFromObject(gateway), client.ObjectKeyFromObject(dnsPolicy)),
 		},
 		Spec: v1alpha1.DNSRecordSpec{
 			ManagedZoneRef: &v1alpha1.ManagedZoneReference{
@@ -105,94 +99,22 @@ func (dh *dnsHelper) buildDNSRecord(gateway *gatewayv1beta1.Gateway, dnsPolicy *
 			},
 		},
 	}
+	dnsRecord.Labels[LabelListenerReference] = string(targetListener.Name)
 	return dnsRecord
 }
 
-// createDNSRecord creates a new DNSRecord, if one does not already exist, in the given managed zone with the given subdomain.
-// Needs traffic.Interface owner to block other traffic objects from accessing this record
-func (dh *dnsHelper) createDNSRecord(ctx context.Context, gateway *gatewayv1beta1.Gateway, dnsPolicy *v1alpha1.DNSPolicy, subDomain string, managedZone *v1alpha1.ManagedZone) (*v1alpha1.DNSRecord, error) {
-	dnsRecord := dh.buildDNSRecord(gateway, dnsPolicy, subDomain, managedZone)
-
-	err := controllerutil.SetControllerReference(managedZone, dnsRecord, dh.Scheme())
-	if err != nil {
-		return nil, err
-	}
-
-	err = dh.Create(ctx, dnsRecord, &client.CreateOptions{})
-	if err != nil && !k8serrors.IsAlreadyExists(err) {
-		return nil, err
-	}
-	//host may already be present
-	if err != nil && k8serrors.IsAlreadyExists(err) {
-		err = dh.Get(ctx, client.ObjectKeyFromObject(dnsRecord), dnsRecord)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return dnsRecord, nil
-}
-
-func (dh *dnsHelper) getManagedHosts(ctx context.Context, gateway *gatewayv1beta1.Gateway, dnsPolicy *v1alpha1.DNSPolicy) ([]v1alpha1.ManagedHost, error) {
-	var managed []v1alpha1.ManagedHost
-	gatewayAccessor := traffic.NewGateway(gateway)
-	for _, host := range gatewayAccessor.GetHosts() {
-		managedZone, subDomain, err := dh.getManagedZoneForHost(ctx, host, gatewayAccessor)
-		if err != nil && !errors.Is(err, ErrNoManagedZoneForHost) {
-			return nil, err
-		}
-		if managedZone == nil {
-			// its ok for no managedzone to be present as this could be a CNAME or externally managed host
-			continue
-		}
-		dnsRecord, err := dh.getDNSRecord(ctx, gateway, dnsPolicy, subDomain, managedZone)
-		if err != nil && !k8serrors.IsNotFound(err) {
-			return nil, err
-		}
-		managedHost := v1alpha1.ManagedHost{
-			Host:        host,
-			Subdomain:   subDomain,
-			ManagedZone: managedZone,
-			DnsRecord:   dnsRecord,
-		}
-
-		managed = append(managed, managedHost)
-	}
-	return managed, nil
-}
-
-// getDNSRecord returns a v1alpha1.DNSRecord, if one exists, for the given subdomain in the given v1alpha1.ManagedZone.
+// getDNSRecordForListener returns a v1alpha1.DNSRecord, if one exists, for the given listener in the given v1alpha1.ManagedZone.
 // It needs a reference string to enforce DNS record serving a single traffic.Interface owner
-func (dh *dnsHelper) getDNSRecord(ctx context.Context, gateway *gatewayv1beta1.Gateway, dnsPolicy *v1alpha1.DNSPolicy, subDomain string, managedZone *v1alpha1.ManagedZone) (*v1alpha1.DNSRecord, error) {
-	managedHost := strings.ToLower(fmt.Sprintf("%s.%s", subDomain, managedZone.Spec.DomainName))
-
+func (dh *dnsHelper) getDNSRecordForListener(ctx context.Context, listener gatewayv1beta1.Listener, owner metav1.Object) (*v1alpha1.DNSRecord, error) {
+	recordName := dnsRecordName(owner.GetName(), string(listener.Name))
 	dnsRecord := &v1alpha1.DNSRecord{}
-	if err := dh.Get(ctx, client.ObjectKey{Name: managedHost, Namespace: managedZone.GetNamespace()}, dnsRecord); err != nil {
+	if err := dh.Get(ctx, client.ObjectKey{Name: recordName, Namespace: owner.GetNamespace()}, dnsRecord); err != nil {
 		if k8serrors.IsNotFound(err) {
-			log.Log.V(1).Info("no dnsrecord found for host ", "host", managedHost)
+			log.Log.V(1).Info("no dnsrecord found for listener ", "listener", listener)
 		}
 		return nil, err
 	}
-	if dnsRecord.GetLabels()[DNSPolicyBackRefAnnotation] != client.ObjectKeyFromObject(dnsPolicy).Name {
-		return nil, fmt.Errorf("attempting to get a DNSrecord for a host already in use by a different traffic object. Host: %s", managedHost)
-	}
 	return dnsRecord, nil
-}
-
-// getDNSRecordManagedZone returns the current ManagedZone for the given DNSRecord.
-func (dh *dnsHelper) getDNSRecordManagedZone(ctx context.Context, dnsRecord *v1alpha1.DNSRecord) (*v1alpha1.ManagedZone, error) {
-
-	if dnsRecord.Spec.ManagedZoneRef == nil {
-		return nil, fmt.Errorf("no managed zone configured for : %s", dnsRecord.Name)
-	}
-
-	managedZone := &v1alpha1.ManagedZone{}
-
-	err := dh.Get(ctx, client.ObjectKey{Namespace: dnsRecord.Namespace, Name: dnsRecord.Spec.ManagedZoneRef.Name}, managedZone)
-	if err != nil {
-		return nil, err
-	}
-
-	return managedZone, nil
 }
 
 // setEndpoints sets the endpoints for the given MultiClusterGatewayTarget
@@ -234,10 +156,14 @@ func (dh *dnsHelper) getDNSRecordManagedZone(ctx context.Context, dnsRecord *v1a
 // ab2.lb-a1b2.shop.example.com A 192.22.2.3
 // ab3.lb-a1b2.shop.example.com A 192.22.2.4
 
-func (dh *dnsHelper) setEndpoints(ctx context.Context, mcgTarget *dns.MultiClusterGatewayTarget, dnsRecord *v1alpha1.DNSRecord, listener *gatewayv1beta1.Listener) error {
+func (dh *dnsHelper) setEndpoints(ctx context.Context, mcgTarget *dns.MultiClusterGatewayTarget, dnsRecord *v1alpha1.DNSRecord, listener gatewayv1beta1.Listener) error {
 
 	old := dnsRecord.DeepCopy()
-	gwListenerHost := dnsRecord.Name
+	gwListenerHost := string(*listener.Hostname)
+	cnameHost := gwListenerHost
+	if isWildCardListener(listener) {
+		cnameHost = strings.Replace(gwListenerHost, "*.", "", -1)
+	}
 
 	//Health Checks currently modify endpoints so we have to keep existing ones in order to not lose health check ids
 	currentEndpoints := make(map[string]*v1alpha1.Endpoint, len(dnsRecord.Spec.Endpoints))
@@ -250,7 +176,7 @@ func (dh *dnsHelper) setEndpoints(ctx context.Context, mcgTarget *dns.MultiClust
 		endpoint        *v1alpha1.Endpoint
 		defaultEndpoint *v1alpha1.Endpoint
 	)
-	lbName := strings.ToLower(fmt.Sprintf("lb-%s.%s", mcgTarget.GetShortCode(), gwListenerHost))
+	lbName := strings.ToLower(fmt.Sprintf("lb-%s.%s", mcgTarget.GetShortCode(), cnameHost))
 
 	for geoCode, cgwTargets := range mcgTarget.GroupTargetsByGeo() {
 		geoLbName := strings.ToLower(fmt.Sprintf("%s.%s", geoCode, lbName))
@@ -336,4 +262,85 @@ func createOrUpdateEndpoint(dnsName string, targets v1alpha1.Targets, recordType
 	endpoint.Targets = targets
 	endpoint.RecordTTL = recordTTL
 	return endpoint
+}
+
+// removeDNSForDeletedListeners remove any DNSRecords that are associated with listeners that no longer exist in this gateway
+func (r *dnsHelper) removeDNSForDeletedListeners(ctx context.Context, upstreamGateway *gatewayv1beta1.Gateway) error {
+	dnsList := &v1alpha1.DNSRecordList{}
+	//List all dns records that belong to this gateway
+	labelSelector := &client.MatchingLabels{
+		LabelGatewayReference: upstreamGateway.Name,
+	}
+	if err := r.List(ctx, dnsList, labelSelector, &client.ListOptions{Namespace: upstreamGateway.Namespace}); err != nil {
+		return err
+	}
+
+	for _, dns := range dnsList.Items {
+		listenerExists := false
+		for _, listener := range upstreamGateway.Spec.Listeners {
+			if listener.Name == gatewayv1beta1.SectionName(dns.Labels[LabelListenerReference]) {
+				listenerExists = true
+				break
+			}
+		}
+		if !listenerExists {
+			if err := r.Delete(ctx, &dns, &client.DeleteOptions{}); client.IgnoreNotFound(err) != nil {
+				return err
+			}
+		}
+	}
+	return nil
+
+}
+
+func (r *dnsHelper) getManagedZoneForListener(ctx context.Context, ns string, listener gatewayv1beta1.Listener) (*v1alpha1.ManagedZone, error) {
+	var managedZones v1alpha1.ManagedZoneList
+	if err := r.List(ctx, &managedZones, client.InNamespace(ns)); err != nil {
+		log.FromContext(ctx).Error(err, "unable to list managed zones for gateway ", "in ns", ns)
+		return nil, err
+	}
+	host := string(*listener.Hostname)
+	mz, _, err := findMatchingManagedZone(host, host, managedZones.Items)
+	return mz, err
+}
+
+func dnsRecordName(gatewayName, listenerName string) string {
+	return fmt.Sprintf("%s-%s", gatewayName, listenerName)
+}
+
+func (r *dnsHelper) createDNSRecordForListener(ctx context.Context, gateway *gatewayv1beta1.Gateway, dnsPolicy *v1alpha1.DNSPolicy, mz *v1alpha1.ManagedZone, listener gatewayv1beta1.Listener) (*v1alpha1.DNSRecord, error) {
+
+	log := log.FromContext(ctx)
+	log.Info("creating dns for gateway listener", "listener", listener.Name)
+	dnsRecord := r.buildDNSRecordForListener(gateway, dnsPolicy, listener, mz)
+	if err := controllerutil.SetControllerReference(mz, dnsRecord, r.Scheme()); err != nil {
+		return dnsRecord, err
+	}
+
+	err := r.Create(ctx, dnsRecord, &client.CreateOptions{})
+	if err != nil && !k8serrors.IsAlreadyExists(err) {
+		return dnsRecord, err
+	}
+	if err != nil && k8serrors.IsAlreadyExists(err) {
+		err = r.Get(ctx, client.ObjectKeyFromObject(dnsRecord), dnsRecord)
+		if err != nil {
+			return dnsRecord, err
+		}
+	}
+	return dnsRecord, nil
+}
+
+func (r *dnsHelper) deleteDNSRecordForListener(ctx context.Context, owner metav1.Object, listener gatewayv1beta1.Listener) error {
+	recordName := dnsRecordName(owner.GetName(), string(listener.Name))
+	dnsRecord := v1alpha1.DNSRecord{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      recordName,
+			Namespace: owner.GetNamespace(),
+		},
+	}
+	return r.Delete(ctx, &dnsRecord, &client.DeleteOptions{})
+}
+
+func isWildCardListener(l gatewayv1beta1.Listener) bool {
+	return strings.HasPrefix(string(*l.Hostname), "*")
 }

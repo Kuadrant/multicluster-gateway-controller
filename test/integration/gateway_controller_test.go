@@ -18,7 +18,9 @@ package integration
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
+	certman "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	ocmclusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
@@ -162,7 +164,7 @@ var _ = Describe("GatewayController", func() {
 		var nsSpoke1 *corev1.Namespace
 		var nsSpoke2 *corev1.Namespace
 		var placementDecision *ocmclusterv1beta1.PlacementDecision
-		var tlsSecrets *corev1.Secret
+		var tlsSecrets []*corev1.Secret
 		var hostnametest gatewayv1beta1.Hostname
 		var stringified string
 
@@ -229,7 +231,6 @@ var _ = Describe("GatewayController", func() {
 			Expect(k8sClient.Status().Update(ctx, placementDecision)).To(BeNil())
 			//Before: Stub Gateway for tests but not creating it here
 			hostname1 := gatewayv1beta1.Hostname("test1.example.com")
-			hostname2 := gatewayv1beta1.Hostname("test2.example.com")
 			gateway = &gatewayv1beta1.Gateway{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-gw-1",
@@ -246,12 +247,6 @@ var _ = Describe("GatewayController", func() {
 							Port:     8443,
 							Protocol: gatewayv1beta1.HTTPSProtocolType,
 							Hostname: &hostname1,
-						},
-						{
-							Name:     "web",
-							Port:     8443,
-							Protocol: gatewayv1beta1.HTTPSProtocolType,
-							Hostname: &hostname2,
 						},
 					},
 				},
@@ -297,13 +292,24 @@ var _ = Describe("GatewayController", func() {
 				Expect(err).ToNot(HaveOccurred())
 			}
 			// Before: Stub for a tls secret but dont create it until further down
-			tlsSecrets = &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test.example.com",
-					Namespace: "default",
+			tlsSecrets = []*corev1.Secret{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      noLGateway.Name + "-" + "default",
+						Namespace: "default",
+					},
+					StringData: map[string]string{
+						"tls.key": "some_value",
+					},
 				},
-				StringData: map[string]string{
-					"tls.key": "some_value",
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      gateway.Name + "-" + "default",
+						Namespace: "default",
+					},
+					StringData: map[string]string{
+						"tls.key": "some_value",
+					},
 				},
 			}
 
@@ -369,24 +375,45 @@ var _ = Describe("GatewayController", func() {
 				return controllerutil.ContainsFinalizer(upstreamGateway, gatewayFinalizer)
 			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 
-			// Test: Passes if the gateway has the correct label
+			// Test: passes once there are certificate resources in place
 			Eventually(func() bool {
-				if err := k8sClient.Get(ctx, upstreamGatewayType, gateway); err != nil {
+				cl := &certman.CertificateList{}
+				if err := k8sClient.List(ctx, cl, &client.ListOptions{Namespace: upstreamGateway.Namespace}); err != nil {
 					return false
 				}
-				return gateway.Labels["kuadrant.io/managed"] == "true"
-
-			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
-
+				if len(cl.Items) != 1 {
+					log.Log.Info("waiting for certificates to be in place", "existing", cl.Items)
+				}
+				return len(cl.Items) == 1
+			}, TestTimeoutMedium).ProbeEvery(time.Second).Should(BeTrue())
 			// Mock: Creating tls cert manager would have created
-			err := k8sClient.Create(ctx, tlsSecrets)
-			if err != nil && !k8serrors.IsAlreadyExists(err) {
-				Expect(err).ToNot(HaveOccurred())
-
+			for _, tls := range tlsSecrets {
+				log.Log.Info("creating tls ", "secret", tls.Name)
+				err := k8sClient.Create(ctx, tls)
+				if err != nil && !k8serrors.IsAlreadyExists(err) {
+					log.Log.Error(err, "error creating tls secret ")
+					Expect(err).ToNot(HaveOccurred())
+				}
 			}
+			//in the code we re-queue and wait 30 seconds before trying again when waiting for the certs to be ready. To avoid this going to label the gateways to force a fresh reconcile
+			Eventually(func() bool {
+				if err := k8sClient.Get(ctx, upstreamGatewayType, upstreamGateway); err != nil {
+					return false
+				}
+				upstreamGateway.Labels["certs-test"] = "done"
+				if err := k8sClient.Update(ctx, upstreamGateway, &client.UpdateOptions{}); err != nil {
+					return false
+				}
+				return true
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 
 			// Test: Passes when manifest1 is found in Namespace test-spoke-cluster-1 and contains the hostname from the gateway
 			Eventually(func() bool {
+				mwList := ocmworkv1.ManifestWorkList{}
+				if err := k8sClient.List(ctx, &mwList, &client.ListOptions{Namespace: "nsSpoke1Name"}); err != nil {
+					log.Log.Error(err, "error getting ManifestWork")
+				}
+				log.Log.Info("manifests", "items", mwList.Items)
 				if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: nsSpoke1Name, Name: "gateway-default-test-gw-1"}, manifest1); err != nil {
 					log.Log.Error(err, "error getting ManifestWork")
 
@@ -397,11 +424,12 @@ var _ = Describe("GatewayController", func() {
 				gateway := &gatewayv1beta1.Gateway{}
 				err := json.Unmarshal(rawBytes, gateway)
 				if err != nil {
+					log.Log.Error(err, "failed to unmarshal gateway")
 					return false
 				}
 				hostnametest = *gateway.Spec.Listeners[0].Hostname
 				stringified = string(hostnametest)
-				return err == nil
+				return true
 
 			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 			//Comparing the hostname
@@ -497,8 +525,9 @@ var _ = Describe("GatewayController", func() {
 					},
 				},
 			}
-
-			Expect(k8sClient.Status().Update(ctx, manifest1)).To(BeNil())
+			Eventually(func() error {
+				return k8sClient.Status().Update(ctx, manifest1)
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
 
 			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: manifest2.Namespace, Name: manifest2.Name}, manifest2)).To(BeNil())
 			//Mock: Make the manifestwork status in manifest 2 be "applied". OCM usually does it when the resources have been applied
@@ -597,20 +626,13 @@ var _ = Describe("GatewayController", func() {
 
 			// Test the aggregated listeners are correct
 			listeners := upstreamGateway.Status.Listeners
-			Expect(len(listeners)).To(BeEquivalentTo(4)) // 2 Gateways. Each Gateway has 2 listeners: 'default' and 'web'
+			Expect(len(listeners)).To(BeEquivalentTo(2)) // 2 Gateways. Each Gateway has 1 listeners: 'default'
 			listener1 := listeners[0]
 			Expect(listener1.Name).To(BeEquivalentTo(fmt.Sprintf("%s.default", nsSpoke1Name)))
 			Expect(listener1.AttachedRoutes).To(BeEquivalentTo(1))
 			listener2 := listeners[1]
 			Expect(listener2.Name).To(BeEquivalentTo(fmt.Sprintf("%s.default", nsSpoke2Name)))
 			Expect(listener2.AttachedRoutes).To(BeEquivalentTo(0))
-			listener3 := listeners[2]
-			Expect(listener3.Name).To(BeEquivalentTo(fmt.Sprintf("%s.web", nsSpoke1Name)))
-			Expect(listener3.AttachedRoutes).To(BeEquivalentTo(1))
-			listener4 := listeners[3]
-			Expect(listener4.Name).To(BeEquivalentTo(fmt.Sprintf("%s.web", nsSpoke2Name)))
-			Expect(listener4.AttachedRoutes).To(BeEquivalentTo(1))
-
 		})
 
 		// Tests if the placement label isnt present no manifest should be created

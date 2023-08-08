@@ -10,7 +10,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/traffic"
 	testutil "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 )
 
@@ -18,11 +17,7 @@ type FakeCertificateService struct {
 	controlClient client.Client
 }
 
-func (s *FakeCertificateService) CleanupCertificates(_ context.Context, _ traffic.Interface) error {
-	return nil
-}
-
-func (s *FakeCertificateService) EnsureCertificate(_ context.Context, host string, _ metav1.Object) error {
+func (s *FakeCertificateService) EnsureCertificate(_ context.Context, name, host string, _ metav1.Object) error {
 	if host == testutil.FailEnsureCertHost {
 		return fmt.Errorf(testutil.FailEnsureCertHost)
 	}
@@ -30,9 +25,7 @@ func (s *FakeCertificateService) EnsureCertificate(_ context.Context, host strin
 }
 
 func (s *FakeCertificateService) GetCertificateSecret(ctx context.Context, host string, namespace string) (*v1.Secret, error) {
-	if host == testutil.FailGetCertSecretHost {
-		return &v1.Secret{}, fmt.Errorf(testutil.FailGetCertSecretHost)
-	}
+
 	tlsSecret := &v1.Secret{ObjectMeta: metav1.ObjectMeta{
 		Name:      host,
 		Namespace: namespace,

@@ -10,6 +10,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -57,6 +58,7 @@ func testBuildGatewayClass(gwClassName, ns string) *gatewayv1beta1.GatewayClass 
 
 func testBuildGateway(gwName, gwClassName, hostname, ns string) *gatewayv1beta1.Gateway {
 	typedHostname := gatewayv1beta1.Hostname(hostname)
+	wildcardHost := gatewayv1beta1.Hostname(TestWildCardListenerHost)
 	return &gatewayv1beta1.Gateway{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      gwName,
@@ -68,6 +70,12 @@ func testBuildGateway(gwName, gwClassName, hostname, ns string) *gatewayv1beta1.
 				{
 					Name:     gatewayv1beta1.SectionName(hostname),
 					Hostname: &typedHostname,
+					Port:     gatewayv1beta1.PortNumber(80),
+					Protocol: gatewayv1beta1.HTTPProtocolType,
+				},
+				{
+					Name:     gatewayv1beta1.SectionName(TestWildCardListenerName),
+					Hostname: &wildcardHost,
 					Port:     gatewayv1beta1.PortNumber(80),
 					Protocol: gatewayv1beta1.HTTPProtocolType,
 				},
@@ -187,11 +195,13 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 
 	Context("gateway placed", func() {
 		var gateway *gatewayv1beta1.Gateway
-		var lbHash string
+		var lbHash, dnsRecordName, wildcardDNSRecordName string
 
 		BeforeEach(func() {
 			gateway = testBuildGateway(TestPlacedGatewayName, gatewayClass.Name, TestAttachedRouteName, testNamespace)
 			lbHash = dns.ToBase36hash(fmt.Sprintf("%s-%s", gateway.Name, gateway.Namespace))
+			dnsRecordName = fmt.Sprintf("%s-%s", TestPlacedGatewayName, TestAttachedRouteName)
+			wildcardDNSRecordName = fmt.Sprintf("%s-%s", TestPlacedGatewayName, TestWildCardListenerName)
 			Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
 			Eventually(func() bool { //gateway exists
 				if err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway); err != nil {
@@ -268,7 +278,8 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 					},
 				}
 				Eventually(func() bool { // DNS record exists
-					if err := k8sClient.Get(ctx, client.ObjectKey{Name: TestAttachedRouteName, Namespace: testNamespace}, createdDNSRecord); err != nil {
+
+					if err := k8sClient.Get(ctx, client.ObjectKey{Name: dnsRecordName, Namespace: testNamespace}, createdDNSRecord); err != nil {
 						return false
 					}
 					return len(createdDNSRecord.Spec.Endpoints) == 4
@@ -276,6 +287,68 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 				Expect(createdDNSRecord.Spec.ManagedZoneRef.Name).To(Equal("example.com"))
 				Expect(createdDNSRecord.Spec.Endpoints).To(HaveLen(4))
 				Expect(createdDNSRecord.Spec.Endpoints).Should(ContainElements(expectedEndpoints))
+			})
+			It("should create a wildcard dns record", func() {
+				wildcardDNSRecord := &v1alpha1.DNSRecord{}
+				expectedEndpoints := []*v1alpha1.Endpoint{
+					{
+						DNSName: TestWildCardListenerHost,
+						Targets: []string{
+							"lb-" + lbHash + ".example.com",
+						},
+						RecordType:    "CNAME",
+						SetIdentifier: "",
+						RecordTTL:     300,
+					},
+					{
+						DNSName: "lb-" + lbHash + ".example.com",
+						Targets: []string{
+							"default.lb-" + lbHash + ".example.com",
+						},
+						RecordType:    "CNAME",
+						SetIdentifier: "default",
+						RecordTTL:     300,
+						ProviderSpecific: v1alpha1.ProviderSpecific{
+							{
+								Name:  "geo-code",
+								Value: "*",
+							},
+						},
+					},
+					{
+						DNSName: "16z1l1.lb-" + lbHash + ".example.com",
+						Targets: []string{
+							"172.0.0.3",
+						},
+						RecordType:    "A",
+						SetIdentifier: "",
+						RecordTTL:     60,
+					},
+					{
+						DNSName: "default.lb-" + lbHash + ".example.com",
+						Targets: []string{
+							"16z1l1.lb-" + lbHash + ".example.com",
+						},
+						RecordType:    "CNAME",
+						SetIdentifier: "16z1l1.lb-" + lbHash + ".example.com",
+						RecordTTL:     60,
+						ProviderSpecific: v1alpha1.ProviderSpecific{
+							{
+								Name:  "weight",
+								Value: "120",
+							},
+						},
+					},
+				}
+				Eventually(func() bool { // DNS record exists
+					if err := k8sClient.Get(ctx, client.ObjectKey{Name: wildcardDNSRecordName, Namespace: testNamespace}, wildcardDNSRecord); err != nil {
+						return false
+					}
+					return len(wildcardDNSRecord.Spec.Endpoints) == 4
+				}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+				Expect(wildcardDNSRecord.Spec.ManagedZoneRef.Name).To(Equal("example.com"))
+				Expect(wildcardDNSRecord.Spec.Endpoints).To(HaveLen(4))
+				Expect(wildcardDNSRecord.Spec.Endpoints).Should(ContainElements(expectedEndpoints))
 			})
 
 			It("should have ready status", func() {
@@ -308,6 +381,34 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 					Expect(err).ToNot(HaveOccurred())
 					return existingGateway.GetAnnotations()
 				}, time.Second*5, time.Second).Should(HaveKeyWithValue(DNSPoliciesBackRefAnnotation, policiesBackRefValue))
+			})
+
+			It("should remove dns records when listener removed", func() {
+				//get the gateway and remove the listeners
+
+				Eventually(func() error {
+					existingGateway := &gatewayv1beta1.Gateway{}
+					if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(gateway), existingGateway); err != nil {
+						return err
+					}
+					newListeners := []gatewayv1beta1.Listener{}
+					for _, existing := range existingGateway.Spec.Listeners {
+						if existing.Name == TestWildCardListenerName {
+							newListeners = append(newListeners, existing)
+						}
+					}
+
+					existingGateway.Spec.Listeners = newListeners
+					rec := &v1alpha1.DNSRecord{}
+					if err := k8sClient.Update(ctx, existingGateway, &client.UpdateOptions{}); err != nil {
+						return err
+					}
+					//dns record should be removed for non wildcard
+					if err := k8sClient.Get(ctx, client.ObjectKey{Name: dnsRecordName, Namespace: testNamespace}, rec); err != nil && !k8serrors.IsNotFound(err) {
+						return err
+					}
+					return k8sClient.Get(ctx, client.ObjectKey{Name: wildcardDNSRecordName, Namespace: testNamespace}, rec)
+				}, time.Second*10, time.Second).Should(BeNil())
 			})
 
 			It("should remove gateway back reference on policy deletion", func() {
@@ -442,7 +543,85 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 					},
 				}
 				Eventually(func() bool { // DNS record exists
-					if err := k8sClient.Get(ctx, client.ObjectKey{Name: TestAttachedRouteName, Namespace: dnsPolicy.Namespace}, createdDNSRecord); err != nil {
+					if err := k8sClient.Get(ctx, client.ObjectKey{Name: dnsRecordName, Namespace: dnsPolicy.Namespace}, createdDNSRecord); err != nil {
+						return false
+					}
+					return len(createdDNSRecord.Spec.Endpoints) == 5
+				}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+				Expect(createdDNSRecord.Spec.ManagedZoneRef.Name).To(Equal("example.com"))
+				Expect(createdDNSRecord.Spec.Endpoints).To(HaveLen(5))
+				Expect(createdDNSRecord.Spec.Endpoints).Should(ContainElements(expectedEndpoints))
+			})
+
+			It("should create a wildcard dns record", func() {
+				createdDNSRecord := &v1alpha1.DNSRecord{}
+				expectedEndpoints := []*v1alpha1.Endpoint{
+					{
+						DNSName: TestWildCardListenerHost,
+						Targets: []string{
+							"lb-" + lbHash + ".example.com",
+						},
+						RecordType:    "CNAME",
+						SetIdentifier: "",
+						RecordTTL:     300,
+					},
+					{
+						DNSName: "lb-" + lbHash + ".example.com",
+						Targets: []string{
+							"ie.lb-" + lbHash + ".example.com",
+						},
+						RecordType:    "CNAME",
+						SetIdentifier: "IE",
+						RecordTTL:     300,
+						ProviderSpecific: v1alpha1.ProviderSpecific{
+							{
+								Name:  "geo-code",
+								Value: "IE",
+							},
+						},
+					},
+					{
+						DNSName: "lb-" + lbHash + ".example.com",
+						Targets: []string{
+							"ie.lb-" + lbHash + ".example.com",
+						},
+						RecordType:    "CNAME",
+						SetIdentifier: "default",
+						RecordTTL:     300,
+						ProviderSpecific: v1alpha1.ProviderSpecific{
+							{
+								Name:  "geo-code",
+								Value: "*",
+							},
+						},
+					},
+					{
+						DNSName: "16z1l1.lb-" + lbHash + ".example.com",
+						Targets: []string{
+							"172.0.0.3",
+						},
+						RecordType:    "A",
+						SetIdentifier: "",
+						RecordTTL:     60,
+					},
+					{
+						DNSName: "ie.lb-" + lbHash + ".example.com",
+						Targets: []string{
+							"16z1l1.lb-" + lbHash + ".example.com",
+						},
+						RecordType:    "CNAME",
+						SetIdentifier: "16z1l1.lb-" + lbHash + ".example.com",
+						RecordTTL:     60,
+						ProviderSpecific: v1alpha1.ProviderSpecific{
+							{
+								Name:  "weight",
+								Value: "120",
+							},
+						},
+					},
+				}
+				Eventually(func() bool { // DNS record exists
+					if err := k8sClient.Get(ctx, client.ObjectKey{Name: wildcardDNSRecordName, Namespace: dnsPolicy.Namespace}, createdDNSRecord); err != nil {
 						return false
 					}
 					return len(createdDNSRecord.Spec.Endpoints) == 5
