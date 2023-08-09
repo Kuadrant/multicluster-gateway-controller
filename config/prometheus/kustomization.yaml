@@ -1,4 +1,5 @@
 resources:
 - monitor.yaml
+- service.yaml
 
 namespace: multicluster-gateway-controller-system
