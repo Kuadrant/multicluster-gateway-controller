@@ -3,6 +3,7 @@ kind: Kustomization
 
 resources:
   - github.com/prometheus-operator/kube-prometheus?ref=release-0.11
+  - grafana_ingress.yaml
 # To scrape istio metrics, 3 configurations are required:
 # 1. Envoy metrics directly from the istio ingress gateway pod
   - podmonitor-envoy.yaml
@@ -61,3 +62,28 @@ patches:
             - get
             - list
             - watch
+
+# Patch grafana deployment to include dashboard configmaps
+patchesJson6902:
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: grafana
+    path: grafana_deployment_patch.yaml
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+secretGenerator:
+- name: grafana-datasources
+  namespace: monitoring
+  behavior: replace
+  files:
+  - grafana_datasources.yaml
+
+configMapGenerator:
+- name: grafana-istio-workload
+  namespace: monitoring
+  files:
+  - grafana_dashboard_istio-workload.json

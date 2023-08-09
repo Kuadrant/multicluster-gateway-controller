@@ -31,9 +31,15 @@ docker-push-controller: ## Push docker image with the controller.
 deploy-controller: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${CONTROLLER_IMG}
 	$(KUSTOMIZE) --load-restrictor LoadRestrictionsNone build config/deploy/local | kubectl apply -f -
+	@if [ $(METRICS) = "true" ]; then\
+		$(KUSTOMIZE) build config/prometheus | kubectl apply -f -;\
+	fi
 
 .PHONY: undeploy-controller
 undeploy-controller: ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
+	@if [ $(METRICS) = "true" ]; then\
+		$(KUSTOMIZE) build config/prometheus | kubectl delete --ignore-not-found=$(ignore-not-found) -f -;\
+	fi
 	$(KUSTOMIZE) --load-restrictor LoadRestrictionsNone build config/deploy/local | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 .PHONY: restart-controller

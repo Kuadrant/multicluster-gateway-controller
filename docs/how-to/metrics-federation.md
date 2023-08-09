@@ -48,9 +48,13 @@ In the Graph view you should see some data over time as well.
 ### Thanos Query UI
 
 To query Istio workload metrics, you should first deploy a Gateway & HttpRoute, and send traffic to it.
-The easiest way to do this is by following the steps in the [OCM Walkthrough](./ocm-control-plane-walkthrough.md) (without re-running the `make local-setup` step, as that should have already been run with the `METRICS_FEDERATION` flag above).
+The easiest way to do this is by following the steps in the [OCM Walkthrough](./ocm-control-plane-walkthrough.md). Before going through the walkthrough, there are two things to note: Firstly, you do not need to re-run the `make local-setup` step, as that should have already been run with the `METRICS_FEDERATION` flag above. Secondly, you should set `METRICS=true` when it comes to the step to start and deploy the gateway controller, i.e:
 
-Use `curl` to send some traffic to the application
+```
+make build-controller kind-load-controller deploy-controller METRICS=true
+```
+
+After completing the OCM walkthrough, use `curl` to send some traffic to the application
 
 ```bash
 while true; do curl -k https://$MGC_SUB_DOMAIN && sleep 5; done
@@ -89,13 +93,11 @@ In the output from `local-setup`, you should see something like the below (you m
 
 Open Grafana in a browser, accepting the non CA signed certificate.
 The default login is admin/admin.
-In the Grafana UI go to the Explore view on the left menu, then choose the 'thanos-query' datasource at the top.
-In the query box, enter the below query and press 'Run query'.
 
-```
-sum(rate(istio_requests_total{}[5m])) by(destination_workload)
-```
+Using the left sidebar in the Grafana UI, navigate to `Dashboards > Browse` and click on the `Istio Workload Dashboard`.
 
-You should see a graph similar to below:
+<img src="images/metrics-federation-grafana-dashboard-1.png" width="600"/>
 
-<img src="images/metrics-federation-traffic-data-grafana.png" alt="architecture" width="600"/>
+You should be able to see the following layout, which will include data from the `curl` command you ran in the previous section.
+
+<img src="images/metrics-federation-grafana-dashboard-2.png" width="600"/>

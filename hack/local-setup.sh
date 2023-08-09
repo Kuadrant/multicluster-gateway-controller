@@ -38,7 +38,6 @@ REDIS_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/kuadrant/redis
 LIMITADOR_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/kuadrant/limitador
 THANOS_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/thanos
 PROMETHEUS_FOR_FEDERATION_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/prometheus-for-federation
-GRAFANA_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/grafana
 
 TLS_CERT_PATH=${LOCAL_SETUP_DIR}/../config/webhook-setup/control/tls
 
@@ -295,9 +294,6 @@ deployThanos() {
     echo "Deploying Thanos in ${clusterName}"
     kubectl config use-context kind-${clusterName}
     ${KUSTOMIZE_BIN} build ${THANOS_KUSTOMIZATION_DIR} | kubectl apply -f -
-
-    echo "Configuring Grafana for Thanos in ${clusterName}"
-    ${KUSTOMIZE_BIN} build ${GRAFANA_KUSTOMIZATION_DIR} | kubectl apply -f -
 
     nodeIP=$(kubectl get nodes -o json | jq -r ".items[] | select(.metadata.name == \"$clusterName-control-plane\").status | .addresses[] | select(.type == \"InternalIP\").address")
     echo -ne "\n\n\tConnect to Thanos Query UI\n\n"
