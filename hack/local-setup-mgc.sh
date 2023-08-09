@@ -24,6 +24,8 @@ source "${LOCAL_SETUP_DIR}"/.argocdUtils
 source "${LOCAL_SETUP_DIR}"/.cleanupUtils
 source "${LOCAL_SETUP_DIR}"/.deployUtils
 
+export TMP_DIR=./tmp
+
 INGRESS_NGINX_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/ingress-nginx
 METALLB_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/metallb
 CERT_MANAGER_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/cert-manager

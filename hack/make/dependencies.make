@@ -101,7 +101,7 @@ $(ISTIOCTL):
 .PHONY: clusteradm
 clusteradm: $(CLUSTERADM)
 $(CLUSTERADM):
-	test -s $(CLUSTERADM)|| curl -sL https://raw.githubusercontent.com/open-cluster-management-io/clusteradm/main/install.sh | INSTALL_DIR=bin bash -s -- $(CLUSTERADM_VERSION)
+	test -s $(CLUSTERADM)|| curl -sL https://raw.githubusercontent.com/open-cluster-management-io/clusteradm/main/install.sh | INSTALL_DIR=$(LOCALBIN) bash -s -- $(CLUSTERADM_VERSION)
 
 .PHONY: subctl
 subctl: $(SUBCTL)

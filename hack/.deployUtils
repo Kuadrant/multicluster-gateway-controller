@@ -31,8 +31,8 @@ deployOLM(){
   clusterName=${1}
 
   kubectl config use-context kind-${clusterName}
+  kubectl config --kubeconfig=${TMP_DIR}/kubeconfig use-context kind-${clusterName}
   echo "Installing OLM in ${clusterName}"
-
   ${OPERATOR_SDK_BIN} olm install --timeout 6m0s
 }
 
@@ -40,28 +40,12 @@ deployOCMHub(){
   clusterName=${1}
   minimal=${2}
   echo "installing the hub cluster in kind-(${clusterName}) "
-
-  kubectl config use-context kind-${clusterName}
   ${CLUSTERADM_BIN} init --bundle-version='0.11.0' --wait --context kind-${clusterName}
   echo "PATCHING CLUSTERMANAGER: placement image patch to use amd64 image - See https://kubernetes.slack.com/archives/C01GE7YSUUF/p1685016272443249"
-  kubectl patch clustermanager cluster-manager --type='merge' -p '{"spec":{"placementImagePullSpec":"quay.io/open-cluster-management/placement:v0.11.0-amd64"}}'
+  kubectl patch clustermanager cluster-manager --type='merge' -p '{"spec":{"placementImagePullSpec":"quay.io/open-cluster-management/placement:v0.11.0-amd64"}}' --context kind-${clusterName}
   echo "checking if cluster is single or multi"
   if [[ -n "${OCM_SINGLE}" ]]; then
-    clusterName=kind-${KIND_CLUSTER_CONTROL_PLANE}
-    echo "Found single cluster installing hub and spoke on the one cluster (${clusterName})"
-    join=$(${CLUSTERADM_BIN} get token --context ${clusterName} |  grep -o  'clusteradm.*--cluster-name')
-    ${BIN_DIR}${join} ${clusterName} --bundle-version='0.11.0' --feature-gates=RawFeedbackJsonString=true --force-internal-endpoint-lookup --context ${clusterName} | grep clusteradm
-    echo "accepting OCM spoke cluster invite"
-
-    max_retry=18
-    counter=0
-    until ${CLUSTERADM_BIN} accept --clusters ${clusterName}
-    do
-      sleep 10
-      [[ counter -eq $max_retry ]] && echo "Failed!" && exit 1
-      echo "Trying again. Try #$counter"
-      ((++counter))
-    done
+    deployOCMSpoke ${clusterName}
     deployOLM ${KIND_CLUSTER_CONTROL_PLANE}
 
     if ! [[ -n "${minimal}" ]]; then
@@ -72,30 +56,24 @@ deployOCMHub(){
       echo "Installing Redis in kind-mgc-control-plane"
       ${KUSTOMIZE_BIN} build ${REDIS_KUSTOMIZATION_DIR} | kubectl apply -f -
   fi
-
 }
 
-deployOCMSpoke(){
-
+deployOCMSpoke() {
   clusterName=${1}
   echo "joining the spoke cluster to the hub cluster kind-(${KIND_CLUSTER_CONTROL_PLANE}),"
-  kubectl config use-context kind-${KIND_CLUSTER_CONTROL_PLANE}
-  join=$(${CLUSTERADM_BIN} get token --context kind-${KIND_CLUSTER_CONTROL_PLANE} |  grep -o  'clusteradm.*--cluster-name')
-  kubectl config use-context kind-${clusterName}
-  ${BIN_DIR}${join} kind-${clusterName} --bundle-version='0.11.0' --feature-gates=RawFeedbackJsonString=true --force-internal-endpoint-lookup --context kind-${clusterName} | grep clusteradm
+  join=$(${CLUSTERADM_BIN} get token --context kind-${KIND_CLUSTER_CONTROL_PLANE} |  grep -o  'join.*--cluster-name')
+  ${CLUSTERADM_BIN} ${join} kind-${clusterName} --bundle-version='0.11.0' --feature-gates=RawFeedbackJsonString=true --force-internal-endpoint-lookup --context kind-${clusterName} | grep clusteradm
   echo "accepting OCM spoke cluster invite"
-  kubectl config use-context kind-${KIND_CLUSTER_CONTROL_PLANE}
 
   max_retry=18
   counter=0
-  until ${CLUSTERADM_BIN} accept --clusters kind-${clusterName}
+  until ${CLUSTERADM_BIN} accept --clusters kind-${clusterName} --context kind-${KIND_CLUSTER_CONTROL_PLANE}
   do
      sleep 10
      [[ counter -eq $max_retry ]] && echo "Failed!" && exit 1
      echo "Trying again. Try #$counter"
      ((++counter))
   done
-
 }
 
 
@@ -267,14 +245,14 @@ initController() {
 deploySubmarinerBroker() {
   clusterName=${1}
   if [[ -n "${SUBMARINER}" ]]; then
-    ${SUBCTL_BIN} deploy-broker --kubeconfig ./tmp/kubeconfigs/external/${clusterName}.kubeconfig
+    ${SUBCTL_BIN} deploy-broker --kubeconfig ${TMP_DIR}/kubeconfigs/external/${clusterName}.kubeconfig
   fi
 }
 
 joinSubmarinerBroker() {
   clusterName=${1}
   if [[ -n "${SUBMARINER}" ]]; then
-    ${SUBCTL_BIN} join --kubeconfig ./tmp/kubeconfigs/external/${clusterName}.kubeconfig broker-info.subm --clusterid ${clusterName} --natt=false --check-broker-certificate=false
+    ${SUBCTL_BIN} join --kubeconfig ${TMP_DIR}/kubeconfigs/external/${clusterName}.kubeconfig broker-info.subm --clusterid ${clusterName} --natt=false --check-broker-certificate=false
   fi
 }
 
@@ -365,7 +343,7 @@ deployQuickStartControl() {
     clusterName=${1}
     kubectl config use-context kind-${clusterName}
     echo "Initialize quickstart setup on ${clusterName}"
-    wait_for "kustomize --load-restrictor LoadRestrictionsNone build ${QUICK_START_HUB_KUSTOMIZATION} --enable-helm --helm-command helm | kubectl apply -f -" "${QUICK_START_HUB_KUSTOMIZATION} cluster config apply" "1m" "5"
+    wait_for "${KUSTOMIZE_BIN} --load-restrictor LoadRestrictionsNone build ${QUICK_START_HUB_KUSTOMIZATION} --enable-helm --helm-command ${HELM_BIN} | kubectl apply -f -" "${QUICK_START_HUB_KUSTOMIZATION} cluster config apply" "1m" "5"
     echo "Waiting for metallb-system deployments to be ready"
     kubectl -n metallb-system wait --for=condition=ready pod --selector=app=metallb --timeout=300s
     echo "Waiting for cert-manager deployments to be ready"
@@ -379,7 +357,7 @@ deployQuickStartWorkload() {
    clusterName=${1}
     kubectl config use-context kind-${clusterName}
     echo "Initialize quickstart setup on ${clusterName}"
-    wait_for "kustomize --load-restrictor LoadRestrictionsNone build ${QUICK_START_SPOKE_KUSTOMIZATION} --enable-helm --helm-command helm | kubectl apply -f -" "${QUICK_START_SPOKE_KUSTOMIZATION} cluster config apply" "1m" "5"
+    wait_for "${KUSTOMIZE_BIN} --load-restrictor LoadRestrictionsNone build ${QUICK_START_SPOKE_KUSTOMIZATION} --enable-helm --helm-command ${HELM_BIN} | kubectl apply -f -" "${QUICK_START_SPOKE_KUSTOMIZATION} cluster config apply" "1m" "5"
     echo "Waiting for metallb-system deployments to be ready"
     kubectl -n metallb-system wait --for=condition=ready pod --selector=app=metallb --timeout=300s
     echo "Waiting for istio deployments to be ready"
