@@ -56,3 +56,7 @@ jobs:
           export TEST_HUB_KUBE_CONTEXT=kind-mgc-control-plane
           export TEST_MANAGED_ZONE=${{ secrets.E2E_AWS_DNS_PUBLIC_ZONE_NAME }}
           make local-setup && make kind-load-controller deploy-controller test-e2e
+      - name: Dump MGC logs
+        if: ${{ always() }}
+        run: |
+          kubectl --context kind-mgc-control-plane logs --all-containers --ignore-errors deployment/mgc-controller-manager -n multicluster-gateway-controller-system
