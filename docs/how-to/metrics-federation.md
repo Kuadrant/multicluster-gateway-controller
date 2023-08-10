@@ -27,7 +27,7 @@ Once complete, you should see something like the below in the output (you may ne
 ```
 	Connect to Thanos Query UI
 
-		URL : https://thanos-query.172.32.0.2.nip.io
+		URL : https://thanos-query.172.31.0.2.nip.io
 ```
 
 Open the url in a browser, accepting the non CA signed certificate.
@@ -88,7 +88,7 @@ In the output from `local-setup`, you should see something like the below (you m
 ```
 	Connect to Grafana Query UI
 
-		URL : https://grafana.172.32.0.2.nip.io
+		URL : https://grafana.172.31.0.2.nip.io
 ```
 
 Open Grafana in a browser, accepting the non CA signed certificate.

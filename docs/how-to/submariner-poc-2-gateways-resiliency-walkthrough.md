@@ -151,7 +151,7 @@ kubectl get gateways.gateway.networking.k8s.io -A
 ```
 
 ```
-kuadrant-multi-cluster-gateways   prod-web   istio                                         172.32.200.0                29s
+kuadrant-multi-cluster-gateways   prod-web   istio                                         172.31.200.0                29s
 multi-cluster-gateways            prod-web   kuadrant-multi-cluster-gateway-instance-per-cluster                  True         2m42s
 ```
 
@@ -366,8 +366,8 @@ curl -Ik https://sub.replace.this
 You can force resolve the IP to either cluster and verify a 200 is returned when routed to both cluster Gateways.
 
 ```bash
-curl -Ik --resolve sub.replace.this:443:172.32.200.0 https://sub.replace.this
-curl -Ik --resolve sub.replace.this:443:172.32.201.0 https://sub.replace.this
+curl -Ik --resolve sub.replace.this:443:172.31.200.0 https://sub.replace.this
+curl -Ik --resolve sub.replace.this:443:172.31.201.0 https://sub.replace.this
 ```
 
 ### Testing resiliency
@@ -381,8 +381,8 @@ kubectl --kubeconfig ./tmp/kubeconfigs/external/mgc-workload-1.kubeconfig scale 
 Verify a 200 is still returned when routed to either cluster
 
 ```bash
-curl -Ik --resolve sub.replace.this:443:172.32.200.0 https://sub.replace.this
-curl -Ik --resolve sub.replace.this:443:172.32.201.0 https://sub.replace.this
+curl -Ik --resolve sub.replace.this:443:172.31.200.0 https://sub.replace.this
+curl -Ik --resolve sub.replace.this:443:172.31.201.0 https://sub.replace.this
 ```
 
 ## Known issues

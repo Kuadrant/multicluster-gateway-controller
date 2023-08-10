@@ -4,7 +4,7 @@ metadata:
   name: thanos-query
 spec:
   rules:
-    - host: thanos-query.172.32.0.2.nip.io
+    - host: thanos-query.172.31.0.2.nip.io
       http:
         paths:
           - path: /

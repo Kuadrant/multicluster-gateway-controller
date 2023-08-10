@@ -58,13 +58,13 @@ POST https://dns.googleapis.com/dns/v1beta2/projects/it-cloud-gcp-rd-midd-san/ma
         {
           "weight": 60.0,
           "rrdata": [
-            "172.32.0.1"
+            "172.31.0.1"
           ]
         },
         {
           "weight": 60.0,
           "rrdata": [
-            "172.32.0.2"
+            "172.31.0.2"
           ]
         }
       ]
@@ -97,7 +97,7 @@ dig dnsrecord-geo.google.hcpapps.net
 
 ;; ANSWER SECTION:
 dnsrecord-geo.google.hcpapps.net. 60 IN CNAME   dnsrecord-geo.eu.google.hcpapps.net.
-dnsrecord-geo.eu.google.hcpapps.net. 60 IN A    172.32.0.4
+dnsrecord-geo.eu.google.hcpapps.net. 60 IN A    172.31.0.4
 
 ;; Query time: 33 msec
 ;; SERVER: 127.0.0.53#53(127.0.0.53) (UDP)

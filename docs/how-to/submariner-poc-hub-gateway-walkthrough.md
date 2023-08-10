@@ -154,7 +154,7 @@ kubectl get gateways.gateway.networking.k8s.io -A
 ```
 
 ```
-kuadrant-multi-cluster-gateways   prod-web   istio                                         172.32.200.0                29s
+kuadrant-multi-cluster-gateways   prod-web   istio                                         172.31.200.0                29s
 multi-cluster-gateways            prod-web   kuadrant-multi-cluster-gateway-instance-per-cluster                  True         2m42s
 ```
 
@@ -353,7 +353,7 @@ If DNS is not resolving for you yet, you may get a 503.
 In that case you can force resolve the IP to the hub cluster and verify a 200 is returned.
 
 ```bash
-curl -Ik --resolve sub.replace.this:443:172.32.200.0 https://sub.replace.this
+curl -Ik --resolve sub.replace.this:443:172.31.200.0 https://sub.replace.this
 ```
 
 ## Known issues

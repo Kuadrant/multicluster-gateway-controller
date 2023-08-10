@@ -137,9 +137,9 @@ Given the following Gateway status:
 status:
   addresses:
     - type: kuadrant.io/MultiClusterIPAddress
-      value: kind-mgc-workload-1/172.32.201.1
+      value: kind-mgc-workload-1/172.31.201.1
     - type: kuadrant.io/MultiClusterIPAddress
-      value: kind-mgc-workload-2/172.32.202.1
+      value: kind-mgc-workload-2/172.31.202.1
   conditions:
     - lastTransitionTime: "2023-07-24T19:09:54Z"
       message: Handled by kuadrant.io/mgc-gw-controller
@@ -197,7 +197,7 @@ spec:
       recordTTL: 60
       recordType: A
       targets:
-        - 172.32.202.1
+        - 172.31.202.1
     - dnsName: default.lb-2903yb.echo.apps.hcpapps.net
       providerSpecific:
         - name: weight
@@ -234,7 +234,7 @@ spec:
       recordTTL: 60
       recordType: A
       targets:
-        - 172.32.201.1
+        - 172.31.201.1
   managedZone:
     name: apps.hcpapps.net   
 ```
@@ -250,7 +250,7 @@ dig echo.apps.hcpapps.net +short
 lb-2903yb.echo.apps.hcpapps.net.
 default.lb-2903yb.echo.apps.hcpapps.net.
 lrnse3.lb-2903yb.echo.apps.hcpapps.net.
-172.32.201.1
+172.31.201.1
 ```
 
 More information about the dns record structure can be found in the [DNSRecord structure](./proposals/DNSRecordStructure.md) document.
@@ -331,7 +331,7 @@ kubectl get dnsrecord echo.apps.hcpapps.net -n multi-cluster-gateways -o yaml | 
   recordTTL: 60
   recordType: A
   targets:
-    - 172.32.202.1
+    - 172.31.202.1
 - dnsName: default.lb-2903yb.echo.apps.hcpapps.net
   providerSpecific:
     - name: weight
@@ -368,7 +368,7 @@ kubectl get dnsrecord echo.apps.hcpapps.net -n multi-cluster-gateways -o yaml | 
   recordTTL: 60
   recordType: A
   targets:
-    - 172.32.201.1
+    - 172.31.201.1
 ```
 
 ![aws-recordset-list-2](./images/dns-policy/aws-recordset-list-2.png)
@@ -412,7 +412,7 @@ kubectl get dnsrecord echo.apps.hcpapps.net -n multi-cluster-gateways -o yaml | 
   recordTTL: 60
   recordType: A
   targets:
-    - 172.32.202.1
+    - 172.31.202.1
 - dnsName: echo.apps.hcpapps.net
   recordTTL: 300
   recordType: CNAME
@@ -440,7 +440,7 @@ kubectl get dnsrecord echo.apps.hcpapps.net -n multi-cluster-gateways -o yaml | 
   recordTTL: 60
   recordType: A
   targets:
-    - 172.32.201.1
+    - 172.31.201.1
 - dnsName: us.lb-2903yb.echo.apps.hcpapps.net # <--- Gateway default group is now `us`
   providerSpecific:
     - name: weight
@@ -470,7 +470,7 @@ dig echo.apps.hcpapps.net +short
 lb-2903yb.echo.apps.hcpapps.net.
 us.lb-2903yb.echo.apps.hcpapps.net. # <--- `us` CNAME now in the chain
 lrnse3.lb-2903yb.echo.apps.hcpapps.net.
-172.32.201.1
+172.31.201.1
 ```
 
 #### Configuring Cluster Geo Locations
@@ -493,7 +493,7 @@ kubectl get dnsrecord echo.apps.hcpapps.net -n multi-cluster-gateways -o yaml | 
   recordTTL: 60
   recordType: A
   targets:
-    - 172.32.202.1
+    - 172.31.202.1
 - dnsName: echo.apps.hcpapps.net
   recordTTL: 300
   recordType: CNAME
@@ -539,7 +539,7 @@ kubectl get dnsrecord echo.apps.hcpapps.net -n multi-cluster-gateways -o yaml | 
   recordTTL: 60
   recordType: A
   targets:
-    - 172.32.201.1
+    - 172.31.201.1
 - dnsName: us.lb-2903yb.echo.apps.hcpapps.net
   providerSpecific:
     - name: weight

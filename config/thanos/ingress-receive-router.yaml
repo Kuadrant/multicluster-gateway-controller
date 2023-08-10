@@ -4,7 +4,7 @@ metadata:
   name: thanos-receive-router
 spec:
   rules:
-    - host: thanos-receive-router.172.32.0.2.nip.io
+    - host: thanos-receive-router.172.31.0.2.nip.io
       http:
         paths:
           - path: /

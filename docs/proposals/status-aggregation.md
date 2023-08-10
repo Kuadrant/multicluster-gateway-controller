@@ -76,9 +76,9 @@ metadata:
 status:
   addresses:
   - type: IPAddress
-    value: 172.32.200.0
+    value: 172.31.200.0
   - type: IPAddress
-    value: 172.32.201.0
+    value: 172.31.201.0
   listeners:
   - attachedRoutes: 0
     conditions:
@@ -94,9 +94,9 @@ metadata:
 status:
   addresses:
   - type: IPAddress
-    value: 172.32.202.0
+    value: 172.31.202.0
   - type: IPAddress
-    value: 172.32.203.0
+    value: 172.31.203.0
   listeners:
   - attachedRoutes: 1
     name: api
@@ -114,13 +114,13 @@ metadata:
 status:
   addresses:
     - type: kuadrant.io/MultiClusterIPAddress
-      value: cluster_1/172.32.200.0
+      value: cluster_1/172.31.200.0
     - type: kuadrant.io/MultiClusterIPAddress
-      value: cluster_1/172.32.201.0
+      value: cluster_1/172.31.201.0
     - type: kuadrant.io/MultiClusterIPAddress
-      value: cluster_2/172.32.202.0
+      value: cluster_2/172.31.202.0
     - type: kuadrant.io/MultiClusterIPAddress
-      value: cluster_2/172.32.203.0
+      value: cluster_2/172.31.203.0
   listeners:
     - attachedRoutes: 0
       name: cluster_1.api
