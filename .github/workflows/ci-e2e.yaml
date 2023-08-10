@@ -49,14 +49,23 @@ jobs:
           echo "AWS_ACCESS_KEY_ID=${{ secrets.E2E_AWS_ACCESS_KEY_ID }}" >> aws-credentials.env
           echo "AWS_SECRET_ACCESS_KEY=${{ secrets.E2E_AWS_SECRET_ACCESS_KEY }}" >> aws-credentials.env
           echo "AWS_REGION=${{ env.AWS_REGION }}" >> aws-credentials.env
+      - name: Setup environment
+        run: |
+          export OCM_SINGLE=1
+          make local-setup
+      - name: Deploy MGC
+        run: |
+          make kind-load-controller deploy-controller
+          kubectl --context kind-mgc-control-plane -n multicluster-gateway-controller-system wait --timeout=300s --for=condition=Available deployment/mgc-controller-manager
+          kubectl --context kind-mgc-control-plane logs --all-containers --ignore-errors deployment/mgc-controller-manager -n multicluster-gateway-controller-system
       - name: Run suite
         run: |
           export OCM_SINGLE=1
           export TEST_HUB_NAMESPACE=multi-cluster-gateways
           export TEST_HUB_KUBE_CONTEXT=kind-mgc-control-plane
           export TEST_MANAGED_ZONE=${{ secrets.E2E_AWS_DNS_PUBLIC_ZONE_NAME }}
-          make local-setup && make kind-load-controller deploy-controller test-e2e
+          make test-e2e
       - name: Dump MGC logs
-        if: ${{ always() }}
+        if: ${{ failure() }}
         run: |
           kubectl --context kind-mgc-control-plane logs --all-containers --ignore-errors deployment/mgc-controller-manager -n multicluster-gateway-controller-system
