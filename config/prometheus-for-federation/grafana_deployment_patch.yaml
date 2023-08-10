@@ -6,7 +6,19 @@
      defaultMode: 420
      name: grafana-istio-workload
 - op: add
+  path: /spec/template/spec/volumes/-
+  value:
+    name: grafana-mgc-metrics
+    configMap:
+     defaultMode: 420
+     name: grafana-mgc-metrics
+- op: add
   path: /spec/template/spec/containers/0/volumeMounts/-
   value:
     name: grafana-istio-workload
     mountPath: /grafana-dashboard-definitions/0/grafana-istio-workload
+- op: add
+  path: /spec/template/spec/containers/0/volumeMounts/-
+  value:
+    name: grafana-mgc-metrics
+    mountPath: /grafana-dashboard-definitions/0/grafana-mgc-metrics
