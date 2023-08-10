@@ -31,10 +31,14 @@ Open three windows, which we'll refer to throughout this walkthrough as:
 * `T3` (Workload cluster 1)
 * `T4` (Workload cluster 2)
 
-To setup a local instance with submariner, in `T1`, run:
+To setup a local instance with submariner, in `T1`, create kind clusters:
 
 ```bash
-make local-setup OCM_SINGLE=true SUBMARINER=true MGC_WORKLOAD_CLUSTERS_COUNT=2
+make local-setup-kind MGC_WORKLOAD_CLUSTERS_COUNT=2
+```
+And deploy onto the using:
+```bash
+make local-setup-mgc OCM_SINGLE=true SUBMARINER=true MGC_WORKLOAD_CLUSTERS_COUNT=2
 ```
 
 In the hub cluster (`T1`) we are going to label the control plane managed cluster as an Ingress cluster:

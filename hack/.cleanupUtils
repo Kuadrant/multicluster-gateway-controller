@@ -25,8 +25,24 @@ stopProxies() {
   fi
 }
 
-cleanup() {
+cleanupKind() {
   stopProxies
   cleanClusters
   cleanNetwork
+}
+
+cleanupMGC(){
+    kubectl delete gateway/prod-web -n multi-cluster-gateways --ignore-not-found=true || true # give controller a change to cleanup DNS records
+    kubectl wait gateway/prod-web -n multi-cluster-gateways --for=delete || true # wait with 30 sec timeout
+    kubectl delete namespace kuadrant-multi-cluster-gateways --ignore-not-found=true
+    kubectl delete namespace multi-cluster-gateways --ignore-not-found=true
+
+    ${OPERATOR_SDK_BIN} olm uninstall --timeout 6m0s || true
+
+    if [[ -n "${MGC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
+      for ((i = 1; i <= ${MGC_WORKLOAD_CLUSTERS_COUNT}; i++)); do
+        kubectl config use-context kind-${KIND_CLUSTER_WORKLOAD}-${i}
+        kubectl delete namespace kuadrant-multi-cluster-gateways --ignore-not-found=true
+      done
+    fi
 }

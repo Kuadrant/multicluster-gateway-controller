@@ -20,21 +20,25 @@ Open 2 windows, which we'll refer to throughout this walkthrough as:
 
 ## Setup up local environment
 1. Clone this repo locally
-1. In `T1` run the following command to bring up the kind clusters. The number of spoke cluster you want is dictated by the env var `MGC_WORKLOAD_CLUSTERS_COUNT`
+2. In `T1` run the following command to bring up the kind clusters. The number of spoke cluster you want is dictated by the env var `MGC_WORKLOAD_CLUSTERS_COUNT`
 
     ```bash
-    make local-setup MGC_WORKLOAD_CLUSTERS_COUNT=1
+    make local-setup-kind MGC_WORKLOAD_CLUSTERS_COUNT=1
     ```
     > :sos: Linux users may encounter the following error:
     > `ERROR: failed to create cluster: could not find a log line that matches "Reached target .*Multi-User System.*|detected cgroup v1"
     > make: *** [Makefile:75: local-setup] Error 1ERROR: failed to create cluster: could not find a log line that matches "Reached target .*Multi-User System.*|detected cgroup v1"
     > make: *** [Makefile:75: local-setup] Error 1` 
     > This is a known issue with Kind. [Follow the steps here](https://kind.sigs.k8s.io/docs/user/known-issues/#pod-errors-due-to-too-many-open-files) to resolve it.
+3. In `T1` run the following command to deploy onto freshly created kind clusters
+    ```bash
+    make local-setup-mgc MGC_WORKLOAD_CLUSTERS_COUNT=1
+    ```
 
 ### Running the addon manager controller and deploying Kuadrant resources
 
 
-> **_NOTE:_** :exclamation: Your terminal should have the context of the Hub cluster or the control plane cluster. This is by default the context after you run the make local setup. To get the context run the following command
+> **_NOTE:_** :exclamation: Your terminal should have the context of the Hub cluster or the control plane cluster. This is by default the context after you run the `make local-setup-mgc`. To get the context run the following command
      `kind export kubeconfig --name=mgc-control-plane --kubeconfig=$(pwd)/local/kube/control-plane.yaml && export KUBECONFIG=$(pwd)/local/kube/control-plane.yaml`
 
 1. In `T1` run the following to bring up the controller.
@@ -59,6 +63,20 @@ Open 2 windows, which we'll refer to throughout this walkthrough as:
 * kuadrant-operator-controller-manager-*value*
 * limitador-*value*
 * limitador-operator-controller-manager-*value*
+
+## Clean up local environment
+In any terminal window target control plane cluster by:
+```bash
+kubectl config use-context kind-mgc-control-plane 
+```
+If you want to wipe everything clean consider using:
+```bash
+make local-cleanup # Remove kind clusters created locally and cleanup any generated local files.
+```
+If the intention is to cleanup kind cluster and prepare them for re-installation consider using:
+```bash
+make local-cleanup-mgc MGC_WORKLOAD_CLUSTERS_COUNT=1 # prepares clusters for make local-setup-mgc
+```
 
 # Follow on Walkthroughs
 Some good follow on walkthroughs that build on this walkthrough

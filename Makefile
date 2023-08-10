@@ -86,13 +86,26 @@ test-e2e: ginkgo kind-load-controller deploy-controller
 	$(GINKGO) -tags=e2e -v ./test/e2e
 
 .PHONY: local-setup
-local-setup: kind kustomize helm yq dev-tls istioctl operator-sdk clusteradm subctl ## Setup multi cluster traffic controller locally using kind.
-	./hack/local-setup.sh
+local-setup: local-setup-kind local-setup-mgc ## Setup multi cluster traffic controller locally using kind.
+	$(info Setup is done! Enjoy)
+	$(info Consider using local-setup-kind or local-setup-mgc targets to separate kind clusters creation and deployment of resources)
+
+.PHONY: local-setup-kind
+local-setup-kind: kind ## Setup kind clusters for multi cluster traffic controller.
+	./hack/local-setup-kind.sh
+
+.PHONY: local-setup-mgc
+local-setup-mgc: kustomize helm yq dev-tls istioctl operator-sdk clusteradm subctl ## Setup multi cluster traffic controller locally onto kind clusters.
+	./hack/local-setup-mgc.sh
 
 .PHONY: local-cleanup
-local-cleanup: kind ## Cleanup resources created by local-setup
-	./hack/local-cleanup.sh
+local-cleanup: kind ## Cleanup kind clusters created by local-setup
+	./hack/local-cleanup-kind.sh
 	$(MAKE) clean
+
+.PHONY: local-cleanup-mgc
+local-cleanup-mgc: ## Cleanup MGC from kind clusters
+	./hack/local-cleanup-mgc.sh
 
 .PHONY: build
 build: build-controller ## Build all binaries.
