@@ -23,7 +23,7 @@ func TestGatewayClassReconciler_Reconcile(t *testing.T) {
 	type args struct {
 		req ctrl.Request
 	}
-	tests := []struct {
+	testCases := []struct {
 		name   string
 		fields fields
 		args   args
@@ -192,14 +192,14 @@ func TestGatewayClassReconciler_Reconcile(t *testing.T) {
 			},
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
 			r := &GatewayClassReconciler{
-				Client: tt.fields.Client,
+				Client: testCase.fields.Client,
 				Scheme: testutil.GetValidTestScheme(),
 			}
-			res, err := r.Reconcile(context.TODO(), tt.args.req)
-			tt.verify(tt.fields.Client, res, err, t)
+			res, err := r.Reconcile(context.TODO(), testCase.args.req)
+			testCase.verify(testCase.fields.Client, res, err, t)
 		})
 	}
 }

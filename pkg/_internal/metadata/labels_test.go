@@ -10,7 +10,7 @@ import (
 )
 
 func Test_hasLabel(t *testing.T) {
-	tests := []struct {
+	testCases := []struct {
 		name   string
 		obj    metav1.Object
 		label  string
@@ -44,11 +44,11 @@ func Test_hasLabel(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := HasLabel(tt.obj, tt.label)
-			if !got == tt.expect {
-				t.Errorf("expected '%v' got '%v'", tt.expect, got)
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			got := HasLabel(testCase.obj, testCase.label)
+			if !got == testCase.expect {
+				t.Errorf("expected '%v' got '%v'", testCase.expect, got)
 			}
 		})
 	}

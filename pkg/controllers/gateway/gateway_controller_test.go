@@ -36,7 +36,7 @@ func TestGatewayReconciler_Reconcile(t *testing.T) {
 	type args struct {
 		req ctrl.Request
 	}
-	tests := []struct {
+	testCases := []struct {
 		name   string
 		fields fields
 		args   args
@@ -221,16 +221,16 @@ func TestGatewayReconciler_Reconcile(t *testing.T) {
 			verify: testutil.AssertNoErrorReconciliation(),
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
 			r := &GatewayReconciler{
-				Client:       tt.fields.Client,
-				Scheme:       tt.fields.Scheme,
-				Certificates: faketls.NewTestCertificateService(tt.fields.Client),
+				Client:       testCase.fields.Client,
+				Scheme:       testCase.fields.Scheme,
+				Certificates: faketls.NewTestCertificateService(testCase.fields.Client),
 				Placement:    fakeplacement.NewTestGatewayPlacer(),
 			}
-			res, err := r.Reconcile(context.TODO(), tt.args.req)
-			tt.verify(res, err, t)
+			res, err := r.Reconcile(context.TODO(), testCase.args.req)
+			testCase.verify(res, err, t)
 		})
 	}
 }
@@ -253,7 +253,7 @@ func TestGatewayReconciler_reconcileDownstreamFromUpstreamGateway(t *testing.T) 
 		wantErr       bool
 		expectedError string
 	}
-	tests := []testCase{
+	testCases := []testCase{
 		{
 			name: "gateway successfully reconciled",
 			fields: fields{
@@ -364,26 +364,26 @@ func TestGatewayReconciler_reconcileDownstreamFromUpstreamGateway(t *testing.T) 
 			expectedError: ReconcileErrTLS.Error(),
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
 			r := &GatewayReconciler{
-				Client:       tt.fields.Client,
-				Scheme:       tt.fields.Scheme,
-				Certificates: faketls.NewTestCertificateService(tt.fields.Client),
+				Client:       testCase.fields.Client,
+				Scheme:       testCase.fields.Scheme,
+				Certificates: faketls.NewTestCertificateService(testCase.fields.Client),
 				Placement:    fakeplacement.NewTestGatewayPlacer(),
 			}
-			requeue, programmedStatus, clusters, err := r.reconcileDownstreamFromUpstreamGateway(context.TODO(), tt.args.gateway, &Params{})
-			if (err != nil) != tt.wantErr || !testutil.GotExpectedError(tt.expectedError, err) {
-				t.Errorf("reconcileGateway() error = %v, wantErr %v, expectedError %v", err, tt.wantErr, tt.expectedError)
+			requeue, programmedStatus, clusters, err := r.reconcileDownstreamFromUpstreamGateway(context.TODO(), testCase.args.gateway, &Params{})
+			if (err != nil) != testCase.wantErr || !testutil.GotExpectedError(testCase.expectedError, err) {
+				t.Errorf("reconcileGateway() error = %v, wantErr %v, expectedError %v", err, testCase.wantErr, testCase.expectedError)
 			}
-			if programmedStatus != tt.wantStatus {
-				t.Errorf("reconcileGateway() programmedStatus = %v, want %v", programmedStatus, tt.wantStatus)
+			if programmedStatus != testCase.wantStatus {
+				t.Errorf("reconcileGateway() programmedStatus = %v, want %v", programmedStatus, testCase.wantStatus)
 			}
-			if !reflect.DeepEqual(clusters, tt.wantClusters) {
-				t.Errorf("reconcileGateway() clusters = %v, want %v", clusters, tt.wantClusters)
+			if !reflect.DeepEqual(clusters, testCase.wantClusters) {
+				t.Errorf("reconcileGateway() clusters = %v, want %v", clusters, testCase.wantClusters)
 			}
-			if requeue != tt.wantRequeue {
-				t.Errorf("reconcileGateway() requeue = %v, want %v", requeue, tt.wantRequeue)
+			if requeue != testCase.wantRequeue {
+				t.Errorf("reconcileGateway() requeue = %v, want %v", requeue, testCase.wantRequeue)
 			}
 		})
 	}
@@ -406,7 +406,7 @@ func TestGatewayReconciler_reconcileTLS(t *testing.T) {
 		want    []v1.Object
 		wantErr bool
 	}
-	tests := []testCase{
+	testCases := []testCase{
 		{
 			name: "secret synced downstream",
 			fields: fields{
@@ -479,21 +479,21 @@ func TestGatewayReconciler_reconcileTLS(t *testing.T) {
 			wantErr: false,
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
 			r := &GatewayReconciler{
-				Client:       tt.fields.Client,
-				Scheme:       tt.fields.Scheme,
-				Certificates: faketls.NewTestCertificateService(tt.fields.Client),
+				Client:       testCase.fields.Client,
+				Scheme:       testCase.fields.Scheme,
+				Certificates: faketls.NewTestCertificateService(testCase.fields.Client),
 				Placement:    fakeplacement.NewTestGatewayPlacer(),
 			}
-			got, err := r.reconcileTLS(context.TODO(), tt.args.upstreamGateway, tt.args.gateway)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("reconcileTLS() error = %v, wantErr %v", err, tt.wantErr)
+			got, err := r.reconcileTLS(context.TODO(), testCase.args.upstreamGateway, testCase.args.gateway)
+			if (err != nil) != testCase.wantErr {
+				t.Errorf("reconcileTLS() error = %v, wantErr %v", err, testCase.wantErr)
 				return
 			}
-			if !verifyTLSSecretTestResultsAsExpected(got, tt.want, tt.args.upstreamGateway) {
-				t.Errorf("reconcileTLS() \ngot: \n%v \nwant: \n%v", got, tt.want)
+			if !verifyTLSSecretTestResultsAsExpected(got, testCase.want, testCase.args.upstreamGateway) {
+				t.Errorf("reconcileTLS() \ngot: \n%v \nwant: \n%v", got, testCase.want)
 			}
 		})
 	}
@@ -506,7 +506,7 @@ func Test_buildProgrammedStatus(t *testing.T) {
 		clusters         []string
 		programmedStatus v1.ConditionStatus
 	}
-	tests := []struct {
+	testCases := []struct {
 		name string
 		args args
 		want []v1.Condition
@@ -588,10 +588,10 @@ func Test_buildProgrammedStatus(t *testing.T) {
 			},
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := buildProgrammedCondition(tt.args.generation, tt.args.clusters, tt.args.programmedStatus, nil); !testutil.ConditionsEqual(got, tt.want) {
-				t.Errorf("buildStatusConditions() = \ngot:\n%v, \nwant: \n%v", got, tt.want)
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			if got := buildProgrammedCondition(testCase.args.generation, testCase.args.clusters, testCase.args.programmedStatus, nil); !testutil.ConditionsEqual(got, testCase.want) {
+				t.Errorf("buildStatusConditions() = \ngot:\n%v, \nwant: \n%v", got, testCase.want)
 			}
 		})
 	}

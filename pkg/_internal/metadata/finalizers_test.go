@@ -10,7 +10,7 @@ import (
 )
 
 func Test_addFinalizer(t *testing.T) {
-	tests := []struct {
+	testCases := []struct {
 		name      string //for name of test
 		obj       metav1.Object
 		finalizer string
@@ -77,17 +77,17 @@ func Test_addFinalizer(t *testing.T) {
 			}),
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			AddFinalizer(tt.obj, tt.finalizer)
-			tt.verify(tt.obj, t)
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			AddFinalizer(testCase.obj, testCase.finalizer)
+			testCase.verify(testCase.obj, t)
 		})
 	}
 }
 
 func Test_removeFinalizer(t *testing.T) {
 
-	tests := []struct {
+	testCases := []struct {
 		name      string
 		obj       metav1.Object
 		finalizer string
@@ -168,16 +168,16 @@ func Test_removeFinalizer(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			RemoveFinalizer(tt.obj, tt.finalizer)
-			tt.verify(tt.obj, t)
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			RemoveFinalizer(testCase.obj, testCase.finalizer)
+			testCase.verify(testCase.obj, t)
 		})
 	}
 }
 
 func Test_hasFinalizer(t *testing.T) {
-	tests := []struct {
+	testCases := []struct {
 		name      string
 		obj       metav1.Object
 		finalizer string
@@ -211,11 +211,11 @@ func Test_hasFinalizer(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := HasFinalizer(tt.obj, tt.finalizer)
-			if !got == tt.expect {
-				t.Errorf("expected '%v' got '%v'", tt.expect, got)
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			got := HasFinalizer(testCase.obj, testCase.finalizer)
+			if !got == testCase.expect {
+				t.Errorf("expected '%v' got '%v'", testCase.expect, got)
 			}
 		})
 	}

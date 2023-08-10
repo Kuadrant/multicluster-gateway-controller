@@ -32,7 +32,7 @@ func TestNewClusterGateway(t *testing.T) {
 		cluster          v1.Object
 		gatewayAddresses []gatewayv1beta1.GatewayAddress
 	}
-	tests := []struct {
+	testCases := []struct {
 		name string
 		args args
 		want *ClusterGateway
@@ -122,10 +122,10 @@ func TestNewClusterGateway(t *testing.T) {
 			},
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := NewClusterGateway(tt.args.cluster, tt.args.gatewayAddresses); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("NewClusterGateway() = %v, want %v", got, tt.want)
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			if got := NewClusterGateway(testCase.args.cluster, testCase.args.gatewayAddresses); !reflect.DeepEqual(got, testCase.want) {
+				t.Errorf("NewClusterGateway() = %v, want %v", got, testCase.want)
 			}
 		})
 	}
@@ -143,7 +143,7 @@ func TestNewMultiClusterGatewayTarget(t *testing.T) {
 			Namespace: "testns",
 		},
 	}
-	tests := []struct {
+	testCases := []struct {
 		name string
 		args args
 		want *MultiClusterGatewayTarget
@@ -324,17 +324,17 @@ func TestNewMultiClusterGatewayTarget(t *testing.T) {
 			},
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := NewMultiClusterGatewayTarget(tt.args.gateway, tt.args.clusterGateways, tt.args.loadBalancing); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("NewMultiClusterGatewayTarget() = %v, want %v", got, tt.want)
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			if got := NewMultiClusterGatewayTarget(testCase.args.gateway, testCase.args.clusterGateways, testCase.args.loadBalancing); !reflect.DeepEqual(got, testCase.want) {
+				t.Errorf("NewMultiClusterGatewayTarget() = %v, want %v", got, testCase.want)
 			}
 		})
 	}
 }
 
 func TestToBase36hash(t *testing.T) {
-	tests := []struct {
+	testCases := []struct {
 		in   string
 		want string
 	}{
@@ -352,10 +352,10 @@ func TestToBase36hash(t *testing.T) {
 		{"test-cluster-2", "2pj3we"},
 		{"testgw-testns", "0ecjaw"},
 	}
-	for _, tt := range tests {
-		t.Run(tt.in, func(t *testing.T) {
-			if got := ToBase36hash(tt.in); got != tt.want {
-				t.Errorf("ToBase36hash() = %v, want %v", got, tt.want)
+	for _, testCase := range testCases {
+		t.Run(testCase.in, func(t *testing.T) {
+			if got := ToBase36hash(testCase.in); got != testCase.want {
+				t.Errorf("ToBase36hash() = %v, want %v", got, testCase.want)
 			}
 		})
 	}

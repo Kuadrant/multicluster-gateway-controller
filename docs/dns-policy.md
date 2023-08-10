@@ -84,6 +84,18 @@ spec:
     name: prod-web
     group: gateway.networking.k8s.io
     kind: Gateway
+  healthCheck:
+    allowInsecureCertificates: true
+    additionalHeadersRef:
+      name: probe-headers
+    endpoint: /
+    expectedResponses:
+      - 200
+      - 201
+      - 301
+    failureThreshold: 5
+    port: 443
+    protocol: https
 ```
 
 ### Target Reference
@@ -92,6 +104,29 @@ spec:
 - `Kind` is kind of the target resource. Only valid options are `Gateway`.
 - `Name` is the name of the target resource.
 - `Namespace` is the namespace of the referent. Currently only local objects can be referred so value is ignored.
+
+### Health Check
+The health check section is optional, the following fields are available:
+
+`allowInsecureCertificates`: Added for development environments, allows health probes to not fail when finding an invalid (e.g. self-signed) certificate.
+`additionalHeadersRef`: A reference to a secret which contains additional headers such as an authentication token
+`endpoint`: The path to specify for these health checks, e.g. `/healthz`
+`expectedResponses`: Defaults to 200 or 201, this allows other responses to be considered valid
+`failureThreshold`: How many consecutive fails are required to consider this endpoint unhealthy
+`port`: The port to connect to
+`protocol`: The protocol to use for this connection
+
+#### Checking status of health checks
+To list all health checks:
+```
+kubectl get dnshealthcheckprobes -A
+```
+This will list all probes in the hub cluster, and whether they are currently healthy or not.
+
+To find more information on why a specific health check is failing, look at the status of that probe:
+```
+kubectl get dnshealthcheckprobe <name> -n <namespace> -o yaml
+```
 
 ## DNSRecord Resources
 
