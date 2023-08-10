@@ -29,44 +29,44 @@ spec:
     - dnsName: dnsrecord-geo.na.google.hcpapps.net
       recordTTL: 60
       recordType: A
-      setIdentifier: 172.32.0.1
+      setIdentifier: 172.31.0.1
       providerSpecific:
         - name: "google/weight"
           value: "60"
       labels:
-        id: 172.32.0.1
+        id: 172.31.0.1
       targets:
-        - 172.32.0.1
+        - 172.31.0.1
     - dnsName: dnsrecord-geo.na.google.hcpapps.net
       recordTTL: 60
       recordType: A
-      setIdentifier: 172.32.0.2
+      setIdentifier: 172.31.0.2
       providerSpecific:
         - name: "google/weight"
           value: "60"
       labels:
-        id: 172.32.0.2
+        id: 172.31.0.2
       targets:
-        - 172.32.0.2
+        - 172.31.0.2
     - dnsName: dnsrecord-geo.eu.google.hcpapps.net
       recordTTL: 60
       recordType: A
-      setIdentifier: 172.32.0.3
+      setIdentifier: 172.31.0.3
       providerSpecific:
         - name: "google/weight"
           value: "60"
       labels:
-        id: 172.32.0.3
+        id: 172.31.0.3
       targets:
-        - 172.32.0.3
+        - 172.31.0.3
     - dnsName: dnsrecord-geo.eu.google.hcpapps.net
       recordTTL: 60
       recordType: A
-      setIdentifier: 172.32.0.4
+      setIdentifier: 172.31.0.4
       providerSpecific:
         - name: "google/weight"
           value: "60"
       labels:
-        id: 172.32.0.4
+        id: 172.31.0.4
       targets:
-        - 172.32.0.4
+        - 172.31.0.4

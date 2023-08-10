@@ -306,7 +306,7 @@ So now we have a working gateway with DNS and TLS configured. Let place this gat
     You'll see the following
     ```
     NAMESPACE                         NAME       CLASS   ADDRESS        PROGRAMMED   AGE
-    kuadrant-multi-cluster-gateways   prod-web   istio   172.32.201.0                90s
+    kuadrant-multi-cluster-gateways   prod-web   istio   172.31.201.0                90s
     ```
 
     So now we have second ingress cluster configured with the same Gateway. 

@@ -5,7 +5,7 @@ metadata:
   namespace: monitoring
 spec:
   rules:
-    - host: grafana.172.32.0.2.nip.io
+    - host: grafana.172.31.0.2.nip.io
       http:
         paths:
           - path: /

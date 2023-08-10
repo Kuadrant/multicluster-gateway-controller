@@ -138,7 +138,7 @@ DEV_TLS_KEY ?= $(DEV_TLS_DIR)/tls.key
 .PHONY: dev-tls
 dev-tls: $(DEV_TLS_CRT) ## Generate dev tls webhook cert if necessary.
 $(DEV_TLS_CRT):
-	openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout $(DEV_TLS_KEY) -out $(DEV_TLS_CRT) -subj "/C=IE/O=Red Hat Ltd/OU=HCG/CN=webhook.172.32.0.2.nip.io" -addext "subjectAltName = DNS:webhook.172.32.0.2.nip.io"
+	openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout $(DEV_TLS_KEY) -out $(DEV_TLS_CRT) -subj "/C=IE/O=Red Hat Ltd/OU=HCG/CN=webhook.172.31.0.2.nip.io" -addext "subjectAltName = DNS:webhook.172.31.0.2.nip.io"
 
 .PHONY: clear-dev-tls
 clear-dev-tls:

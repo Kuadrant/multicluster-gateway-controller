@@ -27,8 +27,8 @@ Three Traffic Manager Profiles:
 ![dnsrecord-geo-traffic-manager-profiles](dnsrecord-geo-traffic-manager-profiles.png)
 
  * Traffic Manager Profile 1 (dnsrecord-geo-azure-hcpapps-net): Geolocation routing policy with two region specific FQDN targets (dnsrecord-geo.eu.azure.hcpapps.net and dnsrecord-geo.na.azure.hcpapps.net).
- * Traffic Manager Profile 2 (dnsrecord-geo-na-azure-hcpapps-net): Weighted routed policy with two IP address endpoints (172.32.0.1 and 172.32.0.2) with equal weighting.
- * Traffic Manager Profile 3 (dnsrecord-geo-eu-azure-hcpapps-net): Weighted routed policy with two IP address endpoints (172.32.0.3 and 172.32.0.4) with equal weighting. 
+ * Traffic Manager Profile 2 (dnsrecord-geo-na-azure-hcpapps-net): Weighted routed policy with two IP address endpoints (172.31.0.1 and 172.31.0.2) with equal weighting.
+ * Traffic Manager Profile 3 (dnsrecord-geo-eu-azure-hcpapps-net): Weighted routed policy with two IP address endpoints (172.31.0.3 and 172.31.0.4) with equal weighting. 
 
 ```bash
 dig dnsrecord-geo.azure.hcpapps.net
@@ -47,7 +47,7 @@ dig dnsrecord-geo.azure.hcpapps.net
 ;; ANSWER SECTION:
 dnsrecord-geo.azure.hcpapps.net. 60 IN  CNAME   dnsrecord-geo-azure-hcpapps-net.trafficmanager.net.
 dnsrecord-geo-azure-hcpapps-net.trafficmanager.net. 60 IN CNAME dnsrecord-geo.eu.azure.hcpapps.net.
-dnsrecord-geo.eu.azure.hcpapps.net. 60 IN A     172.32.0.3
+dnsrecord-geo.eu.azure.hcpapps.net. 60 IN A     172.31.0.3
 
 ;; Query time: 88 msec
 ;; SERVER: 127.0.0.53#53(127.0.0.53) (UDP)

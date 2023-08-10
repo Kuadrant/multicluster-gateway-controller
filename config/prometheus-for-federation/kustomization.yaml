@@ -33,7 +33,7 @@ patches:
       spec:
         replicas: 1
         remoteWrite:
-          - url: http://thanos-receive-router.172.32.0.2.nip.io/api/v1/receive
+          - url: http://thanos-receive-router.172.31.0.2.nip.io/api/v1/receive
         additionalScrapeConfigs:
           name: additional-scrape-configs
           key: prometheus-additional.yaml
