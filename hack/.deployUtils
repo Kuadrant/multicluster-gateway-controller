@@ -368,6 +368,8 @@ deployQuickStartControl() {
     wait_for "kustomize --load-restrictor LoadRestrictionsNone build ${QUICK_START_HUB_KUSTOMIZATION} --enable-helm --helm-command helm | kubectl apply -f -" "${QUICK_START_HUB_KUSTOMIZATION} cluster config apply" "1m" "5"
     echo "Waiting for metallb-system deployments to be ready"
     kubectl -n metallb-system wait --for=condition=ready pod --selector=app=metallb --timeout=300s
+    echo "Waiting for cert-manager deployments to be ready"
+    kubectl -n cert-manager wait --timeout=300s --for=condition=Available deployments --all
     echo "Waiting for istio deployments to be ready"
     kubectl -n istio-operator wait --timeout=300s --for=condition=Available deployments --all
     kubectl -n istio-system wait --timeout=300s --for=condition=Available deployments --all
@@ -380,6 +382,9 @@ deployQuickStartWorkload() {
     wait_for "kustomize --load-restrictor LoadRestrictionsNone build ${QUICK_START_SPOKE_KUSTOMIZATION} --enable-helm --helm-command helm | kubectl apply -f -" "${QUICK_START_SPOKE_KUSTOMIZATION} cluster config apply" "1m" "5"
     echo "Waiting for metallb-system deployments to be ready"
     kubectl -n metallb-system wait --for=condition=ready pod --selector=app=metallb --timeout=300s
+    echo "Waiting for istio deployments to be ready"
+    kubectl -n istio-operator wait --timeout=300s --for=condition=Available deployments --all
+    kubectl -n istio-system wait --timeout=300s --for=condition=Available deployments --all
 }
 
 configureControlCluster() {
