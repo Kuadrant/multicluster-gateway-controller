@@ -105,6 +105,11 @@ var _ = Describe("Gateway single target cluster", func() {
 			client.PropagationPolicy(metav1.DeletePropagationForeground))
 		Expect(err).ToNot(HaveOccurred())
 
+		//Workaround for https://github.com/Kuadrant/multicluster-gateway-controller/issues/420
+		Eventually(func(ctx SpecContext) error {
+			return tconfig.HubClient().Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.HubNamespace()}, gw)
+		}).WithContext(ctx).WithTimeout(10 * time.Second).WithPolling(2 * time.Second).Should(MatchError(ContainSubstring("not found")))
+
 		err = tconfig.HubClient().Delete(ctx, placement,
 			client.PropagationPolicy(metav1.DeletePropagationForeground))
 		Expect(err).ToNot(HaveOccurred())
@@ -118,13 +123,21 @@ var _ = Describe("Gateway single target cluster", func() {
 
 		It("sets the 'Accepted' conditions to true and programmed condition to unknown", func(ctx SpecContext) {
 
+			Eventually(func(ctx SpecContext) error {
+				return tconfig.HubClient().Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.HubNamespace()}, gw)
+			}).WithContext(ctx).WithTimeout(10 * time.Second).WithPolling(2 * time.Second).ShouldNot(HaveOccurred())
+
 			Eventually(func(ctx SpecContext) bool {
 				err := tconfig.HubClient().Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.HubNamespace()}, gw)
 				Expect(err).ToNot(HaveOccurred())
-				programmed := meta.FindStatusCondition(gw.Status.Conditions, string(gatewayapi.GatewayConditionProgrammed))
-				return meta.IsStatusConditionTrue(gw.Status.Conditions, string(gatewayapi.GatewayConditionAccepted)) && (nil != programmed && programmed.Status == "Unknown")
+				return meta.IsStatusConditionPresentAndEqual(gw.Status.Conditions, string(gatewayapi.GatewayConditionProgrammed), "Unknown")
+			}).WithContext(ctx).WithTimeout(10 * time.Second).WithPolling(2 * time.Second).Should(BeTrue())
 
-			}).WithContext(ctx).WithTimeout(30 * time.Second).WithPolling(10 * time.Second).Should(BeTrue())
+			Eventually(func(ctx SpecContext) bool {
+				err := tconfig.HubClient().Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.HubNamespace()}, gw)
+				Expect(err).ToNot(HaveOccurred())
+				return meta.IsStatusConditionTrue(gw.Status.Conditions, string(gatewayapi.GatewayConditionAccepted))
+			}).WithContext(ctx).WithTimeout(10 * time.Second).WithPolling(2 * time.Second).Should(BeTrue())
 
 		})
 	})
@@ -297,7 +310,7 @@ var _ = Describe("Gateway single target cluster", func() {
 						defer cancel()
 						IPs, err := authoritativeResolver.LookupHost(c, string(hostname))
 						if err != nil {
-							GinkgoWriter.Printf("[debug] LooupHost error: '%s'\n", err)
+							GinkgoWriter.Printf("[debug] LookupHost error: '%s'\n", err)
 						}
 						return err == nil && len(IPs) > 0
 					}).WithTimeout(300 * time.Second).WithPolling(10 * time.Second).WithContext(ctx).Should(BeTrue())

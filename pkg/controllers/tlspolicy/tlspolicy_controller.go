@@ -62,9 +62,9 @@ type TLSPolicyReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-//+kubebuilder:rbac:groups=kuadrant.io.kuadrant.io,resources=tlspolicies,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=kuadrant.io.kuadrant.io,resources=tlspolicies/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=kuadrant.io.kuadrant.io,resources=tlspolicies/finalizers,verbs=update
+//+kubebuilder:rbac:groups=kuadrant.io,resources=tlspolicies,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=kuadrant.io,resources=tlspolicies/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=kuadrant.io,resources=tlspolicies/finalizers,verbs=update
 
 func (r *TLSPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := r.Logger().WithValues("TLSPolicy", req.NamespacedName)
