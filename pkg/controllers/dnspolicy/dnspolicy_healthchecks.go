@@ -103,13 +103,10 @@ func (r *DNSPolicyReconciler) expectedProbesForGateway(ctx context.Context, gw c
 	}
 
 	for _, listener := range gw.Spec.Listeners {
-		host := listener.Hostname
-		if host == nil {
-			continue
-		}
-		log.V(3).Info("getting dnsrecord", "name", host)
+
+		log.V(3).Info("getting dnsrecord", "name", dnsRecordName(gw.Name, string(listener.Name)))
 		dnsRecord := &v1alpha1.DNSRecord{}
-		if err := r.Client().Get(ctx, client.ObjectKey{Name: string(*host), Namespace: dnsPolicy.Namespace}, dnsRecord); err != nil {
+		if err := r.Client().Get(ctx, client.ObjectKey{Name: dnsRecordName(gw.Name, string(listener.Name)), Namespace: dnsPolicy.Namespace}, dnsRecord); err != nil {
 			if errors.IsNotFound(err) {
 				continue
 			} else {
