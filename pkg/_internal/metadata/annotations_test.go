@@ -10,7 +10,7 @@ import (
 )
 
 func Test_addAnnotation(t *testing.T) {
-	tests := []struct {
+	testCases := []struct {
 		name            string //for name of test
 		obj             metav1.Object
 		annotationKey   string
@@ -82,17 +82,17 @@ func Test_addAnnotation(t *testing.T) {
 			}),
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			AddAnnotation(tt.obj, tt.annotationKey, tt.annotationValue)
-			tt.verify(tt.obj, t)
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			AddAnnotation(testCase.obj, testCase.annotationKey, testCase.annotationValue)
+			testCase.verify(testCase.obj, t)
 		})
 	}
 }
 
 func Test_removeAnnotation(t *testing.T) {
 
-	tests := []struct {
+	testCases := []struct {
 		name          string //for name of test
 		obj           metav1.Object
 		annotationKey string
@@ -173,16 +173,16 @@ func Test_removeAnnotation(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			RemoveAnnotation(tt.obj, tt.annotationKey)
-			tt.verify(tt.obj, t)
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			RemoveAnnotation(testCase.obj, testCase.annotationKey)
+			testCase.verify(testCase.obj, t)
 		})
 	}
 }
 
 func Test_hasAnnotation(t *testing.T) {
-	tests := []struct {
+	testCases := []struct {
 		name       string
 		obj        metav1.Object
 		annotation string
@@ -216,11 +216,11 @@ func Test_hasAnnotation(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := HasAnnotation(tt.obj, tt.annotation)
-			if !got == tt.expect {
-				t.Errorf("expected '%v' got '%v'", tt.expect, got)
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			got := HasAnnotation(testCase.obj, testCase.annotation)
+			if !got == testCase.expect {
+				t.Errorf("expected '%v' got '%v'", testCase.expect, got)
 			}
 		})
 	}

@@ -29,14 +29,14 @@ func testScheme(t *testing.T) *runtime.Scheme {
 }
 
 func TestGetAdditionalHeaders(t *testing.T) {
-	scenarios := []struct {
-		Name   string
+	testCases := []struct {
+		name   string
 		Secret *v1.Secret
 		Probe  *v1alpha1.DNSHealthCheckProbe
 		Verify func(t *testing.T, headers v1alpha1.AdditionalHeaders, err error)
 	}{
 		{
-			Name: "finds correct headers from secret",
+			name: "finds correct headers from secret",
 			Secret: &v1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "probe-headers",
@@ -77,7 +77,7 @@ func TestGetAdditionalHeaders(t *testing.T) {
 			},
 		},
 		{
-			Name: "trims whitespace from header name",
+			name: "trims whitespace from header name",
 			Secret: &v1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "probe-headers",
@@ -136,7 +136,7 @@ func TestGetAdditionalHeaders(t *testing.T) {
 			},
 		},
 		{
-			Name: "fails when header contains untrimmable whitespace",
+			name: "fails when header contains untrimmable whitespace",
 			Secret: &v1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "probe-headers",
@@ -165,7 +165,7 @@ func TestGetAdditionalHeaders(t *testing.T) {
 			},
 		},
 		{
-			Name: "error when missing secret",
+			name: "error when missing secret",
 			Secret: &v1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "probe-headers",
@@ -194,7 +194,7 @@ func TestGetAdditionalHeaders(t *testing.T) {
 			},
 		},
 		{
-			Name: "no error with empty secret",
+			name: "no error with empty secret",
 			Secret: &v1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "probe-headers",
@@ -225,7 +225,7 @@ func TestGetAdditionalHeaders(t *testing.T) {
 			},
 		},
 		{
-			Name: "ignores secret in other namespace",
+			name: "ignores secret in other namespace",
 			Secret: &v1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "probe-headers",
@@ -255,11 +255,11 @@ func TestGetAdditionalHeaders(t *testing.T) {
 		},
 	}
 
-	for _, scenario := range scenarios {
-		t.Run(scenario.Name, func(t *testing.T) {
-			f := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(scenario.Probe, scenario.Secret).Build()
-			headers, err := getAdditionalHeaders(context.Background(), f, scenario.Probe)
-			scenario.Verify(t, headers, err)
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			f := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(testCase.Probe, testCase.Secret).Build()
+			headers, err := getAdditionalHeaders(context.Background(), f, testCase.Probe)
+			testCase.Verify(t, headers, err)
 		})
 	}
 }

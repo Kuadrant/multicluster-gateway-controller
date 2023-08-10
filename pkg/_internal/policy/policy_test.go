@@ -19,7 +19,7 @@ func TestGetTargetRefValueFromPolicy(t *testing.T) {
 	type args struct {
 		policy common.KuadrantPolicy
 	}
-	tests := []struct {
+	testCases := []struct {
 		name string
 		args args
 		want string
@@ -67,11 +67,11 @@ func TestGetTargetRefValueFromPolicy(t *testing.T) {
 			want: "test-gateway,test-gateway-ns",
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			expected := GetTargetRefValueFromPolicy(tt.args.policy)
-			if tt.want != expected {
-				t.Errorf("GetTargetRefValueFromPolicy returned %v; expected %v", tt.want, expected)
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			expected := GetTargetRefValueFromPolicy(testCase.args.policy)
+			if testCase.want != expected {
+				t.Errorf("GetTargetRefValueFromPolicy returned %v; expected %v", testCase.want, expected)
 			}
 		})
 	}

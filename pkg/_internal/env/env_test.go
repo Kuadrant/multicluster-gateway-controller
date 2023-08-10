@@ -16,7 +16,7 @@ func TestGetEnvBool(t *testing.T) {
 		key      string
 		fallback bool
 	}
-	tests := []struct {
+	testCases := []struct {
 		name string
 		args args
 		want bool
@@ -46,10 +46,10 @@ func TestGetEnvBool(t *testing.T) {
 			want: false,
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := GetEnvBool(tt.args.key, tt.args.fallback); got != tt.want {
-				t.Errorf("GetEnvBool() = %v, want %v", got, tt.want)
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			if got := GetEnvBool(testCase.args.key, testCase.args.fallback); got != testCase.want {
+				t.Errorf("GetEnvBool() = %v, want %v", got, testCase.want)
 			}
 		})
 	}
@@ -63,7 +63,7 @@ func TestGetEnvString(t *testing.T) {
 		key      string
 		fallback string
 	}
-	tests := []struct {
+	testCases := []struct {
 		name string
 		args args
 		want string
@@ -85,10 +85,10 @@ func TestGetEnvString(t *testing.T) {
 			want: "foo",
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := GetEnvString(tt.args.key, tt.args.fallback); got != tt.want {
-				t.Errorf("GetEnvString() = %v, want %v", got, tt.want)
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			if got := GetEnvString(testCase.args.key, testCase.args.fallback); got != testCase.want {
+				t.Errorf("GetEnvString() = %v, want %v", got, testCase.want)
 			}
 		})
 	}

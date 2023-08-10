@@ -60,7 +60,7 @@ func TestGetAddresses(t *testing.T) {
 	}
 	multiAddressesJsonString := string(multiAddressesJson)
 
-	cases := []struct {
+	testCases := []struct {
 		Name              string
 		Gateway           *v1beta1.Gateway
 		DownstreamCluster string
@@ -208,19 +208,19 @@ func TestGetAddresses(t *testing.T) {
 		},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.Name, func(t *testing.T) {
-			f := fake.NewClientBuilder().WithObjects(tc.ManifestWork(tc.DownstreamCluster, placement.WorkName(tc.Gateway))).Build()
+	for _, testCase := range testCases {
+		t.Run(testCase.Name, func(t *testing.T) {
+			f := fake.NewClientBuilder().WithObjects(testCase.ManifestWork(testCase.DownstreamCluster, placement.WorkName(testCase.Gateway))).Build()
 			p := placement.NewOCMPlacer(f)
-			addr, err := p.GetAddresses(context.TODO(), tc.Gateway, tc.DownstreamCluster)
-			tc.Assert(t, err, addr)
+			addr, err := p.GetAddresses(context.TODO(), testCase.Gateway, testCase.DownstreamCluster)
+			testCase.Assert(t, err, addr)
 		})
 	}
 
 }
 
 func TestListenerTotalAttachedRoutes(t *testing.T) {
-	cases := []struct {
+	testCases := []struct {
 		Name               string
 		Gateway            *v1beta1.Gateway
 		DownstreamCluster  string
@@ -317,20 +317,20 @@ func TestListenerTotalAttachedRoutes(t *testing.T) {
 		},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.Name, func(t *testing.T) {
+	for _, testCase := range testCases {
+		t.Run(testCase.Name, func(t *testing.T) {
 			f := fake.NewClientBuilder().
-				WithObjects(tc.ManifestWork(tc.DownstreamCluster, placement.WorkName(tc.Gateway), tc.AttachedRouteCount)).
+				WithObjects(testCase.ManifestWork(testCase.DownstreamCluster, placement.WorkName(testCase.Gateway), testCase.AttachedRouteCount)).
 				Build()
 			p := placement.NewOCMPlacer(f)
-			total, err := p.ListenerTotalAttachedRoutes(context.TODO(), tc.Gateway, "api", tc.DownstreamCluster)
-			tc.Assert(t, err, int64(total), int64(tc.AttachedRouteCount))
+			total, err := p.ListenerTotalAttachedRoutes(context.TODO(), testCase.Gateway, "api", testCase.DownstreamCluster)
+			testCase.Assert(t, err, int64(total), int64(testCase.AttachedRouteCount))
 		})
 	}
 }
 
 func TestGetPlacedClusters(t *testing.T) {
-	cases := []struct {
+	testCases := []struct {
 		Name               string
 		ManifestWork       func(downstream, name string) *workv1.ManifestWork
 		Gateway            *v1beta1.Gateway
@@ -449,23 +449,23 @@ func TestGetPlacedClusters(t *testing.T) {
 		},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.Name, func(t *testing.T) {
+	for _, testCase := range testCases {
+		t.Run(testCase.Name, func(t *testing.T) {
 			f := fake.NewClientBuilder()
-			for _, ds := range tc.DownstreamClusters {
-				f = f.WithObjects(tc.ManifestWork(ds, placement.WorkName(tc.Gateway)))
+			for _, ds := range testCase.DownstreamClusters {
+				f = f.WithObjects(testCase.ManifestWork(ds, placement.WorkName(testCase.Gateway)))
 			}
 
 			p := placement.NewOCMPlacer(f.Build())
-			placed, err := p.GetPlacedClusters(context.TODO(), tc.Gateway)
-			tc.Assert(t, err, placed, tc.DownstreamClusters)
+			placed, err := p.GetPlacedClusters(context.TODO(), testCase.Gateway)
+			testCase.Assert(t, err, placed, testCase.DownstreamClusters)
 		})
 	}
 
 }
 
 func TestGetClusters(t *testing.T) {
-	cases := []struct {
+	testCases := []struct {
 		Name              string
 		PlacementDecision func(clusters sets.Set[string]) *pd.PlacementDecision
 		Gateway           *v1beta1.Gateway
@@ -534,13 +534,13 @@ func TestGetClusters(t *testing.T) {
 		},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.Name, func(t *testing.T) {
+	for _, testCase := range testCases {
+		t.Run(testCase.Name, func(t *testing.T) {
 			f := fake.NewClientBuilder()
-			f.WithObjects(tc.PlacementDecision(tc.Clusters))
+			f.WithObjects(testCase.PlacementDecision(testCase.Clusters))
 			p := placement.NewOCMPlacer(f.Build())
-			cs, err := p.GetClusters(context.TODO(), tc.Gateway)
-			tc.Assert(t, err, cs, tc.Clusters)
+			cs, err := p.GetClusters(context.TODO(), testCase.Gateway)
+			testCase.Assert(t, err, cs, testCase.Clusters)
 		})
 	}
 }
@@ -615,7 +615,7 @@ func TestDeschedule(t *testing.T) {
 		}
 	}
 
-	cases := []struct {
+	testCases := []struct {
 		Name              string
 		Upstream          *v1beta1.Gateway
 		Downstream        *v1beta1.Gateway
@@ -667,22 +667,22 @@ func TestDeschedule(t *testing.T) {
 		},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.Name, func(t *testing.T) {
+	for _, testCase := range testCases {
+		t.Run(testCase.Name, func(t *testing.T) {
 			var f = fake.NewClientBuilder()
-			placedesc := tc.PlacementDecision(tc.Clusters)
+			placedesc := testCase.PlacementDecision(testCase.Clusters)
 			f.WithObjects(placedesc)
-			for _, ds := range tc.Existing.UnsortedList() {
-				mfs := tc.ManifestWork(ds, placement.WorkName(tc.Upstream))
+			for _, ds := range testCase.Existing.UnsortedList() {
+				mfs := testCase.ManifestWork(ds, placement.WorkName(testCase.Upstream))
 				f = f.WithObjects(mfs)
 			}
 			c := f.Build()
 			p := placement.NewOCMPlacer(c)
 			// build a test function as we want to change state and execute twice
 
-			placed, err := p.Place(context.TODO(), tc.Upstream, tc.Downstream, tc.TLSSecrets...)
-			if placed != nil && !placed.Equal(tc.Clusters) {
-				t.Fatalf("expected placed clusters %v to equal the target clusters %v", placed.UnsortedList(), tc.Clusters.UnsortedList())
+			placed, err := p.Place(context.TODO(), testCase.Upstream, testCase.Downstream, testCase.TLSSecrets...)
+			if placed != nil && !placed.Equal(testCase.Clusters) {
+				t.Fatalf("expected placed clusters %v to equal the target clusters %v", placed.UnsortedList(), testCase.Clusters.UnsortedList())
 			}
 			l := &workv1.ManifestWorkList{}
 			if err := c.List(context.TODO(), l, &client.ListOptions{}); err != nil {
@@ -690,17 +690,17 @@ func TestDeschedule(t *testing.T) {
 			}
 
 			// multiply by 2 as we expect and rbac and gatway manifest
-			if len(l.Items) != tc.Clusters.Len()*2 {
-				t.Fatalf("expected there to be %v manifests but got %v", tc.Clusters.Len()*2, len(l.Items))
+			if len(l.Items) != testCase.Clusters.Len()*2 {
+				t.Fatalf("expected there to be %v manifests but got %v", testCase.Clusters.Len()*2, len(l.Items))
 			}
 
-			for _, target := range tc.Clusters.UnsortedList() {
+			for _, target := range testCase.Clusters.UnsortedList() {
 				// retrieve and validate the manifest for each cluster
 				if err := c.List(context.TODO(), l, &client.ListOptions{Namespace: target}); err != nil {
 					t.Fatalf("did not expect an error listing manifests but got one %s", err)
 				}
 
-				tc.Assert(t, target, l, err)
+				testCase.Assert(t, target, l, err)
 			}
 		})
 	}

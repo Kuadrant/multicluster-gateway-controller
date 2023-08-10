@@ -8,7 +8,7 @@ import (
 )
 
 func TestSanitizeError(t *testing.T) {
-	tests := []struct {
+	testCases := []struct {
 		name          string
 		err           error
 		expectedError string
@@ -24,11 +24,11 @@ func TestSanitizeError(t *testing.T) {
 			expectedError: "An error has occurred",
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := SanitizeError(tt.err)
-			if got.Error() != tt.expectedError {
-				t.Errorf("expected '%v' got '%v'", tt.expectedError, got)
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			got := SanitizeError(testCase.err)
+			if got.Error() != testCase.expectedError {
+				t.Errorf("expected '%v' got '%v'", testCase.expectedError, got)
 			}
 		})
 	}

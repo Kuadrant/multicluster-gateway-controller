@@ -29,14 +29,14 @@ func TestGracefulDelete(t *testing.T) {
 	now := time.Now()
 	tenMinuteAway := now.Add(time.Minute * 10)
 	tenMinuteAwayUnix := fmt.Sprint(tenMinuteAway.Unix())
-	cases := []struct {
-		Name   string
+	testCases := []struct {
+		name   string
 		Object client.Object
 		At     time.Time
 		Verify func(t *testing.T, updatedObj client.Object, err, getErr error)
 	}{
 		{
-			Name: "deleting in future sets expected annotation",
+			name: "deleting in future sets expected annotation",
 			Object: &workv1.ManifestWork{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "gateway-test-test",
@@ -60,13 +60,13 @@ func TestGracefulDelete(t *testing.T) {
 		},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.Name, func(t *testing.T) {
-			fc := fake.NewClientBuilder().WithObjects(tc.Object).Build()
-			err := GracefulDelete(context.TODO(), fc, tc.Object, false)
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			fc := fake.NewClientBuilder().WithObjects(testCase.Object).Build()
+			err := GracefulDelete(context.TODO(), fc, testCase.Object, false)
 			mw := &workv1.ManifestWork{}
-			getErr := fc.Get(context.TODO(), client.ObjectKeyFromObject(tc.Object), mw)
-			tc.Verify(t, mw, err, getErr)
+			getErr := fc.Get(context.TODO(), client.ObjectKeyFromObject(testCase.Object), mw)
+			testCase.Verify(t, mw, err, getErr)
 		})
 	}
 }

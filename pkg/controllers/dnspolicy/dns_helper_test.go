@@ -67,7 +67,7 @@ func Test_dnsHelper_createDNSRecordForListener(t *testing.T) {
 		managedZone *v1alpha1.ManagedZone
 		listener    gatewayv1beta1.Listener
 	}
-	tests := []struct {
+	testCases := []struct {
 		name       string
 		args       args
 		recordList *v1alpha1.DNSRecordList
@@ -237,32 +237,32 @@ func Test_dnsHelper_createDNSRecordForListener(t *testing.T) {
 			},
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			f := fake.NewClientBuilder().WithScheme(testScheme(t)).WithLists(tt.recordList).Build()
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			f := fake.NewClientBuilder().WithScheme(testScheme(t)).WithLists(testCase.recordList).Build()
 			s := dnsHelper{Client: f}
 
-			gotRecord, err := s.createDNSRecordForListener(context.TODO(), tt.args.gateway, tt.args.dnsPolicy, tt.args.managedZone, tt.args.listener)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("CreateDNSRecord() error = %v, wantErr %v", err, tt.wantErr)
+			gotRecord, err := s.createDNSRecordForListener(context.TODO(), testCase.args.gateway, testCase.args.dnsPolicy, testCase.args.managedZone, testCase.args.listener)
+			if (err != nil) != testCase.wantErr {
+				t.Errorf("CreateDNSRecord() error = %v, wantErr %v", err, testCase.wantErr)
 				return
 			}
-			if !equality.Semantic.DeepEqual(gotRecord, tt.wantRecord) {
-				t.Errorf("CreateDNSRecord() gotRecord = \n%v, want \n%v", gotRecord, tt.wantRecord)
+			if !equality.Semantic.DeepEqual(gotRecord, testCase.wantRecord) {
+				t.Errorf("CreateDNSRecord() gotRecord = \n%v, want \n%v", gotRecord, testCase.wantRecord)
 			}
 		})
 	}
 }
 
 func Test_dnsHelper_findMatchingManagedZone(t *testing.T) {
-	cases := []struct {
-		Name   string
+	testCases := []struct {
+		name   string
 		Host   string
 		Zones  []v1alpha1.ManagedZone
 		Assert func(t *testing.T, zone *v1alpha1.ManagedZone, subdomain string, err error)
 	}{
 		{
-			Name: "finds the matching managed zone",
+			name: "finds the matching managed zone",
 			Host: "sub.domain.test.example.com",
 			Zones: []v1alpha1.ManagedZone{
 				{
@@ -278,7 +278,7 @@ func Test_dnsHelper_findMatchingManagedZone(t *testing.T) {
 			Assert: assertSub("example.com", "sub.domain.test", ""),
 		},
 		{
-			Name: "finds the most exactly matching managed zone",
+			name: "finds the most exactly matching managed zone",
 			Host: "sub.domain.test.example.com",
 			Zones: []v1alpha1.ManagedZone{
 				{
@@ -303,7 +303,7 @@ func Test_dnsHelper_findMatchingManagedZone(t *testing.T) {
 			Assert: assertSub("test.example.com", "sub.domain", ""),
 		},
 		{
-			Name: "returns a single subdomain",
+			name: "returns a single subdomain",
 			Host: "sub.test.example.com",
 			Zones: []v1alpha1.ManagedZone{
 				{
@@ -319,7 +319,7 @@ func Test_dnsHelper_findMatchingManagedZone(t *testing.T) {
 			Assert: assertSub("test.example.com", "sub", ""),
 		},
 		{
-			Name: "returns an error when nothing matches",
+			name: "returns an error when nothing matches",
 			Host: "sub.test.example.com",
 			Zones: []v1alpha1.ManagedZone{
 				{
@@ -335,7 +335,7 @@ func Test_dnsHelper_findMatchingManagedZone(t *testing.T) {
 			Assert: assertSub("", "", "no valid zone found"),
 		},
 		{
-			Name: "handles TLD with a dot",
+			name: "handles TLD with a dot",
 			Host: "sub.domain.test.example.co.uk",
 			Zones: []v1alpha1.ManagedZone{
 				{
@@ -351,7 +351,7 @@ func Test_dnsHelper_findMatchingManagedZone(t *testing.T) {
 			Assert: assertSub("example.co.uk", "sub.domain.test", ""),
 		},
 		{
-			Name: "TLD with a . will not match against a managedzone of the TLD",
+			name: "TLD with a . will not match against a managedzone of the TLD",
 			Host: "sub.domain.test.example.co.uk",
 			Zones: []v1alpha1.ManagedZone{
 				{
@@ -367,7 +367,7 @@ func Test_dnsHelper_findMatchingManagedZone(t *testing.T) {
 			Assert: assertSub("", "", "no valid zone found"),
 		},
 		{
-			Name:  "no managed zones for host give error",
+			name:  "no managed zones for host give error",
 			Host:  "sub.domain.test.example.co.uk",
 			Zones: []v1alpha1.ManagedZone{},
 			Assert: func(t *testing.T, zone *v1alpha1.ManagedZone, subdomain string, err error) {
@@ -377,7 +377,7 @@ func Test_dnsHelper_findMatchingManagedZone(t *testing.T) {
 			},
 		},
 		{
-			Name: "should not match when host and zone domain name are identical",
+			name: "should not match when host and zone domain name are identical",
 			Host: "test.example.com",
 			Zones: []v1alpha1.ManagedZone{
 				{
@@ -394,17 +394,17 @@ func Test_dnsHelper_findMatchingManagedZone(t *testing.T) {
 		},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.Name, func(t *testing.T) {
-			mx, subDomain, err := findMatchingManagedZone(tc.Host, tc.Host, tc.Zones)
-			tc.Assert(t, mx, subDomain, err)
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			mx, subDomain, err := findMatchingManagedZone(testCase.Host, testCase.Host, testCase.Zones)
+			testCase.Assert(t, mx, subDomain, err)
 		})
 	}
 }
 
 func Test_dnsHelper_setEndpoints(t *testing.T) {
 
-	tests := []struct {
+	testCases := []struct {
 		name      string
 		mcgTarget *dns.MultiClusterGatewayTarget
 		listener  gatewayv1beta1.Listener
@@ -944,16 +944,16 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 			},
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			f := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(tt.dnsRecord).Build()
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			f := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(testCase.dnsRecord).Build()
 			s := dnsHelper{Client: f}
-			if err := s.setEndpoints(context.TODO(), tt.mcgTarget, tt.dnsRecord, tt.listener); (err != nil) != tt.wantErr {
-				t.Errorf("SetEndpoints() error = %v, wantErr %v", err, tt.wantErr)
+			if err := s.setEndpoints(context.TODO(), testCase.mcgTarget, testCase.dnsRecord, testCase.listener); (err != nil) != testCase.wantErr {
+				t.Errorf("SetEndpoints() error = %v, wantErr %v", err, testCase.wantErr)
 			}
 
 			gotRecord := &v1alpha1.DNSRecord{}
-			if err := f.Get(context.TODO(), client.ObjectKeyFromObject(tt.dnsRecord), gotRecord); err != nil {
+			if err := f.Get(context.TODO(), client.ObjectKeyFromObject(testCase.dnsRecord), gotRecord); err != nil {
 				t.Errorf("error gettinging updated DNSrecord")
 			} else {
 
@@ -963,14 +963,14 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 					return id1 < id2
 				})
 
-				sort.Slice(tt.wantSpec.Endpoints, func(i, j int) bool {
-					id1 := tt.wantSpec.Endpoints[i].DNSName + tt.wantSpec.Endpoints[i].SetIdentifier
-					id2 := tt.wantSpec.Endpoints[j].DNSName + tt.wantSpec.Endpoints[j].SetIdentifier
+				sort.Slice(testCase.wantSpec.Endpoints, func(i, j int) bool {
+					id1 := testCase.wantSpec.Endpoints[i].DNSName + testCase.wantSpec.Endpoints[i].SetIdentifier
+					id2 := testCase.wantSpec.Endpoints[j].DNSName + testCase.wantSpec.Endpoints[j].SetIdentifier
 					return id1 < id2
 				})
 
-				if !equality.Semantic.DeepEqual(gotRecord.Spec.Endpoints, tt.wantSpec.Endpoints) {
-					t.Errorf("SetEndpoints() updated DNSRecord spec: \n%v, want spec: \n%v", gotRecord.Spec, *tt.wantSpec)
+				if !equality.Semantic.DeepEqual(gotRecord.Spec.Endpoints, testCase.wantSpec.Endpoints) {
+					t.Errorf("SetEndpoints() updated DNSRecord spec: \n%v, want spec: \n%v", gotRecord.Spec, *testCase.wantSpec)
 				}
 			}
 
@@ -979,8 +979,8 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 }
 
 func Test_dnsHelper_getDNSRecordForListener(t *testing.T) {
-	cases := []struct {
-		Name      string
+	testCases := []struct {
+		name      string
 		Listener  gatewayv1beta1.Listener
 		Assert    func(t *testing.T, err error)
 		DNSRecord *v1alpha1.DNSRecord
@@ -988,7 +988,7 @@ func Test_dnsHelper_getDNSRecordForListener(t *testing.T) {
 		DNSPolicy *v1alpha1.DNSPolicy
 	}{
 		{
-			Name:     "test get dns record returns record",
+			name:     "test get dns record returns record",
 			Listener: getTestListener("a.b.c.com"),
 			DNSRecord: &v1alpha1.DNSRecord{
 				ObjectMeta: v1.ObjectMeta{
@@ -1013,7 +1013,7 @@ func Test_dnsHelper_getDNSRecordForListener(t *testing.T) {
 			Assert: testutil.AssertError(""),
 		},
 		{
-			Name: "test get dns error when not found",
+			name: "test get dns error when not found",
 			DNSRecord: &v1alpha1.DNSRecord{
 				ObjectMeta: v1.ObjectMeta{
 					Name:      "gw-test",
@@ -1024,7 +1024,7 @@ func Test_dnsHelper_getDNSRecordForListener(t *testing.T) {
 			Assert:  testutil.AssertError("not found"),
 		},
 		{
-			Name: "test get dns error when referencing different Gateway",
+			name: "test get dns error when referencing different Gateway",
 			DNSRecord: &v1alpha1.DNSRecord{
 				ObjectMeta: v1.ObjectMeta{
 					Name:      "gw-test",
@@ -1047,7 +1047,7 @@ func Test_dnsHelper_getDNSRecordForListener(t *testing.T) {
 			Assert: testutil.AssertError("not found"),
 		},
 		{
-			Name:     "test get dns error when not owned by Gateway",
+			name:     "test get dns error when not owned by Gateway",
 			Listener: getTestListener("other.com"),
 			DNSRecord: &v1alpha1.DNSRecord{
 				ObjectMeta: v1.ObjectMeta{
@@ -1077,12 +1077,12 @@ func Test_dnsHelper_getDNSRecordForListener(t *testing.T) {
 		},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.Name, func(t *testing.T) {
-			f := fake.NewClientBuilder().WithScheme(testutil.GetValidTestScheme()).WithObjects(tc.DNSRecord).Build()
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			f := fake.NewClientBuilder().WithScheme(testutil.GetValidTestScheme()).WithObjects(testCase.DNSRecord).Build()
 			s := &dnsHelper{Client: f}
-			_, err := s.getDNSRecordForListener(context.TODO(), tc.Listener, tc.Gateway)
-			tc.Assert(t, err)
+			_, err := s.getDNSRecordForListener(context.TODO(), testCase.Listener, testCase.Gateway)
+			testCase.Assert(t, err)
 		})
 	}
 

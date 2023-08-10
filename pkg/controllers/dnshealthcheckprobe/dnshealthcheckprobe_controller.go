@@ -146,7 +146,7 @@ func getAdditionalHeaders(ctx context.Context, clt client.Client, probeObj *v1al
 		secretKey := client.ObjectKey{Name: probeObj.Spec.AdditionalHeadersRef.Name, Namespace: probeObj.Namespace}
 		additionalHeadersSecret := &v1.Secret{}
 		if err := clt.Get(ctx, secretKey, additionalHeadersSecret); client.IgnoreNotFound(err) != nil {
-			return additionalHeaders, fmt.Errorf("unusual error retrieving additional headers secret %v/%v: %w", secretKey.Namespace, secretKey.Name, err)
+			return additionalHeaders, fmt.Errorf("error retrieving additional headers secret %v/%v: %w", secretKey.Namespace, secretKey.Name, err)
 		} else if err != nil {
 			probeError := fmt.Errorf("error retrieving additional headers secret %v/%v: %w", secretKey.Namespace, secretKey.Name, err)
 			probeObj.Status.Healthy = false
