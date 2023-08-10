@@ -85,11 +85,9 @@ spec:
     group: gateway.networking.k8s.io
     kind: Gateway
   healthCheck:
-    AllowInsecureCertificates: true
+    allowInsecureCertificates: true
     additionalHeadersRef:
       name: probe-headers
-      namespace: multi-cluster-gateways
-      type: Opaque
     endpoint: /
     expectedResponses:
       - 200
@@ -117,6 +115,18 @@ The health check section is optional, the following fields are available:
 `failureThreshold`: How many consecutive fails are required to consider this endpoint unhealthy
 `port`: The port to connect to
 `protocol`: The protocol to use for this connection
+
+#### Checking status of health checks
+To list all health checks:
+```
+kubectl get dnshealthcheckprobes -A
+```
+This will list all probes in the hub cluster, and whether they are currently healthy or not.
+
+To find more information on why a specific health check is failing, look at the status of that probe:
+```
+kubectl get dnshealthcheckprobe <name> -n <namespace> -o yaml
+```
 
 ## DNSRecord Resources
 
