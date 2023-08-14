@@ -30,13 +30,9 @@ export YQ_BIN=$(dockerBinCmd "yq")
 export CLUSTERADM_BIN=$(dockerBinCmd "clusteradm")
 export KUSTOMIZE_BIN=$(dockerBinCmd "kustomize")
 
-# TODO: revert before merge
-# source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.kindUtils)"
-source ./hack/.kindUtils
+source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.kindUtils)"
 source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.cleanupUtils)"
-# TODO: revert before merge
-# source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.deployUtils)"
-source ./hack/.deployUtils
+source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.deployUtils)"
 source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.startUtils)"
 source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.setupEnv)"
 
@@ -88,9 +84,6 @@ fi
 if [[ -z "${MGC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
   MGC_WORKLOAD_CLUSTERS_COUNT=1
 fi
-
-# TODO: remove before merge
-docker build . -t ${TOOLS_IMAGE} -f ./Dockerfile.tools
 
 # Make temporary directory for kubeconfig
 mkdir -p ${TMP_DIR}

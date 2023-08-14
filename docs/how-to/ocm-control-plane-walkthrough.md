@@ -7,19 +7,12 @@ We will start with a single cluster and move to multiple clusters to illustrate 
 
 ## Requirements
 
-The below binary dependencies can be installed using the `make dependencies` command if you've already cloned the repo. If not links are provided.
-
-- [docker](https://docs.docker.com/engine/install/)
-- [kind](https://kind.sigs.k8s.io/)
-- [operator-sdk](https://sdk.operatorframework.io/docs/installation/)
-- [yq](https://mikefarah.gitbook.io/yq/v/v3.x/)
-- [clusteradm](https://github.com/open-cluster-management-io/clusteradm#install-the-clusteradm-command-line)
-- [kustomize](https://kubectl.docs.kubernetes.io/installation/kustomize/)
-- [helm](https://helm.sh/docs/intro/install/)
-- go >= 1.20
-- openssl >= 3
+- [Docker](https://docs.docker.com/engine/install/)
+- [Kind](https://kind.sigs.k8s.io/)
+- [Kubectl](https://kubernetes.io/docs/tasks/tools/)
+- OpenSSL >= 3
 - AWS account with Route 53 enabled
-- https://github.com/chipmk/docker-mac-net-connect (for macos users)
+- [Docker Mac Net Connect](https://github.com/chipmk/docker-mac-net-connect) (macOS users only)
 
 >**Note:** :exclamation: this walkthrough will setup a zone in your AWS account and make changes to it for DNS purposes
 
@@ -301,7 +294,7 @@ So what about DNS how do we bring traffic to these gateways?
     ```
     ```
     NAMESPACE                NAME                 READY
-    multi-cluster-gateways   myapp.test.hcpapps.net   True
+    multi-cluster-gateways   prod-web-api         True
     ```
 
 1. You should also be able to see there is only 1 endpoint added which corresponds to address assigned to the gateway where the HTTPRoute was created. In `T1`, run:
@@ -354,6 +347,8 @@ So now we have a working gateway with DNS and TLS configured. Let place this gat
     So now we have second ingress cluster configured with the same Gateway. 
 
 1. In `T2`, targeting the second cluster, go ahead and create the HTTPRoute in the second gateway cluster.
+
+>:exclamation: **Note:** Ensure the `MGC_SUB_DOMAIN` environment variable has been exported in this terminal session before applying this config.
 
     ```bash
     kubectl apply -f - <<EOF

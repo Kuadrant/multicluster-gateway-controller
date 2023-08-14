@@ -1,21 +1,18 @@
 ## Getting Started
 
 
-### Pre-requisites
+### Prerequisites
 
-- [docker](https://docs.docker.com/engine/install/)
-- [kind](https://kind.sigs.k8s.io/)
-- [operator-sdk](https://sdk.operatorframework.io/docs/installation/)
-- [yq](https://mikefarah.gitbook.io/yq/v/v3.x/)
-- [clusteradm](https://github.com/open-cluster-management-io/clusteradm#install-the-clusteradm-command-line)
-- [kustomize](https://kubectl.docs.kubernetes.io/installation/kustomize/)
-- [helm](https://helm.sh/docs/intro/install/)
-- go >= 1.20
-- openssl >= 3
+- [Docker](https://docs.docker.com/engine/install/)
+- [Kind](https://kind.sigs.k8s.io/)
+- [Kubectl](https://kubernetes.io/docs/tasks/tools/)
+- OpenSSL >= 3
 - AWS account with Route 53 enabled
-- https://github.com/chipmk/docker-mac-net-connect (for macos users)
+- [Docker Mac Net Connect](https://github.com/chipmk/docker-mac-net-connect) (macOS users only)
 
-* Export env-vars with the keys listed below. Fill in your own values as appropriate. You will need access to a domain or subdomain in Route 53 in AWS:
+### Config
+
+Export environment variables with the keys listed below. Fill in your own values as appropriate. Note that you will need to have created a root domain in AWS using Route 53:
 
 | Env Var                      | Example Value               | Description                                                    |
 |------------------------------|-----------------------------|----------------------------------------------------------------|
@@ -26,26 +23,17 @@
 | `MGC_AWS_REGION`             | `eu-west-1`                 | AWS Region                                                     |
 | `MGC_SUB_DOMAIN`             | `myapp.jbloggs.hcpapps.net` | AWS Region                                                     |
 
-* Alternatively, to set defaults, add the above environment variables to your `.zshrc` or `.bash_profile`.
+>Alternatively, to set defaults, add the above environment variables to your `.zshrc` or `.bash_profile`.
 
-
-For the follow-on walkthrough, we're going to use multiple terminal sessions/windows.
-
-Open two windows, which we'll refer to throughout this walkthrough as:
-
-* `T1` (Hub Cluster)
-* `T2` (Workloads cluster)
-
-* NOTE: MCG_SUB_DOMAIN env var is required in both terminals
-
-
-### Setup clusters and Multi-cluster Gateway Controller
+### Set Up Clusters and Multicluster Gateway Controller
 
    ```bash
     curl https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/quickstart-setup.sh | bash
    ```
 
-### What is next
+### What's Next
 
-Now that you have 2 kind clusters configured and with multicluster-gateway-controller installed you are ready to begin [creating gateways](https://docs.kuadrant.io/multicluster-gateway-controller/docs/how-to/ocm-control-plane-walkthrough/#create-a-gateway).
+Now that you have two Kind clusters configured with the Multicluster Gateway Controller installed you are ready to begin [creating gateways](https://docs.kuadrant.io/multicluster-gateway-controller/docs/how-to/ocm-control-plane-walkthrough/#create-a-gateway).
+
+>:exclamation: **Note:** The follow-on tutorial above expects two terminal sessions named `T1` (hub cluster) and `T2` (workload cluster) to be open. Before proceeding, open a second terminal session `T2` and export in it your `MGC_SUB_DOMAIN` environment variable.
 
