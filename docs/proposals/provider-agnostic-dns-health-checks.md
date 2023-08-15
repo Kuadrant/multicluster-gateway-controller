@@ -155,7 +155,47 @@ When scenario 3 is encountered the following process should be followed:
     For each GEO CNAME: This should be omitted if all the managed gateway CNAMEs have been omitted.
     Load balancer CNAME: This should never be omitted.
 
-If we consider the DNS record to be a hierarchy of parents and children, then whenever any parent has no healthy children that parent is also considered unhealthy. No unhealthy elements are to be included in the DNS Record.
+If we consider the DNS record to be a hierarchy of parents and children, then whenever any parent has no healthy 
+children that parent is also considered unhealthy. No unhealthy elements are to be included in the DNS Record.
+
+#### Removal Process
+
+When removing DNS records, we will want to avoid any `NXDOMAIN` responses from the DNS service as this will cause the 
+resolver to cache this missed domain for a while (30 minutes or more). The `NXDOMAIN` response is triggered when the 
+resolver attempts to resolve a host that does not have any records in the zone file.
+
+The situation that would cause this to occur is when we have removed a record but still refer to it from other 
+records.
+
+As we wish to avoid any `NXDOMAIN` responses from the nameserver - causing the resolver to cache this missed response
+we will need to ensure that any time a DNS Record (CNAME or A) is removed, we also remove any records that refer to the 
+removed record. (e.g. when the gateway A record is removed, we will need to remove the managed gateway CNAME that
+refers to that A record).
+
+
+##### Removal Example
+Given the following DNS Records (simplified hosts used in example):
+```
+01 host.example.com. 300 IN CNAME lb.hcpapps.net.
+02 lb.hcpapps.net. 60 IN CNAME default-geo.hcpapps.net.
+03 default-geo.hcpapps.net. 120 IN CNAME cluster1.hcpapps.net.
+04 default-geo.hcpapps.net. 120 IN CNAME cluster2.hcpapps.net.
+05 cluster1.hcpapps.net. 300 IN CNAME cluster1-gw1.hcpapps.net.
+06 cluster1.hcpapps.net. 300 IN CNAME cluster1-gw2.hcpapps.net.
+07 cluster2.hcpapps.net. 300 IN CNAME cluster2-gw1.hcpapps.net.
+08 cluster2.hcpapps.net. 300 IN CNAME cluster2-gw2.hcpapps.net.
+09 cluster1-gw1.hcpapps.net. 60 IN CNAME cluster1-gw1.aws.com.
+10 cluster1-gw2.hcpapps.net. 60 IN CNAME cluster1-gw2.aws.com.
+11 cluster2-gw1.hcpapps.net. 60 IN CNAME cluster2-gw1.aws.com.
+12 cluster2-gw2.hcpapps.net. 60 IN CNAME cluster2-gw2.aws.com.
+```
+cases:
+- Record 09 becomes unhealthy: remove records 09 and 05.
+- Record 09 and 10 become unhealthy: remove records 09, 10, 05, 06, 03
+
+#### Further reading
+
+Domain Names RFC: https://datatracker.ietf.org/doc/html/rfc1034
 
 ## Executing the probes
 There will be a DNSHealthCheckProbe CR controller added to the controller. This controller will create an instance of a 
