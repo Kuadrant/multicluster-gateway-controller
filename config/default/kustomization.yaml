@@ -33,4 +33,4 @@ resources:
 - ../rbac
 - ../manager
 patches:
-- path: manager_auth_proxy_patch.yaml
+- path: manager_metrics_patch.yaml
