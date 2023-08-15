@@ -290,6 +290,7 @@ func (r *DNSPolicyReconciler) updateGatewayCondition(ctx context.Context, condit
 func (r *DNSPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	gatewayEventMapper := events.NewGatewayEventMapper(r.Logger(), &DNSPolicyRefsConfig{}, "dnspolicy")
 	clusterEventMapper := events.NewClusterEventMapper(r.Logger(), r.Client(), &DNSPolicyRefsConfig{}, "dnspolicy")
+	probeEventMapper := events.NewProbeEventMapper(r.Logger(), DNSPolicyBackRefAnnotation, "dnspolicy")
 	r.dnsHelper = dnsHelper{Client: r.Client()}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.DNSPolicy{}).
@@ -300,6 +301,10 @@ func (r *DNSPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(
 			&source.Kind{Type: &clusterv1.ManagedCluster{}},
 			handler.EnqueueRequestsFromMapFunc(clusterEventMapper.MapToPolicy),
+		).
+		Watches(
+			&source.Kind{Type: &v1alpha1.DNSHealthCheckProbe{}},
+			handler.EnqueueRequestsFromMapFunc(probeEventMapper.MapToPolicy),
 		).
 		Complete(r)
 }

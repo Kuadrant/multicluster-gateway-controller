@@ -15,6 +15,13 @@ func HasLabel(obj metav1.Object, key string) bool {
 	return ok
 }
 
+func GetLabel(obj metav1.Object, key string) string {
+	if !HasLabel(obj, key) {
+		return ""
+	}
+	return obj.GetLabels()[key]
+}
+
 func HasLabelsContaining(obj metav1.Object, key string) (bool, map[string]string) {
 	matches := map[string]string{}
 	labels := obj.GetLabels()
