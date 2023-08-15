@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: controller-manager
+  namespace: system
+spec:
+  template:
+    spec:
+      containers:
+      - name: manager
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - "ALL"
+        args:
+        - "--metrics-bind-address=0.0.0.0:8080"
+        - "--leader-elect"
+        ports:
+        - containerPort: 8080
+          name: metrics
