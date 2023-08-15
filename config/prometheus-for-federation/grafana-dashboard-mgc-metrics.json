@@ -24,8 +24,8 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 19,
-  "iteration": 1691663562703,
+  "id": 25,
+  "iteration": 1692087230577,
   "links": [],
   "liveNow": false,
   "panels": [
@@ -272,7 +272,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sum by (pod) (rate(kube_pod_container_status_restarts_total[30m]) > 0 )",
+          "expr": "sum by (pod) (rate(kube_pod_container_status_restarts_total{namespace=~\"$namespace\"}[30m]) > 0 )",
           "format": "time_series",
           "instant": true,
           "intervalFactor": 2,
@@ -369,7 +369,7 @@
             "uid": "P8D9ADF90DB2E3ECF"
           },
           "editorMode": "code",
-          "expr": "sum(go_goroutines{namespace=~\"$namespace\",node=~\"$node\"}) by(pod)",
+          "expr": "go_goroutines{namespace=~\"$namespace\"}",
           "legendFormat": "{{pod}}",
           "range": true,
           "refId": "A"
@@ -461,7 +461,7 @@
             "uid": "P8D9ADF90DB2E3ECF"
           },
           "editorMode": "code",
-          "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=~\"$namespace\", node=~\"$node\"}[1m])) by(pod)",
+          "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=~\"$namespace\"}[1m])) by(pod)",
           "legendFormat": "CPU Usage {{pod}}",
           "range": true,
           "refId": "A"
@@ -472,7 +472,7 @@
             "uid": "P8D9ADF90DB2E3ECF"
           },
           "editorMode": "code",
-          "expr": "kube_pod_container_resource_requests{namespace=~\"$namespace\", resource=\"cpu\", node=~\"$node\"}",
+          "expr": "kube_pod_container_resource_requests{namespace=~\"$namespace\", resource=\"cpu\"}",
           "hide": false,
           "legendFormat": "CPU Requests {{pod}}",
           "range": true,
@@ -484,7 +484,7 @@
             "uid": "P8D9ADF90DB2E3ECF"
           },
           "editorMode": "code",
-          "expr": "kube_pod_container_resource_limits{namespace=~\"$namespace\", resource=\"cpu\", node=~\"$node\"}",
+          "expr": "kube_pod_container_resource_limits{namespace=~\"$namespace\", resource=\"cpu\"}",
           "hide": false,
           "legendFormat": "CPU Limits {{pod}}",
           "range": true,
@@ -576,7 +576,7 @@
             "uid": "P8D9ADF90DB2E3ECF"
           },
           "editorMode": "code",
-          "expr": "sum(container_memory_rss{namespace=~\"$namespace\", node=~\"$node\"}) by (pod)",
+          "expr": "sum(container_memory_rss{namespace=~\"$namespace\"}) by (pod)",
           "legendFormat": "Pod Memory {{pod}}",
           "range": true,
           "refId": "A"
@@ -587,7 +587,7 @@
             "uid": "P8D9ADF90DB2E3ECF"
           },
           "editorMode": "code",
-          "expr": "kube_pod_container_resource_requests{namespace=~\"$namespace\", resource=\"memory\", node=~\"$node\"}",
+          "expr": "kube_pod_container_resource_requests{namespace=~\"$namespace\", resource=\"memory\"}",
           "hide": false,
           "legendFormat": "Pod Memory Requests {{pod}}",
           "range": true,
@@ -599,7 +599,7 @@
             "uid": "P8D9ADF90DB2E3ECF"
           },
           "editorMode": "code",
-          "expr": "kube_pod_container_resource_limits{namespace=~\"$namespace\", resource=\"memory\", node=~\"$node\"}",
+          "expr": "kube_pod_container_resource_limits{namespace=~\"$namespace\", resource=\"memory\"}",
           "hide": false,
           "legendFormat": "Pod Memory Limits {{pod}}",
           "range": true,
@@ -614,7 +614,7 @@
         "type": "prometheus",
         "uid": "P8D9ADF90DB2E3ECF"
       },
-      "description": "Shows the rate of resources being queued for processing by each controller.",
+      "description": "Shows the rate of resources being queued for processing by each controller in the selected namespace.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -677,11 +677,11 @@
       "options": {
         "legend": {
           "calcs": [],
-          "displayMode": "hidden",
+          "displayMode": "list",
           "placement": "bottom"
         },
         "tooltip": {
-          "mode": "single",
+          "mode": "multi",
           "sort": "none"
         }
       },
@@ -692,7 +692,7 @@
             "uid": "P8D9ADF90DB2E3ECF"
           },
           "editorMode": "code",
-          "expr": "sum(rate(workqueue_adds_total{}[5m])) by (instance, name)",
+          "expr": "sum(rate(workqueue_adds_total{namespace=~\"$namespace\"}[5m])) by (name)",
           "legendFormat": "{{instance}} {{name}}",
           "range": true,
           "refId": "A"
@@ -706,7 +706,7 @@
         "type": "prometheus",
         "uid": "P8D9ADF90DB2E3ECF"
       },
-      "description": "Shows the queue size for each resource controller.",
+      "description": "Shows the queue size for each resource controller in the selected namespace.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -769,11 +769,11 @@
       "options": {
         "legend": {
           "calcs": [],
-          "displayMode": "hidden",
+          "displayMode": "list",
           "placement": "bottom"
         },
         "tooltip": {
-          "mode": "single",
+          "mode": "multi",
           "sort": "none"
         }
       },
@@ -784,7 +784,7 @@
             "uid": "P8D9ADF90DB2E3ECF"
           },
           "editorMode": "code",
-          "expr": "sum(rate(workqueue_depth{}[5m])) by (instance, name)",
+          "expr": "sum(rate(workqueue_depth{namespace=~\"$namespace\"}[5m])) by (name)",
           "legendFormat": "{{instance}} {{name}}",
           "range": true,
           "refId": "A"
@@ -798,7 +798,7 @@
         "type": "prometheus",
         "uid": "P8D9ADF90DB2E3ECF"
       },
-      "description": "Shows the queue processing latency for each resource controller.",
+      "description": "Shows the queue processing latency for each resource controller in the selected namespace.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -879,7 +879,7 @@
             "uid": "P8D9ADF90DB2E3ECF"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.99, sum(rate(workqueue_queue_duration_seconds_bucket{}[$__range])) by (instance, name, le))",
+          "expr": "histogram_quantile(0.99, sum(rate(workqueue_queue_duration_seconds_bucket{namespace=~\"$namespace\"}[$__range])) by (name, le))",
           "legendFormat": "{{instance}} {{name}}",
           "range": true,
           "refId": "A"
@@ -897,7 +897,7 @@
     "list": [
       {
         "current": {
-          "selected": true,
+          "selected": false,
           "text": "thanos-query",
           "value": "thanos-query"
         },
@@ -915,10 +915,11 @@
         "type": "datasource"
       },
       {
+        "allValue": "multicluster-gateway-controller-system",
         "current": {
-          "selected": true,
-          "text": "All",
-          "value": "$__all"
+          "selected": false,
+          "text": "multicluster-gateway-controller-system",
+          "value": "multicluster-gateway-controller-system"
         },
         "datasource": {
           "type": "prometheus",
@@ -933,33 +934,6 @@
         "options": [],
         "query": {
           "query": "label_values(kube_pod_info, namespace)",
-          "refId": "StandardVariableQuery"
-        },
-        "refresh": 1,
-        "regex": "",
-        "skipUrlSync": false,
-        "sort": 0,
-        "type": "query"
-      },
-      {
-        "current": {
-          "selected": true,
-          "text": "All",
-          "value": "$__all"
-        },
-        "datasource": {
-          "type": "prometheus",
-          "uid": "${datasource}"
-        },
-        "definition": "label_values(node)",
-        "hide": 0,
-        "includeAll": true,
-        "label": "Node",
-        "multi": false,
-        "name": "node",
-        "options": [],
-        "query": {
-          "query": "label_values(node)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 1,
