@@ -159,14 +159,14 @@ func getAdditionalHeaders(ctx context.Context, clt client.Client, probeObj *v1al
 			return additionalHeaders, fmt.Errorf("error retrieving additional headers secret %v/%v: %w", secretKey.Namespace, secretKey.Name, err)
 		} else if err != nil {
 			probeError := fmt.Errorf("error retrieving additional headers secret %v/%v: %w", secretKey.Namespace, secretKey.Name, err)
-			probeObj.Status.Healthy = false
+			*probeObj.Status.Healthy = false
 			probeObj.Status.ConsecutiveFailures = 0
 			probeObj.Status.Reason = "additional headers secret not found"
 			return additionalHeaders, probeError
 		}
 		for k, v := range additionalHeadersSecret.Data {
 			if strings.ContainsAny(strings.TrimSpace(k), " \t") {
-				probeObj.Status.Healthy = false
+				*probeObj.Status.Healthy = false
 				probeObj.Status.ConsecutiveFailures = 0
 				probeObj.Status.Reason = "invalid header found: " + k
 				return nil, fmt.Errorf("invalid header, must not contain whitespace '%v': %w", k, ErrInvalidHeader)

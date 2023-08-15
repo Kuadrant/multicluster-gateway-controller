@@ -2,6 +2,7 @@ package dnshealthcheckprobe
 
 import (
 	"context"
+	"github.com/aws/aws-sdk-go/aws"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,7 +34,11 @@ func (n StatusUpdateProbeNotifier) Notify(ctx context.Context, result health.Pro
 
 	// Increase the number of consecutive failures if it failed previously
 	if !result.Healthy {
-		if probeObj.Status.Healthy {
+		probeHealthy := true
+		if probeObj.Status.Healthy != nil {
+			probeHealthy = *probeObj.Status.Healthy
+		}
+		if probeHealthy {
 			probeObj.Status.ConsecutiveFailures = 1
 		} else {
 			probeObj.Status.ConsecutiveFailures++
@@ -43,7 +48,10 @@ func (n StatusUpdateProbeNotifier) Notify(ctx context.Context, result health.Pro
 	}
 
 	probeObj.Status.LastCheckedAt = metav1.NewTime(result.CheckedAt)
-	probeObj.Status.Healthy = result.Healthy
+	if probeObj.Status.Healthy == nil {
+		probeObj.Status.Healthy = aws.Bool(true)
+	}
+	probeObj.Status.Healthy = &result.Healthy
 	probeObj.Status.Reason = result.Reason
 	probeObj.Status.Status = result.Status
 

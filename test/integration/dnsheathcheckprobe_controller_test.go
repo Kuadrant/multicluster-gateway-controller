@@ -60,7 +60,7 @@ var _ = Describe("DNSHealthCheckProbe controller", func() {
 
 			GinkgoWriter.Print(probeObj)
 
-			Expect(probeObj.Status.Healthy).Should(BeTrue())
+			Expect(*probeObj.Status.Healthy).Should(BeTrue())
 			Expect(probeObj.Status.LastCheckedAt).Should(Not(BeZero()))
 		})
 		It("Should update health status to unhealthy", func() {
@@ -91,7 +91,7 @@ var _ = Describe("DNSHealthCheckProbe controller", func() {
 				return nil
 			}, timeout+(time.Second*20), interval).Should(BeNil())
 
-			Expect(probeObj.Status.Healthy).Should(BeFalse())
+			Expect(*probeObj.Status.Healthy).Should(BeFalse())
 			Expect(probeObj.Status.Reason).Should(Equal("Status code: 500"))
 		})
 	})
