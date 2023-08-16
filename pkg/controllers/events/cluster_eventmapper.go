@@ -1,4 +1,4 @@
-package dnspolicy
+package events
 
 import (
 	"context"
@@ -23,11 +23,24 @@ import (
 type ClusterEventMapper struct {
 	Logger             logr.Logger
 	GatewayEventMapper *GatewayEventMapper
-	client             client.Client
+	Client             client.Client
+	PolicyRefsConfig   common.PolicyRefsConfig
+	PolicyKind         string
 }
 
-func (m *ClusterEventMapper) MapToDNSPolicy(obj client.Object) []reconcile.Request {
-	return m.mapToPolicyRequest(obj, "dnspolicy", &DNSPolicyRefsConfig{})
+func NewClusterEventMapper(logger logr.Logger, client client.Client, policyRefsConfig common.PolicyRefsConfig, policyKind string) *ClusterEventMapper {
+	log := logger.WithName("ClusterEventMapper")
+	return &ClusterEventMapper{
+		Logger:             log,
+		GatewayEventMapper: NewGatewayEventMapper(log, policyRefsConfig, policyKind),
+		Client:             client,
+		PolicyRefsConfig:   policyRefsConfig,
+		PolicyKind:         policyKind,
+	}
+}
+
+func (m *ClusterEventMapper) MapToPolicy(obj client.Object) []reconcile.Request {
+	return m.mapToPolicyRequest(obj, m.PolicyKind, m.PolicyRefsConfig)
 }
 
 func (m *ClusterEventMapper) mapToPolicyRequest(obj client.Object, policyKind string, policyRefsConfig common.PolicyRefsConfig) []reconcile.Request {
@@ -44,7 +57,7 @@ func (m *ClusterEventMapper) mapToPolicyRequest(obj client.Object, policyKind st
 	clusterName := obj.GetName()
 
 	allGwList := &gatewayapiv1beta1.GatewayList{}
-	err := m.client.List(context.TODO(), allGwList)
+	err := m.Client.List(context.TODO(), allGwList)
 	if err != nil {
 		logger.Info("mapToPolicyRequest:", "error", "failed to get gateways")
 		return []reconcile.Request{}

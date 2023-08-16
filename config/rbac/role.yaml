@@ -205,6 +205,32 @@ rules:
   - patch
   - update
 - apiGroups:
+  - kuadrant.io
+  resources:
+  - tlspolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - kuadrant.io
+  resources:
+  - tlspolicies/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - kuadrant.io
+  resources:
+  - tlspolicies/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - work.open-cluster-management.io
   resources:
   - manifestworks

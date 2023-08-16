@@ -44,10 +44,10 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnsrecord"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/managedzone"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/tlspolicy"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/dnsprovider"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/health"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/placement"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/tls"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -103,7 +103,6 @@ func main() {
 
 	placement := placement.NewOCMPlacer(mgr.GetClient())
 	provider := dnsprovider.NewProvider(mgr.GetClient())
-	certService := tls.NewService(mgr.GetClient(), certProvider)
 
 	healthMonitor := health.NewMonitor()
 	healthCheckQueue := health.NewRequestQueue(time.Second * 5)
@@ -143,6 +142,23 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "DNSPolicy")
 		os.Exit(1)
 	}
+	//+kubebuilder:scaffold:builder
+
+	tlsPolicyBaseReconciler := reconcilers.NewBaseReconciler(
+		mgr.GetClient(), mgr.GetScheme(), mgr.GetAPIReader(),
+		log.Log.WithName("tlspolicy"),
+		mgr.GetEventRecorderFor("TLSPolicy"),
+	)
+
+	if err = (&tlspolicy.TLSPolicyReconciler{
+		TargetRefReconciler: reconcilers.TargetRefReconciler{
+			BaseReconciler: tlsPolicyBaseReconciler,
+		},
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "TLSPolicy")
+		os.Exit(1)
+	}
+	//+kubebuilder:scaffold:builder
 
 	if err = (&managedzone.ManagedZoneReconciler{
 		Client:      mgr.GetClient(),
@@ -161,10 +177,9 @@ func main() {
 	}
 
 	if err = (&gateway.GatewayReconciler{
-		Client:       mgr.GetClient(),
-		Scheme:       mgr.GetScheme(),
-		Certificates: certService,
-		Placement:    placement,
+		Client:    mgr.GetClient(),
+		Scheme:    mgr.GetScheme(),
+		Placement: placement,
 	}).SetupWithManager(mgr, ctx); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Gateway")
 		os.Exit(1)

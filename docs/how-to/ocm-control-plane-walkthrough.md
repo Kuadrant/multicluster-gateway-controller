@@ -26,10 +26,10 @@ The below binary dependencies can be installed using the `make dependencies` com
 ## Installation and Setup
 * Export env-vars with the keys listed below. Fill in your own values as appropriate. You will need access to a domain or subdomain in Route 53 in AWS:
 
- | Env Var                      | Example Value               | Description                                                    |
-|------------------------------|-----------------------------|----------------------------------------------------------------|
+  | Env Var                      | Example Value               | Description                                                    |
+  |------------------------------|-----------------------------|----------------------------------------------------------------|
   | `MGC_ZONE_ROOT_DOMAIN`       | `jbloggs.hcpapps.net`       | Hostname for the root Domain                                   |
-  | `MGC_AWS_DNS_PUBLIC_ZONE_ID` | `Z01234567US0IQE3YLO00`     | AWS Route 53 Zone ID for specified `MGC_ZONE_ROOT_DOMAIN`      | | 
+  | `MGC_AWS_DNS_PUBLIC_ZONE_ID` | `Z01234567US0IQE3YLO00`     | AWS Route 53 Zone ID for specified `MGC_ZONE_ROOT_DOMAIN`      | 
   | `MGC_AWS_ACCESS_KEY_ID`      | `AKIA1234567890000000`      | Access Key ID, with access to resources in Route 53            |
   | `MGC_AWS_SECRET_ACCESS_KEY`  | `Z01234567US0000000`        | Access Secret Access Key, with access to resources in Route 53 |
   | `MGC_AWS_REGION`             | `eu-west-1`                 | AWS Region                                                     |
@@ -115,8 +115,50 @@ You are now ready to begin creating a gateway! :tada:
       hostname: $MGC_SUB_DOMAIN
       port: 443
       protocol: HTTPS
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: apps-hcpapps-tls
+            kind: Secret
   EOF
   ```
+
+### Enable TLS
+
+1. In `T1`, create a TLSPolicy and attach it to your Gateway:
+
+    ```bash
+    kubectl apply -f - <<EOF
+    apiVersion: kuadrant.io/v1alpha1
+    kind: TLSPolicy
+    metadata:
+      name: prod-web
+      namespace: multi-cluster-gateways
+    spec:
+      targetRef:
+        name: prod-web
+        group: gateway.networking.k8s.io
+        kind: Gateway
+      issuerRef:
+        group: cert-manager.io
+        kind: ClusterIssuer
+        name: glbc-ca   
+    EOF
+    ```
+
+1. You should now see a Certificate resource in the hub cluster. In `T1`, run:
+
+    ```bash
+    kubectl get certificates -A
+    ```
+    you'll see the following:
+    
+   ```
+    NAMESPACE                NAME               READY   SECRET             AGE
+    multi-cluster-gateways   apps-hcpapps-tls   True    apps-hcpapps-tls   12m
+    ```
+
+It is possible to also use a letsencrypt certificate, but for simplicity in this walkthrough we are using a self-signed cert.
 
 ### Place the gateway
 
@@ -145,8 +187,7 @@ This is because we haven't placed the gateway yet onto any of our ingress cluste
     The instantiated gateway in this case is handled by Istio and has been assigned the 172.x address. You can define this gateway to be handled in the multi-cluster-gateways namespace. 
     As we are in a single cluster you can see both. Later on we will add in another ingress cluster and in that case you will only see the instantiated gateway.
 
-
-    Additionally you should be able to see a secret containing a self signed certificate. It is possible to also use a letsencrypt certificate, but for simplicity in this walkthrough we are using a self signed cert. 
+    Additionally, you should be able to see a secret containing a self-signed certificate.
 
 1. In `T1`, run:
 
@@ -155,7 +196,8 @@ This is because we haven't placed the gateway yet onto any of our ingress cluste
     ```
     you'll see the following:
     ```
-    myapp.test.hcpapps.net   kubernetes.io/tls   3      4m33s
+    NAME               TYPE                DATA   AGE
+    apps-hcpapps-tls   kubernetes.io/tls   3      13m
     ```
 
 The listener is configured to use this TLS secret also. So now our gateway has been placed and is running in the right locations with the right configuration and TLS has been setup for the HTTPS listeners.

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	cmmetav1 "github.com/jetstack/cert-manager/pkg/apis/meta/v1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	ocm_cluster_v1beta1 "open-cluster-management.io/api/cluster/v1beta1"
@@ -84,7 +85,7 @@ var _ = Describe("Gateway single target cluster", func() {
 		err = tconfig.HubClient().Create(ctx, gw)
 		Expect(err).ToNot(HaveOccurred())
 
-		By("creating a a test application in the spoke for ")
+		By("creating a a test application in the spoke")
 
 		key := client.ObjectKey{Name: "test", Namespace: testID}
 
@@ -104,6 +105,11 @@ var _ = Describe("Gateway single target cluster", func() {
 			client.PropagationPolicy(metav1.DeletePropagationForeground))
 		Expect(err).ToNot(HaveOccurred())
 
+		//Workaround for https://github.com/Kuadrant/multicluster-gateway-controller/issues/420
+		Eventually(func(ctx SpecContext) error {
+			return tconfig.HubClient().Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.HubNamespace()}, gw)
+		}).WithContext(ctx).WithTimeout(10 * time.Second).WithPolling(2 * time.Second).Should(MatchError(ContainSubstring("not found")))
+
 		err = tconfig.HubClient().Delete(ctx, placement,
 			client.PropagationPolicy(metav1.DeletePropagationForeground))
 		Expect(err).ToNot(HaveOccurred())
@@ -117,13 +123,21 @@ var _ = Describe("Gateway single target cluster", func() {
 
 		It("sets the 'Accepted' conditions to true and programmed condition to unknown", func(ctx SpecContext) {
 
+			Eventually(func(ctx SpecContext) error {
+				return tconfig.HubClient().Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.HubNamespace()}, gw)
+			}).WithContext(ctx).WithTimeout(10 * time.Second).WithPolling(2 * time.Second).ShouldNot(HaveOccurred())
+
 			Eventually(func(ctx SpecContext) bool {
 				err := tconfig.HubClient().Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.HubNamespace()}, gw)
 				Expect(err).ToNot(HaveOccurred())
-				programmed := meta.FindStatusCondition(gw.Status.Conditions, string(gatewayapi.GatewayConditionProgrammed))
-				return meta.IsStatusConditionTrue(gw.Status.Conditions, string(gatewayapi.GatewayConditionAccepted)) && (nil != programmed && programmed.Status == "Unknown")
+				return meta.IsStatusConditionPresentAndEqual(gw.Status.Conditions, string(gatewayapi.GatewayConditionProgrammed), "Unknown")
+			}).WithContext(ctx).WithTimeout(10 * time.Second).WithPolling(2 * time.Second).Should(BeTrue())
 
-			}).WithContext(ctx).WithTimeout(30 * time.Second).WithPolling(10 * time.Second).Should(BeTrue())
+			Eventually(func(ctx SpecContext) bool {
+				err := tconfig.HubClient().Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.HubNamespace()}, gw)
+				Expect(err).ToNot(HaveOccurred())
+				return meta.IsStatusConditionTrue(gw.Status.Conditions, string(gatewayapi.GatewayConditionAccepted))
+			}).WithContext(ctx).WithTimeout(10 * time.Second).WithPolling(2 * time.Second).Should(BeTrue())
 
 		})
 	})
@@ -190,103 +204,144 @@ var _ = Describe("Gateway single target cluster", func() {
 				Expect(err).ToNot(HaveOccurred())
 			})
 
-			It("makes available a hostname that can be resolved and reachable through HTTPS", func(ctx SpecContext) {
+			When("a DNSPolicy and TLSPolicy are attached to the Gateway", func() {
+				var tlsPolicy *mgcv1alpha1.TLSPolicy
+				var dnsPolicy *mgcv1alpha1.DNSPolicy
 
-				By("creating a DNSPolicy in the hub")
+				BeforeEach(func(ctx SpecContext) {
 
-				dnsPolicy := &mgcv1alpha1.DNSPolicy{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      testID,
-						Namespace: tconfig.HubNamespace(),
-					},
-					Spec: mgcv1alpha1.DNSPolicySpec{
-						TargetRef: gatewayapiv1alpha2.PolicyTargetReference{
-							Group:     "gateway.networking.k8s.io",
-							Kind:      "Gateway",
-							Name:      gatewayapi.ObjectName(testID),
-							Namespace: Pointer(gatewayapi.Namespace(tconfig.HubNamespace())),
+					By("creating a TLSPolicy in the hub")
+
+					tlsPolicy = &mgcv1alpha1.TLSPolicy{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      testID,
+							Namespace: tconfig.HubNamespace(),
 						},
-					},
-				}
-				err := tconfig.HubClient().Create(ctx, dnsPolicy)
-				Expect(err).ToNot(HaveOccurred())
-
-				// Wait for the DNSrecord to exists: this shouldn't be necessary but I have found out that AWS dns servers
-				// cache the "no such host" response for a period of aprox 10-15 minutes, which makes the test run for a
-				// long time.
-				By("waiting for the DNSRecord to be created in the Hub")
-
-				Eventually(func(ctx SpecContext) bool {
-					dnsrecord := &mgcv1alpha1.DNSRecord{ObjectMeta: metav1.ObjectMeta{
-						Name:      fmt.Sprintf("%s-%s", gw.Name, "https"),
-						Namespace: gw.Namespace,
-					},
+						Spec: mgcv1alpha1.TLSPolicySpec{
+							TargetRef: gatewayapiv1alpha2.PolicyTargetReference{
+								Group:     "gateway.networking.k8s.io",
+								Kind:      "Gateway",
+								Name:      gatewayapi.ObjectName(testID),
+								Namespace: Pointer(gatewayapi.Namespace(tconfig.HubNamespace())),
+							},
+							CertificateSpec: mgcv1alpha1.CertificateSpec{
+								IssuerRef: cmmetav1.ObjectReference{
+									Name:  "glbc-ca",
+									Kind:  "ClusterIssuer",
+									Group: "cert-manager.io",
+								},
+							},
+						},
 					}
-					if err := tconfig.HubClient().Get(ctx, client.ObjectKeyFromObject(dnsrecord), dnsrecord); err != nil {
-						GinkgoWriter.Printf("[debug] unable to get DNSRecord: '%s'\n", err)
-						return false
+					err := tconfig.HubClient().Create(ctx, tlsPolicy)
+					Expect(err).ToNot(HaveOccurred())
+
+					By("creating a DNSPolicy in the hub")
+
+					dnsPolicy = &mgcv1alpha1.DNSPolicy{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      testID,
+							Namespace: tconfig.HubNamespace(),
+						},
+						Spec: mgcv1alpha1.DNSPolicySpec{
+							TargetRef: gatewayapiv1alpha2.PolicyTargetReference{
+								Group:     "gateway.networking.k8s.io",
+								Kind:      "Gateway",
+								Name:      gatewayapi.ObjectName(testID),
+								Namespace: Pointer(gatewayapi.Namespace(tconfig.HubNamespace())),
+							},
+						},
 					}
-					return meta.IsStatusConditionTrue(dnsrecord.Status.Conditions, conditions.ConditionTypeReady)
-				}).WithTimeout(300 * time.Second).WithPolling(10 * time.Second).WithContext(ctx).Should(BeTrue())
+					err = tconfig.HubClient().Create(ctx, dnsPolicy)
+					Expect(err).ToNot(HaveOccurred())
+				})
 
-				// still need to wait some seconds to the dns server to actually start
-				// resolving the hostname
-				select {
-				case <-ctx.Done():
-				case <-time.After(30 * time.Second):
-				}
+				AfterEach(func(ctx SpecContext) {
+					err := tconfig.SpokeClient(0).Delete(ctx, dnsPolicy)
+					Expect(err).ToNot(HaveOccurred())
+					err = tconfig.SpokeClient(0).Delete(ctx, tlsPolicy)
+					Expect(err).ToNot(HaveOccurred())
+				})
 
-				By("ensuring the authoritative nameserver resolves the hostname")
+				It("makes available a hostname that can be resolved and reachable through HTTPS", func(ctx SpecContext) {
 
-				// speed up things by using the authoritative nameserver
-				nameservers, err := net.LookupNS(tconfig.ManagedZone())
-				Expect(err).ToNot(HaveOccurred())
-				GinkgoWriter.Printf("[debug] authoritative nameserver used for DNS record resolution: %s\n", nameservers[0].Host)
+					// Wait for the DNSrecord to exists: this shouldn't be necessary but I have found out that AWS dns servers
+					// cache the "no such host" response for a period of aprox 10-15 minutes, which makes the test run for a
+					// long time.
+					By("waiting for the DNSRecord to be created in the Hub")
 
-				authoritativeResolver := &net.Resolver{
-					PreferGo: true,
-					Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-						d := net.Dialer{Timeout: 10 * time.Second}
-						return d.DialContext(ctx, network, strings.Join([]string{nameservers[0].Host, "53"}, ":"))
-					},
-				}
-
-				Eventually(func(ctx SpecContext) bool {
-					c, cancel := context.WithTimeout(ctx, 10*time.Second)
-					defer cancel()
-					IPs, err := authoritativeResolver.LookupHost(c, string(hostname))
-					if err != nil {
-						GinkgoWriter.Printf("[debug] LooupHost error: '%s'\n", err)
-					}
-					return err == nil && len(IPs) > 0
-				}).WithTimeout(300 * time.Second).WithPolling(10 * time.Second).WithContext(ctx).Should(BeTrue())
-
-				By("performing a GET using HTTPS")
-				{
-					// use the authoritative nameservers
-					dialer := &net.Dialer{Resolver: authoritativeResolver}
-					dialContext := func(ctx context.Context, network, addr string) (net.Conn, error) {
-						return dialer.DialContext(ctx, network, addr)
-					}
-					http.DefaultTransport.(*http.Transport).DialContext = dialContext
-					http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-					httpClient := &http.Client{}
-
-					var resp *http.Response
-					Eventually(func(ctx SpecContext) error {
-						resp, err = httpClient.Get("https://" + string(hostname))
-						if err != nil {
-							GinkgoWriter.Printf("[debug] GET error: '%s'\n", err)
-							return err
+					Eventually(func(ctx SpecContext) bool {
+						dnsrecord := &mgcv1alpha1.DNSRecord{ObjectMeta: metav1.ObjectMeta{
+							Name:      fmt.Sprintf("%s-%s", gw.Name, "https"),
+							Namespace: gw.Namespace,
+						},
 						}
-						return nil
-					}).WithTimeout(300 * time.Second).WithPolling(10 * time.Second).WithContext(ctx).ShouldNot(HaveOccurred())
+						if err := tconfig.HubClient().Get(ctx, client.ObjectKeyFromObject(dnsrecord), dnsrecord); err != nil {
+							GinkgoWriter.Printf("[debug] unable to get DNSRecord: '%s'\n", err)
+							return false
+						}
+						return meta.IsStatusConditionTrue(dnsrecord.Status.Conditions, conditions.ConditionTypeReady)
+					}).WithTimeout(300 * time.Second).WithPolling(10 * time.Second).WithContext(ctx).Should(BeTrue())
 
-					defer resp.Body.Close()
-					Expect(resp.StatusCode).To(Equal(http.StatusOK))
-				}
+					// still need to wait some seconds to the dns server to actually start
+					// resolving the hostname
+					select {
+					case <-ctx.Done():
+					case <-time.After(30 * time.Second):
+					}
+
+					By("ensuring the authoritative nameserver resolves the hostname")
+
+					// speed up things by using the authoritative nameserver
+					nameservers, err := net.LookupNS(tconfig.ManagedZone())
+					Expect(err).ToNot(HaveOccurred())
+					GinkgoWriter.Printf("[debug] authoritative nameserver used for DNS record resolution: %s\n", nameservers[0].Host)
+
+					authoritativeResolver := &net.Resolver{
+						PreferGo: true,
+						Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+							d := net.Dialer{Timeout: 10 * time.Second}
+							return d.DialContext(ctx, network, strings.Join([]string{nameservers[0].Host, "53"}, ":"))
+						},
+					}
+
+					Eventually(func(ctx SpecContext) bool {
+						c, cancel := context.WithTimeout(ctx, 10*time.Second)
+						defer cancel()
+						IPs, err := authoritativeResolver.LookupHost(c, string(hostname))
+						if err != nil {
+							GinkgoWriter.Printf("[debug] LookupHost error: '%s'\n", err)
+						}
+						return err == nil && len(IPs) > 0
+					}).WithTimeout(300 * time.Second).WithPolling(10 * time.Second).WithContext(ctx).Should(BeTrue())
+
+					By("performing a GET using HTTPS")
+					{
+						// use the authoritative nameservers
+						dialer := &net.Dialer{Resolver: authoritativeResolver}
+						dialContext := func(ctx context.Context, network, addr string) (net.Conn, error) {
+							return dialer.DialContext(ctx, network, addr)
+						}
+						http.DefaultTransport.(*http.Transport).DialContext = dialContext
+						http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+						httpClient := &http.Client{}
+
+						var resp *http.Response
+						Eventually(func(ctx SpecContext) error {
+							resp, err = httpClient.Get("https://" + string(hostname))
+							if err != nil {
+								GinkgoWriter.Printf("[debug] GET error: '%s'\n", err)
+								return err
+							}
+							return nil
+						}).WithTimeout(300 * time.Second).WithPolling(10 * time.Second).WithContext(ctx).ShouldNot(HaveOccurred())
+
+						defer resp.Body.Close()
+						Expect(resp.StatusCode).To(Equal(http.StatusOK))
+					}
+				})
+
 			})
-
 		})
 
 	})

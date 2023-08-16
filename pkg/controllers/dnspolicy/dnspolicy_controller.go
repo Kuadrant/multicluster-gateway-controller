@@ -38,6 +38,7 @@ import (
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/events"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 )
@@ -225,26 +226,18 @@ func (r *DNSPolicyReconciler) readyCondition(targetNetworkObjectectKind string, 
 }
 
 func (r *DNSPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	gatewayEventMapper := &GatewayEventMapper{
-		Logger: r.Logger().WithName("gatewayEventMapper"),
-	}
-	client := r.Client()
-	dnsHelper := dnsHelper{Client: client}
-	r.dnsHelper = dnsHelper
-	clusterEventMapper := &ClusterEventMapper{
-		Logger:             r.Logger().WithName("clusterEventMapper"),
-		GatewayEventMapper: gatewayEventMapper,
-		client:             r.Client(),
-	}
+	gatewayEventMapper := events.NewGatewayEventMapper(r.Logger(), &DNSPolicyRefsConfig{}, "dnspolicy")
+	clusterEventMapper := events.NewClusterEventMapper(r.Logger(), r.Client(), &DNSPolicyRefsConfig{}, "dnspolicy")
+	r.dnsHelper = dnsHelper{Client: r.Client()}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.DNSPolicy{}).
 		Watches(
 			&source.Kind{Type: &gatewayapiv1beta1.Gateway{}},
-			handler.EnqueueRequestsFromMapFunc(gatewayEventMapper.MapToDNSPolicy),
+			handler.EnqueueRequestsFromMapFunc(gatewayEventMapper.MapToPolicy),
 		).
 		Watches(
 			&source.Kind{Type: &clusterv1.ManagedCluster{}},
-			handler.EnqueueRequestsFromMapFunc(clusterEventMapper.MapToDNSPolicy),
+			handler.EnqueueRequestsFromMapFunc(clusterEventMapper.MapToPolicy),
 		).
 		Complete(r)
 }
