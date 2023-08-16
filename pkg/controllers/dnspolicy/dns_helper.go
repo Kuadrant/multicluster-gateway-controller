@@ -117,6 +117,17 @@ func (dh *dnsHelper) getDNSRecordForListener(ctx context.Context, listener gatew
 	return dnsRecord, nil
 }
 
+func withDNSRecord[T metav1.Object](dnsRecord *v1alpha1.DNSRecord, obj T) T {
+	if obj.GetAnnotations() == nil {
+		obj.SetAnnotations(map[string]string{})
+	}
+
+	obj.GetAnnotations()["dnsrecord-name"] = dnsRecord.Name
+	obj.GetAnnotations()["dnsrecord-namespace"] = dnsRecord.Namespace
+
+	return obj
+}
+
 // setEndpoints sets the endpoints for the given MultiClusterGatewayTarget
 //
 // Builds an array of v1alpha1.Endpoint resources and sets them on the given DNSRecord. The endpoints expected are calculated

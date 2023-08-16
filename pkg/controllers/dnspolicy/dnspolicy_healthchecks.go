@@ -150,7 +150,7 @@ func (r *DNSPolicyReconciler) expectedProbesForGateway(ctx context.Context, gw c
 						AllowInsecureCertificate: dnsPolicy.Spec.HealthCheck.AllowInsecureCertificates,
 					},
 				}
-				healthChecks = append(healthChecks, healthCheck)
+				healthChecks = append(healthChecks, withDNSRecord(dnsRecord, healthCheck))
 			}
 		}
 	}
