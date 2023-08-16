@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/kuadrant/authorino/pkg/log"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
 
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -63,7 +64,7 @@ type DNSPolicyReconciler struct {
 	reconcilers.TargetRefReconciler
 	DNSProvider dns.DNSProviderFactory
 	dnsHelper   dnsHelper
-	Placement   gateway.GatewayPlacer
+	Placer      gateway.GatewayPlacer
 }
 
 //+kubebuilder:rbac:groups=kuadrant.io,resources=dnspolicies,verbs=get;list;watch;create;update;patch;delete
@@ -78,6 +79,7 @@ func (r *DNSPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	previous := &v1alpha1.DNSPolicy{}
 	if err := r.Client().Get(ctx, req.NamespacedName, previous); err != nil {
+		log.Info("error getting dns policy", "error", err)
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
@@ -205,6 +207,7 @@ func (r *DNSPolicyReconciler) deleteResources(ctx context.Context, dnsPolicy *v1
 	}
 
 	if err := r.reconcileDNSRecords(ctx, dnsPolicy, gatewayDiffObj); err != nil {
+		log.V(3).Info("error reconciling DNS records from delete, returning", "error", err)
 		return err
 	}
 

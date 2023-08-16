@@ -24,43 +24,61 @@ import (
 )
 
 const (
-	TestTimeoutMedium         = time.Second * 10
-	TestTimeoutLong           = time.Second * 30
-	ConsistentlyTimeoutMedium = time.Second * 60
-	TestRetryIntervalMedium   = time.Millisecond * 250
-	TestPlacedGatewayName     = "test-placed-gateway"
-	TestPlacedClusterName     = "test-placed-cluster"
-	TestAttachedRouteName     = "test.example.com"
-	TestWildCardListenerName  = "wildcard"
-	TestWildCardListenerHost  = "*.example.com"
-	TestAttachedRouteAddress  = "172.0.0.3"
-	nsSpoke1Name              = "test-spoke-cluster-1"
-	nsSpoke2Name              = "test-spoke-cluster-2"
-	defaultNS                 = "default"
-	gatewayFinalizer          = "kuadrant.io/gateway"
-	providerCredential        = "secretname"
+	TestTimeoutMedium            = time.Second * 10
+	TestTimeoutLong              = time.Second * 30
+	ConsistentlyTimeoutMedium    = time.Second * 60
+	TestRetryIntervalMedium      = time.Millisecond * 250
+	TestPlacedGatewayName        = "test-placed-gateway"
+	TestPlacedClusterControlName = "test-placed-control"
+	TestPlaceClusterWorkloadName = "test-placed-workload-1"
+	TestAttachedRouteName        = "test.example.com"
+	TestWildCardListenerName     = "wildcard"
+	TestWildCardListenerHost     = "*.example.com"
+	TestAttachedRouteAddressOne  = "172.0.0.1"
+	TestAttachedRouteAddressTwo  = "172.0.0.2"
+	nsSpoke1Name                 = "test-spoke-cluster-1"
+	nsSpoke2Name                 = "test-spoke-cluster-2"
+	defaultNS                    = "default"
+	gatewayFinalizer             = "kuadrant.io/gateway"
+	providerCredential           = "secretname"
 )
 
-// FakeOCMPlacer has one gateway called `placedGatewayName` placed on one cluster called `placedClusterName` with one
-// attached route called `attachedRouteName` with an address value of `attachedRouteAddress`
-type FakeOCMPlacer struct {
-	placedGatewayName    string
-	placedClusterName    string
-	attachedRouteName    string
+// FakeOCMPlacer has one gateway called "test-placed-gateway"
+// placed on two clusters called
+// "test-placed-control" with address value of "172.0.0.3" and
+// "test-placed-workload-1" with address value of "172.0.0.4" with one
+// attached route "test.example.com"
+
+type placedClusters struct {
+	name                 string
 	attachedRouteAddress string
 }
 
-func NewFakeOCMPlacer(placedGatewayName, placedClusterName, attachedRouteName, attachedRouteAddress string) *FakeOCMPlacer {
+type FakeOCMPlacer struct {
+	placedGatewayName string
+	placedClusters    []placedClusters
+	attachedRouteName string
+}
+
+func NewFakeOCMPlacer(placedGatewayName, attachedRouteName string) *FakeOCMPlacer {
 	return &FakeOCMPlacer{
-		placedGatewayName:    placedGatewayName,
-		placedClusterName:    placedClusterName,
-		attachedRouteName:    attachedRouteName,
-		attachedRouteAddress: attachedRouteAddress,
+		placedGatewayName: placedGatewayName,
+		placedClusters: []placedClusters{
+			{
+				name:                 TestPlacedClusterControlName,
+				attachedRouteAddress: TestAttachedRouteAddressOne,
+			},
+			{
+				name:                 TestPlaceClusterWorkloadName,
+				attachedRouteAddress: TestAttachedRouteAddressTwo,
+			},
+		},
+		attachedRouteName: attachedRouteName,
 	}
 }
 
 func NewTestOCMPlacer() *FakeOCMPlacer {
-	return NewFakeOCMPlacer(TestPlacedGatewayName, TestPlacedClusterName, TestAttachedRouteName, TestAttachedRouteAddress)
+	return NewFakeOCMPlacer(TestPlacedGatewayName, TestAttachedRouteName)
 }
 
 func (f FakeOCMPlacer) Place(ctx context.Context, upstream *gatewayv1beta1.Gateway, downstream *gatewayv1beta1.Gateway, children ...metav1.Object) (sets.Set[string], error) {
@@ -69,8 +87,10 @@ func (f FakeOCMPlacer) Place(ctx context.Context, upstream *gatewayv1beta1.Gatew
 
 func (f FakeOCMPlacer) GetPlacedClusters(ctx context.Context, gateway *gatewayv1beta1.Gateway) (sets.Set[string], error) {
 	clusters := sets.Set[string](sets.NewString())
-	if gateway.Name == f.placedGatewayName {
-		clusters.Insert(f.placedClusterName)
+	for _, cluster := range f.placedClusters {
+		if gateway.Name == f.placedGatewayName {
+			clusters.Insert(cluster.name)
+		}
 	}
 	return clusters, nil
 }
@@ -81,20 +101,24 @@ func (f FakeOCMPlacer) GetClusters(ctx context.Context, gateway *gatewayv1beta1.
 
 func (f FakeOCMPlacer) ListenerTotalAttachedRoutes(ctx context.Context, gateway *gatewayv1beta1.Gateway, listenerName string, downstream string) (int, error) {
 	count := 0
-	if gateway.Name == f.placedGatewayName && (listenerName == f.attachedRouteName || listenerName == TestWildCardListenerName) && downstream == f.placedClusterName {
-		count = 1
+	for _, placedCluster := range f.placedClusters {
+		if gateway.Name == f.placedGatewayName && (listenerName == f.attachedRouteName || listenerName == TestWildCardListenerName) && downstream == placedCluster.name {
+			count = 1
+		}
 	}
 	return count, nil
 }
 
 func (f FakeOCMPlacer) GetAddresses(ctx context.Context, gateway *gatewayv1beta1.Gateway, downstream string) ([]gatewayv1beta1.GatewayAddress, error) {
 	gwAddresses := []gatewayv1beta1.GatewayAddress{}
-	if gateway.Name == f.placedGatewayName && downstream == f.placedClusterName {
-		t := gatewayv1beta1.IPAddressType
-		gwAddresses = append(gwAddresses, gatewayv1beta1.GatewayAddress{
-			Type:  &t,
-			Value: f.attachedRouteAddress,
-		})
+	t := gatewayv1beta1.IPAddressType
+	for _, cluster := range f.placedClusters {
+		if gateway.Name == f.placedGatewayName && downstream == cluster.name {
+			gwAddresses = append(gwAddresses, gatewayv1beta1.GatewayAddress{
+				Type:  &t,
+				Value: cluster.attachedRouteAddress,
+			})
+		}
 	}
 	return gwAddresses, nil
 }

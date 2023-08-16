@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aws/aws-sdk-go/aws"
+
 	"k8s.io/apimachinery/pkg/api/equality"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -409,22 +411,19 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 		mcgTarget *dns.MultiClusterGatewayTarget
 		listener  gatewayv1beta1.Listener
 		dnsRecord *v1alpha1.DNSRecord
+		dnsPolicy *v1alpha1.DNSPolicy
+		probeOne  *v1alpha1.DNSHealthCheckProbe
+		probeTwo  *v1alpha1.DNSHealthCheckProbe
 		wantSpec  *v1alpha1.DNSRecordSpec
 		wantErr   bool
 	}{
 		{
-			name:     "test wildcard listener wieghted",
+			name:     "test wildcard listener weighted",
 			listener: getTestListener("*.example.com"),
 			mcgTarget: &dns.MultiClusterGatewayTarget{
-				Gateway: &gatewayv1beta1.Gateway{
-					ObjectMeta: v1.ObjectMeta{
-						Name:      "testgw",
-						Namespace: "testns",
-					},
-				},
+				Gateway: &gatewayv1beta1.Gateway{},
 				ClusterGatewayTargets: []dns.ClusterGatewayTarget{
 					{
-
 						ClusterGateway: &dns.ClusterGateway{
 							Cluster: &testutil.TestResource{
 								ObjectMeta: v1.ObjectMeta{
@@ -470,19 +469,32 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 					Name: "test.example.com",
 				},
 			},
+			dnsPolicy: &v1alpha1.DNSPolicy{},
+			probeOne: &v1alpha1.DNSHealthCheckProbe{
+				ObjectMeta: v1.ObjectMeta{
+					Name:      "testOne",
+					Namespace: "namespace",
+				},
+			},
+			probeTwo: &v1alpha1.DNSHealthCheckProbe{
+				ObjectMeta: v1.ObjectMeta{
+					Name:      "testTwo",
+					Namespace: "namespace",
+				},
+			},
 			wantSpec: &v1alpha1.DNSRecordSpec{
 				Endpoints: []*v1alpha1.Endpoint{
 					{
-						DNSName:    "20qri0.lb-0ecjaw.example.com",
+						DNSName:    "20qri0.lb-oe3k96.example.com",
 						Targets:    []string{"1.1.1.1", "2.2.2.2"},
 						RecordType: "A",
 						RecordTTL:  dns.DefaultTTL,
 					},
 					{
-						DNSName:       "default.lb-0ecjaw.example.com",
-						Targets:       []string{"20qri0.lb-0ecjaw.example.com"},
+						DNSName:       "default.lb-oe3k96.example.com",
+						Targets:       []string{"20qri0.lb-oe3k96.example.com"},
 						RecordType:    "CNAME",
-						SetIdentifier: "20qri0.lb-0ecjaw.example.com",
+						SetIdentifier: "20qri0.lb-oe3k96.example.com",
 						RecordTTL:     dns.DefaultTTL,
 						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
 							{
@@ -492,7 +504,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						},
 					},
 					{
-						DNSName:       "default.lb-0ecjaw.example.com",
+						DNSName:       "default.lb-oe3k96.example.com",
 						Targets:       []string{"mylb.example.com"},
 						RecordType:    "CNAME",
 						SetIdentifier: "mylb.example.com",
@@ -505,8 +517,8 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						},
 					},
 					{
-						DNSName:       "lb-0ecjaw.example.com",
-						Targets:       []string{"default.lb-0ecjaw.example.com"},
+						DNSName:       "lb-oe3k96.example.com",
+						Targets:       []string{"default.lb-oe3k96.example.com"},
 						RecordType:    "CNAME",
 						SetIdentifier: "default",
 						RecordTTL:     dns.DefaultCnameTTL,
@@ -519,7 +531,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 					},
 					{
 						DNSName:    "*.example.com",
-						Targets:    []string{"lb-0ecjaw.example.com"},
+						Targets:    []string{"lb-oe3k96.example.com"},
 						RecordType: "CNAME",
 						RecordTTL:  dns.DefaultCnameTTL,
 					},
@@ -530,12 +542,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 			name:     "sets geo weighted endpoints wildcard",
 			listener: getTestListener("*.example.com"),
 			mcgTarget: &dns.MultiClusterGatewayTarget{
-				Gateway: &gatewayv1beta1.Gateway{
-					ObjectMeta: v1.ObjectMeta{
-						Name:      "testgw",
-						Namespace: "testns",
-					},
-				},
+				Gateway: &gatewayv1beta1.Gateway{},
 				ClusterGatewayTargets: []dns.ClusterGatewayTarget{
 					{
 
@@ -589,19 +596,32 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 					Name: "gw-test",
 				},
 			},
+			dnsPolicy: &v1alpha1.DNSPolicy{},
+			probeOne: &v1alpha1.DNSHealthCheckProbe{
+				ObjectMeta: v1.ObjectMeta{
+					Name:      "testOne",
+					Namespace: "namespace",
+				},
+			},
+			probeTwo: &v1alpha1.DNSHealthCheckProbe{
+				ObjectMeta: v1.ObjectMeta{
+					Name:      "testTwo",
+					Namespace: "namespace",
+				},
+			},
 			wantSpec: &v1alpha1.DNSRecordSpec{
 				Endpoints: []*v1alpha1.Endpoint{
 					{
-						DNSName:    "20qri0.lb-0ecjaw.example.com",
+						DNSName:    "20qri0.lb-oe3k96.example.com",
 						Targets:    []string{"1.1.1.1", "2.2.2.2"},
 						RecordType: "A",
 						RecordTTL:  dns.DefaultTTL,
 					},
 					{
-						DNSName:       "na.lb-0ecjaw.example.com",
-						Targets:       []string{"20qri0.lb-0ecjaw.example.com"},
+						DNSName:       "na.lb-oe3k96.example.com",
+						Targets:       []string{"20qri0.lb-oe3k96.example.com"},
 						RecordType:    "CNAME",
-						SetIdentifier: "20qri0.lb-0ecjaw.example.com",
+						SetIdentifier: "20qri0.lb-oe3k96.example.com",
 						RecordTTL:     dns.DefaultTTL,
 						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
 							{
@@ -611,7 +631,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						},
 					},
 					{
-						DNSName:       "ie.lb-0ecjaw.example.com",
+						DNSName:       "ie.lb-oe3k96.example.com",
 						Targets:       []string{"mylb.example.com"},
 						RecordType:    "CNAME",
 						SetIdentifier: "mylb.example.com",
@@ -624,8 +644,8 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						},
 					},
 					{
-						DNSName:       "lb-0ecjaw.example.com",
-						Targets:       []string{"na.lb-0ecjaw.example.com"},
+						DNSName:       "lb-oe3k96.example.com",
+						Targets:       []string{"na.lb-oe3k96.example.com"},
 						RecordType:    "CNAME",
 						SetIdentifier: "default",
 						RecordTTL:     dns.DefaultCnameTTL,
@@ -637,8 +657,8 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						},
 					},
 					{
-						DNSName:       "lb-0ecjaw.example.com",
-						Targets:       []string{"na.lb-0ecjaw.example.com"},
+						DNSName:       "lb-oe3k96.example.com",
+						Targets:       []string{"na.lb-oe3k96.example.com"},
 						RecordType:    "CNAME",
 						SetIdentifier: "NA",
 						RecordTTL:     dns.DefaultCnameTTL,
@@ -650,8 +670,8 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						},
 					},
 					{
-						DNSName:       "lb-0ecjaw.example.com",
-						Targets:       []string{"ie.lb-0ecjaw.example.com"},
+						DNSName:       "lb-oe3k96.example.com",
+						Targets:       []string{"ie.lb-oe3k96.example.com"},
 						RecordType:    "CNAME",
 						SetIdentifier: "IE",
 						RecordTTL:     dns.DefaultCnameTTL,
@@ -664,7 +684,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 					},
 					{
 						DNSName:    "*.example.com",
-						Targets:    []string{"lb-0ecjaw.example.com"},
+						Targets:    []string{"lb-oe3k96.example.com"},
 						RecordType: "CNAME",
 						RecordTTL:  dns.DefaultCnameTTL,
 					},
@@ -729,6 +749,19 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 					Name: "test.example.com",
 				},
 			},
+			dnsPolicy: &v1alpha1.DNSPolicy{},
+			probeOne: &v1alpha1.DNSHealthCheckProbe{
+				ObjectMeta: v1.ObjectMeta{
+					Name:      "testOne",
+					Namespace: "namespace",
+				},
+			},
+			probeTwo: &v1alpha1.DNSHealthCheckProbe{
+				ObjectMeta: v1.ObjectMeta{
+					Name:      "testTwo",
+					Namespace: "namespace",
+				},
+			},
 			wantSpec: &v1alpha1.DNSRecordSpec{
 				Endpoints: []*v1alpha1.Endpoint{
 					{
@@ -789,12 +822,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 			name:     "sets geo weighted endpoints",
 			listener: getTestListener("test.example.com"),
 			mcgTarget: &dns.MultiClusterGatewayTarget{
-				Gateway: &gatewayv1beta1.Gateway{
-					ObjectMeta: v1.ObjectMeta{
-						Name:      "testgw",
-						Namespace: "testns",
-					},
-				},
+				Gateway: &gatewayv1beta1.Gateway{},
 				ClusterGatewayTargets: []dns.ClusterGatewayTarget{
 					{
 
@@ -848,19 +876,32 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 					Name: "test.example.com",
 				},
 			},
+			dnsPolicy: &v1alpha1.DNSPolicy{},
+			probeOne: &v1alpha1.DNSHealthCheckProbe{
+				ObjectMeta: v1.ObjectMeta{
+					Name:      "testOne",
+					Namespace: "namespace",
+				},
+			},
+			probeTwo: &v1alpha1.DNSHealthCheckProbe{
+				ObjectMeta: v1.ObjectMeta{
+					Name:      "testTwo",
+					Namespace: "namespace",
+				},
+			},
 			wantSpec: &v1alpha1.DNSRecordSpec{
 				Endpoints: []*v1alpha1.Endpoint{
 					{
-						DNSName:    "20qri0.lb-0ecjaw.test.example.com",
+						DNSName:    "20qri0.lb-oe3k96.test.example.com",
 						Targets:    []string{"1.1.1.1", "2.2.2.2"},
 						RecordType: "A",
 						RecordTTL:  dns.DefaultTTL,
 					},
 					{
-						DNSName:       "na.lb-0ecjaw.test.example.com",
-						Targets:       []string{"20qri0.lb-0ecjaw.test.example.com"},
+						DNSName:       "na.lb-oe3k96.test.example.com",
+						Targets:       []string{"20qri0.lb-oe3k96.test.example.com"},
 						RecordType:    "CNAME",
-						SetIdentifier: "20qri0.lb-0ecjaw.test.example.com",
+						SetIdentifier: "20qri0.lb-oe3k96.test.example.com",
 						RecordTTL:     dns.DefaultTTL,
 						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
 							{
@@ -870,7 +911,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						},
 					},
 					{
-						DNSName:       "ie.lb-0ecjaw.test.example.com",
+						DNSName:       "ie.lb-oe3k96.test.example.com",
 						Targets:       []string{"mylb.example.com"},
 						RecordType:    "CNAME",
 						SetIdentifier: "mylb.example.com",
@@ -883,8 +924,8 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						},
 					},
 					{
-						DNSName:       "lb-0ecjaw.test.example.com",
-						Targets:       []string{"na.lb-0ecjaw.test.example.com"},
+						DNSName:       "lb-oe3k96.test.example.com",
+						Targets:       []string{"na.lb-oe3k96.test.example.com"},
 						RecordType:    "CNAME",
 						SetIdentifier: "default",
 						RecordTTL:     dns.DefaultCnameTTL,
@@ -896,8 +937,8 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						},
 					},
 					{
-						DNSName:       "lb-0ecjaw.test.example.com",
-						Targets:       []string{"na.lb-0ecjaw.test.example.com"},
+						DNSName:       "lb-oe3k96.test.example.com",
+						Targets:       []string{"na.lb-oe3k96.test.example.com"},
 						RecordType:    "CNAME",
 						SetIdentifier: "NA",
 						RecordTTL:     dns.DefaultCnameTTL,
@@ -909,8 +950,8 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						},
 					},
 					{
-						DNSName:       "lb-0ecjaw.test.example.com",
-						Targets:       []string{"ie.lb-0ecjaw.test.example.com"},
+						DNSName:       "lb-oe3k96.test.example.com",
+						Targets:       []string{"ie.lb-oe3k96.test.example.com"},
 						RecordType:    "CNAME",
 						SetIdentifier: "IE",
 						RecordTTL:     dns.DefaultCnameTTL,
@@ -923,7 +964,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 					},
 					{
 						DNSName:    "test.example.com",
-						Targets:    []string{"lb-0ecjaw.test.example.com"},
+						Targets:    []string{"lb-oe3k96.test.example.com"},
 						RecordType: "CNAME",
 						RecordTTL:  dns.DefaultCnameTTL,
 					},
@@ -934,12 +975,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 			name:     "sets no endpoints when no target addresses",
 			listener: getTestListener("test.example.com"),
 			mcgTarget: &dns.MultiClusterGatewayTarget{
-				Gateway: &gatewayv1beta1.Gateway{
-					ObjectMeta: v1.ObjectMeta{
-						Name:      "testgw",
-						Namespace: "testns",
-					},
-				},
+				Gateway: &gatewayv1beta1.Gateway{},
 				ClusterGatewayTargets: []dns.ClusterGatewayTarget{
 					{
 
@@ -979,16 +1015,644 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 					Name: "test.example.com",
 				},
 			},
+			dnsPolicy: &v1alpha1.DNSPolicy{},
+			probeOne: &v1alpha1.DNSHealthCheckProbe{
+				ObjectMeta: v1.ObjectMeta{
+					Name:      "testOne",
+					Namespace: "namespace",
+				},
+			},
+			probeTwo: &v1alpha1.DNSHealthCheckProbe{
+				ObjectMeta: v1.ObjectMeta{
+					Name:      "testTwo",
+					Namespace: "namespace",
+				},
+			},
 			wantSpec: &v1alpha1.DNSRecordSpec{
 				Endpoints: []*v1alpha1.Endpoint{},
+			},
+		},
+		{
+			name:     "test endpoint presence when probe is present but no health status is reported yet",
+			listener: getTestListener("*.example.com"),
+			mcgTarget: &dns.MultiClusterGatewayTarget{
+				Gateway: &gatewayv1beta1.Gateway{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "testgw",
+						Namespace: "testns",
+					},
+				},
+				ClusterGatewayTargets: []dns.ClusterGatewayTarget{
+					{
+
+						ClusterGateway: &dns.ClusterGateway{
+							Cluster: &testutil.TestResource{
+								ObjectMeta: v1.ObjectMeta{
+									Name: "test-cluster-1",
+								},
+							},
+							GatewayAddresses: []gatewayv1beta1.GatewayAddress{
+								{
+									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+									Value: "1.1.1.1",
+								},
+								{
+									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+									Value: "2.2.2.2",
+								},
+							},
+						},
+						Geo:    testutil.Pointer(dns.GeoCode("default")),
+						Weight: testutil.Pointer(120),
+					},
+					{
+
+						ClusterGateway: &dns.ClusterGateway{
+							Cluster: &testutil.TestResource{
+								ObjectMeta: v1.ObjectMeta{
+									Name: "test-cluster-2",
+								},
+							},
+							GatewayAddresses: []gatewayv1beta1.GatewayAddress{
+								{
+									Type:  testutil.Pointer(gatewayv1beta1.HostnameAddressType),
+									Value: "mylb.example.com",
+								},
+							},
+						},
+						Geo:    testutil.Pointer(dns.GeoCode("default")),
+						Weight: testutil.Pointer(120),
+					},
+				},
+			},
+			dnsRecord: &v1alpha1.DNSRecord{
+				ObjectMeta: v1.ObjectMeta{
+					Name: "test.example.com",
+				},
+			},
+			dnsPolicy: &v1alpha1.DNSPolicy{
+				ObjectMeta: v1.ObjectMeta{
+					Name:      "testpolicy",
+					Namespace: "testns",
+				},
+			},
+			probeOne: &v1alpha1.DNSHealthCheckProbe{
+				ObjectMeta: v1.ObjectMeta{
+					Labels: commonDNSRecordLabels(
+						types.NamespacedName{
+							Namespace: "testns",
+							Name:      "testgw"},
+						types.NamespacedName{
+							Namespace: "testns",
+							Name:      "testpolicy",
+						}),
+					Name:      "1.1.1.1-test.example.com",
+					Namespace: "testns",
+				},
+			},
+			probeTwo: &v1alpha1.DNSHealthCheckProbe{
+				ObjectMeta: v1.ObjectMeta{
+					Labels: commonDNSRecordLabels(
+						types.NamespacedName{
+							Namespace: "testns",
+							Name:      "testgw"},
+						types.NamespacedName{
+							Namespace: "testns",
+							Name:      "testpolicy",
+						}),
+					Name:      "2.2.2.2-test.example.com",
+					Namespace: "testns",
+				},
+			},
+			wantSpec: &v1alpha1.DNSRecordSpec{
+				Endpoints: []*v1alpha1.Endpoint{
+					{
+						DNSName:    "20qri0.lb-0ecjaw.example.com",
+						Targets:    []string{"1.1.1.1", "2.2.2.2"},
+						RecordType: "A",
+						RecordTTL:  dns.DefaultTTL,
+					},
+					{
+						DNSName:       "default.lb-0ecjaw.example.com",
+						Targets:       []string{"20qri0.lb-0ecjaw.example.com"},
+						RecordType:    "CNAME",
+						SetIdentifier: "20qri0.lb-0ecjaw.example.com",
+						RecordTTL:     dns.DefaultTTL,
+						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
+							{
+								Name:  "weight",
+								Value: "120",
+							},
+						},
+					},
+					{
+						DNSName:       "default.lb-0ecjaw.example.com",
+						Targets:       []string{"mylb.example.com"},
+						RecordType:    "CNAME",
+						SetIdentifier: "mylb.example.com",
+						RecordTTL:     dns.DefaultTTL,
+						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
+							{
+								Name:  "weight",
+								Value: "120",
+							},
+						},
+					},
+					{
+						DNSName:       "lb-0ecjaw.example.com",
+						Targets:       []string{"default.lb-0ecjaw.example.com"},
+						RecordType:    "CNAME",
+						SetIdentifier: "default",
+						RecordTTL:     dns.DefaultCnameTTL,
+						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
+							{
+								Name:  "geo-code",
+								Value: "*",
+							},
+						},
+					},
+					{
+						DNSName:    "*.example.com",
+						Targets:    []string{"lb-0ecjaw.example.com"},
+						RecordType: "CNAME",
+						RecordTTL:  dns.DefaultCnameTTL,
+					},
+				},
+			},
+		},
+		{
+			name:     "test endpoint presence when probe is present but healthy status is reported",
+			listener: getTestListener("test.example.com"),
+			mcgTarget: &dns.MultiClusterGatewayTarget{
+				Gateway: &gatewayv1beta1.Gateway{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "testgw",
+						Namespace: "testns",
+					},
+				},
+				ClusterGatewayTargets: []dns.ClusterGatewayTarget{
+					{
+
+						ClusterGateway: &dns.ClusterGateway{
+							Cluster: &testutil.TestResource{
+								ObjectMeta: v1.ObjectMeta{
+									Name: "test-cluster-1",
+								},
+							},
+							GatewayAddresses: []gatewayv1beta1.GatewayAddress{
+								{
+									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+									Value: "1.1.1.1",
+								},
+							},
+						},
+						Geo:    testutil.Pointer(dns.GeoCode("default")),
+						Weight: testutil.Pointer(120),
+					},
+					{
+
+						ClusterGateway: &dns.ClusterGateway{
+							Cluster: &testutil.TestResource{
+								ObjectMeta: v1.ObjectMeta{
+									Name: "test-cluster-1",
+								},
+							},
+							GatewayAddresses: []gatewayv1beta1.GatewayAddress{
+								{
+									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+									Value: "2.2.2.2",
+								},
+							},
+						},
+						Geo:    testutil.Pointer(dns.GeoCode("default")),
+						Weight: testutil.Pointer(120),
+					},
+				},
+			},
+			dnsRecord: &v1alpha1.DNSRecord{
+				ObjectMeta: v1.ObjectMeta{
+					Name: "test.example.com",
+				},
+			},
+			dnsPolicy: &v1alpha1.DNSPolicy{
+				ObjectMeta: v1.ObjectMeta{
+					Name:      "testpolicy",
+					Namespace: "testns",
+				},
+			},
+			probeOne: &v1alpha1.DNSHealthCheckProbe{
+				ObjectMeta: v1.ObjectMeta{
+					Labels: commonDNSRecordLabels(
+						types.NamespacedName{
+							Namespace: "testns",
+							Name:      "testgw"},
+						types.NamespacedName{
+							Namespace: "testns",
+							Name:      "testpolicy",
+						}),
+					Name:      "1.1.1.1-test.example.com",
+					Namespace: "testns",
+				},
+				Status: v1alpha1.DNSHealthCheckProbeStatus{
+					Healthy: aws.Bool(true),
+				},
+			},
+
+			probeTwo: &v1alpha1.DNSHealthCheckProbe{
+				ObjectMeta: v1.ObjectMeta{
+					Labels: commonDNSRecordLabels(
+						types.NamespacedName{
+							Namespace: "testns",
+							Name:      "testgw"},
+						types.NamespacedName{
+							Namespace: "testns",
+							Name:      "testpolicy",
+						}),
+					Name:      "2.2.2.2-test.example.com",
+					Namespace: "testns",
+				},
+				Status: v1alpha1.DNSHealthCheckProbeStatus{
+					Healthy: aws.Bool(true),
+				},
+			},
+			wantSpec: &v1alpha1.DNSRecordSpec{
+				Endpoints: []*v1alpha1.Endpoint{
+					{
+						DNSName:    "20qri0.lb-0ecjaw.test.example.com",
+						Targets:    []string{"1.1.1.1"},
+						RecordType: "A",
+						RecordTTL:  dns.DefaultTTL,
+					},
+					{
+						DNSName:    "20qri0.lb-0ecjaw.test.example.com",
+						Targets:    []string{"2.2.2.2"},
+						RecordType: "A",
+						RecordTTL:  dns.DefaultTTL,
+					},
+					{
+						DNSName:       "default.lb-0ecjaw.test.example.com",
+						Targets:       []string{"20qri0.lb-0ecjaw.test.example.com"},
+						RecordType:    "CNAME",
+						SetIdentifier: "20qri0.lb-0ecjaw.test.example.com",
+						RecordTTL:     dns.DefaultTTL,
+						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
+							{
+								Name:  "weight",
+								Value: "120",
+							},
+						},
+					},
+					{
+						DNSName:       "default.lb-0ecjaw.test.example.com",
+						Targets:       []string{"20qri0.lb-0ecjaw.test.example.com"},
+						RecordType:    "CNAME",
+						SetIdentifier: "20qri0.lb-0ecjaw.test.example.com",
+						RecordTTL:     dns.DefaultTTL,
+						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
+							{
+								Name:  "weight",
+								Value: "120",
+							},
+						},
+					},
+					{
+						DNSName:       "lb-0ecjaw.test.example.com",
+						Targets:       []string{"default.lb-0ecjaw.test.example.com"},
+						RecordType:    "CNAME",
+						SetIdentifier: "default",
+						RecordTTL:     dns.DefaultCnameTTL,
+						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
+							{
+								Name:  "geo-code",
+								Value: "*",
+							},
+						},
+					},
+					{
+						DNSName:    "test.example.com",
+						Targets:    []string{"lb-0ecjaw.test.example.com"},
+						RecordType: "CNAME",
+						RecordTTL:  dns.DefaultCnameTTL,
+					},
+				},
+			},
+		},
+		{
+			name:     "test removal of endpoint based on probe",
+			listener: getTestListener("test.example.com"),
+			mcgTarget: &dns.MultiClusterGatewayTarget{
+				Gateway: &gatewayv1beta1.Gateway{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "testgw",
+						Namespace: "testns",
+					},
+				},
+				ClusterGatewayTargets: []dns.ClusterGatewayTarget{
+					{
+
+						ClusterGateway: &dns.ClusterGateway{
+							Cluster: &testutil.TestResource{
+								ObjectMeta: v1.ObjectMeta{
+									Name: "test-cluster-1",
+								},
+							},
+							GatewayAddresses: []gatewayv1beta1.GatewayAddress{
+								{
+									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+									Value: "2.2.2.2",
+								},
+							},
+						},
+						Geo:    testutil.Pointer(dns.GeoCode("default")),
+						Weight: testutil.Pointer(120),
+					},
+					{
+
+						ClusterGateway: &dns.ClusterGateway{
+							Cluster: &testutil.TestResource{
+								ObjectMeta: v1.ObjectMeta{
+									Name: "test-cluster-2",
+								},
+							},
+							GatewayAddresses: []gatewayv1beta1.GatewayAddress{
+								{
+									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+									Value: "1.1.1.1",
+								},
+							},
+						},
+						Geo:    testutil.Pointer(dns.GeoCode("default")),
+						Weight: testutil.Pointer(120),
+					},
+				},
+			},
+			dnsRecord: &v1alpha1.DNSRecord{
+				ObjectMeta: v1.ObjectMeta{
+					Name: "test.example.com",
+				},
+			},
+			dnsPolicy: &v1alpha1.DNSPolicy{
+				ObjectMeta: v1.ObjectMeta{
+					Name:      "testpolicy",
+					Namespace: "testns",
+				},
+			},
+			probeOne: &v1alpha1.DNSHealthCheckProbe{
+				ObjectMeta: v1.ObjectMeta{
+					Labels: commonDNSRecordLabels(
+						types.NamespacedName{
+							Namespace: "testns",
+							Name:      "testgw"},
+						types.NamespacedName{
+							Namespace: "testns",
+							Name:      "testpolicy",
+						}),
+					Name:      "1.1.1.1-test.example.com",
+					Namespace: "testns",
+				},
+				Spec: v1alpha1.DNSHealthCheckProbeSpec{
+					FailureThreshold: aws.Int(4),
+				},
+				Status: v1alpha1.DNSHealthCheckProbeStatus{
+					Healthy:             aws.Bool(false),
+					ConsecutiveFailures: 54,
+				},
+			},
+			probeTwo: &v1alpha1.DNSHealthCheckProbe{
+				ObjectMeta: v1.ObjectMeta{
+					Labels: commonDNSRecordLabels(
+						types.NamespacedName{
+							Namespace: "testns",
+							Name:      "testgw"},
+						types.NamespacedName{
+							Namespace: "testns",
+							Name:      "testpolicy",
+						}),
+					Name:      "2.2.2.2-test.example.com",
+					Namespace: "testns",
+				},
+				Spec: v1alpha1.DNSHealthCheckProbeSpec{
+					FailureThreshold: aws.Int(4),
+				},
+				Status: v1alpha1.DNSHealthCheckProbeStatus{
+					Healthy:             aws.Bool(false),
+					ConsecutiveFailures: 2,
+				},
+			},
+			wantSpec: &v1alpha1.DNSRecordSpec{
+				Endpoints: []*v1alpha1.Endpoint{
+					{
+						DNSName:    "20qri0.lb-0ecjaw.test.example.com",
+						Targets:    []string{"2.2.2.2"},
+						RecordType: "A",
+						RecordTTL:  dns.DefaultTTL,
+					},
+					{
+						DNSName:       "default.lb-0ecjaw.test.example.com",
+						Targets:       []string{"20qri0.lb-0ecjaw.test.example.com"},
+						RecordType:    "CNAME",
+						SetIdentifier: "20qri0.lb-0ecjaw.test.example.com",
+						RecordTTL:     dns.DefaultTTL,
+						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
+							{
+								Name:  "weight",
+								Value: "120",
+							},
+						},
+					},
+					{
+						DNSName:       "lb-0ecjaw.test.example.com",
+						Targets:       []string{"default.lb-0ecjaw.test.example.com"},
+						RecordType:    "CNAME",
+						SetIdentifier: "default",
+						RecordTTL:     dns.DefaultCnameTTL,
+						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
+							{
+								Name:  "geo-code",
+								Value: "*",
+							},
+						},
+					},
+					{
+						DNSName:    "test.example.com",
+						Targets:    []string{"lb-0ecjaw.test.example.com"},
+						RecordType: "CNAME",
+						RecordTTL:  dns.DefaultCnameTTL,
+					},
+				},
+			},
+		},
+		{
+			name:     "test no removal of endpoint when all probes are unhealthy",
+			listener: getTestListener("test.example.com"),
+			mcgTarget: &dns.MultiClusterGatewayTarget{
+				Gateway: &gatewayv1beta1.Gateway{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "testgw",
+						Namespace: "testns",
+					},
+				},
+				ClusterGatewayTargets: []dns.ClusterGatewayTarget{
+					{
+
+						ClusterGateway: &dns.ClusterGateway{
+							Cluster: &testutil.TestResource{
+								ObjectMeta: v1.ObjectMeta{
+									Name: "test-cluster-1",
+								},
+							},
+							GatewayAddresses: []gatewayv1beta1.GatewayAddress{
+								{
+									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+									Value: "1.1.1.1",
+								},
+							},
+						},
+						Geo:    testutil.Pointer(dns.GeoCode("default")),
+						Weight: testutil.Pointer(120),
+					},
+					{
+
+						ClusterGateway: &dns.ClusterGateway{
+							Cluster: &testutil.TestResource{
+								ObjectMeta: v1.ObjectMeta{
+									Name: "test-cluster-2",
+								},
+							},
+							GatewayAddresses: []gatewayv1beta1.GatewayAddress{
+								{
+									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+									Value: "2.2.2.2",
+								},
+							},
+						},
+						Geo:    testutil.Pointer(dns.GeoCode("default")),
+						Weight: testutil.Pointer(120),
+					},
+				},
+			},
+			dnsRecord: &v1alpha1.DNSRecord{
+				ObjectMeta: v1.ObjectMeta{
+					Name: "test.example.com",
+				},
+			},
+			dnsPolicy: &v1alpha1.DNSPolicy{
+				ObjectMeta: v1.ObjectMeta{
+					Name:      "testpolicy",
+					Namespace: "testns",
+				},
+			},
+			probeOne: &v1alpha1.DNSHealthCheckProbe{
+				ObjectMeta: v1.ObjectMeta{
+					Labels: commonDNSRecordLabels(
+						types.NamespacedName{
+							Namespace: "testns",
+							Name:      "testgw"},
+						types.NamespacedName{
+							Namespace: "testns",
+							Name:      "testpolicy",
+						}),
+					Name:      "1.1.1.1-test.example.com",
+					Namespace: "testns",
+				},
+				Spec: v1alpha1.DNSHealthCheckProbeSpec{
+					FailureThreshold: aws.Int(4),
+				},
+				Status: v1alpha1.DNSHealthCheckProbeStatus{
+					Healthy:             aws.Bool(false),
+					ConsecutiveFailures: 6,
+				},
+			},
+
+			probeTwo: &v1alpha1.DNSHealthCheckProbe{
+				ObjectMeta: v1.ObjectMeta{
+					Labels: commonDNSRecordLabels(
+						types.NamespacedName{
+							Namespace: "testns",
+							Name:      "testgw"},
+						types.NamespacedName{
+							Namespace: "testns",
+							Name:      "testpolicy",
+						}),
+					Name:      "2.2.2.2-test.example.com",
+					Namespace: "testns",
+				},
+				Spec: v1alpha1.DNSHealthCheckProbeSpec{
+					FailureThreshold: aws.Int(4),
+				},
+				Status: v1alpha1.DNSHealthCheckProbeStatus{
+					Healthy:             aws.Bool(false),
+					ConsecutiveFailures: 6,
+				},
+			},
+			wantSpec: &v1alpha1.DNSRecordSpec{
+				Endpoints: []*v1alpha1.Endpoint{
+					{
+						DNSName:    "20qri0.lb-0ecjaw.test.example.com",
+						Targets:    []string{"1.1.1.1"},
+						RecordType: "A",
+						RecordTTL:  dns.DefaultTTL,
+					},
+					{
+						DNSName:    "2pj3we.lb-0ecjaw.test.example.com",
+						Targets:    []string{"2.2.2.2"},
+						RecordType: "A",
+						RecordTTL:  dns.DefaultTTL,
+					},
+					{
+						DNSName:       "default.lb-0ecjaw.test.example.com",
+						Targets:       []string{"20qri0.lb-0ecjaw.test.example.com"},
+						RecordType:    "CNAME",
+						SetIdentifier: "20qri0.lb-0ecjaw.test.example.com",
+						RecordTTL:     dns.DefaultTTL,
+						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
+							{
+								Name:  "weight",
+								Value: "120",
+							},
+						},
+					},
+					{
+						DNSName:       "default.lb-0ecjaw.test.example.com",
+						Targets:       []string{"2pj3we.lb-0ecjaw.test.example.com"},
+						RecordType:    "CNAME",
+						SetIdentifier: "2pj3we.lb-0ecjaw.test.example.com",
+						RecordTTL:     dns.DefaultTTL,
+						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
+							{
+								Name:  "weight",
+								Value: "120",
+							},
+						},
+					},
+					{
+						DNSName:       "lb-0ecjaw.test.example.com",
+						Targets:       []string{"default.lb-0ecjaw.test.example.com"},
+						RecordType:    "CNAME",
+						SetIdentifier: "default",
+						RecordTTL:     dns.DefaultCnameTTL,
+						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
+							{
+								Name:  "geo-code",
+								Value: "*",
+							},
+						},
+					},
+					{
+						DNSName:    "test.example.com",
+						Targets:    []string{"lb-0ecjaw.test.example.com"},
+						RecordType: "CNAME",
+						RecordTTL:  dns.DefaultCnameTTL,
+					},
+				},
 			},
 		},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			f := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(testCase.dnsRecord).Build()
+			f := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(testCase.dnsRecord, testCase.probeOne, testCase.probeTwo).Build()
 			s := dnsHelper{Client: f}
-			if err := s.setEndpoints(context.TODO(), testCase.mcgTarget, testCase.dnsRecord, testCase.listener); (err != nil) != testCase.wantErr {
+			if err := s.setEndpoints(context.TODO(), testCase.mcgTarget, testCase.dnsRecord, testCase.dnsPolicy, testCase.listener); (err != nil) != testCase.wantErr {
 				t.Errorf("SetEndpoints() error = %v, wantErr %v", err, testCase.wantErr)
 			}
 

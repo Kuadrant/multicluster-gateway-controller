@@ -254,7 +254,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	if requeue {
-		log.V(3).Info("requeuing gateay in ", "namespace", upstreamGateway.Namespace, "with name", upstreamGateway.Name)
+		log.V(3).Info("requeuing gateway in ", "namespace", upstreamGateway.Namespace, "with name", upstreamGateway.Name)
 		return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 10}, reconcileErr
 	}
 	return ctrl.Result{}, reconcileErr

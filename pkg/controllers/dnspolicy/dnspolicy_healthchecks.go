@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -26,7 +27,9 @@ var (
 func (r *DNSPolicyReconciler) reconcileHealthChecks(ctx context.Context, dnsPolicy *v1alpha1.DNSPolicy, gwDiffObj *reconcilers.GatewayDiff) error {
 	log := crlog.FromContext(ctx)
 
+	log.V(3).Info("reconciling health checks")
 	for _, gw := range append(gwDiffObj.GatewaysWithValidPolicyRef, gwDiffObj.GatewaysMissingPolicyRef...) {
+		log.V(3).Info("reconciling probes", "gateway", gw.Name)
 		expectedProbes, err := r.expectedProbesForGateway(ctx, gw, dnsPolicy)
 		if err != nil {
 			return fmt.Errorf("error generating probes for gateway %v: %w", gw.Gateway.Name, err)
@@ -116,11 +119,14 @@ func (r *DNSPolicyReconciler) expectedProbesForGateway(ctx context.Context, gw c
 
 		matches := re.FindAllString(address.Value, -1)
 		if len(matches) != 1 {
-			log.V(3).Info("Found more than 1 ip, skipping")
+			log.V(3).Info("Found more or less than 1 ip address")
 			continue
 		}
 
 		for _, listener := range gw.Spec.Listeners {
+			if strings.Contains(string(*listener.Hostname), "*") {
+				continue
+			}
 			log.V(1).Info("reconcileHealthChecks: adding health check for target", "target", address.Value)
 			healthCheck := &v1alpha1.DNSHealthCheckProbe{
 				ObjectMeta: metav1.ObjectMeta{

@@ -2,6 +2,7 @@ package dnshealthcheckprobe
 
 import (
 	"context"
+
 	"github.com/aws/aws-sdk-go/aws"
 
 	"k8s.io/apimachinery/pkg/api/errors"

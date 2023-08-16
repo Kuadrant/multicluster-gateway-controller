@@ -23,6 +23,7 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/metadata"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnspolicy"
+	mgcgateway "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 )
 
@@ -56,13 +57,19 @@ func testBuildGatewayClass(gwClassName, ns string) *gatewayv1beta1.GatewayClass 
 	}
 }
 
-func testBuildGateway(gwName, gwClassName, hostname, ns string) *gatewayv1beta1.Gateway {
+func testBuildGateway(gwName, gwClassName, hostname, ns, dnspolicy string) *gatewayv1beta1.Gateway {
 	typedHostname := gatewayv1beta1.Hostname(hostname)
 	wildcardHost := gatewayv1beta1.Hostname(TestWildCardListenerHost)
 	return &gatewayv1beta1.Gateway{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      gwName,
 			Namespace: ns,
+			Annotations: map[string]string{
+				DNSPoliciesBackRefAnnotation: fmt.Sprintf("[{\"Namespace\":\"%s\",\"Name\":\"%s\"}]", ns, dnspolicy),
+			},
+			Labels: map[string]string{
+				"cluster.open-cluster-management.io/placement": "GatewayControllerTest",
+			},
 		},
 		Spec: gatewayv1beta1.GatewaySpec{
 			GatewayClassName: gatewayv1beta1.ObjectName(gwClassName),
@@ -84,7 +91,7 @@ func testBuildGateway(gwName, gwClassName, hostname, ns string) *gatewayv1beta1.
 	}
 }
 
-func testBuildDNSPolicyWithHealthCheck(policyName, gwName, ns string) *v1alpha1.DNSPolicy {
+func testBuildDNSPolicyWithHealthCheck(policyName, gwName, ns string, threshold *int) *v1alpha1.DNSPolicy {
 	typedNamespace := gatewayv1beta1.Namespace(ns)
 	protocol := v1alpha1.HttpProtocol
 	return &v1alpha1.DNSPolicy{
@@ -100,8 +107,9 @@ func testBuildDNSPolicyWithHealthCheck(policyName, gwName, ns string) *v1alpha1.
 				Namespace: &typedNamespace,
 			},
 			HealthCheck: &v1alpha1.HealthCheckSpec{
-				Endpoint: "/",
-				Protocol: &protocol,
+				Endpoint:         "/",
+				Protocol:         &protocol,
+				FailureThreshold: threshold,
 			},
 			LoadBalancing: &v1alpha1.LoadBalancingSpec{
 				Weighted: &v1alpha1.LoadBalancingWeighted{
@@ -191,7 +199,7 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 		var lbHash, dnsRecordName, wildcardDNSRecordName string
 
 		BeforeEach(func() {
-			gateway = testBuildGateway(TestPlacedGatewayName, gatewayClass.Name, TestAttachedRouteName, testNamespace)
+			gateway = testBuildGateway(TestPlacedGatewayName, gatewayClass.Name, TestAttachedRouteName, testNamespace, "test-dns-policy")
 			lbHash = dns.ToBase36hash(fmt.Sprintf("%s-%s", gateway.Name, gateway.Namespace))
 			dnsRecordName = fmt.Sprintf("%s-%s", TestPlacedGatewayName, TestAttachedRouteName)
 			wildcardDNSRecordName = fmt.Sprintf("%s-%s", TestPlacedGatewayName, TestWildCardListenerName)
@@ -201,11 +209,16 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 			}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
 		})
 
+		AfterEach(func() {
+			err := k8sClient.Delete(ctx, gateway)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
 		Context("weighted dnspolicy", func() {
 			var dnsPolicy *v1alpha1.DNSPolicy
 
 			BeforeEach(func() {
-				dnsPolicy = testBuildDNSPolicyWithHealthCheck("test-dns-policy", TestPlacedGatewayName, testNamespace)
+				dnsPolicy = testBuildDNSPolicyWithHealthCheck("test-dns-policy", TestPlacedGatewayName, testNamespace, nil)
 				Expect(k8sClient.Create(ctx, dnsPolicy)).To(BeNil())
 				Eventually(func() error { //dns policy exists
 					return k8sClient.Get(ctx, client.ObjectKey{Name: dnsPolicy.Name, Namespace: dnsPolicy.Namespace}, dnsPolicy)
@@ -240,9 +253,9 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 						},
 					},
 					{
-						DNSName: "16z1l1.lb-" + lbHash + ".test.example.com",
+						DNSName: "s07c46.lb-" + lbHash + ".test.example.com",
 						Targets: []string{
-							"172.0.0.3",
+							TestAttachedRouteAddressOne,
 						},
 						RecordType:    "A",
 						SetIdentifier: "",
@@ -251,10 +264,10 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 					{
 						DNSName: "default.lb-" + lbHash + ".test.example.com",
 						Targets: []string{
-							"16z1l1.lb-" + lbHash + ".test.example.com",
+							"s07c46.lb-" + lbHash + ".test.example.com",
 						},
 						RecordType:    "CNAME",
-						SetIdentifier: "16z1l1.lb-" + lbHash + ".test.example.com",
+						SetIdentifier: "s07c46.lb-" + lbHash + ".test.example.com",
 						RecordTTL:     60,
 						ProviderSpecific: v1alpha1.ProviderSpecific{
 							{
@@ -262,6 +275,30 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 								Value: "120",
 							},
 						},
+					},
+					{
+						DNSName: "default.lb-" + lbHash + ".test.example.com",
+						Targets: []string{
+							"2w705o.lb-" + lbHash + ".test.example.com",
+						},
+						RecordType:    "CNAME",
+						SetIdentifier: "2w705o.lb-" + lbHash + ".test.example.com",
+						RecordTTL:     60,
+						ProviderSpecific: v1alpha1.ProviderSpecific{
+							{
+								Name:  "weight",
+								Value: "120",
+							},
+						},
+					},
+					{
+						DNSName: "2w705o.lb-" + lbHash + ".test.example.com",
+						Targets: []string{
+							TestAttachedRouteAddressTwo,
+						},
+						RecordType:    "A",
+						SetIdentifier: "",
+						RecordTTL:     60,
 					},
 				}
 				Eventually(func() error { // DNS record exists
@@ -274,6 +311,7 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 					return nil
 				}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
 				Expect(createdDNSRecord.Spec.ManagedZoneRef.Name).To(Equal("example.com"))
+				Expect(createdDNSRecord.Spec.Endpoints).To(HaveLen(6))
 				Expect(createdDNSRecord.Spec.Endpoints).Should(ContainElements(expectedEndpoints))
 			})
 			It("should create a wildcard dns record", func() {
@@ -304,9 +342,9 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 						},
 					},
 					{
-						DNSName: "16z1l1.lb-" + lbHash + ".example.com",
+						DNSName: "s07c46.lb-" + lbHash + ".example.com",
 						Targets: []string{
-							"172.0.0.3",
+							TestAttachedRouteAddressOne,
 						},
 						RecordType:    "A",
 						SetIdentifier: "",
@@ -315,10 +353,34 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 					{
 						DNSName: "default.lb-" + lbHash + ".example.com",
 						Targets: []string{
-							"16z1l1.lb-" + lbHash + ".example.com",
+							"s07c46.lb-" + lbHash + ".example.com",
 						},
 						RecordType:    "CNAME",
-						SetIdentifier: "16z1l1.lb-" + lbHash + ".example.com",
+						SetIdentifier: "s07c46.lb-" + lbHash + ".example.com",
+						RecordTTL:     60,
+						ProviderSpecific: v1alpha1.ProviderSpecific{
+							{
+								Name:  "weight",
+								Value: "120",
+							},
+						},
+					},
+					{
+						DNSName: "2w705o.lb-" + lbHash + ".example.com",
+						Targets: []string{
+							TestAttachedRouteAddressTwo,
+						},
+						RecordType:    "A",
+						SetIdentifier: "",
+						RecordTTL:     60,
+					},
+					{
+						DNSName: "default.lb-" + lbHash + ".example.com",
+						Targets: []string{
+							"2w705o.lb-" + lbHash + ".example.com",
+						},
+						RecordType:    "CNAME",
+						SetIdentifier: "2w705o.lb-" + lbHash + ".example.com",
 						RecordTTL:     60,
 						ProviderSpecific: v1alpha1.ProviderSpecific{
 							{
@@ -338,7 +400,9 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 					return nil
 				}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
 				Expect(wildcardDNSRecord.Spec.ManagedZoneRef.Name).To(Equal("example.com"))
+				Expect(wildcardDNSRecord.Spec.Endpoints).To(HaveLen(6))
 				Expect(wildcardDNSRecord.Spec.Endpoints).Should(ContainElements(expectedEndpoints))
+				Expect(expectedEndpoints).Should(ContainElements(wildcardDNSRecord.Spec.Endpoints))
 			})
 
 			It("should have correct status", func() {
@@ -494,17 +558,52 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 				}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
 			})
 
+			AfterEach(func() {
+				err := k8sClient.Delete(ctx, gateway)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
 			It("should create a dns record", func() {
 				createdDNSRecord := &v1alpha1.DNSRecord{}
 				expectedEndpoints := []*v1alpha1.Endpoint{
 					{
-						DNSName: "test.example.com",
+						DNSName: "2w705o.lb-" + lbHash + ".test.example.com",
 						Targets: []string{
-							"lb-" + lbHash + ".test.example.com",
+							TestAttachedRouteAddressTwo,
+						},
+						RecordType:    "A",
+						SetIdentifier: "",
+						RecordTTL:     60,
+					},
+					{
+						DNSName: "ie.lb-" + lbHash + ".test.example.com",
+						Targets: []string{
+							"2w705o.lb-" + lbHash + ".test.example.com",
 						},
 						RecordType:    "CNAME",
-						SetIdentifier: "",
-						RecordTTL:     300,
+						SetIdentifier: "2w705o.lb-" + lbHash + ".test.example.com",
+						RecordTTL:     60,
+						ProviderSpecific: v1alpha1.ProviderSpecific{
+							{
+								Name:  "weight",
+								Value: "120",
+							},
+						},
+					},
+					{
+						DNSName: "ie.lb-" + lbHash + ".test.example.com",
+						Targets: []string{
+							"s07c46.lb-" + lbHash + ".test.example.com",
+						},
+						RecordType:    "CNAME",
+						SetIdentifier: "s07c46.lb-" + lbHash + ".test.example.com",
+						RecordTTL:     60,
+						ProviderSpecific: v1alpha1.ProviderSpecific{
+							{
+								Name:  "weight",
+								Value: "120",
+							},
+						},
 					},
 					{
 						DNSName: "lb-" + lbHash + ".test.example.com",
@@ -537,28 +636,22 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 						},
 					},
 					{
-						DNSName: "16z1l1.lb-" + lbHash + ".test.example.com",
+						DNSName: "s07c46.lb-" + lbHash + ".test.example.com",
 						Targets: []string{
-							"172.0.0.3",
+							TestAttachedRouteAddressOne,
 						},
 						RecordType:    "A",
 						SetIdentifier: "",
 						RecordTTL:     60,
 					},
 					{
-						DNSName: "ie.lb-" + lbHash + ".test.example.com",
+						DNSName: "test.example.com",
 						Targets: []string{
-							"16z1l1.lb-" + lbHash + ".test.example.com",
+							"lb-" + lbHash + ".test.example.com",
 						},
 						RecordType:    "CNAME",
-						SetIdentifier: "16z1l1.lb-" + lbHash + ".test.example.com",
-						RecordTTL:     60,
-						ProviderSpecific: v1alpha1.ProviderSpecific{
-							{
-								Name:  "weight",
-								Value: "120",
-							},
-						},
+						SetIdentifier: "",
+						RecordTTL:     300,
 					},
 				}
 				Eventually(func() error { // DNS record exists
@@ -571,20 +664,63 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 					return nil
 				}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
 				Expect(createdDNSRecord.Spec.ManagedZoneRef.Name).To(Equal("example.com"))
+				Expect(createdDNSRecord.Spec.Endpoints).To(HaveLen(7))
 				Expect(createdDNSRecord.Spec.Endpoints).Should(ContainElements(expectedEndpoints))
+				Expect(expectedEndpoints).Should(ContainElements(createdDNSRecord.Spec.Endpoints))
+
 			})
 
 			It("should create a wildcard dns record", func() {
 				wildcardDNSRecord := &v1alpha1.DNSRecord{}
 				expectedEndpoints := []*v1alpha1.Endpoint{
 					{
-						DNSName: TestWildCardListenerHost,
+						DNSName: "*.example.com",
 						Targets: []string{
 							"lb-" + lbHash + ".example.com",
 						},
 						RecordType:    "CNAME",
 						SetIdentifier: "",
 						RecordTTL:     300,
+					},
+					{
+						DNSName: "2w705o.lb-" + lbHash + ".example.com",
+						Targets: []string{
+							TestAttachedRouteAddressTwo,
+						},
+						RecordType:    "A",
+						SetIdentifier: "",
+						RecordTTL:     60,
+					},
+					{
+						DNSName: "ie.lb-" + lbHash + ".example.com",
+						Targets: []string{
+							"2w705o.lb-" + lbHash + ".example.com",
+						},
+						RecordType:    "CNAME",
+						SetIdentifier: "2w705o.lb-" + lbHash + ".example.com",
+						RecordTTL:     60,
+						Labels:        nil,
+						ProviderSpecific: v1alpha1.ProviderSpecific{
+							{
+								Name:  "weight",
+								Value: "120",
+							},
+						},
+					},
+					{
+						DNSName: "ie.lb-" + lbHash + ".example.com",
+						Targets: []string{
+							"s07c46.lb-" + lbHash + ".example.com",
+						},
+						RecordType:    "CNAME",
+						SetIdentifier: "s07c46.lb-" + lbHash + ".example.com",
+						RecordTTL:     60,
+						ProviderSpecific: v1alpha1.ProviderSpecific{
+							{
+								Name:  "weight",
+								Value: "120",
+							},
+						},
 					},
 					{
 						DNSName: "lb-" + lbHash + ".example.com",
@@ -617,28 +753,13 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 						},
 					},
 					{
-						DNSName: "16z1l1.lb-" + lbHash + ".example.com",
+						DNSName: "s07c46.lb-" + lbHash + ".example.com",
 						Targets: []string{
-							"172.0.0.3",
+							TestAttachedRouteAddressOne,
 						},
 						RecordType:    "A",
 						SetIdentifier: "",
 						RecordTTL:     60,
-					},
-					{
-						DNSName: "ie.lb-" + lbHash + ".example.com",
-						Targets: []string{
-							"16z1l1.lb-" + lbHash + ".example.com",
-						},
-						RecordType:    "CNAME",
-						SetIdentifier: "16z1l1.lb-" + lbHash + ".example.com",
-						RecordTTL:     60,
-						ProviderSpecific: v1alpha1.ProviderSpecific{
-							{
-								Name:  "weight",
-								Value: "120",
-							},
-						},
 					},
 				}
 				Eventually(func() error { // DNS record exists
@@ -651,7 +772,9 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 					return nil
 				}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
 				Expect(wildcardDNSRecord.Spec.ManagedZoneRef.Name).To(Equal("example.com"))
+				Expect(wildcardDNSRecord.Spec.Endpoints).To(HaveLen(7))
 				Expect(wildcardDNSRecord.Spec.Endpoints).Should(ContainElements(expectedEndpoints))
+				Expect(expectedEndpoints).Should(ContainElements(wildcardDNSRecord.Spec.Endpoints))
 			})
 		})
 	})
@@ -662,8 +785,8 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 		testGatewayName := "test-not-placed-gateway"
 
 		BeforeEach(func() {
-			gateway = testBuildGateway(testGatewayName, gatewayClass.Name, TestAttachedRouteName, testNamespace)
-			dnsPolicy = testBuildDNSPolicyWithHealthCheck("test-dns-policy", testGatewayName, testNamespace)
+			gateway = testBuildGateway(testGatewayName, gatewayClass.Name, TestAttachedRouteName, testNamespace, "test-dns-policy")
+			dnsPolicy = testBuildDNSPolicyWithHealthCheck("test-dns-policy", testGatewayName, testNamespace, nil)
 
 			Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
 			Expect(k8sClient.Create(ctx, dnsPolicy)).To(BeNil())
@@ -690,7 +813,7 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
 		})
 
-		AfterAll(func() {
+		AfterEach(func() {
 			err := k8sClient.Delete(ctx, gateway)
 			Expect(err).ToNot(HaveOccurred())
 		})
@@ -757,6 +880,345 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 				}
 				return nil
 			}, time.Second*5, time.Second).Should(BeNil())
+		})
+	})
+
+	Context("probes status impact DNS records", func() {
+		var gateway *gatewayv1beta1.Gateway
+		var dnsRecordName, lbHash string
+		var dnsPolicy *v1alpha1.DNSPolicy
+		var unhealthy bool
+
+		BeforeEach(func() {
+			gateway = testBuildGateway(TestPlacedGatewayName, gatewayClass.Name, TestAttachedRouteName, testNamespace, "test-dns-policy")
+			dnsRecordName = fmt.Sprintf("%s-%s", TestPlacedGatewayName, TestAttachedRouteName)
+			Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
+			Eventually(func() error { //gateway exists
+				if err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway); err != nil {
+					return err
+				}
+				return nil
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
+
+			threshold := 4
+			dnsPolicy = testBuildDNSPolicyWithHealthCheck("test-dns-policy", TestPlacedGatewayName, testNamespace, &threshold)
+			Expect(k8sClient.Create(ctx, dnsPolicy)).To(BeNil())
+			Eventually(func() error { //dns policy exists
+				if err := k8sClient.Get(ctx, client.ObjectKey{Name: dnsPolicy.Name, Namespace: dnsPolicy.Namespace}, dnsPolicy); err != nil {
+					return err
+				}
+				return nil
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
+		})
+
+		AfterEach(func() {
+			//clean up gateway
+			gatewayList := &gatewayv1beta1.GatewayList{}
+			Expect(k8sClient.List(ctx, gatewayList)).To(BeNil())
+			for _, gw := range gatewayList.Items {
+				k8sClient.Delete(ctx, &gw)
+			}
+		})
+
+		It("should create a dns record", func() {
+			createdDNSRecord := &v1alpha1.DNSRecord{}
+			Eventually(func() error { // DNS record exists
+				if err := k8sClient.Get(ctx, client.ObjectKey{Name: dnsRecordName, Namespace: testNamespace}, createdDNSRecord); err != nil {
+					return err
+				}
+				if len(createdDNSRecord.Spec.Endpoints) != 6 {
+					return fmt.Errorf("expected %v endpoints in DNSRecord, got %v", 6, len(createdDNSRecord.Spec.Endpoints))
+				}
+				return nil
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
+		})
+		It("should have probes that are healthy", func() {
+			err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway)
+			Expect(err).NotTo(HaveOccurred())
+			patch := client.MergeFrom(gateway.DeepCopy())
+			addressType := mgcgateway.MultiClusterIPAddressType
+			gateway.Status.Addresses = []gatewayv1beta1.GatewayAddress{
+				{
+					Type:  &addressType,
+					Value: fmt.Sprintf("%s/%s", "kind-mgc-control-plane", TestAttachedRouteAddressOne),
+				},
+				{
+					Type:  &addressType,
+					Value: fmt.Sprintf("%s/%s", "kind-mgc-control-plane", TestAttachedRouteAddressTwo),
+				},
+			}
+			Expect(k8sClient.Status().Patch(ctx, gateway, patch)).To(BeNil())
+
+			probeList := &v1alpha1.DNSHealthCheckProbeList{}
+			Eventually(func() error {
+				Expect(k8sClient.List(ctx, probeList, &client.ListOptions{Namespace: testNamespace})).To(BeNil())
+				if len(probeList.Items) != 2 {
+					return fmt.Errorf("expected %v probes, got %v", 2, len(probeList.Items))
+				}
+				return nil
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
+			Expect(len(probeList.Items)).To(Equal(2))
+		})
+
+		Context("all unhealthy probes", func() {
+			It("should publish all dns records endpoints", func() {
+				lbHash = dns.ToBase36hash(fmt.Sprintf("%s-%s", gateway.Name, gateway.Namespace))
+
+				expectedEndpoints := []*v1alpha1.Endpoint{
+					{
+						DNSName: "2w705o.lb-" + lbHash + ".test.example.com",
+						Targets: []string{
+							TestAttachedRouteAddressTwo,
+						},
+						RecordType:    "A",
+						SetIdentifier: "",
+						RecordTTL:     60,
+					},
+					{
+						DNSName: "s07c46.lb-" + lbHash + ".test.example.com",
+						Targets: []string{
+							TestAttachedRouteAddressOne,
+						},
+						RecordType:    "A",
+						SetIdentifier: "",
+						RecordTTL:     60,
+					},
+					{
+						DNSName: "default.lb-" + lbHash + ".test.example.com",
+						Targets: []string{
+							"2w705o.lb-" + lbHash + ".test.example.com",
+						},
+						RecordType:    "CNAME",
+						SetIdentifier: "2w705o.lb-" + lbHash + ".test.example.com",
+						RecordTTL:     60,
+						ProviderSpecific: v1alpha1.ProviderSpecific{
+							{
+								Name:  "weight",
+								Value: "120",
+							},
+						},
+					},
+					{
+						DNSName: "default.lb-" + lbHash + ".test.example.com",
+						Targets: []string{
+							"s07c46.lb-" + lbHash + ".test.example.com",
+						},
+						RecordType:    "CNAME",
+						SetIdentifier: "s07c46.lb-" + lbHash + ".test.example.com",
+						RecordTTL:     60,
+						Labels:        nil,
+						ProviderSpecific: v1alpha1.ProviderSpecific{
+							{
+								Name:  "weight",
+								Value: "120",
+							},
+						},
+					},
+					{
+						DNSName: "lb-" + lbHash + ".test.example.com",
+						Targets: []string{
+							"default.lb-" + lbHash + ".test.example.com",
+						},
+						RecordType:    "CNAME",
+						SetIdentifier: "default",
+						RecordTTL:     300,
+						ProviderSpecific: v1alpha1.ProviderSpecific{
+							{
+								Name:  "geo-code",
+								Value: "*",
+							},
+						},
+					},
+					{
+						DNSName: "test.example.com",
+						Targets: []string{
+							"lb-" + lbHash + ".test.example.com",
+						},
+						RecordType:    "CNAME",
+						SetIdentifier: "",
+						RecordTTL:     300,
+					},
+				}
+
+				err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway)
+				Expect(err).NotTo(HaveOccurred())
+				patch := client.MergeFrom(gateway.DeepCopy())
+				addressType := mgcgateway.MultiClusterIPAddressType
+				gateway.Status.Addresses = []gatewayv1beta1.GatewayAddress{
+					{
+						Type:  &addressType,
+						Value: fmt.Sprintf("%s/%s", "kind-mgc-control-plane", TestAttachedRouteAddressOne),
+					},
+					{
+						Type:  &addressType,
+						Value: fmt.Sprintf("%s/%s", "kind-mgc-control-plane", TestAttachedRouteAddressTwo),
+					},
+				}
+				Expect(k8sClient.Status().Patch(ctx, gateway, patch)).To(BeNil())
+
+				probeList := &v1alpha1.DNSHealthCheckProbeList{}
+				Eventually(func() error {
+					Expect(k8sClient.List(ctx, probeList, &client.ListOptions{Namespace: testNamespace})).To(BeNil())
+					if len(probeList.Items) != 2 {
+						return fmt.Errorf("expected %v probes, got %v", 2, len(probeList.Items))
+					}
+					return nil
+				}, TestTimeoutLong, TestRetryIntervalMedium).Should(BeNil())
+
+				for _, probe := range probeList.Items {
+					Eventually(func() error {
+						if probe.Name == fmt.Sprintf("%s-test-dns-policy-%s", TestAttachedRouteAddressTwo, TestAttachedRouteName) ||
+							probe.Name == fmt.Sprintf("%s-test-dns-policy-%s", TestAttachedRouteAddressOne, TestAttachedRouteName) {
+							getProbe := &v1alpha1.DNSHealthCheckProbe{}
+							if err = k8sClient.Get(ctx, client.ObjectKey{Name: probe.Name, Namespace: probe.Namespace}, getProbe); err != nil {
+								return err
+							}
+							patch := client.MergeFrom(getProbe.DeepCopy())
+							unhealthy = false
+							getProbe.Status = v1alpha1.DNSHealthCheckProbeStatus{
+								LastCheckedAt:       metav1.NewTime(time.Now()),
+								ConsecutiveFailures: *getProbe.Spec.FailureThreshold + 1,
+								Healthy:             &unhealthy,
+							}
+							if err = k8sClient.Status().Patch(ctx, getProbe, patch); err != nil {
+								return err
+							}
+						}
+						return nil
+					}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
+				}
+				createdDNSRecord := &v1alpha1.DNSRecord{}
+				Eventually(func() error {
+					err := k8sClient.Get(ctx, client.ObjectKey{Name: dnsRecordName, Namespace: testNamespace}, createdDNSRecord)
+					if err != nil && k8serrors.IsNotFound(err) {
+						return err
+					}
+					if len(createdDNSRecord.Spec.Endpoints) != len(expectedEndpoints) {
+						return fmt.Errorf("expected %v endpoints in DNSRecord, got %v", len(expectedEndpoints), len(createdDNSRecord.Spec.Endpoints))
+					}
+					return nil
+				}, TestTimeoutLong, TestRetryIntervalMedium).Should(BeNil())
+				Expect(createdDNSRecord.Spec.Endpoints).To(HaveLen(6))
+				Expect(createdDNSRecord.Spec.Endpoints).Should(ContainElements(expectedEndpoints))
+				Expect(expectedEndpoints).Should(ContainElements(createdDNSRecord.Spec.Endpoints))
+
+			})
+		})
+		Context("some unhealthy endpoints", func() {
+			It("should publish expected endpoints", func() {
+				lbHash = dns.ToBase36hash(fmt.Sprintf("%s-%s", gateway.Name, gateway.Namespace))
+
+				expectedEndpoints := []*v1alpha1.Endpoint{
+					{
+						DNSName: "2w705o.lb-" + lbHash + ".test.example.com",
+						Targets: []string{
+							TestAttachedRouteAddressTwo,
+						},
+						RecordType:    "A",
+						SetIdentifier: "",
+						RecordTTL:     60,
+					},
+					{
+						DNSName: "default.lb-" + lbHash + ".test.example.com",
+						Targets: []string{
+							"2w705o.lb-" + lbHash + ".test.example.com",
+						},
+						RecordType:    "CNAME",
+						SetIdentifier: "2w705o.lb-" + lbHash + ".test.example.com",
+						RecordTTL:     60,
+						ProviderSpecific: v1alpha1.ProviderSpecific{
+							{
+								Name:  "weight",
+								Value: "120",
+							},
+						},
+					},
+					{
+						DNSName: "lb-" + lbHash + ".test.example.com",
+						Targets: []string{
+							"default.lb-" + lbHash + ".test.example.com",
+						},
+						RecordType:    "CNAME",
+						SetIdentifier: "default",
+						RecordTTL:     300,
+						ProviderSpecific: v1alpha1.ProviderSpecific{
+							{
+								Name:  "geo-code",
+								Value: "*",
+							},
+						},
+					},
+					{
+						DNSName: "test.example.com",
+						Targets: []string{
+							"lb-" + lbHash + ".test.example.com",
+						},
+						RecordType:    "CNAME",
+						SetIdentifier: "",
+						RecordTTL:     300,
+					},
+				}
+
+				err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway)
+				Expect(err).NotTo(HaveOccurred())
+				patch := client.MergeFrom(gateway.DeepCopy())
+				addressType := mgcgateway.MultiClusterIPAddressType
+				gateway.Status.Addresses = []gatewayv1beta1.GatewayAddress{
+					{
+						Type:  &addressType,
+						Value: fmt.Sprintf("%s/%s", "kind-mgc-control-plane", TestAttachedRouteAddressOne),
+					},
+					{
+						Type:  &addressType,
+						Value: fmt.Sprintf("%s/%s", "kind-mgc-control-plane", TestAttachedRouteAddressTwo),
+					},
+				}
+				Expect(k8sClient.Status().Patch(ctx, gateway, patch)).To(BeNil())
+
+				probeList := &v1alpha1.DNSHealthCheckProbeList{}
+				Eventually(func() error {
+					Expect(k8sClient.List(ctx, probeList, &client.ListOptions{Namespace: testNamespace})).To(BeNil())
+					if len(probeList.Items) != 2 {
+						return fmt.Errorf("expected %v probes, got %v", 2, len(probeList.Items))
+					}
+					return nil
+				}, TestTimeoutLong, TestRetryIntervalMedium).Should(BeNil())
+				Expect(len(probeList.Items)).To(Equal(2))
+
+				Eventually(func() error {
+					getProbe := &v1alpha1.DNSHealthCheckProbe{}
+					if err = k8sClient.Get(ctx, client.ObjectKey{Name: fmt.Sprintf("%s-test-dns-policy-%s", TestAttachedRouteAddressOne, TestAttachedRouteName), Namespace: testNamespace}, getProbe); err != nil {
+						return err
+					}
+					patch := client.MergeFrom(getProbe.DeepCopy())
+					unhealthy = false
+					getProbe.Status = v1alpha1.DNSHealthCheckProbeStatus{
+						LastCheckedAt:       metav1.NewTime(time.Now()),
+						ConsecutiveFailures: *getProbe.Spec.FailureThreshold + 1,
+						Healthy:             &unhealthy,
+					}
+					if err = k8sClient.Status().Patch(ctx, getProbe, patch); err != nil {
+						return err
+					}
+					return nil
+				}, TestTimeoutLong, TestRetryIntervalMedium).Should(BeNil())
+
+				// after that verify that in time the endpoints are 5 in the dnsrecord
+				createdDNSRecord := &v1alpha1.DNSRecord{}
+				Eventually(func() error {
+					err := k8sClient.Get(ctx, client.ObjectKey{Name: dnsRecordName, Namespace: testNamespace}, createdDNSRecord)
+					if err != nil && k8serrors.IsNotFound(err) {
+						return err
+					}
+					if len(createdDNSRecord.Spec.Endpoints) != len(expectedEndpoints) {
+						return fmt.Errorf("expected %v endpoints in DNSRecord, got %v", len(expectedEndpoints), len(createdDNSRecord.Spec.Endpoints))
+					}
+					return nil
+				}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
+				Expect(createdDNSRecord.Spec.Endpoints).To(HaveLen(4))
+				Expect(createdDNSRecord.Spec.Endpoints).Should(ContainElements(expectedEndpoints))
+				Expect(expectedEndpoints).Should(ContainElements(createdDNSRecord.Spec.Endpoints))
+			})
 		})
 	})
 })
