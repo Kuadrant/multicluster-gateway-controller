@@ -95,7 +95,7 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 					if err := k8sClient.Get(ctx, client.ObjectKey{Name: tlsPolicy.Name, Namespace: tlsPolicy.Namespace}, tlsPolicy); err != nil {
 						return false
 					}
-					return meta.IsStatusConditionTrue(tlsPolicy.Status.Conditions, conditions.ConditionTypeReady)
+					return meta.IsStatusConditionTrue(tlsPolicy.Status.Conditions, string(conditions.ConditionTypeReady))
 				}, time.Second*15, time.Second).Should(BeTrue())
 			})
 

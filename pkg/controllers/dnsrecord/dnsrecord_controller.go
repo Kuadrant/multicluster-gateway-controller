@@ -108,7 +108,7 @@ func (r *DNSRecordReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		dnsRecord.Status.ObservedGeneration = dnsRecord.Generation
 		dnsRecord.Status.Endpoints = dnsRecord.Spec.Endpoints
 	}
-	setDNSRecordCondition(dnsRecord, conditions.ConditionTypeReady, status, reason, message)
+	setDNSRecordCondition(dnsRecord, string(conditions.ConditionTypeReady), status, reason, message)
 
 	if !equality.Semantic.DeepEqual(previous.Status, dnsRecord.Status) {
 		updateErr := r.Status().Update(ctx, dnsRecord)

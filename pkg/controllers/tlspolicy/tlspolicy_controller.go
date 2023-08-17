@@ -205,7 +205,7 @@ func (r *TLSPolicyReconciler) calculateStatus(tlsPolicy *v1alpha1.TLSPolicy, spe
 
 func (r *TLSPolicyReconciler) readyCondition(targetNetworkObjectectKind string, specErr error) *metav1.Condition {
 	cond := &metav1.Condition{
-		Type:    conditions.ConditionTypeReady,
+		Type:    string(conditions.ConditionTypeReady),
 		Status:  metav1.ConditionTrue,
 		Reason:  fmt.Sprintf("%sTLSEnabled", targetNetworkObjectectKind),
 		Message: fmt.Sprintf("%s is TLS Enabled", targetNetworkObjectectKind),
