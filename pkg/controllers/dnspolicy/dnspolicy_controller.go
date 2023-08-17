@@ -19,6 +19,7 @@ package dnspolicy
 import (
 	"context"
 	"fmt"
+	"reflect"
 
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
 
@@ -142,6 +143,8 @@ func (r *DNSPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 }
 
 func (r *DNSPolicyReconciler) reconcileResources(ctx context.Context, dnsPolicy *v1alpha1.DNSPolicy, targetNetworkObject client.Object) error {
+	gatewayCondition := buildGatewayCondition(conditions.DNSPolicyReasonAccepted, nil)
+
 	// validate
 	err := dnsPolicy.Validate()
 	if err != nil {
@@ -154,18 +157,26 @@ func (r *DNSPolicyReconciler) reconcileResources(ctx context.Context, dnsPolicy 
 		return err
 	}
 
-	if err := r.reconcileDNSRecords(ctx, dnsPolicy, gatewayDiffObj); err != nil {
+	if err = r.reconcileDNSRecords(ctx, dnsPolicy, gatewayDiffObj); err != nil {
+		gatewayCondition = buildGatewayCondition(conditions.DNSPolicyReasonInvalid, err)
+		_ = r.updateGatewayCondition(ctx, gatewayCondition, gatewayDiffObj)
 		return err
 	}
 
-	if err := r.reconcileHealthChecks(ctx, dnsPolicy, gatewayDiffObj); err != nil {
+	if err = r.reconcileHealthChecks(ctx, dnsPolicy, gatewayDiffObj); err != nil {
+		gatewayCondition = buildGatewayCondition(conditions.DNSPolicyReasonInvalid, err)
+		_ = r.updateGatewayCondition(ctx, gatewayCondition, gatewayDiffObj)
 		return err
 	}
 
 	// set direct back ref - i.e. claim the target network object as taken asap
-	if err := r.ReconcileTargetBackReference(ctx, client.ObjectKeyFromObject(dnsPolicy), targetNetworkObject, DNSPolicyBackRefAnnotation); err != nil {
+	if err = r.ReconcileTargetBackReference(ctx, client.ObjectKeyFromObject(dnsPolicy), targetNetworkObject, DNSPolicyBackRefAnnotation); err != nil {
+		gatewayCondition = buildGatewayCondition(conditions.DNSPolicyReasonConflicted, err)
+		_ = r.updateGatewayCondition(ctx, gatewayCondition, gatewayDiffObj)
 		return err
 	}
+
+	_ = r.updateGatewayCondition(ctx, gatewayCondition, gatewayDiffObj)
 
 	// set annotation of policies affecting the gateway - should be the last step, only when all the reconciliation steps succeed
 	return r.ReconcileGatewayPolicyReferences(ctx, dnsPolicy, gatewayDiffObj)
@@ -210,7 +221,7 @@ func (r *DNSPolicyReconciler) calculateStatus(dnsPolicy *v1alpha1.DNSPolicy, spe
 
 func (r *DNSPolicyReconciler) readyCondition(targetNetworkObjectectKind string, specErr error) *metav1.Condition {
 	cond := &metav1.Condition{
-		Type:    conditions.ConditionTypeReady,
+		Type:    string(conditions.ConditionTypeReady),
 		Status:  metav1.ConditionTrue,
 		Reason:  fmt.Sprintf("%sDNSEnabled", targetNetworkObjectectKind),
 		Message: fmt.Sprintf("%s is DNS Enabled", targetNetworkObjectectKind),
@@ -223,6 +234,49 @@ func (r *DNSPolicyReconciler) readyCondition(targetNetworkObjectectKind string, 
 	}
 
 	return cond
+}
+
+func buildGatewayCondition(reason conditions.ConditionReason, err error) *metav1.Condition {
+	condition := &metav1.Condition{
+		Type:    string(conditions.DNSPolicyAffected),
+		Status:  metav1.ConditionTrue,
+		Reason:  string(reason),
+		Message: "DNS Policy accepted",
+	}
+
+	if err != nil {
+		condition.Status = metav1.ConditionFalse
+		condition.Message = err.Error()
+	}
+
+	return condition
+}
+
+func (r *DNSPolicyReconciler) updateGatewayCondition(ctx context.Context, condition *metav1.Condition, gatewayDiff *reconcilers.GatewayDiff) error {
+
+	// update condition if needed
+	for _, gw := range append(gatewayDiff.GatewaysWithValidPolicyRef, gatewayDiff.GatewaysMissingPolicyRef...) {
+		previous := gw.DeepCopy()
+		meta.SetStatusCondition(&gw.Status.Conditions, *condition)
+		if !reflect.DeepEqual(previous.Status.Conditions, gw.Status.Conditions) {
+			if err := r.Client().Status().Update(ctx, gw.Gateway); err != nil {
+				return err
+			}
+		}
+	}
+
+	// remove condition from gateway that is no longer referenced
+	for _, gw := range gatewayDiff.GatewaysWithInvalidPolicyRef {
+		previous := gw.DeepCopy()
+		meta.RemoveStatusCondition(&gw.Status.Conditions, condition.Type)
+		if !reflect.DeepEqual(previous.Status.Conditions, gw.Status.Conditions) {
+			if err := r.Client().Status().Update(ctx, gw.Gateway); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 func (r *DNSPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {

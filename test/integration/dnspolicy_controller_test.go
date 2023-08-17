@@ -357,7 +357,7 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 						return false
 					}
 
-					return meta.IsStatusConditionTrue(dnsPolicy.Status.Conditions, conditions.ConditionTypeReady)
+					return meta.IsStatusConditionTrue(dnsPolicy.Status.Conditions, string(conditions.ConditionTypeReady))
 				}, time.Second*15, time.Second).Should(BeTrue())
 			})
 
@@ -687,7 +687,7 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 					return false
 				}
 
-				return meta.IsStatusConditionTrue(dnsPolicy.Status.Conditions, conditions.ConditionTypeReady)
+				return meta.IsStatusConditionTrue(dnsPolicy.Status.Conditions, string(conditions.ConditionTypeReady))
 			}, time.Second*15, time.Second).Should(BeTrue())
 		})
 
