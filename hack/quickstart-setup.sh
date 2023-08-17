@@ -30,6 +30,7 @@ export YQ_BIN=$(dockerBinCmd "yq")
 export CLUSTERADM_BIN=$(dockerBinCmd "clusteradm")
 export KUSTOMIZE_BIN=$(dockerBinCmd "kustomize")
 
+
 source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.kindUtils)"
 source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.cleanupUtils)"
 source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.deployUtils)"
