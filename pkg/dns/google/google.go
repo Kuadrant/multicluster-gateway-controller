@@ -45,6 +45,7 @@ const (
 	DryRun                           = false
 	upsertAction              action = "UPSERT"
 	deleteAction              action = "DELETE"
+	defaultGCPRegion                 = "europe-west1"
 )
 
 // Based on the external-dns google provider https://github.com/kubernetes-sigs/external-dns/blob/master/provider/google/google.go
@@ -450,38 +451,47 @@ func toResourceRecordSets(allEndpoints []*v1alpha1.Endpoint) []*dnsv1.ResourceRe
 		}
 
 		for _, ep := range endpoints {
-			geoCodeProp, _ := ep.GetProviderSpecificProperty(dns.ProviderSpecificGeoCode)
-			if geoCodeProp.Value != "*" {
-				targets := make([]string, len(ep.Targets))
-				copy(targets, ep.Targets)
-				if ep.RecordType == string(v1alpha1.CNAMERecordType) {
-					targets[0] = ensureTrailingDot(targets[0])
-				}
-
-				if !weighted && !geoCode {
-					record.Rrdatas = targets
-				}
-				if weighted {
-					weightProp, _ := ep.GetProviderSpecificProperty(dns.ProviderSpecificWeight)
-					weight, err := strconv.ParseFloat(weightProp.Value, 64)
-					if err != nil {
-						weight = 0
-					}
-					item := &dnsv1.RRSetRoutingPolicyWrrPolicyWrrPolicyItem{
-						Rrdatas: targets,
-						Weight:  weight,
-					}
-					record.RoutingPolicy.Wrr.Items = append(record.RoutingPolicy.Wrr.Items, item)
-				}
-				if geoCode {
-					item := &dnsv1.RRSetRoutingPolicyGeoPolicyGeoPolicyItem{
-						Location: geoCodeProp.Value,
-						Rrdatas:  targets,
-					}
-					record.RoutingPolicy.Geo.Items = append(record.RoutingPolicy.Geo.Items, item)
-				}
-				records = append(records, record)
+			targets := make([]string, len(ep.Targets))
+			copy(targets, ep.Targets)
+			if ep.RecordType == string(v1alpha1.CNAMERecordType) {
+				targets[0] = ensureTrailingDot(targets[0])
 			}
+
+			if !weighted && !geoCode {
+				record.Rrdatas = targets
+			}
+			if weighted {
+				weightProp, _ := ep.GetProviderSpecificProperty(dns.ProviderSpecificWeight)
+				weight, err := strconv.ParseFloat(weightProp.Value, 64)
+				if err != nil {
+					weight = 0
+				}
+				item := &dnsv1.RRSetRoutingPolicyWrrPolicyWrrPolicyItem{
+					Rrdatas: targets,
+					Weight:  weight,
+				}
+				record.RoutingPolicy.Wrr.Items = append(record.RoutingPolicy.Wrr.Items, item)
+			}
+			if geoCode {
+				geoCodeProp, _ := ep.GetProviderSpecificProperty(dns.ProviderSpecificGeoCode)
+				geoCodeValue := geoCodeProp.Value
+				targetIsDefaultGroup := strings.HasPrefix(ep.Targets[0], string(dns.DefaultGeo))
+				// Google DNS doesn't support setting a default geo, so we have to deal with the wildcard (catch all) option.
+				// We can't just drop the entry entirely if we are targeting the default (weighted only) group or the
+				// dns chain will break as there is no other geo going to exist.
+				if geoCodeValue == "*" {
+					if !targetIsDefaultGroup {
+						continue
+					}
+					geoCodeValue = defaultGCPRegion
+				}
+				item := &dnsv1.RRSetRoutingPolicyGeoPolicyGeoPolicyItem{
+					Location: geoCodeValue,
+					Rrdatas:  targets,
+				}
+				record.RoutingPolicy.Geo.Items = append(record.RoutingPolicy.Geo.Items, item)
+			}
+			records = append(records, record)
 		}
 	}
 	return records

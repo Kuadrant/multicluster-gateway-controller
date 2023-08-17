@@ -10,7 +10,7 @@ metadata:
   name: dnsrecord-sample
 spec:
   managedZone:
-    name: mgc-dev-mz
+    name: mgc-dev-mz-aws
   endpoints:
     - dnsName: dnsrecord-simple.mn.hcpapps.net
       recordTTL: 60

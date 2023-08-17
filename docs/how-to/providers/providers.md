@@ -113,14 +113,8 @@ PROJECT_ID: my_project_id
 
 
 ### Local setup make command
-To get the local setup to create the relevant provider secrets based on the above .env files you will need to run the following make local-setup command with the relevant env vars 
+To get the local setup to create the relevant provider secrets based on the above .env files you will need to run the following make local-setup command
 
-1. To bring up GCP 
 ```
-make local setup DNS=GCP
+make local setup
 ```
-2. To bring up both GCP and AWS
-```
-make local setup DNS=MULTI
-```
-3. To have just aws you dont need to have any env var AWS is the default provider.

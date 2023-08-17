@@ -10,7 +10,7 @@ metadata:
   name: dnsrecord-ns
 spec:
   managedZone:
-    name: mgc-dev-mz
+    name: mgc-dev-mz-aws
   endpoints:
     - dnsName: testns.hcpapps.net
       recordTTL: 172800

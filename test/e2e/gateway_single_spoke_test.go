@@ -54,7 +54,7 @@ var _ = Describe("Gateway single target cluster", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		By("creating a Gateway in the hub")
-		hostname = gatewayapi.Hostname(strings.Join([]string{testID, tconfig.ManagedZoneAWS()}, "."))
+		hostname = gatewayapi.Hostname(strings.Join([]string{testID, tconfig.ManagedZone()}, "."))
 		gw = &gatewayapi.Gateway{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      testID,
@@ -293,7 +293,7 @@ var _ = Describe("Gateway single target cluster", func() {
 					By("ensuring the authoritative nameserver resolves the hostname")
 
 					// speed up things by using the authoritative nameserver
-					nameservers, err := net.LookupNS(tconfig.ManagedZoneAWS())
+					nameservers, err := net.LookupNS(tconfig.ManagedZone())
 					Expect(err).ToNot(HaveOccurred())
 					GinkgoWriter.Printf("[debug] authoritative nameserver used for DNS record resolution: %s\n", nameservers[0].Host)
 

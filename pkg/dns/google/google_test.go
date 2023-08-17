@@ -221,7 +221,6 @@ func Test_toResourceRecordSets(t *testing.T) {
 					Ttl:  60,
 					Type: "CNAME",
 				},
-
 				{
 					Name: "lb-4ej5le.unittest.google.hcpapps.net.",
 					RoutingPolicy: &dnsv1.RRSetRoutingPolicy{
@@ -240,7 +239,6 @@ func Test_toResourceRecordSets(t *testing.T) {
 					Ttl:  300,
 					Type: "CNAME",
 				},
-
 				{
 					Name: "unittest.google.hcpapps.net.",
 					Rrdatas: []string{
@@ -280,6 +278,21 @@ func Test_toResourceRecordSets(t *testing.T) {
 						},
 					},
 					{
+						DNSName:       "lb-4ej5le.unittest.google.hcpapps.net",
+						RecordType:    "CNAME",
+						SetIdentifier: "default",
+						Targets: []string{
+							"default.lb-4ej5le.unittest.google.hcpapps.net",
+						},
+						RecordTTL: 300,
+						ProviderSpecific: v1alpha1.ProviderSpecific{
+							v1alpha1.ProviderSpecificProperty{
+								Name:  "geo-code",
+								Value: "*",
+							},
+						},
+					},
+					{
 						DNSName:    "unittest.google.hcpapps.net",
 						RecordType: "CNAME",
 						RecordTTL:  300,
@@ -314,6 +327,24 @@ func Test_toResourceRecordSets(t *testing.T) {
 						},
 					},
 					Ttl:  60,
+					Type: "CNAME",
+				},
+				{
+					Name: "lb-4ej5le.unittest.google.hcpapps.net.",
+					RoutingPolicy: &dnsv1.RRSetRoutingPolicy{
+						Geo: &dnsv1.RRSetRoutingPolicyGeoPolicy{
+							EnableFencing: false,
+							Items: []*dnsv1.RRSetRoutingPolicyGeoPolicyGeoPolicyItem{
+								{
+									Location: "europe-west1",
+									Rrdatas: []string{
+										"default.lb-4ej5le.unittest.google.hcpapps.net.",
+									},
+								},
+							},
+						},
+					},
+					Ttl:  300,
 					Type: "CNAME",
 				},
 				{
