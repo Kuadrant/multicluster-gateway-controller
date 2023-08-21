@@ -109,6 +109,7 @@ configureControlCluster ${KIND_CLUSTER_CONTROL_PLANE}
 if [[ -n "${MGC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
   for ((i = 1; i <= ${MGC_WORKLOAD_CLUSTERS_COUNT}; i++)); do
     deployQuickStartWorkload ${KIND_CLUSTER_WORKLOAD}-${i}
+    configureMetalLB ${KIND_CLUSTER_WORKLOAD}-${i} $((${metalLBSubnetStart} + ${i}))
     deployOLM ${KIND_CLUSTER_WORKLOAD}-${i}
     deployOCMSpoke ${KIND_CLUSTER_WORKLOAD}-${i}
   done
