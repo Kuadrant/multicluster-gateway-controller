@@ -48,14 +48,21 @@ jobs:
           username: ${{ secrets.IMG_REGISTRY_USERNAME }}
           password: ${{ secrets.IMG_REGISTRY_TOKEN }}
 
-      - name: Build and push Controller Image
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build and push Tools Image
         id: build-and-push
         uses: docker/build-push-action@v4
         with:
-          push: true
-          name: Dockerfile.tools
-          tags: ${{ env.IMG_TAGS }}
+          file: Dockerfile.tools
           target: tools
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ env.IMG_TAGS }}
+          push: true
 
       - name: Print Image URL
         run: |
