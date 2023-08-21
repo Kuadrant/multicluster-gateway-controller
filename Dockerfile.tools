@@ -1,0 +1,23 @@
+FROM registry.access.redhat.com/ubi8/ubi:8.1 AS build
+
+WORKDIR /
+
+# Install deps
+RUN dnf update -y && dnf install -y make curl golang git
+
+COPY hack/make/dependencies.make hack/make/dependencies.make
+COPY Makefile Makefile
+
+# run make
+RUN make kustomize operator-sdk helm yq clusteradm LOCALBIN=/usr/local/bin
+
+
+FROM registry.access.redhat.com/ubi8/ubi-minimal:8.8 AS tools
+
+RUN microdnf install -y git && microdnf clean all
+
+COPY --from=build /usr/local/bin /usr/local/bin
+
+ENV HOME /home
+
+ENTRYPOINT [ "/bin/bash" ]

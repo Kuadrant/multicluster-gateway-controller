@@ -22,6 +22,8 @@ source "${LOCAL_SETUP_DIR}"/.binEnv
 source "${LOCAL_SETUP_DIR}"/.kindUtils
 source "${LOCAL_SETUP_DIR}"/.cleanupUtils
 
+export TMP_DIR=./tmp
+
 # Cleanup existing kind resources before creating new ones
 cleanupKind
 

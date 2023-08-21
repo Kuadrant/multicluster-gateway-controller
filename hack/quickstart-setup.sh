@@ -16,13 +16,22 @@
 # limitations under the License.
 #
 
+export TOOLS_IMAGE=quay.io/kuadrant/mgc-tools:latest
+export TMP_DIR=/tmp/mgc
+
+dockerBinCmd() {
+  echo "docker run --rm -i -u $UID -v ${TMP_DIR}:/tmp/mgc:z --network mgc -e KUBECONFIG=/tmp/mgc/kubeconfig --entrypoint=$1 $TOOLS_IMAGE"
+}
+
 export KIND_BIN=kind
-export YQ_BIN=yq
-export CLUSTERADM_BIN=clusteradm
-export OPERATOR_SDK_BIN=operator-sdk
+export HELM_BIN=helm
+export OPERATOR_SDK_BIN=$(dockerBinCmd "operator-sdk")
+export YQ_BIN=$(dockerBinCmd "yq")
+export CLUSTERADM_BIN=$(dockerBinCmd "clusteradm")
+export KUSTOMIZE_BIN=$(dockerBinCmd "kustomize")
+
 
 source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.kindUtils)"
-source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.clusterUtils)"
 source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.cleanupUtils)"
 source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.deployUtils)"
 source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.startUtils)"
@@ -77,6 +86,9 @@ if [[ -z "${MGC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
   MGC_WORKLOAD_CLUSTERS_COUNT=1
 fi
 
+# Make temporary directory for kubeconfig
+mkdir -p ${TMP_DIR}
+
 cleanupKind
 
 kindSetupMGCClusters ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_WORKLOAD} ${port80} ${port443} ${MGC_WORKLOAD_CLUSTERS_COUNT}
@@ -97,6 +109,7 @@ configureControlCluster ${KIND_CLUSTER_CONTROL_PLANE}
 if [[ -n "${MGC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
   for ((i = 1; i <= ${MGC_WORKLOAD_CLUSTERS_COUNT}; i++)); do
     deployQuickStartWorkload ${KIND_CLUSTER_WORKLOAD}-${i}
+    configureMetalLB ${KIND_CLUSTER_WORKLOAD}-${i} $((${metalLBSubnetStart} + ${i}))
     deployOLM ${KIND_CLUSTER_WORKLOAD}-${i}
     deployOCMSpoke ${KIND_CLUSTER_WORKLOAD}-${i}
   done
