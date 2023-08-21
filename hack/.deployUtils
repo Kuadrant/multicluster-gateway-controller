@@ -96,7 +96,10 @@ deployMetalLB () {
 }
 
 deployIngressController () {
-  local INGRESS_NGINX_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/ingress-nginx
+  local INGRESS_NGINX_KUSTOMIZATION_DIR="$2"
+  if [ -z "$2" ]; then
+    INGRESS_NGINX_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/ingress-nginx
+  fi
   clusterName=${1}
   kubectl config use-context kind-${clusterName}
   echo "Deploying Ingress controller to ${clusterName}"
@@ -257,7 +260,10 @@ joinSubmarinerBroker() {
 }
 
 deployThanos() {
-  local THANOS_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/thanos
+  local THANOS_KUSTOMIZATION_DIR="$2"
+  if [ -z "$2" ]; then
+    THANOS_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/thanos
+  fi
   clusterName=${1}
   if [[ -n "${METRICS_FEDERATION}" ]]; then
     echo "Deploying Thanos in ${clusterName}"
@@ -273,7 +279,10 @@ deployThanos() {
 }
 
 deployPrometheusForFederation() {
-  local PROMETHEUS_FOR_FEDERATION_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/prometheus-for-federation
+  local PROMETHEUS_FOR_FEDERATION_KUSTOMIZATION_DIR="$2"
+  if [ -z "$2" ]; then
+    PROMETHEUS_FOR_FEDERATION_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/prometheus-for-federation
+  fi
   clusterName=${1}
   if [[ -n "${METRICS_FEDERATION}" ]]; then
     echo "Deploying Prometheus for federation in ${clusterName}"
@@ -287,8 +296,6 @@ deployPrometheusForFederation() {
     ${KUSTOMIZE_BIN} build ${PROMETHEUS_FOR_FEDERATION_KUSTOMIZATION_DIR} | ${KFILT} -x kind=CustomResourceDefinition | kubectl apply -f -
   fi
 }
-
-
 
 # quickstart-setup specific functions
 
@@ -370,4 +377,11 @@ configureControlCluster() {
     # Ensure the current context points to the control plane cluster
     kubectl config use-context kind-${clusterName}
     kubectl label managedcluster kind-mgc-control-plane ingress-cluster=true
+}
+
+deployPrometheus() {
+  clusterName=${1}
+  kubectl config use-context kind-${clusterName}
+  echo "Initialize quickstart setup on ${clusterName}"
+  wait_for "${KUSTOMIZE_BIN} --load-restrictor LoadRestrictionsNone build ${PROMETHEUS_DIR} --enable-helm --helm-command ${HELM_BIN} | kubectl apply -f -" "${PROMETHEUS_DIR} cluster config apply" "1m" "5"
 }
