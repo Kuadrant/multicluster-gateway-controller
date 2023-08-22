@@ -1,27 +1,9 @@
 ## Introduction
 This document will guide you in installing metrics for your application and provide directions on where to access them. Additionally, it will include dashboards set up to display these metrics. 
 
-## Requirements
+## Requirements/prerequisites
 
-- [Docker](https://docs.docker.com/engine/install/)
-- [Kind](https://kind.sigs.k8s.io/)
-- [Kubectl](https://kubernetes.io/docs/tasks/tools/)
-- [Helm](https://helm.sh/docs/intro/install/)
-- AWS account with Route 53 enabled
-
-## Installation and Setup
-* Export env-vars with the keys listed below. Fill in your own values as appropriate:
-
-  | Env Var                      | Example Value               | Description                                                    |
-  |------------------------------|-----------------------------|----------------------------------------------------------------|
-  | `MGC_ZONE_ROOT_DOMAIN`       | `jbloggs.hcpapps.net`       | Hostname for the root Domain                                   |
-  | `MGC_AWS_DNS_PUBLIC_ZONE_ID` | `Z01234567US0IQE3YLO00`     | AWS Route 53 Zone ID for specified `MGC_ZONE_ROOT_DOMAIN`      | 
-  | `MGC_AWS_ACCESS_KEY_ID`      | `AKIA1234567890000000`      | Access Key ID, with access to resources in Route 53            |
-  | `MGC_AWS_SECRET_ACCESS_KEY`  | `Z01234567US0000000`        | Access Secret Access Key, with access to resources in Route 53 |
-  | `MGC_AWS_REGION`             | `eu-west-1`                 | AWS Region                                                     |
-  | `MGC_SUB_DOMAIN`             | `myapp.jbloggs.hcpapps.net` | AWS Region                                                     |
-
-* Alternatively, to set defaults, add the above environment variables to your `.zshrc` or `.bash_profile`. 
+>[To have completed the main getting started guide](https://github.com/Kuadrant/multicluster-gateway-controller/blob/main/docs/how-to/ocm-control-plane-walkthrough.md)
 
 ## Setting Up Metrics
 

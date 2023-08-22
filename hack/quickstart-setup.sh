@@ -16,27 +16,16 @@
 # limitations under the License.
 #
 
-export TOOLS_IMAGE=quay.io/kuadrant/mgc-tools:latest
-export TMP_DIR=/tmp/mgc
-
-dockerBinCmd() {
-  echo "docker run --rm -u $UID -v ${TMP_DIR}:/tmp/mgc:z --network mgc -e KUBECONFIG=/tmp/mgc/kubeconfig --entrypoint=$1 $TOOLS_IMAGE"
-}
-
-export KIND_BIN=kind
-export HELM_BIN=helm
-export OPERATOR_SDK_BIN=$(dockerBinCmd "operator-sdk")
-export YQ_BIN=$(dockerBinCmd "yq")
-export CLUSTERADM_BIN=$(dockerBinCmd "clusteradm")
-export KUSTOMIZE_BIN=$(dockerBinCmd "kustomize")
-
-
+source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.quickstartEnv)"
 source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.kindUtils)"
 source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.cleanupUtils)"
 source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.deployUtils)"
 source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.startUtils)"
 source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.setupEnv)"
 
+export OPERATOR_SDK_BIN=$(dockerBinCmd "operator-sdk")
+export YQ_BIN=$(dockerBinCmd "yq")
+export CLUSTERADM_BIN=$(dockerBinCmd "clusteradm")
 
 MGC_REPO="github.com/kuadrant/multicluster-gateway-controller.git"
 QUICK_START_HUB_KUSTOMIZATION=${MGC_REPO}/config/quick-start/control-cluster
@@ -45,35 +34,7 @@ QUICK_START_SPOKE_KUSTOMIZATION=${MGC_REPO}/config/quick-start/workload-cluster
 set -e pipefail
 
 # Prompt user for any required env vars that have not been set
-if [[ -z "${MGC_AWS_ACCESS_KEY_ID}" ]]; then
-  echo "Enter an AWS secret access key id for an Account where you have access to Route53:"
-  read MGC_AWS_ACCESS_KEY_ID </dev/tty
-  echo "export MGC_AWS_ACCESS_KEY_ID for future executions of the script to skip this step"
-fi
-
-if [[ -z "${MGC_AWS_SECRET_ACCESS_KEY}" ]]; then
-  echo "Enter your AWS secret access key id for an Account where you have access to Route53:"
-  read MGC_AWS_SECRET_ACCESS_KEY </dev/tty
-  echo "export MGC_AWS_SECRET_ACCESS_KEY for future executions of the script to skip this step"
-fi
-
-if [[ -z "${MGC_AWS_REGION}" ]]; then
-  echo "Enter an AWS region (e.g. eu-west-1) for an Account where you have access to Route53:"
-  read MGC_AWS_REGION </dev/tty
-  echo "export MGC_AWS_REGION for future executions of the script to skip this step"
-fi
-
-if [[ -z "${MGC_AWS_DNS_PUBLIC_ZONE_ID}" ]]; then
-  echo "Enter the Public Zone ID of your Route53 zone:"
-  read MGC_AWS_DNS_PUBLIC_ZONE_ID </dev/tty
-  echo "export MGC_AWS_DNS_PUBLIC_ZONE_ID for future executions of the script to skip this step"
-fi
-
-if [[ -z "${MGC_ZONE_ROOT_DOMAIN}" ]]; then
-  echo "Enter the root domain of your Route53 hosted zone (e.g. www.example.com):"
-  read MGC_ZONE_ROOT_DOMAIN </dev/tty
-  echo "export MGC_ZONE_ROOT_DOMAIN for future executions of the script to skip this step"
-fi
+requiredENV
 
 # Default config
 if [[ -z "${LOG_LEVEL}" ]]; then

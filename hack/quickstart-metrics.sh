@@ -16,28 +16,18 @@
 # limitations under the License.
 #
 
-export TOOLS_IMAGE=quay.io/kuadrant/mgc-tools:latest
-export TMP_DIR=/tmp/mgc
-dockerBinCmd() {
-  echo "docker run --rm -i -u $UID -v ${TMP_DIR}:/tmp/mgc:z -v /config/deploy/local:/config:z --network mgc -e KUBECONFIG=/tmp/mgc/kubeconfig --entrypoint=$1 $TOOLS_IMAGE"
-}
-
-
-export KIND_BIN=kind
-export HELM_BIN=helm
 export KFILT="docker run --rm -i ryane/kfilt"
-export KUSTOMIZE_BIN=$(dockerBinCmd "kustomize")
-
-
-mkdir -p ${TMP_DIR}
 
 METRICS_FEDERATION=true
 
+source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.quickstartEnv)"
 source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.kindUtils)"
 source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.cleanupUtils)"
 source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.deployUtils)"
 source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.startUtils)"
 source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.setupEnv)"
+
+mkdir -p ${TMP_DIR}
 
 MGC_REPO="github.com/kuadrant/multicluster-gateway-controller.git"
 PROMETHEUS_DIR=${MGC_REPO}/config/prometheus
@@ -47,6 +37,9 @@ THANOS_DIR=${MGC_REPO}/config/thanos
 QUICK_START_METRICS_DIR=${MGC_REPO}/config/quick-start/metrics
 
 set -e pipefail
+
+# Prompt user for any required env vars that have not been set
+requiredENV
 
 # Deploy ingress controller
 deployIngressController ${KIND_CLUSTER_CONTROL_PLANE} ${INGRESS_NGINX_DIR}
@@ -58,6 +51,10 @@ deployPrometheusForFederation ${KIND_CLUSTER_CONTROL_PLANE} ${PROMETHEUS_FOR_FED
 deployThanos ${KIND_CLUSTER_CONTROL_PLANE} ${THANOS_DIR}
 
 ${KUSTOMIZE_BIN} --load-restrictor LoadRestrictionsNone build ${QUICK_START_METRICS_DIR} --enable-helm --helm-command ${HELM_BIN} | kubectl apply -f -
+
+# Create secret and config map from 
+kubectl --namespace=multicluster-gateway-controller-system create secret generic aws-credentials --from-literal=AWS_ACCESS_KEY_ID=$MGC_AWS_ACCESS_KEY_ID --from-literal=AWS_SECRET_ACCESS_KEY=$MGC_AWS_SECRET_ACCESS_KEY --from-literal=AWS_REGION=$MGC_AWS_REGION
+kubectl --namespace=multicluster-gateway-controller-system create configmap controller-config --from-literal=AWS_DNS_PUBLIC_ZONE_ID=$MGC_AWS_DNS_PUBLIC_ZONE_ID --from-literal=ZONE_ROOT_DOMAIN=$MGC_ZONE_ROOT_DOMAIN
 
 # Deploy Prometheus components in the hub
 ${KUSTOMIZE_BIN} build ${PROMETHEUS_DIR} | kubectl apply -f -;\
