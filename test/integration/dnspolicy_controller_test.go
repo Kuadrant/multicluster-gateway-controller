@@ -351,14 +351,31 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 				Expect(wildcardDNSRecord.Spec.Endpoints).Should(ContainElements(expectedEndpoints))
 			})
 
-			It("should have ready status", func() {
-				Eventually(func() bool {
+			It("should have correct status", func() {
+				Eventually(func() error {
 					if err := k8sClient.Get(ctx, client.ObjectKey{Name: dnsPolicy.Name, Namespace: dnsPolicy.Namespace}, dnsPolicy); err != nil {
-						return false
+						return err
+					}
+					if !meta.IsStatusConditionTrue(dnsPolicy.Status.Conditions, string(conditions.ConditionTypeReady)) {
+						return fmt.Errorf("expected status condition %s to be True", conditions.ConditionTypeReady)
+					}
+					if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(gateway), gateway); err != nil {
+						return err
 					}
 
-					return meta.IsStatusConditionTrue(dnsPolicy.Status.Conditions, conditions.ConditionTypeReady)
-				}, time.Second*15, time.Second).Should(BeTrue())
+					policyAffectedCond := meta.FindStatusCondition(gateway.Status.Conditions, string(DNSPolicyAffected))
+					if policyAffectedCond == nil {
+						return fmt.Errorf("policy affected conditon expected but not found")
+					}
+					if policyAffectedCond.ObservedGeneration != gateway.Generation {
+						return fmt.Errorf("expected policy affected cond generation to be %d but got %d", gateway.Generation, policyAffectedCond.ObservedGeneration)
+					}
+					if !meta.IsStatusConditionTrue(gateway.Status.Conditions, string(DNSPolicyAffected)) {
+						return fmt.Errorf("expected gateway status condition %s to be True", DNSPolicyAffected)
+					}
+
+					return nil
+				}, time.Second*15, time.Second).Should(BeNil())
 			})
 
 			It("should set gateway back reference", func() {
@@ -458,6 +475,18 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 					Expect(err).ToNot(HaveOccurred())
 					return existingGateway.GetAnnotations()
 				}, time.Second*5, time.Second).ShouldNot(HaveKeyWithValue(DNSPoliciesBackRefAnnotation, policiesBackRefValue))
+
+				Eventually(func() error {
+					// Check gateway back references
+					if err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: testNamespace}, existingGateway); err != nil {
+						return err
+					}
+					cond := meta.FindStatusCondition(existingGateway.Status.Conditions, string(DNSPolicyAffected))
+					if cond != nil {
+						return fmt.Errorf("expected the condition %s to be gone", DNSPolicyAffected)
+					}
+					return nil
+				}, time.Second*5, time.Second).Should(BeNil())
 			})
 		})
 
@@ -687,7 +716,7 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 					return false
 				}
 
-				return meta.IsStatusConditionTrue(dnsPolicy.Status.Conditions, conditions.ConditionTypeReady)
+				return meta.IsStatusConditionTrue(dnsPolicy.Status.Conditions, string(conditions.ConditionTypeReady))
 			}, time.Second*15, time.Second).Should(BeTrue())
 		})
 

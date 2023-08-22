@@ -280,7 +280,7 @@ var _ = Describe("Gateway single target cluster", func() {
 							GinkgoWriter.Printf("[debug] unable to get DNSRecord: '%s'\n", err)
 							return false
 						}
-						return meta.IsStatusConditionTrue(dnsrecord.Status.Conditions, conditions.ConditionTypeReady)
+						return meta.IsStatusConditionTrue(dnsrecord.Status.Conditions, string(conditions.ConditionTypeReady))
 					}).WithTimeout(300 * time.Second).WithPolling(10 * time.Second).WithContext(ctx).Should(BeTrue())
 
 					// still need to wait some seconds to the dns server to actually start

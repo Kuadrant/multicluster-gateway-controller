@@ -143,7 +143,7 @@ func (r *ManagedZoneReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 
 	managedZone.Status.ObservedGeneration = managedZone.Generation
-	setManagedZoneCondition(managedZone, conditions.ConditionTypeReady, status, reason, message)
+	setManagedZoneCondition(managedZone, string(conditions.ConditionTypeReady), status, reason, message)
 	err = r.Status().Update(ctx, managedZone)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -192,7 +192,7 @@ func (r *ManagedZoneReconciler) deleteManagedZone(ctx context.Context, managedZo
 		reason = "ProviderError"
 		message = fmt.Sprintf("The DNS provider creation failed: %v", err)
 		managedZone.Status.ObservedGeneration = managedZone.Generation
-		setManagedZoneCondition(managedZone, conditions.ConditionTypeReady, status, reason, message)
+		setManagedZoneCondition(managedZone, string(conditions.ConditionTypeReady), status, reason, message)
 		return err
 	}
 	err = dnsProvider.DeleteManagedZone(managedZone)
@@ -336,7 +336,7 @@ func (r *ManagedZoneReconciler) parentZoneNSRecordReady(ctx context.Context, man
 		}
 	}
 
-	nsRecordReady := meta.IsStatusConditionTrue(nsRecord.Status.Conditions, conditions.ConditionTypeReady)
+	nsRecordReady := meta.IsStatusConditionTrue(nsRecord.Status.Conditions, string(conditions.ConditionTypeReady))
 	if !nsRecordReady {
 		return fmt.Errorf("the ns record is not in a ready state : %s", nsRecord.Name)
 	}
