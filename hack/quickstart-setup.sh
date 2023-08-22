@@ -20,7 +20,7 @@ export TOOLS_IMAGE=quay.io/kuadrant/mgc-tools:latest
 export TMP_DIR=/tmp/mgc
 
 dockerBinCmd() {
-  echo "docker run --rm -i -u $UID -v ${TMP_DIR}:/tmp/mgc:z --network mgc -e KUBECONFIG=/tmp/mgc/kubeconfig --entrypoint=$1 $TOOLS_IMAGE"
+  echo "docker run --rm -u $UID -v ${TMP_DIR}:/tmp/mgc:z --network mgc -e KUBECONFIG=/tmp/mgc/kubeconfig --entrypoint=$1 $TOOLS_IMAGE"
 }
 
 export KIND_BIN=kind
