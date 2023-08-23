@@ -11,7 +11,7 @@ on:
 env:
   IMG_REGISTRY_HOST: quay.io
   IMG_REGISTRY_ORG: kuadrant
-  IMG_REGISTRY_REPO: add-on-manager
+  IMG_REGISTRY_REPO: addon-manager
   MAIN_BRANCH_NAME: main
 
 jobs:
