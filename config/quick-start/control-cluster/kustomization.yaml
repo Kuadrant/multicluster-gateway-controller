@@ -1,8 +1,9 @@
 resources:
+  - controller
   - ../../istio
   - ../../metallb
   - ../../cert-manager
-  - controller
+  - cluster-config
 
 patchesStrategicMerge:
   - |-
