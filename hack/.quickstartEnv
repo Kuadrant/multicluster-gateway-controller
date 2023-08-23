@@ -1,5 +1,3 @@
-# shellcheck shell=bash
-
 export TOOLS_IMAGE=quay.io/kuadrant/mgc-tools:latest
 export TMP_DIR=/tmp/mgc
 

@@ -34,7 +34,6 @@ PROMETHEUS_DIR=${MGC_REPO}/config/prometheus
 INGRESS_NGINX_DIR=${MGC_REPO}/config/ingress-nginx
 PROMETHEUS_FOR_FEDERATION_DIR=${MGC_REPO}/config/prometheus-for-federation
 THANOS_DIR=${MGC_REPO}/config/thanos
-QUICK_START_METRICS_DIR=${MGC_REPO}/config/quick-start/metrics
 
 set -e pipefail
 
@@ -49,12 +48,6 @@ deployPrometheusForFederation ${KIND_CLUSTER_CONTROL_PLANE} ${PROMETHEUS_FOR_FED
 
 # Deploy Thanos components in the hub
 deployThanos ${KIND_CLUSTER_CONTROL_PLANE} ${THANOS_DIR}
-
-${KUSTOMIZE_BIN} --load-restrictor LoadRestrictionsNone build ${QUICK_START_METRICS_DIR} --enable-helm --helm-command ${HELM_BIN} | kubectl apply -f -
-
-# Create secret and config map from 
-kubectl --namespace=multicluster-gateway-controller-system create secret generic aws-credentials --from-literal=AWS_ACCESS_KEY_ID=$MGC_AWS_ACCESS_KEY_ID --from-literal=AWS_SECRET_ACCESS_KEY=$MGC_AWS_SECRET_ACCESS_KEY --from-literal=AWS_REGION=$MGC_AWS_REGION
-kubectl --namespace=multicluster-gateway-controller-system create configmap controller-config --from-literal=AWS_DNS_PUBLIC_ZONE_ID=$MGC_AWS_DNS_PUBLIC_ZONE_ID --from-literal=ZONE_ROOT_DOMAIN=$MGC_ZONE_ROOT_DOMAIN
 
 # Deploy Prometheus components in the hub
 ${KUSTOMIZE_BIN} build ${PROMETHEUS_DIR} | kubectl apply -f -;\
