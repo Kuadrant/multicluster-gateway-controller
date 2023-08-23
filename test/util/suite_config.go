@@ -34,9 +34,9 @@ const (
 	ClusterSetLabelValue  = "true"
 
 	// configuration environment variables
-	managedZoneEnvvarAWS         = "TEST_MANAGED_ZONE"
+	managedZoneEnvvar         = "TEST_MANAGED_ZONE"
 	hubNamespaceEnvvar           = "TEST_HUB_NAMESPACE"
-	managedZoneEnvvarGCP         = "TEST_MANAGED_ZONE_GCP"
+managedZoneEnvvarGCP         = "TEST_MANAGED_ZONE_GCP"
 	hubKubeContextEnvvar         = "TEST_HUB_KUBE_CONTEXT"
 	spokeKubeContextPrefixEnvvar = "TEST_SPOKE_KUBE_CONTEXT_PREFIX"
 	spokeClusterCountEnvvar      = "MGC_WORKLOAD_CLUSTERS_COUNT"
@@ -47,7 +47,7 @@ type SuiteConfig struct {
 	cpClient       client.Client
 	dpClients      []client.Client
 	hubNamespace   string
-	managedZoneAWS string
+	managedZone string
 	managedZoneGCP string
 	cleanupList    []client.Object
 }
@@ -58,11 +58,11 @@ func (cfg *SuiteConfig) Build() error {
 	if cfg.hubNamespace = os.Getenv(hubNamespaceEnvvar); cfg.hubNamespace == "" {
 		return fmt.Errorf("env variable '%s' must be set", hubNamespaceEnvvar)
 	}
-	if cfg.managedZoneAWS = os.Getenv(managedZoneEnvvarAWS); cfg.managedZoneAWS == "" {
-		return fmt.Errorf("env variable '%s' must be set", managedZoneEnvvarAWS)
+	if cfg.managedZone = os.Getenv(managedZoneEnvvar); cfg.managedZone == "" {
+		return fmt.Errorf("env variable '%s' must be set", managedZoneEnvvar)
 	}
 
-	if cfg.managedZoneGCP = os.Getenv(managedZoneEnvvarGCP); cfg.managedZoneGCP == "" {
+if cfg.managedZoneGCP = os.Getenv(managedZoneEnvvarGCP); cfg.managedZoneGCP == "" {
 		return fmt.Errorf("env variable '%s' must be set", managedZoneEnvvarGCP)
 	}
 
@@ -154,7 +154,7 @@ func (cfg *SuiteConfig) GenerateName() string {
 	return namegenerator.NewNameGenerator(nBig.Int64()).Generate()
 }
 
-func (cfg *SuiteConfig) ManagedZoneAWS() string { return cfg.managedZoneAWS }
+func (cfg *SuiteConfig) ManagedZone() string { return cfg.managedZone }
 func (cfg *SuiteConfig) ManagedZoneGCP() string { return cfg.managedZoneGCP }
 
 func (cfg *SuiteConfig) HubNamespace() string { return cfg.hubNamespace }
