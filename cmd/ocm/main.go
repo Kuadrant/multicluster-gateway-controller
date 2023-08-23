@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"embed"
-	"os"
+	"fmt"
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -28,6 +28,7 @@ const (
 )
 
 func main() {
+	fmt.Println("starting add-on manager")
 	addonScheme := runtime.NewScheme()
 	utilruntime.Must(operatorsv1alpha1.AddToScheme(addonScheme))
 	utilruntime.Must(operatorsv1.AddToScheme(addonScheme))
@@ -38,7 +39,7 @@ func main() {
 	addonMgr, err := addonmanager.New(kubeConfig)
 	if err != nil {
 		klog.Errorf("unable to setup addon manager: %v", err)
-		os.Exit(1)
+		panic(err)
 	}
 
 	agentAddon, err := addonfactory.NewAgentAddonFactory(addonName, FS, "addon-manager/manifests").
@@ -47,13 +48,13 @@ func main() {
 		BuildTemplateAgentAddon()
 	if err != nil {
 		klog.Errorf("failed to build agent addon %v", err)
-		os.Exit(1)
+		panic(err)
 	}
 
 	err = addonMgr.AddAgent(agentAddon)
 	if err != nil {
 		klog.Errorf("failed to add addon agent: %v", err)
-		os.Exit(1)
+		panic(err)
 	}
 
 	ctx := context.Background()

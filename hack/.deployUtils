@@ -27,6 +27,23 @@ metadata:
 EOF
 }
 
+configureManagedAddon () {
+  clusterName=${1}
+  workloadCluster=${2}
+
+  kubectl config use-context kind-${clusterName}
+  echo "configureManagedAddon for workload cluster kind-${workloadCluster}"
+  cat <<EOF | kubectl apply -f -
+apiVersion: addon.open-cluster-management.io/v1alpha1
+kind: ManagedClusterAddOn
+metadata:
+ name: kuadrant-addon
+ namespace: kind-${workloadCluster}
+spec:
+ installNamespace: open-cluster-management-agent-addon
+EOF
+}
+
 deployOLM(){
   clusterName=${1}
 
@@ -35,6 +52,7 @@ deployOLM(){
   echo "Installing OLM in ${clusterName}"
   ${OPERATOR_SDK_BIN} olm install --timeout 6m0s
 }
+
 
 deployOCMHub(){
   clusterName=${1}
@@ -46,6 +64,7 @@ deployOCMHub(){
   echo "checking if cluster is single or multi"
   if [[ -n "${OCM_SINGLE}" ]]; then
     deployOCMSpoke ${clusterName}
+    configureManagedAddon ${clusterName} ${clusterName}
     deployOLM ${KIND_CLUSTER_CONTROL_PLANE}
 
     if ! [[ -n "${minimal}" ]]; then
@@ -350,7 +369,7 @@ deployQuickStartControl() {
     clusterName=${1}
     kubectl config use-context kind-${clusterName}
     echo "Initialize quickstart setup on ${clusterName}"
-    wait_for "${KUSTOMIZE_BIN} --load-restrictor LoadRestrictionsNone build ${QUICK_START_HUB_KUSTOMIZATION} --enable-helm --helm-command ${HELM_BIN} | kubectl apply -f -" "${QUICK_START_HUB_KUSTOMIZATION} cluster config apply" "1m" "5"
+    wait_for "${KUSTOMIZE_BIN} --load-restrictor LoadRestrictionsNone build ${QUICK_START_HUB_KUSTOMIZATION} --enable-helm --helm-command ${HELM_BIN} | kubectl apply -f -" "${QUICK_START_HUB_KUSTOMIZATION} control cluster config apply" "1m" "5"
     echo "Waiting for metallb-system deployments to be ready"
     kubectl -n metallb-system wait --for=condition=ready pod --selector=app=metallb --timeout=300s
     echo "Waiting for cert-manager deployments to be ready"
@@ -364,7 +383,7 @@ deployQuickStartWorkload() {
    clusterName=${1}
     kubectl config use-context kind-${clusterName}
     echo "Initialize quickstart setup on ${clusterName}"
-    wait_for "${KUSTOMIZE_BIN} --load-restrictor LoadRestrictionsNone build ${QUICK_START_SPOKE_KUSTOMIZATION} --enable-helm --helm-command ${HELM_BIN} | kubectl apply -f -" "${QUICK_START_SPOKE_KUSTOMIZATION} cluster config apply" "1m" "5"
+    wait_for "${KUSTOMIZE_BIN} --load-restrictor LoadRestrictionsNone build ${QUICK_START_SPOKE_KUSTOMIZATION} --enable-helm --helm-command ${HELM_BIN} | kubectl apply -f -" "${QUICK_START_SPOKE_KUSTOMIZATION} workload cluster config apply" "1m" "5"
     echo "Waiting for metallb-system deployments to be ready"
     kubectl -n metallb-system wait --for=condition=ready pod --selector=app=metallb --timeout=300s
     echo "Waiting for istio deployments to be ready"

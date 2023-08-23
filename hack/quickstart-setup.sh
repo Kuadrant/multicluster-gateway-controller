@@ -16,22 +16,32 @@
 # limitations under the License.
 #
 
-source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.quickstartEnv)"
-source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.kindUtils)"
-source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.cleanupUtils)"
-source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.deployUtils)"
-source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.startUtils)"
-source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.setupEnv)"
+
+MGC_BRANCH=${MGC_BRANCH:="main"}
+
+source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/${MGC_BRANCH}/hack/.quickstartEnv)"
+source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/${MGC_BRANCH}/hack/.kindUtils)"
+source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/${MGC_BRANCH}/hack/.cleanupUtils)"
+source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/${MGC_BRANCH}/hack/.deployUtils)"
+source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/${MGC_BRANCH}/hack/.startUtils)"
+source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/${MGC_BRANCH}/hack/.setupEnv)"
 
 export OPERATOR_SDK_BIN=$(dockerBinCmd "operator-sdk")
 export YQ_BIN=$(dockerBinCmd "yq")
 export CLUSTERADM_BIN=$(dockerBinCmd "clusteradm")
 
-MGC_REPO="github.com/kuadrant/multicluster-gateway-controller.git"
+MGC_REPO=${MGC_REPO:="github.com/kuadrant/multicluster-gateway-controller.git"}
 QUICK_START_HUB_KUSTOMIZATION=${MGC_REPO}/config/quick-start/control-cluster
 QUICK_START_SPOKE_KUSTOMIZATION=${MGC_REPO}/config/quick-start/workload-cluster
 
 set -e pipefail
+
+if [[ "${MGC_BRANCH}" != "main" ]]; then
+  echo "setting MGC_REPO to use branch ${MGC_BRANCH}"
+  QUICK_START_HUB_KUSTOMIZATION=${QUICK_START_HUB_KUSTOMIZATION}?ref=${MGC_BRANCH}
+  echo "set QUICK_START_HUB_KUSTOMIZATION to ${QUICK_START_HUB_KUSTOMIZATION}"
+fi  
+
 
 # Prompt user for any required env vars that have not been set
 requiredENV
@@ -73,9 +83,9 @@ if [[ -n "${MGC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
     configureMetalLB ${KIND_CLUSTER_WORKLOAD}-${i} $((${metalLBSubnetStart} + ${i}))
     deployOLM ${KIND_CLUSTER_WORKLOAD}-${i}
     deployOCMSpoke ${KIND_CLUSTER_WORKLOAD}-${i}
+    configureManagedAddon ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_WORKLOAD}-${i}
   done
 fi
-
 
 kubectl config use-context kind-${KIND_CLUSTER_CONTROL_PLANE}
 
