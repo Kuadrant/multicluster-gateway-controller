@@ -54,7 +54,7 @@ jobs:
         with:
           push: true
           tags: ${{ env.IMG_TAGS }}
-          target: addon_builder
+          target: add-on-manager
 
       - name: Print Image URL
         run: |
