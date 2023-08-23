@@ -144,3 +144,7 @@ $(DEV_TLS_CRT):
 clear-dev-tls:
 	-rm -f $(DEV_TLS_CRT)
 	-rm -f $(DEV_TLS_KEY)
+
+.PHONY: skupper-setup
+skupper-setup:
+	./hack/skupper/skupper-setup.sh 
