@@ -37,7 +37,6 @@ var _ = Describe("Gateway single target cluster", func() {
 	var hostname gatewayapi.Hostname
 	var gw *gatewayapi.Gateway
 	var placement *ocm_cluster_v1beta1.Placement
-	
 
 	BeforeEach(func(ctx SpecContext) {
 		testID = "t-e2e-" + tconfig.GenerateName()
@@ -55,7 +54,7 @@ var _ = Describe("Gateway single target cluster", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		By("creating a Gateway in the hub")
-		hname := strings.Replace(tconfig.ManagedZoneGCP(), "-", ".", -1)
+		hname := strings.Replace(tconfig.ManagedZone(), "-", ".", -1)
 		hostname = gatewayapi.Hostname(strings.Join([]string{testID, hname}, "."))
 		gw = &gatewayapi.Gateway{
 			ObjectMeta: metav1.ObjectMeta{
@@ -295,12 +294,9 @@ var _ = Describe("Gateway single target cluster", func() {
 					By("ensuring the authoritative nameserver resolves the hostname")
 
 					// speed up things by using the authoritative nameserver
-					fmt.Print("MANAGEDZONE",tconfig.ManagedZone())
-					hname := strings.Replace(tconfig.ManagedZoneGCP(), "-", ".", -1)
+					hname := strings.Replace(tconfig.ManagedZone(), "-", ".", -1)
 
 					nameservers, err := net.LookupNS(hname)
-					fmt.Print("NAMESERVERS",nameservers[0].Host)
-					fmt.Print("HOSTNAME", hostname)
 					Expect(err).ToNot(HaveOccurred())
 					GinkgoWriter.Printf("[debug] authoritative nameserver used for DNS record resolution: %s\n", nameservers[0].Host)
 
