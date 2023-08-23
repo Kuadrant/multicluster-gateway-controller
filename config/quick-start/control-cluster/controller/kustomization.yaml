@@ -1,12 +1,7 @@
 resources:
-  - ../../../gateway-api
   - ../../../default
-  - configmap.yaml
-  - managed_cluster_set.yaml
-  - managed_cluster_set_binding.yaml
-  - placement.yaml
-  - gateway_class.yaml
-  - cert_issuer.yaml
+
+namespace: multicluster-gateway-controller-system
 
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization

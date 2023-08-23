@@ -1,0 +1,9 @@
+resources:
+  - namespace.yaml
+  - ../../../gateway-api
+  - configmap.yaml
+  - managed_cluster_set.yaml
+  - managed_cluster_set_binding.yaml
+  - placement.yaml
+  - gateway_class.yaml
+  - cert_issuer.yaml
