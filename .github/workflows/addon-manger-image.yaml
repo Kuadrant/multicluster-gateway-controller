@@ -11,13 +11,13 @@ on:
 env:
   IMG_REGISTRY_HOST: quay.io
   IMG_REGISTRY_ORG: kuadrant
-  IMG_REGISTRY_REPO: multicluster-gateway-controller
+  IMG_REGISTRY_REPO: add-on-manager
   MAIN_BRANCH_NAME: main
 
 jobs:
   build:
     if: github.repository_owner == 'kuadrant'
-    name: Build and Publish addon manager Image
+    name: Build and Publish Addon Manager Image
     runs-on: ubuntu-22.04
     outputs:
       sha_short: ${{ steps.vars.outputs.sha_short }}
