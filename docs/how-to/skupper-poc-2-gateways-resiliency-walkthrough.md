@@ -20,23 +20,27 @@ exposed that Service.
 
 ## Skupper Setup
 
-Install Skupper on the hub & spoke clusters using the following command
+Continuing on from the previous walkthrough, in first terminal, `T1`, install
+Skupper on the hub & spoke clusters using the following command:
 
 ```bash
 make skupper-setup
 ```
 
-Expose the Service in the `default` namespace in both directions over the skupper network
+In `T1` expose the Service in the `default` namespace:
 
 ```bash
-kubectl config use-context kind-mgc-control-plane
 skupper expose deployment/echo --port 8080
-kubectl config use-context kind-mgc-workload-1
+```
+
+Do the same in the workload cluster `T2`:
+
+```bash
 skupper expose deployment/echo --port 8080
 ```
 
 Verify the application route can be hit,
-taking note of the pod name in the response.
+taking note of the pod name in the response:
 
 ```bash
 curl -k https://$MGC_SUB_DOMAIN
@@ -45,12 +49,9 @@ Request served by <POD_NAME>
 
 Locate the pod that is currently serving requests. It is either in the hub or
 spoke cluster. There goal is to scale down the deployment to 0 replicas.
+Check in both `T1` and `T2`:
 
 ```bash
-kubectl config use-context kind-mgc-control-plane
-kubectl get po -n default | grep echo
-
-kubectl config use-context kind-mgc-workload-1
 kubectl get po -n default | grep echo
 ```
 
@@ -82,3 +83,12 @@ problem with the skupper network or link. Check back on the output from earlier
 commands for any indication of problems setting up the network or link. The
 skupper router & service controller logs can be checked in the `default`
 namespace in both clusters.
+
+You may see an error like below when running the `make skupper-setup` cmd.
+```
+Error: Failed to create token: Policy validation error: Timed out trying to communicate with the API: context deadline exceeded
+```
+This may be a timing issue or a platform specific problem. Either way, you can
+try install a different version of the skupper CLI. This problem was seen on at
+least 1 setup when using skupper v1.4.2, but didn't happen when dropped back to
+1.3.0.
