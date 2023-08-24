@@ -40,6 +40,10 @@ set -e pipefail
 # Prompt user for any required env vars that have not been set
 requiredENV
 
+if [[ -z "${MGC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
+  MGC_WORKLOAD_CLUSTERS_COUNT=1
+fi
+
 # Deploy ingress controller
 deployIngressController ${KIND_CLUSTER_CONTROL_PLANE} ${INGRESS_NGINX_DIR}
 
@@ -50,7 +54,14 @@ deployPrometheusForFederation ${KIND_CLUSTER_CONTROL_PLANE} ${PROMETHEUS_FOR_FED
 deployThanos ${KIND_CLUSTER_CONTROL_PLANE} ${THANOS_DIR}
 
 # Deploy Prometheus components in the hub
-${KUSTOMIZE_BIN} build ${PROMETHEUS_DIR} | kubectl apply -f -;\
+deployPrometheus ${KIND_CLUSTER_CONTROL_PLANE}
+
+# Apply Cluster Configurations to Workload clusters
+if [[ -n "${MGC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
+  for ((i = 1; i <= ${MGC_WORKLOAD_CLUSTERS_COUNT}; i++)); do
+    deployPrometheusForFederation ${KIND_CLUSTER_WORKLOAD}-${i} ${PROMETHEUS_FOR_FEDERATION_DIR}
+  done
+fi
 
 # Ensure the current context points to the control plane cluster
 kubectl config use-context kind-${KIND_CLUSTER_CONTROL_PLANE}

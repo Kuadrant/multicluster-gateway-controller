@@ -382,6 +382,6 @@ configureControlCluster() {
 deployPrometheus() {
   clusterName=${1}
   kubectl config use-context kind-${clusterName}
-  echo "Initialize quickstart setup on ${clusterName}"
+  echo "Deploying Prometheus in ${clusterName}"
   wait_for "${KUSTOMIZE_BIN} --load-restrictor LoadRestrictionsNone build ${PROMETHEUS_DIR} --enable-helm --helm-command ${HELM_BIN} | kubectl apply -f -" "${PROMETHEUS_DIR} cluster config apply" "1m" "5"
 }
