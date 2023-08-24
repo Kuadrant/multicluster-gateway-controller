@@ -57,7 +57,7 @@ In `Istio Workload Dashboard` you should be able to see the following layout, wh
 
 <img src="images/metrics-federation-grafana-dashboard-2.png" width="600"/>
 
-The `MGC SRE Dashboard` displays real-time insights and visualizations of your gateway’s performance and metrics
+The `MGC SRE Dashboard` displays real-time insights and visualizations of resources managed by the multicluster-gateway-controller e.g. DNSPolicy, TLSPolicy, DNSRecord etc..
 
 <img src="images/metrics-federation-grafana-dashboard-4.png" width="600"/>
 
