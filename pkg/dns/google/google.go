@@ -239,7 +239,7 @@ func (g *GoogleDNSProvider) toManagedZoneOutput(mz *dnsv1.ManagedZone) (dns.Mana
 	return managedZoneOutput, nil
 }
 
-// DNSRecords
+//DNSRecords
 
 func (g *GoogleDNSProvider) Ensure(record *v1alpha1.DNSRecord, managedZone *v1alpha1.ManagedZone) error {
 	return g.updateRecord(record, managedZone.Status.ID, upsertAction)
