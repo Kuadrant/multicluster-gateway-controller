@@ -420,3 +420,4 @@ Some good follow on walkthroughs that build on this walkthrough
 
 * [Installing the Kuadrant operator via OCM Addon](https://github.com/Kuadrant/multicluster-gateway-controller/blob/main/docs/how-to/kuadrant-addon-walkthrough.md)
 * [Deploying/Configuring Redis, Limitador and Rate limit policies.](https://github.com/Kuadrant/multicluster-gateway-controller/blob/main/docs/how-to/ratelimiting-shared-redis.md)
+* [Deploying/Configuring Metrics.](https://github.com/Kuadrant/multicluster-gateway-controller/blob/main/docs/how-to/metrics-walkthrough.md)

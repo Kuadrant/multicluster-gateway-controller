@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #
-# Copyright 2022 Red Hat, Inc.
+# Copyright 2023 Red Hat, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,6 +16,10 @@
 # limitations under the License.
 #
 
+export KFILT="docker run --rm -i ryane/kfilt"
+
+METRICS_FEDERATION=true
+
 source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.quickstartEnv)"
 source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.kindUtils)"
 source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.cleanupUtils)"
@@ -23,65 +27,41 @@ source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/mult
 source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.startUtils)"
 source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/.setupEnv)"
 
-export OPERATOR_SDK_BIN=$(dockerBinCmd "operator-sdk")
-export YQ_BIN=$(dockerBinCmd "yq")
-export CLUSTERADM_BIN=$(dockerBinCmd "clusteradm")
+mkdir -p ${TMP_DIR}
 
 MGC_REPO="github.com/kuadrant/multicluster-gateway-controller.git"
-QUICK_START_HUB_KUSTOMIZATION=${MGC_REPO}/config/quick-start/control-cluster
-QUICK_START_SPOKE_KUSTOMIZATION=${MGC_REPO}/config/quick-start/workload-cluster
+PROMETHEUS_DIR=${MGC_REPO}/config/prometheus
+INGRESS_NGINX_DIR=${MGC_REPO}/config/ingress-nginx
+PROMETHEUS_FOR_FEDERATION_DIR=${MGC_REPO}/config/prometheus-for-federation
+THANOS_DIR=${MGC_REPO}/config/thanos
 
 set -e pipefail
 
 # Prompt user for any required env vars that have not been set
 requiredENV
 
-# Default config
-if [[ -z "${LOG_LEVEL}" ]]; then
-  LOG_LEVEL=1
-fi
-if [[ -z "${OCM_SINGLE}" ]]; then
-  OCM_SINGLE=true
-fi
 if [[ -z "${MGC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
   MGC_WORKLOAD_CLUSTERS_COUNT=1
 fi
 
-# Make temporary directory for kubeconfig
-mkdir -p ${TMP_DIR}
+# Deploy ingress controller
+deployIngressController ${KIND_CLUSTER_CONTROL_PLANE} ${INGRESS_NGINX_DIR}
 
-cleanupKind
+# Deploy Prometheus in the hub too
+deployPrometheusForFederation ${KIND_CLUSTER_CONTROL_PLANE} ${PROMETHEUS_FOR_FEDERATION_DIR}
 
-kindSetupMGCClusters ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_WORKLOAD} ${port80} ${port443} ${MGC_WORKLOAD_CLUSTERS_COUNT}
+# Deploy Thanos components in the hub
+deployThanos ${KIND_CLUSTER_CONTROL_PLANE} ${THANOS_DIR}
 
-# Apply Cluster Configurations to Control cluster
-# Deploy OCM hub
-deployOCMHub ${KIND_CLUSTER_CONTROL_PLANE} "minimal"
-# Deploy Quick start kustomize
-deployQuickStartControl ${KIND_CLUSTER_CONTROL_PLANE}
-# Initialize local dev setup for the controller on the control-plane cluster
-configureController ${KIND_CLUSTER_CONTROL_PLANE}
-# Deploy MetalLb
-configureMetalLB ${KIND_CLUSTER_CONTROL_PLANE} ${metalLBSubnetStart}
-configureControlCluster ${KIND_CLUSTER_CONTROL_PLANE}
-
+# Deploy Prometheus components in the hub
+deployPrometheus ${KIND_CLUSTER_CONTROL_PLANE}
 
 # Apply Cluster Configurations to Workload clusters
 if [[ -n "${MGC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
   for ((i = 1; i <= ${MGC_WORKLOAD_CLUSTERS_COUNT}; i++)); do
-    deployQuickStartWorkload ${KIND_CLUSTER_WORKLOAD}-${i}
-    configureMetalLB ${KIND_CLUSTER_WORKLOAD}-${i} $((${metalLBSubnetStart} + ${i}))
-    deployOLM ${KIND_CLUSTER_WORKLOAD}-${i}
-    deployOCMSpoke ${KIND_CLUSTER_WORKLOAD}-${i}
+    deployPrometheusForFederation ${KIND_CLUSTER_WORKLOAD}-${i} ${PROMETHEUS_FOR_FEDERATION_DIR}
   done
 fi
 
-
+# Ensure the current context points to the control plane cluster
 kubectl config use-context kind-${KIND_CLUSTER_CONTROL_PLANE}
-
-
-echo ""
-echo "What's next...
-
-      Now that you have 2 kind clusters configured and with multicluster-gateway-controller installed you are ready to begin creating gateways
-      Visit https://docs.kuadrant.io/multicluster-gateway-controller/docs/how-to/ocm-control-plane-walkthrough/#create-a-gateway for next steps"
