@@ -98,6 +98,7 @@ if [[ -n "${MGC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
     deployAgentSecret ${KIND_CLUSTER_WORKLOAD}-${i} "false"
     deployOCMSpoke ${KIND_CLUSTER_WORKLOAD}-${i}
     deployPrometheusForFederation ${KIND_CLUSTER_WORKLOAD}-${i}
+    configureManagedAddon ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_WORKLOAD}-${i}
   done
 fi
 

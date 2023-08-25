@@ -32,5 +32,6 @@ resources:
 - ../crd
 - ../rbac
 - ../manager
+- ../add-on-manager
 patches:
 - path: manager_metrics_patch.yaml
