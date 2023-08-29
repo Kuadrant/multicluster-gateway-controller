@@ -1,10 +1,5 @@
 resources:
-  - ../../default
-  - ../../istio
-  - ../../metallb
   - ../../cert-manager
-  - ../../gateway-api
-  - cluster-config
 
 patchesStrategicMerge:
   - |-

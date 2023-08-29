@@ -8,8 +8,6 @@
 resources:
   - ../../default
 
-namespace: multicluster-gateway-controller-system
-
 generatorOptions:
   disableNameSuffixHash: true
 
