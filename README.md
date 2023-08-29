@@ -25,7 +25,7 @@ When deploying the multicluster gateway controller using the make targets, the f
 
 
 ## Prerequisites:
-* AWS
+* AWS or GCP
 * Various dependencies installed into $(pwd)/bin e.g. kind, yq etc.
   * Run `make dependencies`
 * openssl>=3
@@ -34,9 +34,7 @@ When deploying the multicluster gateway controller using the make targets, the f
 * go >= 1.20
 
 ### 1. Running the controller in the cluster:
-1. Create env files:
-    * One called `aws-credentials.env` containing **AWS_ACCESS_KEY_ID**, **AWS_SECRET_ACCESS_KEY** and **AWS_REGION**
-    * One called `controller-config.env` containing **AWS_DNS_PUBLIC_ZONE_ID** and **ZONE_ROOT_DOMAIN**
+1. Set up your DNS Provider by following these [steps](providers/providers.md)
 
 1. Setup your local environment 
     ```sh
@@ -59,9 +57,7 @@ When deploying the multicluster gateway controller using the make targets, the f
     ```
 
 ## 2. Running the controller locally:
-1. Create env files:
-    * One called `aws-credentials.env` containing **AWS_ACCESS_KEY_ID**, **AWS_SECRET_ACCESS_KEY** and **AWS_REGION**
-    * One called `controller-config.env` containing **AWS_DNS_PUBLIC_ZONE_ID** and **ZONE_ROOT_DOMAIN**
+1. Set up your DNS Provider by following these [steps](providers/providers.md)
 
 1.  Setup your local environment 
 
@@ -72,7 +68,7 @@ When deploying the multicluster gateway controller using the make targets, the f
 1. Run the controller locally:
     ```sh
     kubectl config use-context kind-mgc-control-plane 
-    (export $(cat ./controller-config.env | xargs) && export $(cat ./aws-credentials.env | xargs) && make build-controller install run-controller)
+    make build-controller install run-controller
     ```
 
 ## 3. Running the agent in the cluster:
