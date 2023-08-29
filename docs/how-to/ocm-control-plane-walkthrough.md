@@ -65,7 +65,7 @@ The script will
 
     > **Optional Step:** :thought_balloon: If you need to reset this run the following in `T1`:
     > ```bash
-    > kind export kubeconfig --name=mgc-control-plane --kubeconfig=$(pwd)/local/kube/control-plane.yaml && export KUBECONFIG=$(pwd)/local/kube/control-plane.yaml
+    > kind export kubeconfig --name=mgc-control-plane --kubeconfig=$(pwd)/control-plane.yaml && export KUBECONFIG=$(pwd)/control-plane.yaml
     > ```
    
 ### Create a gateway
@@ -333,7 +333,7 @@ So now we have a working gateway with DNS and TLS configured. Let place this gat
 1. In `T2` window execute the following to see the gateway on the workload-1 cluster:
 
     ```bash
-    kind export kubeconfig --name=mgc-workload-1 --kubeconfig=$(pwd)/local/kube/workload1.yaml && export KUBECONFIG=$(pwd)/local/kube/workload1.yaml
+    kind export kubeconfig --name=mgc-workload-1 --kubeconfig=$(pwd)/workload1.yaml && export KUBECONFIG=$(pwd)/workload1.yaml
     kubectl get gateways -A
     ```
     You'll see the following
