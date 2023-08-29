@@ -108,13 +108,13 @@ spec:
 ### Health Check
 The health check section is optional, the following fields are available:
 
-`allowInsecureCertificates`: Added for development environments, allows health probes to not fail when finding an invalid (e.g. self-signed) certificate.
-`additionalHeadersRef`: A reference to a secret which contains additional headers such as an authentication token
-`endpoint`: The path to specify for these health checks, e.g. `/healthz`
-`expectedResponses`: Defaults to 200 or 201, this allows other responses to be considered valid
-`failureThreshold`: How many consecutive fails are required to consider this endpoint unhealthy
-`port`: The port to connect to
-`protocol`: The protocol to use for this connection
+- `allowInsecureCertificates`: Added for development environments, allows health probes to not fail when finding an invalid (e.g. self-signed) certificate.
+- `additionalHeadersRef`: A reference to a secret which contains additional headers such as an authentication token
+- `endpoint`: The path to specify for these health checks, e.g. `/healthz`
+- `expectedResponses`: Defaults to 200 or 201, this allows other responses to be considered valid
+- `failureThreshold`: How many consecutive fails are required to consider this endpoint unhealthy
+- `port`: The port to connect to
+- `protocol`: The protocol to use for this connection
 
 #### Checking status of health checks
 To list all health checks:
