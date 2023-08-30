@@ -3,7 +3,7 @@
 
 ## Problem
 
-Gateway admins, need a way to define the DNS policy for a multi-cluster gateway in order to control how much and which traffic reaches these gateways. 
+Gateway admins, need a way to define the DNS policy for a gateway distributed across multiple clusters in order to control how much and which traffic reaches these gateways. 
 Ideally we would allow them to express a strategy that they want to use without needing to get into the details of each provider and needing to create and maintain dns record structure and individual records for all the different gateways that may be within their infrastructure.
 
 **Use Cases**
