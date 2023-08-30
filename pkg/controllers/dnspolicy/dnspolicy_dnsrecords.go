@@ -3,6 +3,9 @@ package dnspolicy
 import (
 	"context"
 	"fmt"
+	"strings"
+
+	clusterv1 "open-cluster-management.io/api/cluster/v1"
 
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
@@ -13,6 +16,7 @@ import (
 	"github.com/kuadrant/kuadrant-operator/pkg/reconcilers"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 )
 
@@ -47,14 +51,9 @@ func (r *DNSPolicyReconciler) reconcileGatewayDNSRecords(ctx context.Context, ga
 		return err
 	}
 
-	placed, err := r.Placer.GetPlacedClusters(ctx, gateway)
-	if err != nil {
-		log.V(3).Info("error getting placed clusters")
-		return err
-	}
-	clusters := placed.UnsortedList()
+	clusters := getGatewayAddresses(gateway)
 
-	log.V(3).Info("checking gateway for attached routes ", "gateway", gateway.Name, "clusters", placed)
+	log.V(3).Info("checking gateway for attached routes ", "gateway", gateway.Name, "clusters", clusters)
 
 	for _, listener := range gateway.Spec.Listeners {
 		var clusterGateways []dns.ClusterGateway
@@ -70,21 +69,20 @@ func (r *DNSPolicyReconciler) reconcileGatewayDNSRecords(ctx context.Context, ga
 		for _, downstreamCluster := range clusters {
 			// Only consider host for dns if there's at least 1 attached route to the listener for this host in *any* gateway
 
-			log.V(1).Info("checking downstream", "listener ", listener.Name)
-			attached, err := r.Placer.ListenerTotalAttachedRoutes(ctx, gateway, string(listener.Name), downstreamCluster)
-			if err != nil {
-				log.Error(err, "failed to get total attached routes for listener ", "listener", listener.Name)
-				continue
-			}
+			log.V(3).Info("checking downstream", "listener ", listener.Name)
+			attached := listenerTotalAttachedRoutes(gateway, downstreamCluster)
+
 			if attached == 0 {
 				log.V(1).Info("no attached routes for ", "listener", listener.Name, "cluster ", downstreamCluster)
 				continue
 			}
-			log.V(1).Info("hostHasAttachedRoutes", "host", listener.Name, "hostHasAttachedRoutes", attached)
-			cg, err := r.Placer.GetClusterGateway(ctx, gateway, downstreamCluster)
+			log.V(3).Info("hostHasAttachedRoutes", "host", listener.Name, "hostHasAttachedRoutes", attached)
+
+			cg, err := r.buildClusterGateway(ctx, gateway, downstreamCluster)
 			if err != nil {
 				return fmt.Errorf("get cluster gateway failed: %s", err)
 			}
+
 			clusterGateways = append(clusterGateways, cg)
 		}
 
@@ -141,4 +139,62 @@ func (r *DNSPolicyReconciler) deleteGatewayDNSRecords(ctx context.Context, gatew
 		}
 	}
 	return nil
+}
+
+func (r *DNSPolicyReconciler) buildClusterGateway(ctx context.Context, upstreamGateway *gatewayv1beta1.Gateway, downstreamCluster string) (dns.ClusterGateway, error) {
+	var target dns.ClusterGateway
+
+	mc := &clusterv1.ManagedCluster{}
+	if err := r.Client().Get(ctx, client.ObjectKey{Name: downstreamCluster}, mc, &client.GetOptions{}); err != nil {
+		return target, err
+	}
+
+	for _, address := range upstreamGateway.Status.Addresses {
+		if strings.Contains(address.Value, downstreamCluster) {
+			var gatewayAddresses []gatewayv1beta1.GatewayAddress
+
+			addressType := gatewayv1beta1.IPAddressType
+			if strings.Contains(string(*address.Type), string(gateway.MultiClusterHostnameAddressType)) {
+				addressType = gatewayv1beta1.HostnameAddressType
+			}
+
+			tmp := strings.Split(address.Value, "/")
+			addressValue := tmp[0]
+
+			if len(tmp) > 0 {
+				addressValue = tmp[len(tmp)-1]
+			}
+			gatewayAddresses = append(gatewayAddresses, gatewayv1beta1.GatewayAddress{
+				Type:  &addressType,
+				Value: addressValue,
+			})
+			target = *dns.NewClusterGateway(mc, gatewayAddresses)
+		}
+	}
+	return target, nil
+}
+
+func getGatewayAddresses(upstreamGateway *gatewayv1beta1.Gateway) []string {
+	var clusters []string
+
+	for _, address := range upstreamGateway.Status.Addresses {
+		value := strings.Split(address.Value, "/")
+		if strings.Contains(string(*address.Type), string(gateway.MultiClusterHostnameAddressType)) || strings.Contains(string(*address.Type), string(gateway.MultiClusterIPAddressType)) {
+			clusters = append(clusters, value[0])
+		}
+	}
+
+	return clusters
+}
+
+func listenerTotalAttachedRoutes(upstreamGateway *gatewayv1beta1.Gateway, downstreamCluster string) int {
+	listeners := 0
+
+	for _, listener := range upstreamGateway.Status.Listeners {
+		if strings.Contains(string(listener.Name), downstreamCluster) {
+			listeners = int(listener.AttachedRoutes)
+		}
+	}
+
+	return listeners
 }

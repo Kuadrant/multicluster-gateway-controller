@@ -25,7 +25,7 @@ import (
 	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnspolicy"
 	mgcgateway "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
-	. "github.com/Kuadrant/multicluster-gateway-controller/test/util"
+	testutil "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 )
 
 func testBuildManagedZone(domainName, ns string) *v1alpha1.ManagedZone {
@@ -88,6 +88,15 @@ func testBuildGateway(gwName, gwClassName, hostname, ns, dnspolicy string) *gate
 					Protocol: gatewayv1beta1.HTTPProtocolType,
 				},
 			},
+		},
+	}
+}
+
+func testBuildGatewayAddresses() []gatewayv1beta1.GatewayAddress {
+	return []gatewayv1beta1.GatewayAddress{
+		{
+			Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+			Value: TestPlacedClusterName,
 		},
 	}
 }
@@ -263,13 +272,18 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 		var lbHash, dnsRecordName, wildcardDNSRecordName string
 
 		BeforeEach(func() {
-			gateway = testBuildGateway(TestPlacedGatewayName, gatewayClass.Name, TestAttachedRouteName, testNamespace, "test-dns-policy")
+			gateway = testBuildGateway(TestPlacedGatewayName, testutil.DummyCRName, TestAttachedRouteName, testNamespace, "test-dns-policy")
 			lbHash = dns.ToBase36hash(fmt.Sprintf("%s-%s", gateway.Name, gateway.Namespace))
 			dnsRecordName = fmt.Sprintf("%s-%s", TestPlacedGatewayName, TestAttachedRouteName)
 			wildcardDNSRecordName = fmt.Sprintf("%s-%s", TestPlacedGatewayName, TestWildCardListenerName)
 			Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
 			Eventually(func() error { //gateway exists
 				return k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway)
+			}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
+			Eventually(func() error { // TODO remove the workaround during https://github.com/Kuadrant/multicluster-gateway-controller/issues/330
+				// also use a proper gateway class
+				gateway.Status.Addresses = testBuildGatewayAddresses()
+				return k8sClient.Status().Update(ctx, gateway)
 			}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
 		})
 
@@ -851,7 +865,7 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 		testGatewayName := "test-not-placed-gateway"
 
 		BeforeEach(func() {
-			gateway = testBuildGateway(testGatewayName, gatewayClass.Name, TestAttachedRouteName, testNamespace, "test-dns-policy")
+			gateway = testBuildGateway(testGatewayName, testutil.DummyCRName, TestAttachedRouteName, testNamespace, "test-dns-policy")
 			dnsPolicy = testBuildDNSPolicyWithHealthCheck("test-dns-policy", testGatewayName, testNamespace, nil)
 
 			Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
@@ -868,8 +882,12 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 				if err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway); err != nil {
 					return err
 				}
-				return nil
-			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
+
+				// TODO remove the workaround during https://github.com/Kuadrant/multicluster-gateway-controller/issues/330
+				// also use a proper gateway class
+				gateway.Status.Addresses = testBuildGatewayAddresses()
+				return k8sClient.Status().Update(ctx, gateway)
+			}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
 
 			Eventually(func() error { //dns policy exists
 				if err := k8sClient.Get(ctx, client.ObjectKey{Name: dnsPolicy.Name, Namespace: dnsPolicy.Namespace}, dnsPolicy); err != nil {
