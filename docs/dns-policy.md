@@ -311,9 +311,13 @@ spec:
       defaultWeight: 120
       custom: # <--- New Custom Weights being added
         - weight: 255
-          value: AWS
+          selector:
+            matchLabels:
+              kuadrant.io/lb-attribute-custom-weight: AWS
         - weight: 10
-          value: GCP
+          selector:
+            matchLabels:
+              kuadrant.io/lb-attribute-custom-weight: GCP
 ```
 
 And apply `custom-weight` labels to each of our managed cluster resources:
@@ -397,9 +401,13 @@ spec:
       defaultWeight: 120
       custom:
         - weight: 255
-          value: AWS
+          selector:
+            matchLabels:
+              kuadrant.io/lb-attribute-custom-weight: AWS
         - weight: 10
-          value: GCP
+          selector:
+            matchLabels:
+              kuadrant.io/lb-attribute-custom-weight: GCP
     geo:
       defaultGeo: US # <--- New `geo.defaultGeo` added for `US` (United States)
 ```

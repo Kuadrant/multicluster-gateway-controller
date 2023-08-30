@@ -426,7 +426,11 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 					{
 
 						ClusterGateway: &dns.ClusterGateway{
-							ClusterName: "test-cluster-1",
+							Cluster: &testutil.TestResource{
+								ObjectMeta: v1.ObjectMeta{
+									Name: "test-cluster-1",
+								},
+							},
 							GatewayAddresses: []gatewayv1beta1.GatewayAddress{
 								{
 									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
@@ -444,7 +448,11 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 					{
 
 						ClusterGateway: &dns.ClusterGateway{
-							ClusterName: "test-cluster-2",
+							Cluster: &testutil.TestResource{
+								ObjectMeta: v1.ObjectMeta{
+									Name: "test-cluster-2",
+								},
+							},
 							GatewayAddresses: []gatewayv1beta1.GatewayAddress{
 								{
 									Type:  testutil.Pointer(gatewayv1beta1.HostnameAddressType),
@@ -532,7 +540,11 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 					{
 
 						ClusterGateway: &dns.ClusterGateway{
-							ClusterName: "test-cluster-1",
+							Cluster: &testutil.TestResource{
+								ObjectMeta: v1.ObjectMeta{
+									Name: "test-cluster-1",
+								},
+							},
 							GatewayAddresses: []gatewayv1beta1.GatewayAddress{
 								{
 									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
@@ -550,7 +562,11 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 					{
 
 						ClusterGateway: &dns.ClusterGateway{
-							ClusterName: "test-cluster-2",
+							Cluster: &testutil.TestResource{
+								ObjectMeta: v1.ObjectMeta{
+									Name: "test-cluster-2",
+								},
+							},
 							GatewayAddresses: []gatewayv1beta1.GatewayAddress{
 								{
 									Type:  testutil.Pointer(gatewayv1beta1.HostnameAddressType),
@@ -669,7 +685,11 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 					{
 
 						ClusterGateway: &dns.ClusterGateway{
-							ClusterName: "test-cluster-1",
+							Cluster: &testutil.TestResource{
+								ObjectMeta: v1.ObjectMeta{
+									Name: "test-cluster-1",
+								},
+							},
 							GatewayAddresses: []gatewayv1beta1.GatewayAddress{
 								{
 									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
@@ -687,7 +707,11 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 					{
 
 						ClusterGateway: &dns.ClusterGateway{
-							ClusterName: "test-cluster-2",
+							Cluster: &testutil.TestResource{
+								ObjectMeta: v1.ObjectMeta{
+									Name: "test-cluster-2",
+								},
+							},
 							GatewayAddresses: []gatewayv1beta1.GatewayAddress{
 								{
 									Type:  testutil.Pointer(gatewayv1beta1.HostnameAddressType),
@@ -775,7 +799,11 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 					{
 
 						ClusterGateway: &dns.ClusterGateway{
-							ClusterName: "test-cluster-1",
+							Cluster: &testutil.TestResource{
+								ObjectMeta: v1.ObjectMeta{
+									Name: "test-cluster-1",
+								},
+							},
 							GatewayAddresses: []gatewayv1beta1.GatewayAddress{
 								{
 									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
@@ -793,7 +821,11 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 					{
 
 						ClusterGateway: &dns.ClusterGateway{
-							ClusterName: "test-cluster-2",
+							Cluster: &testutil.TestResource{
+								ObjectMeta: v1.ObjectMeta{
+									Name: "test-cluster-2",
+								},
+							},
 							GatewayAddresses: []gatewayv1beta1.GatewayAddress{
 								{
 									Type:  testutil.Pointer(gatewayv1beta1.HostnameAddressType),
@@ -912,7 +944,11 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 					{
 
 						ClusterGateway: &dns.ClusterGateway{
-							ClusterName:      "test-cluster-1",
+							Cluster: &testutil.TestResource{
+								ObjectMeta: v1.ObjectMeta{
+									Name: "test-cluster-1",
+								},
+							},
 							GatewayAddresses: []gatewayv1beta1.GatewayAddress{},
 						},
 						Geo:    testutil.Pointer(dns.GeoCode("NA")),
@@ -921,7 +957,11 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 					{
 
 						ClusterGateway: &dns.ClusterGateway{
-							ClusterName:      "test-cluster-2",
+							Cluster: &testutil.TestResource{
+								ObjectMeta: v1.ObjectMeta{
+									Name: "test-cluster-2",
+								},
+							},
 							GatewayAddresses: []gatewayv1beta1.GatewayAddress{},
 						},
 						Geo:    testutil.Pointer(dns.GeoCode("IE")),

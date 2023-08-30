@@ -82,7 +82,7 @@ test-integration: ginkgo manifests generate fmt vet envtest ## Run integration t
 test: test-unit test-integration ## Run tests.
 
 .PHONY: test-e2e
-test-e2e: ginkgo kind-load-controller deploy-controller
+test-e2e: ginkgo
 	$(GINKGO) -tags=e2e -v ./test/e2e
 
 .PHONY: local-setup

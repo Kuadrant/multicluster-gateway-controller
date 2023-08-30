@@ -8,17 +8,17 @@ import (
 	"github.com/martinlindhe/base36"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 )
 
 const (
-	DefaultWeight                        = int(v1alpha1.DefaultWeight)
-	DefaultGeo                   GeoCode = "default"
-	WildcardGeo                  GeoCode = "*"
-	LabelLBAttributeGeoCode              = "kuadrant.io/lb-attribute-geo-code"
-	LabelLBAttributeCustomWeight         = "kuadrant.io/lb-attribute-custom-weight"
+	DefaultWeight                   = int(v1alpha1.DefaultWeight)
+	DefaultGeo              GeoCode = "default"
+	WildcardGeo             GeoCode = "*"
+	LabelLBAttributeGeoCode         = "kuadrant.io/lb-attribute-geo-code"
 )
 
 // MultiClusterGatewayTarget represents a Gateway that is placed on multiple clusters (ClusterGateway).
@@ -80,14 +80,8 @@ func (t *MultiClusterGatewayTarget) setClusterGatewayTargets(clusterGateways []C
 
 // ClusterGateway contains the addresses of a Gateway on a single cluster and the attributes of the target cluster.
 type ClusterGateway struct {
-	ClusterName       string
-	GatewayAddresses  []gatewayv1beta1.GatewayAddress
-	ClusterAttributes ClusterAttributes
-}
-
-type ClusterAttributes struct {
-	CustomWeight *string
-	Geo          *GeoCode
+	Cluster          metav1.Object
+	GatewayAddresses []gatewayv1beta1.GatewayAddress
 }
 
 type GeoCode string
@@ -102,26 +96,10 @@ func (gc GeoCode) IsWildcard() bool {
 
 func NewClusterGateway(cluster metav1.Object, gatewayAddresses []gatewayv1beta1.GatewayAddress) *ClusterGateway {
 	cgw := &ClusterGateway{
-		ClusterName:      cluster.GetName(),
+		Cluster:          cluster,
 		GatewayAddresses: gatewayAddresses,
 	}
-	cgw.setClusterAttributesFromObject(cluster)
 	return cgw
-}
-
-func (t *ClusterGateway) setClusterAttributesFromObject(mc metav1.Object) {
-	t.ClusterAttributes = ClusterAttributes{}
-	labels := mc.GetLabels()
-	if labels == nil {
-		return
-	}
-	if gc, ok := labels[LabelLBAttributeGeoCode]; ok {
-		geoCode := GeoCode(gc)
-		t.ClusterAttributes.Geo = &geoCode
-	}
-	if cw, ok := labels[LabelLBAttributeCustomWeight]; ok {
-		t.ClusterAttributes.CustomWeight = &cw
-	}
 }
 
 // ClusterGatewayTarget represents a cluster Gateway with geo and weighting info calculated
@@ -149,7 +127,7 @@ func (t *ClusterGatewayTarget) GetWeight() int {
 }
 
 func (t *ClusterGatewayTarget) GetName() string {
-	return t.ClusterName
+	return t.Cluster.GetName()
 }
 
 func (t *ClusterGatewayTarget) GetShortCode() string {
@@ -157,26 +135,30 @@ func (t *ClusterGatewayTarget) GetShortCode() string {
 }
 
 func (t *ClusterGatewayTarget) setGeo(defaultGeo GeoCode) {
-	if defaultGeo == DefaultGeo || t.ClusterAttributes.Geo == nil {
-		t.Geo = &defaultGeo
+	geoCode := defaultGeo
+	if geoCode == DefaultGeo {
+		t.Geo = &geoCode
 		return
 	}
-	t.Geo = t.ClusterAttributes.Geo
+	if gc, ok := t.Cluster.GetLabels()[LabelLBAttributeGeoCode]; ok {
+		geoCode = GeoCode(gc)
+	}
+	t.Geo = &geoCode
 }
 
 func (t *ClusterGatewayTarget) setWeight(defaultWeight int, customWeights []*v1alpha1.CustomWeight) {
-	weight := &defaultWeight
-	if t.ClusterAttributes.CustomWeight != nil && customWeights != nil {
-		for k := range customWeights {
-			cw := customWeights[k]
-			if *t.ClusterAttributes.CustomWeight == cw.Value {
+	weight := defaultWeight
+	for k := range customWeights {
+		cw := customWeights[k]
+		if selector, err := metav1.LabelSelectorAsSelector(cw.Selector); err == nil {
+			if selector.Matches(labels.Set(t.Cluster.GetLabels())) {
 				customWeight := int(cw.Weight)
-				weight = &customWeight
+				weight = customWeight
 				break
 			}
 		}
 	}
-	t.Weight = weight
+	t.Weight = &weight
 }
 
 func ToBase36hash(s string) string {
