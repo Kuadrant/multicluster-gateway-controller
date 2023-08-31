@@ -30,9 +30,10 @@ func TestNewClusterGatewayTarget(t *testing.T) {
 		customWeights  []*v1alpha1.CustomWeight
 	}
 	testCases := []struct {
-		name string
-		args args
-		want ClusterGatewayTarget
+		name    string
+		args    args
+		want    ClusterGatewayTarget
+		wantErr bool
 	}{
 		{
 			name: "set geo and weight from defaults",
@@ -61,6 +62,7 @@ func TestNewClusterGatewayTarget(t *testing.T) {
 				Geo:    testutil.Pointer(GeoCode("IE")),
 				Weight: testutil.Pointer(100),
 			},
+			wantErr: false,
 		},
 		{
 			name: "set geo and weight from cluster labels",
@@ -106,13 +108,22 @@ func TestNewClusterGatewayTarget(t *testing.T) {
 				Geo:    testutil.Pointer(GeoCode("EU")),
 				Weight: testutil.Pointer(60),
 			},
+			wantErr: false,
 		},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			if got := NewClusterGatewayTarget(testCase.args.clusterGateway, testCase.args.defaultGeoCode, testCase.args.defaultWeight, testCase.args.customWeights); !reflect.DeepEqual(got, testCase.want) {
-				t.Errorf("NewClusterGatewayTarget() = %v, want %v", got, testCase.want)
-			}
+			t.Run(testCase.name, func(t *testing.T) {
+				got, err := NewClusterGatewayTarget(testCase.args.clusterGateway, testCase.args.defaultGeoCode, testCase.args.defaultWeight, testCase.args.customWeights)
+				if (err != nil) != testCase.wantErr {
+					t.Errorf("NewClusterGatewayTarget() error = %v, wantErr %v", err, testCase.wantErr)
+					return
+				}
+				if !reflect.DeepEqual(got, testCase.want) {
+					t.Errorf("NewClusterGatewayTarget() = %v, want %v", got, testCase.want)
+				}
+			})
+
 		})
 	}
 }
@@ -130,9 +141,10 @@ func TestNewMultiClusterGatewayTarget(t *testing.T) {
 		},
 	}
 	testCases := []struct {
-		name string
-		args args
-		want *MultiClusterGatewayTarget
+		name    string
+		args    args
+		want    *MultiClusterGatewayTarget
+		wantErr bool
 	}{
 		{
 			name: "set cluster gateway targets with default geo and weight values",
@@ -188,6 +200,7 @@ func TestNewMultiClusterGatewayTarget(t *testing.T) {
 				},
 				LoadBalancing: nil,
 			},
+			wantErr: false,
 		},
 		{
 			name: "set cluster gateway targets with default geo and weight from load balancing config",
@@ -257,6 +270,7 @@ func TestNewMultiClusterGatewayTarget(t *testing.T) {
 					},
 				},
 			},
+			wantErr: false,
 		},
 		{
 			name: "set cluster gateway targets with default geo and weight from cluster labels",
@@ -354,11 +368,17 @@ func TestNewMultiClusterGatewayTarget(t *testing.T) {
 					},
 				},
 			},
+			wantErr: false,
 		},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			if got := NewMultiClusterGatewayTarget(testCase.args.gateway, testCase.args.clusterGateways, testCase.args.loadBalancing); !reflect.DeepEqual(got, testCase.want) {
+			got, err := NewMultiClusterGatewayTarget(testCase.args.gateway, testCase.args.clusterGateways, testCase.args.loadBalancing)
+			if (err != nil) != testCase.wantErr {
+				t.Errorf("NewMultiClusterGatewayTarget() error = %v, wantErr %v", err, testCase.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, testCase.want) {
 				t.Errorf("NewMultiClusterGatewayTarget() = %v, want %v", got, testCase.want)
 			}
 		})
@@ -451,6 +471,7 @@ func TestClusterGatewayTarget_setWeight(t *testing.T) {
 		customWeights []*v1alpha1.CustomWeight
 		clusterLabels map[string]string
 		want          int
+		wantErr       bool
 	}{
 		{
 			name:          "sets geo from default",
@@ -458,6 +479,7 @@ func TestClusterGatewayTarget_setWeight(t *testing.T) {
 			clusterLabels: nil,
 			customWeights: []*v1alpha1.CustomWeight{},
 			want:          255,
+			wantErr:       false,
 		},
 		{
 			name:          "sets geo from custom weight",
@@ -475,7 +497,8 @@ func TestClusterGatewayTarget_setWeight(t *testing.T) {
 					Weight: 100,
 				},
 			},
-			want: 100,
+			want:    100,
+			wantErr: false,
 		},
 		{
 			name:          "sets geo from from custom weight with selector with multiple matches",
@@ -495,7 +518,8 @@ func TestClusterGatewayTarget_setWeight(t *testing.T) {
 					Weight: 100,
 				},
 			},
-			want: 100,
+			want:    100,
+			wantErr: false,
 		},
 		{
 			name:          "sets geo from default when not all custom weight selectors match",
@@ -514,10 +538,11 @@ func TestClusterGatewayTarget_setWeight(t *testing.T) {
 					Weight: 100,
 				},
 			},
-			want: 255,
+			want:    255,
+			wantErr: false,
 		},
 		{
-			name:          "sets geo from default when label selector invalid",
+			name:          "returns error when label selector invalid",
 			defaultWeight: 255,
 			clusterLabels: map[string]string{
 				"/tstlabel1": "TSTATTR",
@@ -532,7 +557,8 @@ func TestClusterGatewayTarget_setWeight(t *testing.T) {
 					Weight: 100,
 				},
 			},
-			want: 255,
+			want:    255,
+			wantErr: true,
 		},
 	}
 	for _, testCase := range testCases {
@@ -547,9 +573,15 @@ func TestClusterGatewayTarget_setWeight(t *testing.T) {
 					},
 					GatewayAddresses: buildGatewayAddress(testAddress1),
 				},
+				Weight: &testCase.defaultWeight,
 			}
-			cgt.setWeight(testCase.defaultWeight, testCase.customWeights)
-			if got := *cgt.Weight; got != testCase.want {
+			err := cgt.setWeight(testCase.defaultWeight, testCase.customWeights)
+			if (err != nil) != testCase.wantErr {
+				t.Errorf("setWeight() error = %v, wantErr %v", err, testCase.wantErr)
+				return
+			}
+			got := *cgt.Weight
+			if got != testCase.want {
 				t.Errorf("setWeight() got = %v, want %v", got, testCase.want)
 			}
 		})
