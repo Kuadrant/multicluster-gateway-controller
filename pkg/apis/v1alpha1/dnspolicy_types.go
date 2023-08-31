@@ -49,8 +49,9 @@ type LoadBalancingSpec struct {
 type Weight int
 
 type CustomWeight struct {
+	// Label selector used by MGC to match resource storing custom weight attribute values e.g. kuadrant.io/lb-attribute-custom-weight: AWS
 	// +required
-	Value string `json:"value,omitempty"`
+	Selector *metav1.LabelSelector `json:"selector"`
 	// +required
 	Weight Weight `json:"weight,omitempty"`
 }

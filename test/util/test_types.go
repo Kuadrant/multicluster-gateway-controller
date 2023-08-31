@@ -1,4 +1,4 @@
-//go:build integration
+//go:build unit || integration
 
 package testutil
 
@@ -6,6 +6,9 @@ import (
 	cmmeta "github.com/jetstack/cert-manager/pkg/apis/meta/v1"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayapiv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
@@ -108,3 +111,14 @@ func (t *TestTLSPolicy) WithIssuer(name, kind, group string) *TestTLSPolicy {
 	})
 	return t
 }
+
+var _ client.Object = &TestResource{}
+
+// TestResource dummy client.Object that can be used in place of a real k8s resource for testing
+type TestResource struct {
+	metav1.TypeMeta
+	metav1.ObjectMeta
+}
+
+func (*TestResource) GetObjectKind() schema.ObjectKind { return nil }
+func (*TestResource) DeepCopyObject() runtime.Object   { return nil }
