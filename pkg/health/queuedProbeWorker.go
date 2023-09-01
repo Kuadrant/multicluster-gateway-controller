@@ -79,6 +79,7 @@ func (q *QueuedProbeWorker) dequeue(ctx context.Context) (HealthRequest, bool) {
 			q.mux.Unlock()
 
 			reqChn <- req
+			return
 		}
 
 	}()
