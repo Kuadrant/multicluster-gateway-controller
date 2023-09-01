@@ -1,0 +1,4 @@
+resources:
+- bases/multicluster-gateway-controller.clusterserviceversion.yaml
+- ../default
+- ../scorecard
