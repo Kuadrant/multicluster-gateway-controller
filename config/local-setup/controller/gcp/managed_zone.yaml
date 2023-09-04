@@ -9,5 +9,4 @@ spec:
   dnsProviderSecretRef:
     name: mgc-gcp-credentials
     namespace: multi-cluster-gateways
-    type: GCP
 

@@ -7,31 +7,7 @@ The following document tells you everything you need to know about the DNS Provi
 
 In the current iteration of the multi-cluster gateway controller we support both **AWS (Amazon web services) Route 53** and **GCP (Google cloud provider) cloud DNS**. 
 
-### Geolocation
 
-Geolocation is a feature available in both DNS providers we support. A location is needed for both DNS Providers, please see below for the supported location for the provider you require.
-
-:exclamation:
-If a unsupported value is given to a provider, DNS records will **not** be created. Please choose carefully. For more information of what location is right for your needs please read said providers documentation. 
-
-## Locations supported per DNS provider
-
-| Supported     | AWS | GCP |
-|---------------|-----|-----|
-| Continents    | :white_check_mark: |  :x: |
-| Country codes | :white_check_mark: |  :x:  |
-| States        | :white_check_mark: |  :x:  |
-| Regions       |  :x:  | :white_check_mark: |  
-
-## Continents and country codes supported by AWS Route 53
-
-:**Note:** :exclamation: For more information please the official AWS documentation 
-
-To see all regions supported by AWS Route 53 please see the offical (documtation)[https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/resource-record-sets-values-geo.html]
-
-## Regions supported by GCP CLoud DNS
-
-To see all regions supported by GCP Cloud DNS please see the offical (documtation)[https://cloud.google.com/compute/docs/regions-zones]
 ## Setting up DNS provider
 
 ### AWS Route 53

@@ -115,7 +115,6 @@ spec:
   dnsProviderSecretRef:
     name: mgc-aws-credentials
     namespace: multi-cluster-gateways
-    type: AWS
 EOF
 ```
 

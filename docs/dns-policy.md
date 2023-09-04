@@ -66,7 +66,6 @@ spec:
   dnsProviderSecretRef:
     name: my-aws-credentials
     namespace: multi-cluster-gateways
-    type: AWS
 ```
 
 ## DNSPolicy creation and attachment
@@ -484,7 +483,7 @@ lrnse3.lb-2903yb.echo.apps.hcpapps.net.
 #### Configuring Cluster Geo Locations
 
 The `defaultGeo` as described above puts all clusters into the same geo group, but for geo to be useful we need to mark our clusters as being in different locations.
-We can do this though by adding `geo-code` attributes on the ManagedCluster to show which county each cluster is in. The values that can be used are determined by the dns provider, in the case of Route53 any two digit ISO3166 alpha-2 country code (https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2).
+We can do this though by adding `geo-code` attributes on the ManagedCluster to show which county each cluster is in. The values that can be used are determined by the dns provider (See Below). 
 
 Apply `geo-code` labels to each of our managed cluster resources:
 ```bash
@@ -562,3 +561,27 @@ kubectl get dnsrecord echo.apps.hcpapps.net -n multi-cluster-gateways -o yaml | 
 
 In the above scenario any requests made in Spain will be returned the IP address of `kind-mgc-workload-2` and requests made from anywhere else in the world will be returned the IP address of `kind-mgc-workload-1`.
 Weighting of records is still enforced between clusters in the same geo group, in the case above however they are having no effect since there is only one cluster in each group.
+
+:exclamation:
+If a unsupported value is given to a provider, DNS records will **not** be created. Please choose carefully. For more information of what location is right for your needs please read said providers documentation. 
+
+##### Locations supported per DNS provider
+
+| Supported     | AWS | GCP |
+|---------------|-----|-----|
+| Continents    | :white_check_mark: |  :x: |
+| Country codes | :white_check_mark: |  :x:  |
+| States        | :white_check_mark: |  :x:  |
+| Regions       |  :x:  | :white_check_mark: |  
+
+##### Continents and country codes supported by AWS Route 53
+
+:**Note:** :exclamation: For more information please the official AWS documentation 
+
+To see all regions supported by AWS Route 53 please see the official (documtation)[https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/resource-record-sets-values-geo.html]
+
+##### Regions supported by GCP CLoud DNS
+
+To see all regions supported by GCP Cloud DNS please see the offical (documtation)[https://cloud.google.com/compute/docs/regions-zones]
+
+

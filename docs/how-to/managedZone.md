@@ -46,7 +46,14 @@ metadata:
   name: testmz.hcpapps.net
 spec:
   domainName: testmz.hcapps.net
+  dnsProviderSecretRef:
+    Name: my-credential
+    NameSpace: ns
 ```
+
+### Secret Ref
+
+This is a reference to a secret that contains a credential for accessing the DNS Provider. See [dns-provider](./dns-provider.md) for more details.
 
 ### Optional fields
 The following fields are optional:
