@@ -4,6 +4,7 @@ package integration
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -46,14 +47,16 @@ var _ = Describe("DNSHealthCheckProbe controller", func() {
 
 			Expect(k8sClient.Create(ctx, probeObj)).Should(Succeed())
 
-			Eventually(func() bool {
+			Eventually(func() error {
 				err := k8sClient.Get(ctx, client.ObjectKeyFromObject(probeObj), probeObj)
 				if err != nil {
-					GinkgoWriter.Print(err)
-					return false
+					return err
 				}
-				return probeObj.Status.LastCheckedAt.Time != metav1.Time{}.Time
-			}, timeout+(time.Second*20), interval).Should(BeTrue())
+				if probeObj.Status.LastCheckedAt.Time == (time.Time{}) {
+					return fmt.Errorf("expected probeObj.Status.LastCheckedAt to be non-zero %s, %s", probeObj.Status.LastCheckedAt.Time, (metav1.Time{}).Time)
+				}
+				return nil
+			}, timeout+(time.Second*20), interval).Should(BeNil())
 
 			GinkgoWriter.Print(probeObj)
 
@@ -77,14 +80,16 @@ var _ = Describe("DNSHealthCheckProbe controller", func() {
 			err = k8sClient.Update(ctx, probeObj)
 			Expect(err).NotTo(HaveOccurred())
 
-			Eventually(func() bool {
+			Eventually(func() error {
 				err := k8sClient.Get(ctx, client.ObjectKeyFromObject(probeObj), probeObj)
 				if err != nil {
-					GinkgoWriter.Print(err)
-					return false
+					return err
 				}
-				return probeObj.Status.LastCheckedAt.Time.After(lastUpdate.Time)
-			}, timeout+(time.Second*20), interval).Should(BeTrue())
+				if !probeObj.Status.LastCheckedAt.Time.After(lastUpdate.Time) {
+					return fmt.Errorf("expected probeObj.Status.LastCheckedAt to be after lastUpdate")
+				}
+				return nil
+			}, timeout+(time.Second*20), interval).Should(BeNil())
 
 			Expect(probeObj.Status.Healthy).Should(BeFalse())
 			Expect(probeObj.Status.Reason).Should(Equal("Status code: 500"))

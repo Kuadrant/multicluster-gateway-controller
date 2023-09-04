@@ -124,10 +124,9 @@ func CreateNamespace(namespace *string) {
 	Expect(err).ToNot(HaveOccurred())
 
 	existingNamespace := &v1.Namespace{}
-	Eventually(func() bool {
-		err := testClient().Get(context.Background(), types.NamespacedName{Name: generatedTestNamespace}, existingNamespace)
-		return err == nil
-	}, time.Minute, 5*time.Second).Should(BeTrue())
+	Eventually(func() error {
+		return testClient().Get(context.Background(), types.NamespacedName{Name: generatedTestNamespace}, existingNamespace)
+	}, time.Minute, 5*time.Second).ShouldNot(HaveOccurred())
 
 	*namespace = existingNamespace.Name
 }
@@ -139,13 +138,13 @@ func DeleteNamespace(namespace *string) {
 	Expect(err).ToNot(HaveOccurred())
 
 	existingNamespace := &v1.Namespace{}
-	Eventually(func() bool {
+	Eventually(func() error {
 		err := testClient().Get(context.Background(), types.NamespacedName{Name: *namespace}, existingNamespace)
-		if err != nil && apierrors.IsNotFound(err) {
-			return true
+		if err != nil && !apierrors.IsNotFound(err) {
+			return err
 		}
-		return false
-	}, 3*time.Minute, 2*time.Second).Should(BeTrue())
+		return nil
+	}, 3*time.Minute, 2*time.Second).Should(BeNil())
 }
 
 type testHealthServer struct {

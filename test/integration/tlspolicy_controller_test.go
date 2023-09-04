@@ -4,6 +4,7 @@ package integration
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
 	certmanv1 "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
@@ -91,12 +92,15 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 			})
 
 			It("should have ready status", func() {
-				Eventually(func() bool {
+				Eventually(func() error {
 					if err := k8sClient.Get(ctx, client.ObjectKey{Name: tlsPolicy.Name, Namespace: tlsPolicy.Namespace}, tlsPolicy); err != nil {
-						return false
+						return err
 					}
-					return meta.IsStatusConditionTrue(tlsPolicy.Status.Conditions, string(conditions.ConditionTypeReady))
-				}, time.Second*15, time.Second).Should(BeTrue())
+					if !meta.IsStatusConditionTrue(tlsPolicy.Status.Conditions, string(conditions.ConditionTypeReady)) {
+						return fmt.Errorf("expected tlsPolicy status condition to be %s", string(conditions.ConditionTypeReady))
+					}
+					return nil
+				}, time.Second*15, time.Second).Should(BeNil())
 			})
 
 			It("should set gateway back reference", func() {
@@ -104,20 +108,38 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 				policyBackRefValue := testNamespace + "/" + tlsPolicy.Name
 				refs, _ := json.Marshal([]client.ObjectKey{{Name: tlsPolicy.Name, Namespace: testNamespace}})
 				policiesBackRefValue := string(refs)
-				Eventually(func() map[string]string {
+				Eventually(func() error {
 					// Check gateway back references
 					err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: testNamespace}, existingGateway)
-					// must exist
 					Expect(err).ToNot(HaveOccurred())
-					return existingGateway.GetAnnotations()
-				}, time.Second*5, time.Second).Should(HaveKeyWithValue(TLSPolicyBackRefAnnotation, policyBackRefValue))
-				Eventually(func() map[string]string {
+					annotations := existingGateway.GetAnnotations()
+					if annotations == nil {
+						return fmt.Errorf("existingGateway annotations should not be nil")
+					}
+					if _, ok := annotations[TLSPolicyBackRefAnnotation]; !ok {
+						return fmt.Errorf("existingGateway annotations do not have annotation %s", TLSPolicyBackRefAnnotation)
+					}
+					if annotations[TLSPolicyBackRefAnnotation] != policyBackRefValue {
+						return fmt.Errorf("existingGateway annotations[%s] does not have expected value", TLSPolicyBackRefAnnotation)
+					}
+					return nil
+				}, time.Second*5, time.Second).Should(BeNil())
+				Eventually(func() error {
 					// Check gateway back references
 					err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: testNamespace}, existingGateway)
-					// must exist
 					Expect(err).ToNot(HaveOccurred())
-					return existingGateway.GetAnnotations()
-				}, time.Second*5, time.Second).Should(HaveKeyWithValue(TLSPoliciesBackRefAnnotation, policiesBackRefValue))
+					annotations := existingGateway.GetAnnotations()
+					if annotations == nil {
+						return fmt.Errorf("existingGateway annotations should not be nil")
+					}
+					if _, ok := annotations[TLSPoliciesBackRefAnnotation]; !ok {
+						return fmt.Errorf("existingGateway annotations do not have annotation %s", TLSPoliciesBackRefAnnotation)
+					}
+					if annotations[TLSPoliciesBackRefAnnotation] != policiesBackRefValue {
+						return fmt.Errorf("existingGateway annotations[%s] does not have expected value", TLSPoliciesBackRefAnnotation)
+					}
+					return nil
+				}, time.Second*5, time.Second).Should(BeNil())
 			})
 
 		})
@@ -168,12 +190,15 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 			})
 
 			It("should create tls certificate", func() {
-				Eventually(func() []certmanv1.Certificate {
+				Eventually(func() error {
 					certList := &certmanv1.CertificateList{}
 					err := k8sClient.List(ctx, certList, &client.ListOptions{Namespace: testNamespace})
 					Expect(err).ToNot(HaveOccurred())
-					return certList.Items
-				}, time.Second*10, time.Second).Should(HaveLen(1))
+					if len(certList.Items) != 1 {
+						return fmt.Errorf("expected certificate List to be 1")
+					}
+					return nil
+				}, time.Second*10, time.Second).Should(BeNil())
 
 				cert1 := &certmanv1.Certificate{}
 				err := k8sClient.Get(ctx, client.ObjectKey{Name: "test-tls-secret", Namespace: testNamespace}, cert1)
@@ -201,12 +226,15 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 			})
 
 			It("should create tls certificates", func() {
-				Eventually(func() []certmanv1.Certificate {
+				Eventually(func() error {
 					certList := &certmanv1.CertificateList{}
 					err := k8sClient.List(ctx, certList, &client.ListOptions{Namespace: testNamespace})
 					Expect(err).ToNot(HaveOccurred())
-					return certList.Items
-				}, time.Second*10, time.Second).Should(HaveLen(2))
+					if len(certList.Items) != 2 {
+						return fmt.Errorf("expected CertificateList to be 2")
+					}
+					return nil
+				}, time.Second*10, time.Second).Should(BeNil())
 
 				cert1 := &certmanv1.Certificate{}
 				err := k8sClient.Get(ctx, client.ObjectKey{Name: "test-tls-secret", Namespace: testNamespace}, cert1)
