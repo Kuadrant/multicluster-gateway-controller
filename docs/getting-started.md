@@ -33,7 +33,5 @@ Export environment variables with the keys listed below. Fill in your own values
 
 ### What's Next
 
-Now that you have two Kind clusters configured with the Multicluster Gateway Controller installed you are ready to begin [creating gateways](https://docs.kuadrant.io/multicluster-gateway-controller/docs/how-to/ocm-control-plane-walkthrough/#create-a-gateway).
-
->:exclamation: **Note:** The follow-on tutorial above expects two terminal sessions named `T1` (hub cluster) and `T2` (workload cluster) to be open. Before proceeding, open a second terminal session `T2` and export in it your `MGC_SUB_DOMAIN` environment variable.
+Now that you have two Kind clusters configured with the Multicluster Gateway Controller installed you are ready to begin [creating gateways](https://docs.kuadrant.io/multicluster-gateway-controller/docs/how-to/ocm-control-plane-walkthrough/#open-terminal-sessions-and-set-cluster-context).
 

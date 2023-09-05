@@ -14,33 +14,23 @@ We will start with a single cluster and move to multiple clusters to illustrate 
 - AWS account with Route 53 enabled
 - [Docker Mac Net Connect](https://github.com/chipmk/docker-mac-net-connect) (macOS users only)
 
->**Note:** :exclamation: this walkthrough will setup a zone in your AWS account and make changes to it for DNS purposes
+>**Note:** :exclamation: this walkthrough will set up a zone in your AWS account and make changes to it for DNS purposes
 
 ## Installation and Setup
-* Clone this repo locally 
-* Set up your DNS Provider by following these [steps](providers/providers.md)
+* Export env-vars with the keys listed below. Fill in your own values as appropriate. You will need access to a domain or subdomain in Route 53 in AWS:
 
-* We're going to use an environment variable, `MGC_SUB_DOMAIN`, throughout this walkthrough. Simply run the below in each window you create:
+  | Env Var                      | Example Value               | Description                                                    |
+    |------------------------------|-----------------------------|----------------------------------------------------------------|
+  | `MGC_ZONE_ROOT_DOMAIN`       | `jbloggs.hcpapps.net`       | Hostname for the root Domain                                   |
+  | `MGC_AWS_DNS_PUBLIC_ZONE_ID` | `Z01234567US0IQE3YLO00`     | AWS Route 53 Zone ID for specified `MGC_ZONE_ROOT_DOMAIN`      | 
+  | `MGC_AWS_ACCESS_KEY_ID`      | `AKIA1234567890000000`      | Access Key ID, with access to resources in Route 53            |
+  | `MGC_AWS_SECRET_ACCESS_KEY`  | `Z01234567US0000000`        | Access Secret Access Key, with access to resources in Route 53 |
+  | `MGC_AWS_REGION`             | `eu-west-1`                 | AWS Region                                                     |
+  | `MGC_SUB_DOMAIN`             | `myapp.jbloggs.hcpapps.net` | AWS Region                                                     |
 
-  For example:
-  ```bash
-  export MGC_SUB_DOMAIN=myapp.jbloggs.hcpapps.net
-  ```
+* Alternatively, to set a default, add the above environment variable to your `.zshrc` or `.bash_profile`. 
 
-* Alternatively, to set a default, add the above environment variable to your `.zshrc` or `.bash_profile`. To override this as a once-off, simply `export MGC_SUB_DOMAIN`.
-
-## Open terminal sessions
-
-For this walkthrough, we're going to use multiple terminal sessions/windows.
-
-Open two windows, which we'll refer to throughout this walkthrough as:
-
-* `T1` (Hub Cluster)
-* `T2` (Workloads cluster)
-
-* NOTE: MCG_SUB_DOMAIN env var is required in both terminals
-
-1. To setup a local instance, in `T1`, run:
+1. To setup a local instance, run:
 
     ```bash
     curl https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/quickstart-setup.sh | bash
@@ -61,13 +51,24 @@ The script will
 - set up a placement resource, in order to place our gateways onto clusters
 - lastly, it will set up a multi-cluster gateway class
 
-1. Once this is completed your kubeconfig context should be set to the hub cluster. 
 
-    > **Optional Step:** :thought_balloon: If you need to reset this run the following in `T1`:
-    > ```bash
-    > kind export kubeconfig --name=mgc-control-plane --kubeconfig=$(pwd)/control-plane.yaml && export KUBECONFIG=$(pwd)/control-plane.yaml
-    > ```
-   
+## Open terminal sessions and set cluster context
+
+For this walkthrough, we're going to use multiple terminal sessions/windows.
+
+Open two windows, which we'll refer to throughout this walkthrough as:
+
+* `T1` (Hub Cluster)
+* `T2` (Workloads cluster)
+
+Set the kubecontext for each terminal, refer back to these commands if re-config is needed.
+
+In `T1` run `kind export kubeconfig --name=mgc-control-plane --kubeconfig=$(pwd)/control-plane.yaml && export KUBECONFIG=$(pwd)/control-plane.yaml`
+
+In `T2` run `kind export kubeconfig --name=mgc-workload-1 --kubeconfig=$(pwd)/workload1.yaml && export KUBECONFIG=$(pwd)/workload1.yaml`
+
+export `MGC_SUB_DOMAIN` in each terminal if you haven't already added it to your `.zshrc` or `.bash_profile`.
+
 ### Create a gateway
 
 #### Check the managed zone
@@ -333,7 +334,6 @@ So now we have a working gateway with DNS and TLS configured. Let place this gat
 1. In `T2` window execute the following to see the gateway on the workload-1 cluster:
 
     ```bash
-    kind export kubeconfig --name=mgc-workload-1 --kubeconfig=$(pwd)/workload1.yaml && export KUBECONFIG=$(pwd)/workload1.yaml
     kubectl get gateways -A
     ```
     You'll see the following
