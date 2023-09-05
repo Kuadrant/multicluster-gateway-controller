@@ -30,7 +30,7 @@ kubectl patch klusterlet klusterlet --type merge --patch '{"spec": {"workConfigu
 First, run the following command in the context of your hub cluster to install the Gateway API CRDs:
 
 ```bash
-kubectl apply -k "github.com/Kuadrant/multicluster-gateway-controller.git/config/gateway-api?ref=main"
+kubectl apply -k "github.com/kubernetes-sigs/gateway-api/config/crd?ref=v0.6.2"
 ```
 
 We can then add a `wait` to verify the CRDs have been established:
