@@ -14,7 +14,7 @@ Kuadrant Supports the following DNS providers currently
 
 ## Configuring an AWS Route 53 provider
 
-Kuadant expects a secret with a credential. Below is an example for route 53. It is important to set the secret type to `aws`
+Kuadant expects a secret with a credential. Below is an example for AWS Route 53. It is important to set the secret type to `aws`
 
 ```
 apiVersion: v1
