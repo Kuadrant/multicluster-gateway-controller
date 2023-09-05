@@ -365,7 +365,6 @@ spec:
   dnsProviderSecretRef:
     name: ${KIND_CLUSTER_PREFIX}aws-credentials
     namespace: multicluster-gateway-controller-system
-    type: AWS
 EOF
 }
 
