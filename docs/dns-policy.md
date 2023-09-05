@@ -582,6 +582,6 @@ To see all regions supported by AWS Route 53, please see the official (documenta
 
 ##### Regions supported by GCP CLoud DNS
 
-To see all regions supported by GCP Cloud DNS please see the offical (documtation)[https://cloud.google.com/compute/docs/regions-zones]
+To see all regions supported by GCP Cloud DNS, please see the official (documentation)[https://cloud.google.com/compute/docs/regions-zones]
 
 
