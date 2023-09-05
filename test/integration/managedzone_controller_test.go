@@ -65,17 +65,19 @@ var _ = Describe("ManagedZoneReconciler", func() {
 
 			createdMZ := &v1alpha1.ManagedZone{}
 
-			Eventually(func() bool {
-				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: managedZone.Namespace, Name: managedZone.Name}, createdMZ)
-				return err == nil
-			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			Eventually(func() error {
+				return k8sClient.Get(ctx, client.ObjectKey{Namespace: managedZone.Namespace, Name: managedZone.Name}, createdMZ)
+			}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
 
 			Expect(k8sClient.Delete(ctx, managedZone)).To(BeNil())
 
-			Eventually(func() bool {
+			Eventually(func() error {
 				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: managedZone.Namespace, Name: managedZone.Name}, createdMZ)
-				return errors.IsNotFound(err)
-			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+				if err != nil && !errors.IsNotFound(err) {
+					return err
+				}
+				return nil
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
 		})
 
 		It("should reject a managed zone with an invalid domain name", func() {

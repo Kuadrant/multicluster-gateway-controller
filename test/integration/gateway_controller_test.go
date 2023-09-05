@@ -71,17 +71,21 @@ var _ = Describe("GatewayClassController", func() {
 			gatewayclassType := types.NamespacedName{Name: gatewayclass.Name, Namespace: gatewayclass.Namespace}
 
 			// Exists
-			Eventually(func() bool {
-				err := k8sClient.Get(ctx, gatewayclassType, createdGatewayclass)
-				return err == nil
-			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			Eventually(func() error {
+				return k8sClient.Get(ctx, gatewayclassType, createdGatewayclass)
+			}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
 
 			// Status Accepted
 			var condition metav1.Condition
-			Eventually(func() bool {
-				err := k8sClient.Get(ctx, gatewayclassType, createdGatewayclass)
-				return err == nil && createdGatewayclass.Status.Conditions[0].Status == metav1.ConditionTrue
-			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			Eventually(func() error {
+				if err := k8sClient.Get(ctx, gatewayclassType, createdGatewayclass); err != nil {
+					return err
+				}
+				if createdGatewayclass.Status.Conditions[0].Status != metav1.ConditionTrue {
+					return fmt.Errorf("expected createdGatewayclass condition to not be true, got %v", createdGatewayclass.Status.Conditions[0].Status)
+				}
+				return nil
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
 			condition = createdGatewayclass.Status.Conditions[0]
 			Expect(len(createdGatewayclass.Status.Conditions)).To(BeEquivalentTo(1))
 			Expect(condition.Type).To(BeEquivalentTo(gatewayv1beta1.GatewayClassConditionStatusAccepted))
@@ -96,10 +100,9 @@ var _ = Describe("GatewayClassController", func() {
 			gatewayclassType := types.NamespacedName{Name: gatewayclass.Name, Namespace: gatewayclass.Namespace}
 
 			// Exists
-			Eventually(func() bool {
-				err := k8sClient.Get(ctx, gatewayclassType, createdGatewayclass)
-				return err == nil
-			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			Eventually(func() error {
+				return k8sClient.Get(ctx, gatewayclassType, createdGatewayclass)
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
 
 			// Only 1
 			gatewayclassList := &gatewayv1beta1.GatewayClassList{}
@@ -128,10 +131,9 @@ var _ = Describe("GatewayClassController", func() {
 			gatewayclassType := types.NamespacedName{Name: gatewayclass.Name, Namespace: gatewayclass.Namespace}
 
 			// Exists
-			Eventually(func() bool {
-				err := k8sClient.Get(ctx, gatewayclassType, createdGatewayclass)
-				return err == nil
-			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			Eventually(func() error {
+				return k8sClient.Get(ctx, gatewayclassType, createdGatewayclass)
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
 
 			// Status is false
 			var condition metav1.Condition
@@ -326,7 +328,6 @@ var _ = Describe("GatewayController", func() {
 				err = k8sClient.Delete(ctx, &placementDecision)
 				Expect(err).NotTo(HaveOccurred())
 			}
-
 		})
 
 		// This tests the full reconcile of a gateway from start to finish
@@ -338,30 +339,32 @@ var _ = Describe("GatewayController", func() {
 			manifest2 = &ocmworkv1.ManifestWork{}
 
 			// Test: Passes if it gets the gateway
-			Eventually(func() bool {
-				err := k8sClient.Get(ctx, upstreamGatewayType, upstreamGateway)
-				return err == nil
-			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			Eventually(func() error {
+				return k8sClient.Get(ctx, upstreamGatewayType, upstreamGateway)
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
 
 			// Test: Passes if the gateway contains a finalizer
-			Eventually(func() bool {
+			Eventually(func() error {
 				if err := k8sClient.Get(ctx, upstreamGatewayType, upstreamGateway); err != nil {
-					return false
+					return err
 				}
-				return controllerutil.ContainsFinalizer(upstreamGateway, gatewayFinalizer)
-			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+				if !controllerutil.ContainsFinalizer(upstreamGateway, gatewayFinalizer) {
+					return fmt.Errorf("expected finalizer %s in upstreamGateway", gatewayFinalizer)
+				}
+				return nil
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
 
 			// Test: Passes when manifest1 is found in Namespace test-spoke-cluster-1 and contains the hostname from the gateway
-			Eventually(func() bool {
+			Eventually(func() error {
 				mwList := ocmworkv1.ManifestWorkList{}
 				if err := k8sClient.List(ctx, &mwList, &client.ListOptions{Namespace: "nsSpoke1Name"}); err != nil {
 					log.Log.Error(err, "error getting ManifestWork")
+					return err
 				}
 				log.Log.Info("manifests", "items", mwList.Items)
 				if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: nsSpoke1Name, Name: "gateway-default-test-gw-1"}, manifest1); err != nil {
 					log.Log.Error(err, "error getting ManifestWork")
-
-					return false
+					return err
 				}
 				// decoding the raw format in the manifest 1 into a readable variable that can be compared
 				rawBytes := manifest1.Spec.Workload.Manifests[0].Raw
@@ -369,36 +372,33 @@ var _ = Describe("GatewayController", func() {
 				err := json.Unmarshal(rawBytes, gateway)
 				if err != nil {
 					log.Log.Error(err, "failed to unmarshal gateway")
-					return false
+					return err
 				}
 				hostnametest = *gateway.Spec.Listeners[0].Hostname
 				stringified = string(hostnametest)
-				return true
-
-			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+				return nil
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
 			//Comparing the hostname
 			Expect(stringified).To(Equal("test1.example.com"))
 
 			// Test: Passes when manifest2 is found in Namespace test-spoke-cluster-2 and contains the hostname from the gateway
 
-			Eventually(func() bool {
+			Eventually(func() error {
 				if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: nsSpoke2Name, Name: "gateway-default-test-gw-1"}, manifest2); err != nil {
 					log.Log.Error(err, "error getting ManifestWork")
-					return false
+					return err
 				}
 				// decoding the raw format in the manifest 1 into a readable variable that can be compared
-
 				rawBytes := manifest2.Spec.Workload.Manifests[0].Raw
 				gateway := &gatewayv1beta1.Gateway{}
 				err := json.Unmarshal(rawBytes, gateway)
 				if err != nil {
-					return false
+					return err
 				}
 				hostnametest = *gateway.Spec.Listeners[0].Hostname
 				stringified = string(hostnametest)
-				return err == nil
-
-			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+				return nil
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
 
 			//Comparing the hostname
 			Expect(stringified).To(Equal("test1.example.com"))
@@ -539,18 +539,20 @@ var _ = Describe("GatewayController", func() {
 
 			// Test that the Programmed condition is True
 			var programmedCondition *metav1.Condition
-			Eventually(func() bool {
+			Eventually(func() error {
 				err := k8sClient.Get(ctx, upstreamGatewayType, upstreamGateway)
 				if err != nil {
 					// explicitly fail as we should be passed the point of any errors
-					log.Log.Error(err, "No errors expected")
-					Fail("No errors expected")
+					return fmt.Errorf("No errors expected: %v", err)
 				}
 				programmedCondition = meta.FindStatusCondition(upstreamGateway.Status.Conditions, string(gatewayv1beta1.GatewayConditionProgrammed))
 				log.Log.Info("programmedCondition", "programmedCondition", programmedCondition)
 				Expect(programmedCondition).ToNot(BeNil())
-				return programmedCondition.Status == metav1.ConditionTrue
-			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+				if programmedCondition.Status != metav1.ConditionTrue {
+					return fmt.Errorf("programmedCondition is not true, got %v", programmedCondition.Status)
+				}
+				return nil
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
 
 			// Test the aggregated addresses are correct
 			addresses := upstreamGateway.Status.Addresses
@@ -587,24 +589,29 @@ var _ = Describe("GatewayController", func() {
 			noLabelUpstreamGatewayType := types.NamespacedName{Name: noLGateway.Name, Namespace: noLGateway.Namespace}
 
 			// Passes if it gets the gateway
-			Eventually(func() bool {
-				err := k8sClient.Get(ctx, noLabelUpstreamGatewayType, noLabelGateway)
-				return err == nil
-			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+			Eventually(func() error {
+				return k8sClient.Get(ctx, noLabelUpstreamGatewayType, noLabelGateway)
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
 
 			// Passes if the gateway contains a finalizer
-			Eventually(func() bool {
+			Eventually(func() error {
 				if err := k8sClient.Get(ctx, noLabelUpstreamGatewayType, noLabelGateway); err != nil {
-					return false
+					return err
 				}
-				return controllerutil.ContainsFinalizer(noLabelGateway, gatewayFinalizer)
-			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+				if !controllerutil.ContainsFinalizer(noLabelGateway, gatewayFinalizer) {
+					return fmt.Errorf("expected finalizer %s in upstreamGateway", gatewayFinalizer)
+				}
+				return nil
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
 
 			// Test: Passes if no manifest was gotten
-			Eventually(func() bool {
+			Eventually(func() error {
 				err := k8sClient.Get(ctx, types.NamespacedName{Namespace: nsSpoke1Name, Name: "gateway-default-test-gw-2"}, manifest1)
-				return err == nil
-			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeFalse())
+				if err != nil && !k8serrors.IsNotFound(err) {
+					return err
+				}
+				return nil
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
 
 		})
 	})
