@@ -563,7 +563,7 @@ In the above scenario any requests made in Spain will be returned the IP address
 Weighting of records is still enforced between clusters in the same geo group, in the case above however they are having no effect since there is only one cluster in each group.
 
 :exclamation:
-If a unsupported value is given to a provider, DNS records will **not** be created. Please choose carefully. For more information of what location is right for your needs please read said providers documentation. 
+If an unsupported value is given to a provider, DNS records will **not** be created. Please choose carefully. For more information on what location is right for your needs please, read that provider's documentation (see links below). 
 
 ##### Locations supported per DNS provider
 
