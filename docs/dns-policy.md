@@ -578,7 +578,7 @@ If an unsupported value is given to a provider, DNS records will **not** be crea
 
 :**Note:** :exclamation: For more information please the official AWS documentation 
 
-To see all regions supported by AWS Route 53 please see the official (documtation)[https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/resource-record-sets-values-geo.html]
+To see all regions supported by AWS Route 53, please see the official (documentation)[https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/resource-record-sets-values-geo.html]
 
 ##### Regions supported by GCP CLoud DNS
 
