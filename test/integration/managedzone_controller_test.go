@@ -56,7 +56,7 @@ var _ = Describe("ManagedZoneReconciler", func() {
 			Expect(err).NotTo(HaveOccurred())
 			for _, mz := range mzList.Items {
 				err = k8sClient.Delete(ctx, &mz)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(client.IgnoreNotFound(err)).NotTo(HaveOccurred())
 			}
 		})
 
