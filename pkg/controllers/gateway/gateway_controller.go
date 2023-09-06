@@ -209,7 +209,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			} else if *address.Type == gatewayv1beta1.HostnameAddressType {
 				addressType = MultiClusterHostnameAddressType
 			} else {
-				break // ignore address type. Unsupported for multi cluster gateway
+				continue // ignore address type gatewayv1beta1.NamedAddressType. Unsupported for multi cluster gateway
 			}
 			allAddresses = append(allAddresses, gatewayv1beta1.GatewayAddress{
 				Type:  &addressType,

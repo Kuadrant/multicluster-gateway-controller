@@ -3,11 +3,10 @@ package dnspolicy
 import (
 	"context"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serror "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -57,7 +56,7 @@ func (r *DNSPolicyReconciler) createOrUpdateProbes(ctx context.Context, expected
 	//create or update all expected probes
 	for _, hcProbe := range expectedProbes {
 		p := &v1alpha1.DNSHealthCheckProbe{}
-		if err := r.Client().Get(ctx, client.ObjectKeyFromObject(hcProbe), p); errors.IsNotFound(err) {
+		if err := r.Client().Get(ctx, client.ObjectKeyFromObject(hcProbe), p); k8serror.IsNotFound(err) {
 			if err := r.Client().Create(ctx, hcProbe); err != nil {
 				return err
 			}
@@ -101,10 +100,8 @@ func (r *DNSPolicyReconciler) expectedProbesForGateway(ctx context.Context, gw c
 	var healthChecks []*v1alpha1.DNSHealthCheckProbe
 	if dnsPolicy.Spec.HealthCheck == nil {
 		log.V(3).Info("DNS Policy has no defined health check")
-		return nil, nil
+		return healthChecks, nil
 	}
-	ipPattern := `\b(?:\d{1,3}\.){3}\d{1,3}\b`
-	re := regexp.MustCompile(ipPattern)
 
 	interval := metav1.Duration{Duration: 60 * time.Second}
 	if dnsPolicy.Spec.HealthCheck.Interval != nil {
@@ -117,29 +114,35 @@ func (r *DNSPolicyReconciler) expectedProbesForGateway(ctx context.Context, gw c
 			port = &defaultPort
 		}
 
-		matches := re.FindAllString(address.Value, -1)
-		if len(matches) != 1 {
-			log.V(3).Info("Found more or less than 1 ip address")
-			continue
+		matches := strings.Split(address.Value, "/")
+		if len(matches) != 2 {
+			return nil, fmt.Errorf(fmt.Sprintf("unable to extract address from address %s ", address.Value))
 		}
 
 		for _, listener := range gw.Spec.Listeners {
 			if strings.Contains(string(*listener.Hostname), "*") {
 				continue
 			}
+			// handle protocol being nil
+			var protocol string
+			if dnsPolicy.Spec.HealthCheck.Protocol == nil {
+				protocol = string(v1alpha1.HttpsProtocol)
+			} else {
+				protocol = string(*dnsPolicy.Spec.HealthCheck.Protocol)
+			}
 			log.V(1).Info("reconcileHealthChecks: adding health check for target", "target", address.Value)
 			healthCheck := &v1alpha1.DNSHealthCheckProbe{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      fmt.Sprintf("%s-%s-%s", matches[0], dnsPolicy.Name, listener.Name),
+					Name:      fmt.Sprintf("%s-%s-%s", matches[1], dnsPolicy.Name, listener.Name),
 					Namespace: gw.Namespace,
 					Labels:    commonDNSRecordLabels(client.ObjectKeyFromObject(gw), client.ObjectKeyFromObject(dnsPolicy)),
 				},
 				Spec: v1alpha1.DNSHealthCheckProbeSpec{
 					Port:                     *port,
 					Host:                     string(*listener.Hostname),
-					Address:                  matches[0],
+					Address:                  matches[1],
 					Path:                     dnsPolicy.Spec.HealthCheck.Endpoint,
-					Protocol:                 *dnsPolicy.Spec.HealthCheck.Protocol,
+					Protocol:                 v1alpha1.HealthProtocol(protocol),
 					Interval:                 interval,
 					AdditionalHeadersRef:     dnsPolicy.Spec.HealthCheck.AdditionalHeadersRef,
 					FailureThreshold:         dnsPolicy.Spec.HealthCheck.FailureThreshold,
