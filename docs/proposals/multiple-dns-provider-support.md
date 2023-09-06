@@ -48,7 +48,7 @@ Support will be added for AWS(Route53), Google(Google Cloud DNS), Azure and inve
 Add DNSProvider as an API for MGC which contains all the required config for that particular provider including the credentials. This can be thought of in a similar way to a cert manager Issuer.
 Update ManagedZone to add a reference to a DNSProvider. This will be a required field on the ManagedZone and a DNSProvider must exist before a ManagedZone can be created.
 Update all controllers load the DNSProvider directly from the ManagedZone during reconciliation loops and remove the single controller wide instance. 
-Add new provider implementations for [google](assets/multiple-dns-provider-support/google/google.md), [azure](assets/multiple-dns-provider-support/azure/azure.md) and coredns.
+Add new provider implementations for [google](../proposals/assets/multiple-dns-provider-support/google/google.md), [azure](../proposals/assets/multiple-dns-provider-support/azure/azure.md) and coredns.
     * All providers constructors should accept a single struct containing all required config for that particular provider.
     * Providers must be configured from credentials passed in the config and not rely on environment variables.
 

@@ -10,7 +10,7 @@ This provides a clusterset hostname for the service in the hub cluster e.g. echo
 The HttpRoute has a backendRef to a Service that points to this hostname.
 If the Service is unavailable in either workload cluster, it will be routed to the other workload cluster.
 
-<img src="images/submariner-poc-hub-gateway-diagram.png" alt="architecture" width="600"/>
+<img src="../images/submariner/submariner-poc-hub-gateway-diagram.png" alt="architecture" width="600"/>
 
 ## Requirements
 

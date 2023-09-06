@@ -163,4 +163,4 @@ clusterissuer.cert-manager.io/mgc-ca condition met
 
 Now that you have MGC installed and configured in your hub cluster, you can now continue with any of these follow-on guides:
 
-- Installing the [Kuadrant Service Protection components](./service-protection-setup.md)
+- Installing the [Kuadrant Service Protection components](./service-protection-installation.md)

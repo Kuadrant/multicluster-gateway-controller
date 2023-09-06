@@ -27,7 +27,7 @@ delegated.external.com. 3600 IN NS ns2.hcpapps.net.
 
 Now, when MGC creates a DNS record in it's Route53 zone for `delegated.external.com`, it will be resolved correctly.
 ### Walkthrough
-There is an [existing walkthrough](./ocm-control-plane-walkthrough.md), which involves using a managed zone.
+There is an [existing walkthrough](../how-to/multicluster-gateways-walkthrough.md), which involves using a managed zone.
 
 ### Current limitations
 At the moment the MGC is given credentials to connect to the DNS provider at startup using environment variables, because of that, MGC is limited to one provider type (Route53), and all zones must be in the same Route53 account.
@@ -53,7 +53,7 @@ spec:
 
 ### Secret Ref
 
-This is a reference to a secret that contains a credential for accessing the DNS Provider. See [dns-provider](./dns-provider.md) for more details.
+This is a reference to a secret that contains a credential for accessing the DNS Provider. See [DNSProvider](dns-provider.md) for more details.
 
 ### Optional fields
 The following fields are optional:

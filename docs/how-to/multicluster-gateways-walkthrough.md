@@ -1,56 +1,15 @@
-# Open Cluster Management and Multi-Cluster gateways
+# Multicluster Gateways Walkthrough
 
 ## Introduction
 This document will walk you through using Open Cluster Management (OCM) and Kuadrant to configure and deploy a multi-cluster gateway. 
-You will also deploy a simple application that uses that gateway for ingress and protects that applications endpoints with a rate limit policy. 
+
+You will also deploy a simple application that uses that gateway for ingress and protects that applications endpoints with a rate limit policy.
+
 We will start with a single cluster and move to multiple clusters to illustrate how a single gateway definition can be used across multiple clusters and highlight the automatic TLS integration and also the automatic DNS load balancing between gateway instances.
 
 ## Requirements
 
-- [Docker](https://docs.docker.com/engine/install/)
-- [Kind](https://kind.sigs.k8s.io/)
-- [Kubectl](https://kubernetes.io/docs/tasks/tools/)
-- OpenSSL >= 3
-- AWS account with Route 53 enabled
-- [Docker Mac Net Connect](https://github.com/chipmk/docker-mac-net-connect) (macOS users only)
-
->**Note:** :exclamation: this walkthrough will set up a zone in your AWS account and make changes to it for DNS purposes
-
-## Installation and Setup
-* Export env-vars with the keys listed below. Fill in your own values as appropriate. You will need access to a domain or subdomain in Route 53 in AWS:
-
-  | Env Var                      | Example Value               | Description                                                    |
-    |------------------------------|-----------------------------|----------------------------------------------------------------|
-  | `MGC_ZONE_ROOT_DOMAIN`       | `jbloggs.hcpapps.net`       | Hostname for the root Domain                                   |
-  | `MGC_AWS_DNS_PUBLIC_ZONE_ID` | `Z01234567US0IQE3YLO00`     | AWS Route 53 Zone ID for specified `MGC_ZONE_ROOT_DOMAIN`      | 
-  | `MGC_AWS_ACCESS_KEY_ID`      | `AKIA1234567890000000`      | Access Key ID, with access to resources in Route 53            |
-  | `MGC_AWS_SECRET_ACCESS_KEY`  | `Z01234567US0000000`        | Access Secret Access Key, with access to resources in Route 53 |
-  | `MGC_AWS_REGION`             | `eu-west-1`                 | AWS Region                                                     |
-  | `MGC_SUB_DOMAIN`             | `myapp.jbloggs.hcpapps.net` | AWS Region                                                     |
-
-* Alternatively, to set a default, add the above environment variable to your `.zshrc` or `.bash_profile`. 
-
-1. To setup a local instance, run:
-
-    ```bash
-    curl https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/quickstart-setup.sh | bash
-    ```
-
-    > :sos: Linux users may encounter the following error:
-    > `ERROR: failed to create cluster: could not find a log line that matches "Reached target .*Multi-User System.*|detected cgroup v1"
-    > make: *** [Makefile:75: local-setup] Error 1ERROR: failed to create cluster: could not find a log line that matches "Reached target .*Multi-User System.*|detected cgroup v1"
-    > make: *** [Makefile:75: local-setup] Error 1` 
-    > This is a known issue with Kind. [Follow the steps here](https://kind.sigs.k8s.io/docs/user/known-issues/#pod-errors-due-to-too-many-open-files) to resolve it.
-
-The script will
-- install 2 kind clusters
-- a set of components required for the walkthrough, e.g. ocm, istio, MGC itself.
-- label the control plane managed cluster as an Ingress cluster
-- create the ManagedClusterSet that uses the ingress label to select clusters
-- bind this cluster set to our multi-cluster-gateways namespace so that we can use those clusters to place gateways on
-- set up a placement resource, in order to place our gateways onto clusters
-- lastly, it will set up a multi-cluster gateway class
-
+- Complete the [Getting Started Guide](../getting-started.md)
 
 ## Open terminal sessions and set cluster context
 
@@ -416,6 +375,4 @@ If you want you can use ```watch dig $MGC_SUB_DOMAIN``` to see the DNS switching
 ## Follow on Walkthroughs
 Some good follow on walkthroughs that build on this walkthrough
 
-* [Installing the Kuadrant operator via OCM Addon](https://github.com/Kuadrant/multicluster-gateway-controller/blob/main/docs/how-to/kuadrant-addon-walkthrough.md)
-* [Deploying/Configuring Redis, Limitador and Rate limit policies.](https://github.com/Kuadrant/multicluster-gateway-controller/blob/main/docs/how-to/ratelimiting-shared-redis.md)
-* [Deploying/Configuring Metrics.](https://github.com/Kuadrant/multicluster-gateway-controller/blob/main/docs/how-to/metrics-walkthrough.md)
+* [Deploying/Configuring Metrics.](../how-to/metrics-walkthrough.md)

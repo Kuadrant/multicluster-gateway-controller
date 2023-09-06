@@ -64,5 +64,5 @@ Now that we have the credential created we have a DNS provdier ready to go and c
 
 Once a secret like the one shown above is created, in order for it to be used, it needs to be associated with a `ManagedZone`. 
 
-See [ManagedZone](managedZone.md)
+See [ManagedZone](managed-zone.md)
 

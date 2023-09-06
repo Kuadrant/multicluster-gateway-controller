@@ -9,11 +9,11 @@ exposed (using the skupper cli) from either cluster. If the Service is
 unavailable on the local cluster, it will be routed to another cluster that has
 exposed that Service.
 
-<img src="images/skupper-poc-2-gateways-resiliency-walkthrough.png" alt="architecture" width="600"/>
+<img src="../images/skupper/skupper-poc-2-gateways-resiliency-walkthrough.png" alt="architecture" width="600"/>
 
 ## Requirements
 
-* Local environment has been set up with a hub and spoke cluster, as per the [main walkthrough](./ocm-control-plane-walkthrough.md).
+* Local environment has been set up with a hub and spoke cluster, as per the [Multicluster Gateways Walkthrough](../how-to/multicluster-gateways-walkthrough.md).
   * The example multi-cluster Gateway has been deployed to both clusters
   * The example echo HttpRoute, Service and Deployment have been deployed to both clusters in the `default` namespace, and the `MGC_SUB_DOMAIN` env var set in your terminal
 * [Skupper CLI](https://skupper.io/docs/cli/index.html#installing-cli) has been installed.
