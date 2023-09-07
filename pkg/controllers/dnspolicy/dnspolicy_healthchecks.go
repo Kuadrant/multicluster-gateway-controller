@@ -102,6 +102,11 @@ func (r *DNSPolicyReconciler) expectedProbesForGateway(ctx context.Context, gw c
 		return nil, nil
 	}
 
+	interval := metav1.Duration{Duration: 60 * time.Second}
+	if dnsPolicy.Spec.HealthCheck.Interval != nil {
+		interval = *dnsPolicy.Spec.HealthCheck.Interval
+	}
+
 	for _, listener := range gw.Spec.Listeners {
 
 		log.V(3).Info("getting dnsrecord", "name", dnsRecordName(gw.Name, string(listener.Name)))
@@ -143,7 +148,7 @@ func (r *DNSPolicyReconciler) expectedProbesForGateway(ctx context.Context, gw c
 						Address:                  target,
 						Path:                     dnsPolicy.Spec.HealthCheck.Endpoint,
 						Protocol:                 *dnsPolicy.Spec.HealthCheck.Protocol,
-						Interval:                 metav1.Duration{Duration: 60 * time.Second},
+						Interval:                 interval,
 						AdditionalHeadersRef:     dnsPolicy.Spec.HealthCheck.AdditionalHeadersRef,
 						FailureThreshold:         dnsPolicy.Spec.HealthCheck.FailureThreshold,
 						ExpectedResponses:        dnsPolicy.Spec.HealthCheck.ExpectedResponses,
