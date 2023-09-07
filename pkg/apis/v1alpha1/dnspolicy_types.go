@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	"fmt"
+	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gatewayapiv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
@@ -123,6 +124,8 @@ func (p *DNSPolicy) GetTargetRef() gatewayapiv1alpha2.PolicyTargetReference {
 	return p.Spec.TargetRef
 }
 
+// Validate ensures the resource is valid. Compatible with the validating interface
+// used by webhooks
 func (p *DNSPolicy) Validate() error {
 	if p.Spec.TargetRef.Group != ("gateway.networking.k8s.io") {
 		return fmt.Errorf("invalid targetRef.Group %s. The only supported group is gateway.networking.k8s.io", p.Spec.TargetRef.Group)
@@ -136,7 +139,19 @@ func (p *DNSPolicy) Validate() error {
 		return fmt.Errorf("invalid targetRef.Namespace %s. Currently only supporting references to the same namespace", *p.Spec.TargetRef.Namespace)
 	}
 
+	if p.Spec.HealthCheck != nil {
+		return p.Spec.HealthCheck.Validate()
+	}
+
 	return nil
+}
+
+// Default sets default values for the fields in the resource. Compatible with
+// the defaulting interface used by webhooks
+func (p *DNSPolicy) Default() {
+	if p.Spec.HealthCheck != nil {
+		p.Spec.HealthCheck.Default()
+	}
 }
 
 //+kubebuilder:object:root=true
@@ -159,6 +174,30 @@ type HealthCheckSpec struct {
 	AdditionalHeadersRef      *AdditionalHeadersRef `json:"additionalHeadersRef,omitempty"`
 	ExpectedResponses         []int                 `json:"expectedResponses,omitempty"`
 	AllowInsecureCertificates bool                  `json:"allowInsecureCertificates,omitempty"`
+	Interval                  *metav1.Duration      `json:"interval,omitempty"`
+}
+
+func (s *HealthCheckSpec) Validate() error {
+	if s.Interval != nil {
+		if s.Interval.Duration < (time.Second * 5) {
+			return fmt.Errorf("invalid value for spec.healthCheckSpec.interval %v, it cannot be shorter than 5s", s.Interval.Duration)
+		}
+	}
+
+	return nil
+}
+
+func (s *HealthCheckSpec) Default() {
+	if s.Interval == nil {
+		s.Interval = &metav1.Duration{
+			Duration: time.Second * 30,
+		}
+	}
+
+	if s.Protocol == nil {
+		protocol := HttpsProtocol
+		s.Protocol = &protocol
+	}
 }
 
 type HealthCheckStatus struct {
