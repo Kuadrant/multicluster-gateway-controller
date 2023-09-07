@@ -4,8 +4,8 @@ metadata:
   annotations:
     alm-examples: '[]'
     capabilities: Basic Install
-    createdAt: "2023-09-06T12:17:13Z"
-    operators.operatorframework.io/builder: operator-sdk-v1.31.0
+    createdAt: "2023-09-08T13:55:08Z"
+    operators.operatorframework.io/builder: operator-sdk-v1.28.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
   name: multicluster-gateway-controller.v0.0.0
   namespace: placeholder
@@ -22,14 +22,17 @@ spec:
     - kind: DNSRecord
       name: dnsrecords.kuadrant.io
       version: v1alpha1
-    - kind: ManagedZone
+    - description: ManagedZone is the Schema for the managedzones API
+      displayName: Managed Zone
+      kind: ManagedZone
       name: managedzones.kuadrant.io
       version: v1alpha1
     - kind: TLSPolicy
       name: tlspolicies.kuadrant.io
       version: v1alpha1
-  description: test
-  displayName: test
+  description: multi-cluster gateway controller, manages multi-cluster gateways based
+    on gateway api and policy attachment
+  displayName: Multicluster-gateway-controller
   icon:
   - base64data: ""
     mediatype: ""
@@ -170,6 +173,18 @@ spec:
           - update
         serviceAccountName: mgc-add-on-manager
       - rules:
+        - apiGroups:
+          - ""
+          resources:
+          - configmaps
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
         - apiGroups:
           - ""
           resources:
@@ -449,14 +464,7 @@ spec:
                 - --leader-elect
                 command:
                 - /controller
-                envFrom:
-                - secretRef:
-                    name: aws-credentials
-                    optional: true
-                - configMapRef:
-                    name: controller-config
-                    optional: true
-                image: quay.io/rlawton/multicluster-gateway-controller:v4.4.4
+                image: quay.io/kuadrant/multicluster-gateway-controller:main
                 livenessProbe:
                   httpGet:
                     path: /healthz
@@ -583,12 +591,18 @@ spec:
   - supported: true
     type: AllNamespaces
   keywords:
-  - test
+  - Gateway-API
+  - DNS
+  - Global-Load-Balancing
+  - Multi-Cloud
   links:
   - name: Multicluster Gateway Controller
     url: https://multicluster-gateway-controller.domain
+  maintainers:
+  - email: hcg-team@redhat.com
+    name: HCG-Team
   maturity: alpha
   provider:
-    name: test
-    url: test
+    name: Red Hat
+    url: https://github.com/Kuadrant/multicluster-gateway-controller
   version: 0.0.0

@@ -8,9 +8,16 @@ metadata:
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
-  customresourcedefinitions: {}
-  description: test
-  displayName: test
+  customresourcedefinitions:
+    owned:
+    - description: ManagedZone is the Schema for the managedzones API
+      displayName: Managed Zone
+      kind: ManagedZone
+      name: managedzones.kuadrant.io
+      version: v1alpha1
+  description: multi-cluster gateway controller, manages multi-cluster gateways based
+    on gateway api and policy attachment
+  displayName: Multicluster-gateway-controller
   icon:
   - base64data: ""
     mediatype: ""
@@ -28,12 +35,18 @@ spec:
   - supported: true
     type: AllNamespaces
   keywords:
-  - test
+  - Gateway-API
+  - DNS
+  - Global-Load-Balancing
+  - Multi-Cloud
   links:
   - name: Multicluster Gateway Controller
     url: https://multicluster-gateway-controller.domain
+  maintainers:
+  - email: hcg-team@redhat.com
+    name: HCG-Team
   maturity: alpha
   provider:
-    name: test
-    url: test
+    name: Red Hat
+    url: https://github.com/Kuadrant/multicluster-gateway-controller
   version: 0.0.0

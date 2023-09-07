@@ -5,13 +5,12 @@ on:
     branches:
       - main
       - "release-*"
-      - gh-276
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+"
 
 env:
   IMG_REGISTRY_HOST: quay.io
-  IMG_REGISTRY_ORG: rlawton
+  IMG_REGISTRY_ORG: kuadrant
   IMG_REGISTRY_REPO: multicluster-gateway-controller
   IMG_REGISTRY_REPO_BUNDLE: multicluster-gateway-controller-bundle
   IMG_REGISTRY_REPO_CATALOG: multicluster-gateway-controller-catalog
@@ -65,15 +64,12 @@ jobs:
           echo "Image digest: ${{ steps.build-and-push.outputs.digest }}"
 
   bundle: 
+    if: github.repository_owner == 'kuadrant'
     name: Build bundle image
     runs-on: ubuntu-22.04
     steps:
       - name: Check out code
-        uses: actions/checkout@v3
-
-      # - uses: actions/setup-go@v4
-      #   with:
-      #     go-version: v1.20.x  
+        uses: actions/checkout@v3 
 
       - name: Calculate vars
         id: vars
@@ -104,19 +100,15 @@ jobs:
       - name: Push bundle Image
         run: make bundle-push REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} IMAGE_TAG=${{ github.ref_name }}
       
-      - name: Print Image URL
-        run: echo "Image pushed to ${{ steps.push-to-quay.outputs.registry-paths }}"  
 
   catalog: 
+    if: github.repository_owner == 'kuadrant'
+    needs: bundle
     name: Build catalog image
     runs-on: ubuntu-22.04
     steps:
       - name: Check out code
         uses: actions/checkout@v3
-      
-      # - uses: actions/setup-go@v4
-      #   with:
-      #     go-version: v1.20.x  
       
       - name: Calculate vars
         id: vars
@@ -144,37 +136,3 @@ jobs:
         id: make-catalog-push
         run: make catalog-push REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} IMAGE_TAG=${{ github.ref_name }}
       
-      - name: Print Image URL
-        run: echo "Image pushed to ${{ steps.push-to-quay.outputs.registry-paths }}" 
-
-  update-hcg-unstable:
-    if: "github.repository_owner == 'kuadrant' && github.ref_name == 'main'"
-    name: Update HCG unstable
-    runs-on: ubuntu-22.04
-    needs: controller
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          repository: Kuadrant/deployments
-          ref: 'main'
-          ssh-key: ${{ secrets.KUADRANT_DEPLOYMENTS_SSH_DEPLOY_KEY }}
-      
-      - name: Install kustomize
-        run: make kustomize
-      
-      - name: Setup git config
-        run: |
-          git config user.name "GitHub Actions Bot"
-          git config user.email "<kuadrant.dev@redhat.com>"
-      
-      - name: Update controller image
-        run: |
-          export KUSTOMIZE=$(pwd)/bin/kustomize
-          cd hcg/mctc/environments/unstable
-          ${KUSTOMIZE} edit set image controller=${{ needs.build.outputs.controller_image }}
-      
-      - name: Commit the change for ArgoCD to pick it up
-        run: |
-          git add hcg/mctc/environments/unstable/kustomization.yaml
-          git commit -m "Update controller image to ${{ needs.build.outputs.controller_image }}"
-          git push origin main

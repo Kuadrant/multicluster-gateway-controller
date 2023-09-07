@@ -31,13 +31,6 @@ spec:
         args:
         - --leader-elect
         image: controller:latest
-        envFrom:
-          - secretRef:
-              name: aws-credentials
-              optional: true
-          - configMapRef:
-              name: controller-config
-              optional: true
         name: manager
         securityContext:
           allowPrivilegeEscalation: false
