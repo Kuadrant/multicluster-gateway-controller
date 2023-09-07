@@ -1,3 +1,2 @@
 resources:
-  - ../default
   - managed-cluster-addon.yaml

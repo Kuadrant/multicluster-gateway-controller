@@ -15,8 +15,7 @@ This walkthrough will show you how to install and setup the Kuadrant Operator in
   * We recommend installing Istio 1.17.0, including Gateway API v0.6.2
   * ```bash
     # On the Hub cluster:
-    kubectl get crd gateways.gateway.networking.k8s.io &> /dev/null || \
-    { kubectl kustomize "github.com/kubernetes-sigs/gateway-api/config/crd?ref=v0.6.2" | kubectl apply -f -; }
+    kubectl apply -k "github.com/kubernetes-sigs/gateway-api/config/crd?ref=v0.6.2"
     ```
   * See also: https://istio.io/v1.17/blog/2022/getting-started-gtwapi/
 
@@ -31,7 +30,7 @@ Alternatively, if you'd like to quickly get started locally, without having to w
 
 To install the Kuadrant Service Protection components into a `ManagedCluster`, target your OCM hub cluster with `kubectl` and run:
 
-`kubectl apply -k "github.com/kuadrant/multicluster-gateway-controller.git/config/service-protection-install-guide" -n <your-managed-cluster>`
+`kubectl apply -k "github.com/kuadrant/multicluster-gateway-controller.git/config/service-protection-install-guide?ref=main" -n <your-managed-cluster>`
 
 The above command will install the `ManagedClusterAddOn` resource needed to install the Kuadrant addon into the specified namespace, and install the Kuadrant data-plane components into the `open-cluster-management-agent-addon` namespace. 
 
@@ -44,7 +43,7 @@ The Kuadrant addon will install:
 For more details, see the Kuadrant components installed by the (kuadrant-operator)[https://github.com/Kuadrant/kuadrant-operator#kuadrant-components]
 
 ### Existing Istio installations and changing the default Istio Operator name
-In the case where you have an existing Istio installation to a cluster you may encounter an issue where the Kuadrant Operator expects Istio's Operator to be named `istiocontrolplane`.
+In the case where you have an existing Istio installation on a cluster, you may encounter an issue where the Kuadrant Operator expects Istio's Operator to be named `istiocontrolplane`.
 
 The `istioctl` command saves the IstioOperator CR that was used to install Istio in a copy of the CR named `installed-state`.
 
@@ -59,7 +58,7 @@ This will propogate down and update the Kuadrant Operator, used by the Kuadrant 
 To verify the Kuadrant OCM addon has installed currently, run:
 
 ```bash
-kubectl wait --timeout=5m -n kuadrant-system deployment/authorino-operator deployment/kuadrant-operator-controller-manager deployment/limitador-operator-controller-manager --for=condition=Available
+kubectl wait --timeout=5m -n kuadrant-system kuadrant/kuadrant-sample --for=condition=Ready
 ```
 
 You should see the namespace `kuadrant-system`, and the following pods come up:
