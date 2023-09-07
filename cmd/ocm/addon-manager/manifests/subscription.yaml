@@ -9,4 +9,12 @@ spec:
   name: kuadrant-operator
   source: operatorhubio-catalog
   sourceNamespace: olm
+  config:
+    env: 
+      - name: ISTIOOPERATOR_NAME
+        value: {{.IstioOperator}}  
+      - name: ISTIOCONFIGMAP_NAME
+        value: {{.IstioConfigMapName}}
+      - name: ISTIOOPERATOR_NAMESPACE
+        value: {{.IstioOperatorNamespace}}
    

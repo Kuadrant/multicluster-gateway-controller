@@ -9,6 +9,8 @@ import (
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"open-cluster-management.io/addon-framework/pkg/addonfactory"
 	"open-cluster-management.io/addon-framework/pkg/addonmanager"
+	addonapiv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
+	clusterv1 "open-cluster-management.io/api/cluster/v1"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -26,6 +28,28 @@ var FS embed.FS
 const (
 	addonName = "kuadrant-addon"
 )
+
+func GetDefaultValues(cluster *clusterv1.ManagedCluster,
+	addon *addonapiv1alpha1.ManagedClusterAddOn) (addonfactory.Values, error) {
+
+	defaultIstioOperator := "istiocontrolplane"
+	defaultIstioOperatorNS := "istio-system"
+	defaultIstioConfigMap := "istio"
+
+	manifestConfig := struct {
+		IstioOperator          string
+		IstioConfigMapName     string
+		IstioOperatorNamespace string
+		ClusterName            string
+	}{
+		ClusterName:            cluster.Name,
+		IstioOperator:          defaultIstioOperator,
+		IstioConfigMapName:     defaultIstioConfigMap,
+		IstioOperatorNamespace: defaultIstioOperatorNS,
+	}
+
+	return addonfactory.StructToValues(manifestConfig), nil
+}
 
 func main() {
 	fmt.Println("starting add-on manager")
@@ -45,12 +69,12 @@ func main() {
 	agentAddon, err := addonfactory.NewAgentAddonFactory(addonName, FS, "addon-manager/manifests").
 		WithAgentHealthProber(hub.AddonHealthProber()).
 		WithScheme(addonScheme).
+		WithGetValuesFuncs(GetDefaultValues, addonfactory.GetValuesFromAddonAnnotation).
 		BuildTemplateAgentAddon()
 	if err != nil {
 		klog.Errorf("failed to build agent addon %v", err)
 		panic(err)
 	}
-
 	err = addonMgr.AddAgent(agentAddon)
 	if err != nil {
 		klog.Errorf("failed to add addon agent: %v", err)
