@@ -14,7 +14,6 @@ This walkthrough will show you how to install and setup the Kuadrant Operator in
 * Kuadrant uses Istio as a Gateway API provider - this will need to be installed into the data plane clusters
   * We recommend installing Istio 1.17.0, including Gateway API v0.6.2
   * ```bash
-    # On the Hub cluster:
     kubectl apply -k "github.com/kubernetes-sigs/gateway-api/config/crd?ref=v0.6.2"
     ```
   * See also: https://istio.io/v1.17/blog/2022/getting-started-gtwapi/
