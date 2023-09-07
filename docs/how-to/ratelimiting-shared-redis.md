@@ -66,4 +66,3 @@ Open three windows, which we'll refer to throughout this walkthrough as:
     while true; do curl -k -s -o /dev/null -w "%{http_code}\n"  replace.this.with.host && sleep 1; done
     ```
 2. You should see your host be limited to whatever limit you've chosen. This will be across **all** clusters. Meaning if you are trying to make a curl request to both clusters at the same time, it will maintain the limit and won't reset, allowing successful requests when it should be limited.
-
