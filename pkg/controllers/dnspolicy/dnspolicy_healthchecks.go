@@ -19,20 +19,13 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 )
 
-var (
-	defaultPort = 443
-)
-
 func (r *DNSPolicyReconciler) reconcileHealthChecks(ctx context.Context, dnsPolicy *v1alpha1.DNSPolicy, gwDiffObj *reconcilers.GatewayDiff) error {
 	log := crlog.FromContext(ctx)
 
 	log.V(3).Info("reconciling health checks")
 	for _, gw := range append(gwDiffObj.GatewaysWithValidPolicyRef, gwDiffObj.GatewaysMissingPolicyRef...) {
 		log.V(3).Info("reconciling probes", "gateway", gw.Name)
-		expectedProbes, err := r.expectedProbesForGateway(ctx, gw, dnsPolicy)
-		if err != nil {
-			return fmt.Errorf("error generating probes for gateway %v: %w", gw.Gateway.Name, err)
-		}
+		expectedProbes := r.expectedProbesForGateway(ctx, gw, dnsPolicy)
 		if err := r.createOrUpdateProbes(ctx, expectedProbes); err != nil {
 			return fmt.Errorf("error creating and updating expected proves for gateway %v: %w", gw.Gateway.Name, err)
 		}
@@ -95,12 +88,12 @@ func (r *DNSPolicyReconciler) deleteUnexpectedGatewayProbes(ctx context.Context,
 	return nil
 }
 
-func (r *DNSPolicyReconciler) expectedProbesForGateway(ctx context.Context, gw common.GatewayWrapper, dnsPolicy *v1alpha1.DNSPolicy) ([]*v1alpha1.DNSHealthCheckProbe, error) {
+func (r *DNSPolicyReconciler) expectedProbesForGateway(ctx context.Context, gw common.GatewayWrapper, dnsPolicy *v1alpha1.DNSPolicy) []*v1alpha1.DNSHealthCheckProbe {
 	log := crlog.FromContext(ctx)
 	var healthChecks []*v1alpha1.DNSHealthCheckProbe
 	if dnsPolicy.Spec.HealthCheck == nil {
 		log.V(3).Info("DNS Policy has no defined health check")
-		return healthChecks, nil
+		return healthChecks
 	}
 
 	interval := metav1.Duration{Duration: 60 * time.Second}
@@ -109,24 +102,27 @@ func (r *DNSPolicyReconciler) expectedProbesForGateway(ctx context.Context, gw c
 	}
 
 	for _, address := range gw.Status.Addresses {
-		port := dnsPolicy.Spec.HealthCheck.Port
-		if port == nil {
-			port = &defaultPort
-		}
-
 		matches := strings.Split(address.Value, "/")
 		if len(matches) != 2 {
-			return nil, fmt.Errorf(fmt.Sprintf("unable to extract address from address %s ", address.Value))
+			log.V(3).Info(fmt.Sprintf("%s cannot be processed. expected <clsutername>/<hostname/ipaddress>", address.Value))
+			return nil
 		}
 
 		for _, listener := range gw.Spec.Listeners {
 			if strings.Contains(string(*listener.Hostname), "*") {
 				continue
 			}
+
+			port := dnsPolicy.Spec.HealthCheck.Port
+			if port == nil {
+				listenerPort := int(listener.Port)
+				port = &listenerPort
+			}
+
 			// handle protocol being nil
 			var protocol string
 			if dnsPolicy.Spec.HealthCheck.Protocol == nil {
-				protocol = string(v1alpha1.HttpsProtocol)
+				protocol = string(listener.Protocol)
 			} else {
 				protocol = string(*dnsPolicy.Spec.HealthCheck.Protocol)
 			}
@@ -154,5 +150,5 @@ func (r *DNSPolicyReconciler) expectedProbesForGateway(ctx context.Context, gw c
 		}
 	}
 
-	return healthChecks, nil
+	return healthChecks
 }

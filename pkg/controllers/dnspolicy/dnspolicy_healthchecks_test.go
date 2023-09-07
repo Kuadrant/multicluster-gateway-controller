@@ -41,14 +41,13 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 		dnsPolicy *v1alpha1.DNSPolicy
 	}
 	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		want    []*v1alpha1.DNSHealthCheckProbe
-		wantErr bool
+		name   string
+		fields fields
+		args   args
+		want   []*v1alpha1.DNSHealthCheckProbe
 	}{
 		{
-			name: "expected probes not nil and no error when all values specified in the check",
+			name: "expected probes not nil when all values specified in the check",
 			fields: fields{
 				TargetRefReconciler: reconcilers.TargetRefReconciler{},
 				DNSProvider:         nil,
@@ -135,10 +134,9 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 					},
 				},
 			},
-			wantErr: false,
 		},
 		{
-			name: "expected probes not nil and no error when some values not specified in the check",
+			name: "expected probes not nil when some values not specified in the check",
 			fields: fields{
 				TargetRefReconciler: reconcilers.TargetRefReconciler{},
 				DNSProvider:         nil,
@@ -158,6 +156,8 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 								{
 									Name:     "testlistener",
 									Hostname: (*gatewayapiv1beta1.Hostname)(testutil.Pointer(ValidTestHostname)),
+									Port:     443,
+									Protocol: gatewayapiv1beta1.ProtocolType(v1alpha1.HttpsProtocol),
 								},
 							},
 						},
@@ -206,7 +206,6 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 					},
 				},
 			},
-			wantErr: false,
 		},
 		{
 			name: "no probes when listener has a wildcard domain",
@@ -243,11 +242,10 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 					},
 				},
 			},
-			want:    nil,
-			wantErr: false,
+			want: nil,
 		},
 		{
-			name: "no probes and error produced when address.Value doesn't contain /",
+			name: "no probes when address.Value doesn't contain /",
 			fields: fields{
 				TargetRefReconciler: reconcilers.TargetRefReconciler{},
 				DNSProvider:         nil,
@@ -274,11 +272,10 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 					},
 				},
 			},
-			want:    nil,
-			wantErr: true,
+			want: nil,
 		},
 		{
-			name: "no probes and no error when no listeners defined",
+			name: "no probes when no listeners defined",
 			fields: fields{
 				TargetRefReconciler: reconcilers.TargetRefReconciler{},
 				DNSProvider:         nil,
@@ -305,11 +302,10 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 					},
 				},
 			},
-			want:    nil,
-			wantErr: false,
+			want: nil,
 		},
 		{
-			name: "no probes and no error when no address defined",
+			name: "no probes when no address defined",
 			fields: fields{
 				TargetRefReconciler: reconcilers.TargetRefReconciler{},
 				DNSProvider:         nil,
@@ -329,17 +325,15 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 					},
 				},
 			},
-			want:    nil,
-			wantErr: false,
+			want: nil,
 		},
 		{
-			name:   "no probes and no error when no healthcheck spec defined",
+			name:   "no probes when no healthcheck spec defined",
 			fields: fields{},
 			args: args{
 				dnsPolicy: &v1alpha1.DNSPolicy{},
 			},
-			want:    nil,
-			wantErr: false,
+			want: nil,
 		},
 	}
 	for _, tt := range tests {
@@ -350,11 +344,7 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 				dnsHelper:           tt.fields.dnsHelper,
 				Placer:              tt.fields.Placer,
 			}
-			got, err := r.expectedProbesForGateway(tt.args.ctx, tt.args.gw, tt.args.dnsPolicy)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("expectedProbesForGateway() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
+			got := r.expectedProbesForGateway(tt.args.ctx, tt.args.gw, tt.args.dnsPolicy)
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("expectedProbesForGateway() got = %v, want %v", got, tt.want)
 			}
