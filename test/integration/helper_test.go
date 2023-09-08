@@ -32,6 +32,7 @@ const (
 	TestPlacedClusterControlName = "test-placed-control"
 	TestPlaceClusterWorkloadName = "test-placed-workload-1"
 	TestAttachedRouteName        = "test.example.com"
+	OtherAttachedRouteName       = "other.example.com"
 	TestWildCardListenerName     = "wildcard"
 	TestWildCardListenerHost     = "*.example.com"
 	TestAttachedRouteAddressOne  = "172.0.0.1"

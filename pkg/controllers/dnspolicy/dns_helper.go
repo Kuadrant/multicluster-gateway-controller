@@ -268,8 +268,9 @@ func (dh *dnsHelper) setEndpoints(ctx context.Context, mcgTarget *dns.MultiClust
 	// count will track whether a new endpoint has been removed.
 	// first newEndpoints are checked based on probe status and removed if unhealthy true and the consecutive failures are greater than the threshold.
 	removedEndpoints := 0
+
 	for i := 0; i < len(newEndpoints); i++ {
-		checkProbes := getProbesForEndpoint(newEndpoints[i], probes)
+		checkProbes := getProbesForEndpoint(newEndpoints[i], probes, mcgTarget.Gateway.Name, string(listener.Name))
 		if len(checkProbes) == 0 {
 			continue
 		}
@@ -453,11 +454,11 @@ func (dh *dnsHelper) getDNSHealthCheckProbes(ctx context.Context, gateway *gatew
 	})
 }
 
-func getProbesForEndpoint(endpoint *v1alpha1.Endpoint, probes []*v1alpha1.DNSHealthCheckProbe) []*v1alpha1.DNSHealthCheckProbe {
+func getProbesForEndpoint(endpoint *v1alpha1.Endpoint, probes []*v1alpha1.DNSHealthCheckProbe, gatewayName, listenerName string) []*v1alpha1.DNSHealthCheckProbe {
 	retProbes := []*v1alpha1.DNSHealthCheckProbe{}
 	for _, probe := range probes {
 		for _, target := range endpoint.Targets {
-			if strings.Contains(probe.Name, target) {
+			if dnsHealthCheckProbeName(target, gatewayName, listenerName) == probe.Name {
 				retProbes = append(retProbes, probe)
 			}
 		}

@@ -105,7 +105,7 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 			want: []*v1alpha1.DNSHealthCheckProbe{
 				{
 					ObjectMeta: controllerruntime.ObjectMeta{
-						Name:      "172.31.200.0-testdnspolicy-testlistener",
+						Name:      "172.31.200.0-testgateway-testlistener",
 						Namespace: "testnamespace",
 						Labels: map[string]string{
 							DNSPolicyBackRefAnnotation:                              "testdnspolicy",
@@ -184,7 +184,7 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 			want: []*v1alpha1.DNSHealthCheckProbe{
 				{
 					ObjectMeta: controllerruntime.ObjectMeta{
-						Name:      "172.31.200.0-testdnspolicy-testlistener",
+						Name:      "172.31.200.0-testgateway-testlistener",
 						Namespace: "testnamespace",
 						Labels: map[string]string{
 							DNSPolicyBackRefAnnotation:                              "testdnspolicy",
