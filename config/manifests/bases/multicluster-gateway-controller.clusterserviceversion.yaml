@@ -1,0 +1,52 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  annotations:
+    alm-examples: '[]'
+    capabilities: Basic Install
+  name: multicluster-gateway-controller.v0.0.0
+  namespace: placeholder
+spec:
+  apiservicedefinitions: {}
+  customresourcedefinitions:
+    owned:
+    - description: ManagedZone is the Schema for the managedzones API
+      displayName: Managed Zone
+      kind: ManagedZone
+      name: managedzones.kuadrant.io
+      version: v1alpha1
+  description: multi-cluster gateway controller, manages multi-cluster gateways based
+    on gateway api and policy attachment
+  displayName: Multicluster-gateway-controller
+  icon:
+  - base64data: ""
+    mediatype: ""
+  install:
+    spec:
+      deployments: null
+    strategy: ""
+  installModes:
+  - supported: false
+    type: OwnNamespace
+  - supported: false
+    type: SingleNamespace
+  - supported: false
+    type: MultiNamespace
+  - supported: true
+    type: AllNamespaces
+  keywords:
+  - Gateway-API
+  - DNS
+  - Global-Load-Balancing
+  - Multi-Cloud
+  links:
+  - name: Multicluster Gateway Controller
+    url: https://multicluster-gateway-controller.domain
+  maintainers:
+  - email: hcg-team@redhat.com
+    name: HCG-Team
+  maturity: alpha
+  provider:
+    name: Red Hat
+    url: https://github.com/Kuadrant/multicluster-gateway-controller
+  version: 0.0.0
