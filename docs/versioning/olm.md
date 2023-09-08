@@ -40,10 +40,7 @@ EOF
 
 2. Create a catalog source:
  ```bash
-    ontextConfig: restricted
-  displayName: mgc-catalog
-  publisher: Red Hat
-EOFcat <<EOF | kubectl apply -f -
+    cat <<EOF | kubectl apply -f -
 apiVersion: operators.coreos.com/v1alpha1
 kind: CatalogSource
 metadata:
@@ -51,9 +48,12 @@ metadata:
   namespace: olm
 spec:
   sourceType: grpc
-  image: quay.io/kuadrant/multicluster-gateway-controller-catalog:latest
+  image: quay.io/kuadrant/multicluster-gateway-controller-catalog:v6.5.4
   grpcPodConfig:
-    securityC
+    securityContextConfig: restricted
+  displayName: mgc-catalog
+  publisher: Red Hat
+EOF
 ```
 
 3. Create a subscription
