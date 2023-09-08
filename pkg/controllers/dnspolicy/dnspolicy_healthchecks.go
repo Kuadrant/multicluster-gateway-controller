@@ -3,11 +3,10 @@ package dnspolicy
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
-	"github.com/miekg/dns"
-
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serror "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -20,18 +19,13 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 )
 
-var (
-	defaultPort = 443
-)
-
 func (r *DNSPolicyReconciler) reconcileHealthChecks(ctx context.Context, dnsPolicy *v1alpha1.DNSPolicy, gwDiffObj *reconcilers.GatewayDiff) error {
 	log := crlog.FromContext(ctx)
 
+	log.V(3).Info("reconciling health checks")
 	for _, gw := range append(gwDiffObj.GatewaysWithValidPolicyRef, gwDiffObj.GatewaysMissingPolicyRef...) {
-		expectedProbes, err := r.expectedProbesForGateway(ctx, gw, dnsPolicy)
-		if err != nil {
-			return fmt.Errorf("error generating probes for gateway %v: %w", gw.Gateway.Name, err)
-		}
+		log.V(3).Info("reconciling probes", "gateway", gw.Name)
+		expectedProbes := r.expectedProbesForGateway(ctx, gw, dnsPolicy)
 		if err := r.createOrUpdateProbes(ctx, expectedProbes); err != nil {
 			return fmt.Errorf("error creating and updating expected proves for gateway %v: %w", gw.Gateway.Name, err)
 		}
@@ -55,7 +49,7 @@ func (r *DNSPolicyReconciler) createOrUpdateProbes(ctx context.Context, expected
 	//create or update all expected probes
 	for _, hcProbe := range expectedProbes {
 		p := &v1alpha1.DNSHealthCheckProbe{}
-		if err := r.Client().Get(ctx, client.ObjectKeyFromObject(hcProbe), p); errors.IsNotFound(err) {
+		if err := r.Client().Get(ctx, client.ObjectKeyFromObject(hcProbe), p); k8serror.IsNotFound(err) {
 			if err := r.Client().Create(ctx, hcProbe); err != nil {
 				return err
 			}
@@ -94,12 +88,12 @@ func (r *DNSPolicyReconciler) deleteUnexpectedGatewayProbes(ctx context.Context,
 	return nil
 }
 
-func (r *DNSPolicyReconciler) expectedProbesForGateway(ctx context.Context, gw common.GatewayWrapper, dnsPolicy *v1alpha1.DNSPolicy) ([]*v1alpha1.DNSHealthCheckProbe, error) {
+func (r *DNSPolicyReconciler) expectedProbesForGateway(ctx context.Context, gw common.GatewayWrapper, dnsPolicy *v1alpha1.DNSPolicy) []*v1alpha1.DNSHealthCheckProbe {
 	log := crlog.FromContext(ctx)
 	var healthChecks []*v1alpha1.DNSHealthCheckProbe
 	if dnsPolicy.Spec.HealthCheck == nil {
 		log.V(3).Info("DNS Policy has no defined health check")
-		return nil, nil
+		return healthChecks
 	}
 
 	interval := metav1.Duration{Duration: 60 * time.Second}
@@ -107,57 +101,54 @@ func (r *DNSPolicyReconciler) expectedProbesForGateway(ctx context.Context, gw c
 		interval = *dnsPolicy.Spec.HealthCheck.Interval
 	}
 
-	for _, listener := range gw.Spec.Listeners {
-
-		log.V(3).Info("getting dnsrecord", "name", dnsRecordName(gw.Name, string(listener.Name)))
-		dnsRecord := &v1alpha1.DNSRecord{}
-		if err := r.Client().Get(ctx, client.ObjectKey{Name: dnsRecordName(gw.Name, string(listener.Name)), Namespace: dnsPolicy.Namespace}, dnsRecord); err != nil {
-			if errors.IsNotFound(err) {
-				continue
-			} else {
-				return nil, err
-			}
+	for _, address := range gw.Status.Addresses {
+		matches := strings.Split(address.Value, "/")
+		if len(matches) != 2 {
+			log.V(3).Info(fmt.Sprintf("%s cannot be processed. expected <clsutername>/<hostname/ipaddress>", address.Value))
+			return nil
 		}
-		for _, endpoint := range dnsRecord.Spec.Endpoints {
 
-			log.V(1).Info("reconcileHealthChecks: found DNS Record endpoint", "endpoint", endpoint)
-			if endpoint.RecordType == string(v1alpha1.CNAMERecordType) {
-				// if the CNAME is a subdomain of this dnsrecord, skip it
-				if dns.IsSubDomain(dnsRecord.Name, endpoint.Targets[0]) {
-					continue
-				}
-			} else if endpoint.RecordType != string(v1alpha1.ARecordType) {
-				log.V(1).Info("reconcileHealthChecks: not an A record, skipping")
+		for _, listener := range gw.Spec.Listeners {
+			if strings.Contains(string(*listener.Hostname), "*") {
 				continue
 			}
-			for _, target := range endpoint.Targets {
-				port := dnsPolicy.Spec.HealthCheck.Port
-				if port == nil {
-					port = &defaultPort
-				}
-				log.V(1).Info("reconcileHealthChecks: adding health check for target", "target", target)
-				healthCheck := &v1alpha1.DNSHealthCheckProbe{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      fmt.Sprintf("%s-%s", target, dnsRecord.Name),
-						Namespace: gw.Namespace,
-						Labels:    commonDNSRecordLabels(client.ObjectKeyFromObject(gw), client.ObjectKeyFromObject(dnsPolicy)),
-					},
-					Spec: v1alpha1.DNSHealthCheckProbeSpec{
-						Port:                     *port,
-						Host:                     dnsRecord.Name,
-						Address:                  target,
-						Path:                     dnsPolicy.Spec.HealthCheck.Endpoint,
-						Protocol:                 *dnsPolicy.Spec.HealthCheck.Protocol,
-						Interval:                 interval,
-						AdditionalHeadersRef:     dnsPolicy.Spec.HealthCheck.AdditionalHeadersRef,
-						FailureThreshold:         dnsPolicy.Spec.HealthCheck.FailureThreshold,
-						ExpectedResponses:        dnsPolicy.Spec.HealthCheck.ExpectedResponses,
-						AllowInsecureCertificate: dnsPolicy.Spec.HealthCheck.AllowInsecureCertificates,
-					},
-				}
-				healthChecks = append(healthChecks, withDNSRecord(dnsRecord, healthCheck))
+
+			port := dnsPolicy.Spec.HealthCheck.Port
+			if port == nil {
+				listenerPort := int(listener.Port)
+				port = &listenerPort
 			}
+
+			// handle protocol being nil
+			var protocol string
+			if dnsPolicy.Spec.HealthCheck.Protocol == nil {
+				protocol = string(listener.Protocol)
+			} else {
+				protocol = string(*dnsPolicy.Spec.HealthCheck.Protocol)
+			}
+			log.V(1).Info("reconcileHealthChecks: adding health check for target", "target", address.Value)
+			healthCheck := &v1alpha1.DNSHealthCheckProbe{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      fmt.Sprintf("%s-%s-%s", matches[1], dnsPolicy.Name, listener.Name),
+					Namespace: gw.Namespace,
+					Labels:    commonDNSRecordLabels(client.ObjectKeyFromObject(gw), client.ObjectKeyFromObject(dnsPolicy)),
+				},
+				Spec: v1alpha1.DNSHealthCheckProbeSpec{
+					Port:                     *port,
+					Host:                     string(*listener.Hostname),
+					Address:                  matches[1],
+					Path:                     dnsPolicy.Spec.HealthCheck.Endpoint,
+					Protocol:                 v1alpha1.HealthProtocol(protocol),
+					Interval:                 interval,
+					AdditionalHeadersRef:     dnsPolicy.Spec.HealthCheck.AdditionalHeadersRef,
+					FailureThreshold:         dnsPolicy.Spec.HealthCheck.FailureThreshold,
+					ExpectedResponses:        dnsPolicy.Spec.HealthCheck.ExpectedResponses,
+					AllowInsecureCertificate: dnsPolicy.Spec.HealthCheck.AllowInsecureCertificates,
+				},
+			}
+			healthChecks = append(healthChecks, withGatewayListener(gw, listener, healthCheck))
 		}
 	}
-	return healthChecks, nil
+
+	return healthChecks
 }

@@ -155,7 +155,7 @@ var _ = BeforeSuite(func() {
 			BaseReconciler: dnsPolicyBaseReconciler,
 		},
 		DNSProvider: providerFactory,
-		Placement:   testPlc,
+		Placer:      testPlc,
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 

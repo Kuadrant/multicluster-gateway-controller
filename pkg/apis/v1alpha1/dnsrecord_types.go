@@ -107,7 +107,7 @@ type DNSRecordSpec struct {
 	ManagedZoneRef *ManagedZoneReference `json:"managedZone,omitempty"`
 	// +kubebuilder:validation:MinItems=1
 	// +optional
-	Endpoints []*Endpoint `json:"endpoints"`
+	Endpoints []*Endpoint `json:"endpoints,omitempty"`
 }
 
 // DNSRecordStatus defines the observed state of DNSRecord

@@ -101,7 +101,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	placement := placement.NewOCMPlacer(mgr.GetClient())
+	placer := placement.NewOCMPlacer(mgr.GetClient())
 	provider := dnsprovider.NewProvider(mgr.GetClient())
 
 	healthMonitor := health.NewMonitor()
@@ -137,7 +137,7 @@ func main() {
 			BaseReconciler: dnsPolicyBaseReconciler,
 		},
 		DNSProvider: provider.DNSProviderFactory,
-		Placement:   placement,
+		Placer:      placer,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DNSPolicy")
 		os.Exit(1)
@@ -179,7 +179,7 @@ func main() {
 	if err = (&gateway.GatewayReconciler{
 		Client:    mgr.GetClient(),
 		Scheme:    mgr.GetScheme(),
-		Placement: placement,
+		Placement: placer,
 	}).SetupWithManager(mgr, ctx); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Gateway")
 		os.Exit(1)

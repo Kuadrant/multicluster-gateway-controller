@@ -51,7 +51,7 @@ type DNSHealthCheckProbeStatus struct {
 	ConsecutiveFailures int         `json:"consecutiveFailures,omitempty"`
 	Reason              string      `json:"reason,omitempty"`
 	Status              int         `json:"status,omitempty"`
-	Healthy             bool        `json:"healthy"`
+	Healthy             *bool       `json:"healthy"`
 }
 
 //+kubebuilder:object:root=true

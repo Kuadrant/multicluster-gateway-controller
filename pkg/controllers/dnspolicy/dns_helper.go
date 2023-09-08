@@ -3,6 +3,7 @@ package dnspolicy
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -12,10 +13,13 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+
+	"github.com/kuadrant/kuadrant-operator/pkg/common"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
@@ -117,13 +121,13 @@ func (dh *dnsHelper) getDNSRecordForListener(ctx context.Context, listener gatew
 	return dnsRecord, nil
 }
 
-func withDNSRecord[T metav1.Object](dnsRecord *v1alpha1.DNSRecord, obj T) T {
+func withGatewayListener[T metav1.Object](gateway common.GatewayWrapper, listener gatewayv1beta1.Listener, obj T) T {
 	if obj.GetAnnotations() == nil {
 		obj.SetAnnotations(map[string]string{})
 	}
 
-	obj.GetAnnotations()["dnsrecord-name"] = dnsRecord.Name
-	obj.GetAnnotations()["dnsrecord-namespace"] = dnsRecord.Namespace
+	obj.GetAnnotations()["dnsrecord-name"] = fmt.Sprintf("%s-%s", gateway.Name, listener.Name)
+	obj.GetAnnotations()["dnsrecord-namespace"] = gateway.Namespace
 
 	return obj
 }
@@ -167,7 +171,7 @@ func withDNSRecord[T metav1.Object](dnsRecord *v1alpha1.DNSRecord, obj T) T {
 // ab2.lb-a1b2.shop.example.com A 192.22.2.3
 // ab3.lb-a1b2.shop.example.com A 192.22.2.4
 
-func (dh *dnsHelper) setEndpoints(ctx context.Context, mcgTarget *dns.MultiClusterGatewayTarget, dnsRecord *v1alpha1.DNSRecord, listener gatewayv1beta1.Listener) error {
+func (dh *dnsHelper) setEndpoints(ctx context.Context, mcgTarget *dns.MultiClusterGatewayTarget, dnsRecord *v1alpha1.DNSRecord, dnsPolicy *v1alpha1.DNSPolicy, listener gatewayv1beta1.Listener) error {
 
 	old := dnsRecord.DeepCopy()
 	gwListenerHost := string(*listener.Hostname)
@@ -235,6 +239,7 @@ func (dh *dnsHelper) setEndpoints(ctx context.Context, mcgTarget *dns.MultiClust
 		}
 
 		endpoint.SetProviderSpecific(dns.ProviderSpecificGeoCode, string(geoCode))
+
 		newEndpoints = append(newEndpoints, endpoint)
 	}
 
@@ -250,12 +255,90 @@ func (dh *dnsHelper) setEndpoints(ctx context.Context, mcgTarget *dns.MultiClust
 	sort.Slice(newEndpoints, func(i, j int) bool {
 		return newEndpoints[i].SetID() < newEndpoints[j].SetID()
 	})
-	dnsRecord.Spec.Endpoints = newEndpoints
 
+	probes, err := dh.getDNSHealthCheckProbes(ctx, mcgTarget.Gateway, dnsPolicy)
+	if err != nil {
+		return err
+	}
+
+	// if the checks on endpoints based on probes results in there being no healthy endpoints
+	// ready to publish we'll publish the full set so storing those
+	var storeEndpoints []*v1alpha1.Endpoint
+	storeEndpoints = append(storeEndpoints, newEndpoints...)
+	// count will track whether a new endpoint has been removed.
+	// first newEndpoints are checked based on probe status and removed if unhealthy true and the consecutive failures are greater than the threshold.
+	removedEndpoints := 0
+	for i := 0; i < len(newEndpoints); i++ {
+		checkProbes := getProbesForEndpoint(newEndpoints[i], probes)
+		if len(checkProbes) == 0 {
+			continue
+		}
+		for _, probe := range checkProbes {
+			probeHealthy := true
+			if probe.Status.Healthy != nil {
+				probeHealthy = *probe.Status.Healthy
+			}
+			// if any probe for any target is reporting unhealthy remove it from the endpoint list
+			if !probeHealthy && probe.Spec.FailureThreshold != nil && probe.Status.ConsecutiveFailures >= *probe.Spec.FailureThreshold {
+				newEndpoints = append(newEndpoints[:i], newEndpoints[i+1:]...)
+				removedEndpoints++
+				i--
+				break
+			}
+		}
+	}
+	// after checkProbes are checked the newEndpoints is looped through until count is 0
+	// if any are found that need to be removed because a parent with no children present
+	// the count will be incremented so that the newEndpoints will be traversed again such that only when a loop occurs where no
+	// endpoints have been removed can we consider the endpoint list to be cleaned
+	ipPattern := `\b(?:\d{1,3}\.){3}\d{1,3}\b`
+	re := regexp.MustCompile(ipPattern)
+
+	for removedEndpoints > 0 {
+	endpointsLoop:
+		for i := 0; i < len(newEndpoints); i++ {
+			checkEndpoint := newEndpoints[i]
+			for _, target := range checkEndpoint.Targets {
+				if len(re.FindAllString(target, -1)) > 0 {
+					// don't check the children of targets which are ips.
+					continue endpointsLoop
+				}
+			}
+			children := getNumChildrenOfParent(newEndpoints, newEndpoints[i])
+			if children == 0 {
+				newEndpoints = append(newEndpoints[:i], newEndpoints[i+1:]...)
+				removedEndpoints++
+			}
+		}
+		removedEndpoints--
+	}
+
+	// if there are no healthy endpoints after checking, publish the full set before checks
+	if len(newEndpoints) == 0 {
+		dnsRecord.Spec.Endpoints = storeEndpoints
+	} else {
+		dnsRecord.Spec.Endpoints = newEndpoints
+	}
 	if !equality.Semantic.DeepEqual(old, dnsRecord) {
 		return dh.Update(ctx, dnsRecord)
 	}
 	return nil
+}
+
+func getNumChildrenOfParent(endpoints []*v1alpha1.Endpoint, parent *v1alpha1.Endpoint) int {
+	return len(findChildren(endpoints, parent))
+}
+
+func findChildren(endpoints []*v1alpha1.Endpoint, parent *v1alpha1.Endpoint) []*v1alpha1.Endpoint {
+	var foundEPs []*v1alpha1.Endpoint
+	for _, endpoint := range endpoints {
+		for _, target := range parent.Targets {
+			if target == endpoint.DNSName {
+				foundEPs = append(foundEPs, endpoint)
+			}
+		}
+	}
+	return foundEPs
 }
 
 func createOrUpdateEndpoint(dnsName string, targets v1alpha1.Targets, recordType v1alpha1.DNSRecordType, setIdentifier string,
@@ -354,4 +437,30 @@ func (r *dnsHelper) deleteDNSRecordForListener(ctx context.Context, owner metav1
 
 func isWildCardListener(l gatewayv1beta1.Listener) bool {
 	return strings.HasPrefix(string(*l.Hostname), "*")
+}
+
+func (dh *dnsHelper) getDNSHealthCheckProbes(ctx context.Context, gateway *gatewayv1beta1.Gateway, dnsPolicy *v1alpha1.DNSPolicy) ([]*v1alpha1.DNSHealthCheckProbe, error) {
+	list := &v1alpha1.DNSHealthCheckProbeList{}
+	if err := dh.List(ctx, list, &client.ListOptions{
+		LabelSelector: labels.SelectorFromSet(commonDNSRecordLabels(client.ObjectKeyFromObject(gateway), client.ObjectKeyFromObject(dnsPolicy))),
+		Namespace:     dnsPolicy.Namespace,
+	}); err != nil {
+		return nil, err
+	}
+
+	return slice.MapErr(list.Items, func(obj v1alpha1.DNSHealthCheckProbe) (*v1alpha1.DNSHealthCheckProbe, error) {
+		return &obj, nil
+	})
+}
+
+func getProbesForEndpoint(endpoint *v1alpha1.Endpoint, probes []*v1alpha1.DNSHealthCheckProbe) []*v1alpha1.DNSHealthCheckProbe {
+	retProbes := []*v1alpha1.DNSHealthCheckProbe{}
+	for _, probe := range probes {
+		for _, target := range endpoint.Targets {
+			if strings.Contains(probe.Name, target) {
+				retProbes = append(retProbes, probe)
+			}
+		}
+	}
+	return retProbes
 }

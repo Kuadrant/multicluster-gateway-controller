@@ -209,7 +209,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			} else if *address.Type == gatewayv1beta1.HostnameAddressType {
 				addressType = MultiClusterHostnameAddressType
 			} else {
-				break // ignore address type. Unsupported for multi cluster gateway
+				continue // ignore address type gatewayv1beta1.NamedAddressType. Unsupported for multi cluster gateway
 			}
 			allAddresses = append(allAddresses, gatewayv1beta1.GatewayAddress{
 				Type:  &addressType,
@@ -254,7 +254,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	if requeue {
-		log.V(3).Info("requeuing gateay in ", "namespace", upstreamGateway.Namespace, "with name", upstreamGateway.Name)
+		log.V(3).Info("requeuing gateway in ", "namespace", upstreamGateway.Namespace, "with name", upstreamGateway.Name)
 		return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 10}, reconcileErr
 	}
 	return ctrl.Result{}, reconcileErr
