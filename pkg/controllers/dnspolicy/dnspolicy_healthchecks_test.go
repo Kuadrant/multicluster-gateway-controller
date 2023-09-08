@@ -342,7 +342,6 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 				TargetRefReconciler: tt.fields.TargetRefReconciler,
 				DNSProvider:         tt.fields.DNSProvider,
 				dnsHelper:           tt.fields.dnsHelper,
-				Placer:              tt.fields.Placer,
 			}
 			got := r.expectedProbesForGateway(tt.args.ctx, tt.args.gw, tt.args.dnsPolicy)
 			if !reflect.DeepEqual(got, tt.want) {

@@ -142,7 +142,6 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 
 	plc := placement.NewOCMPlacer(k8sManager.GetClient())
-	testPlc := NewTestOCMPlacer()
 
 	dnsPolicyBaseReconciler := reconcilers.NewBaseReconciler(
 		k8sManager.GetClient(), k8sManager.GetScheme(), k8sManager.GetAPIReader(),
@@ -155,7 +154,6 @@ var _ = BeforeSuite(func() {
 			BaseReconciler: dnsPolicyBaseReconciler,
 		},
 		DNSProvider: providerFactory,
-		Placer:      testPlc,
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 
