@@ -35,9 +35,9 @@ You can now simply hit `F5` in VSCode. The controller will launch with the follo
 ```
 
 ### Running Debugger
-![VSCode Debugger 1](images/vscode-1.png)
+![VSCode Debugger 1](../images/vscode/vscode-1.png)
 
 
 ### Debugging Tests
-![VSCode Debugger 2](images/vscode-2.png)
+![VSCode Debugger 2](../images/vscode/vscode-2.png)
 

@@ -10,13 +10,13 @@ This document describes how to enable DNS by creating a basic DNSPolicy
 
 ## Pre-requisites
 
-* A [ManagedZone](managedZone.md) has been created
+* A [ManagedZone](managed-zone.md) has been created
 * A Gateway has been created
 * A HTTPRoute has been created and attached to the Gateway (Note: It's not a
 requirement to create the HTTPRoute beforehand, but DNS records will only
 be created once a DNSPolicy has been created)
 
-> See [the OCM walkthrough](ocm-control-plane-walkthrough.md) for step by step
+> See [the Multicluster Gateways walkthrough](../how-to/multicluster-gateways-walkthrough.md) for step by step
 instructions on deploying these with a simple application.
 
 ## Steps
@@ -53,4 +53,4 @@ be available through the defined hosts.
 ## Advanced DNS configuration
 
 The DNSPolicy supports other optional configuration options like geographic and
-weighted load balancing and health checks. For more detailed information about these options, see [DNSPolicy reference](../dns-policy.md)
+weighted load balancing and health checks. For more detailed information about these options, see [DNSPolicy reference](dns-policy.md)

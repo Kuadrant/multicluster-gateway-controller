@@ -240,7 +240,7 @@ spec:
 
 Which results in the following records being created in AWS Route53 (The provider we used in our example ManagedZone above):
 
-![aws-recordset-list-1](./images/dns-policy/aws-recordset-list-1.png)
+![aws-recordset-list-1](../images/dns-policy/aws-recordset-list-1.png)
 
 The listener hostname is now be resolvable through dns:
 
@@ -252,7 +252,7 @@ lrnse3.lb-2903yb.echo.apps.hcpapps.net.
 172.31.201.1
 ```
 
-More information about the dns record structure can be found in the [DNSRecord structure](./proposals/DNSRecordStructure.md) document.
+More information about the dns record structure can be found in the [DNSRecord structure](../proposals/DNSRecordStructure.md) document.
 
 ## Load Balancing
 
@@ -374,7 +374,7 @@ kubectl get dnsrecord echo.apps.hcpapps.net -n multi-cluster-gateways -o yaml | 
     - 172.31.201.1
 ```
 
-![aws-recordset-list-2](./images/dns-policy/aws-recordset-list-2.png)
+![aws-recordset-list-2](../images/dns-policy/aws-recordset-list-2.png)
 
 In the above scenario the managed cluster `kind-mgc-workload-2` (GCP) IP address will be returned far less frequently in DNS queries than `kind-mgc-workload-1` (AWS)
 
@@ -468,7 +468,7 @@ kubectl get dnsrecord echo.apps.hcpapps.net -n multi-cluster-gateways -o yaml | 
     - lrnse3.lb-2903yb.echo.apps.hcpapps.net
 ```
 
-![aws-recordset-list-3](./images/dns-policy/aws-recordset-list-3.png)
+![aws-recordset-list-3](../images/dns-policy/aws-recordset-list-3.png)
 
 The listener hostname is still resolvable, but now routed through the `us` record set:
 
@@ -557,7 +557,7 @@ kubectl get dnsrecord echo.apps.hcpapps.net -n multi-cluster-gateways -o yaml | 
   targets:
     - lrnse3.lb-2903yb.echo.apps.hcpapps.net
 ```
-![aws-recordset-list-4](./images/dns-policy/aws-recordset-list-4.png)
+![aws-recordset-list-4](../images/dns-policy/aws-recordset-list-4.png)
 
 In the above scenario any requests made in Spain will be returned the IP address of `kind-mgc-workload-2` and requests made from anywhere else in the world will be returned the IP address of `kind-mgc-workload-1`.
 Weighting of records is still enforced between clusters in the same geo group, in the case above however they are having no effect since there is only one cluster in each group.

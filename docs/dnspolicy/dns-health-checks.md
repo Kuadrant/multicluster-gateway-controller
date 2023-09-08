@@ -2,7 +2,7 @@
 DNS Health Checks are a crucial tool for ensuring the availability and reliability of your multi-cluster applications. Kuadrant offers a powerful feature known as DNSPolicy, which allows you to configure and verify health checks for DNS endpoints. This guide provides a comprehensive overview of how to set up, utilize, and understand DNS health checks.
 
 ## What are DNS Health Checks?
-DNS Health Checks are a way to assess the availability and health of DNS endpoints associated with your applications. These checks involve sending periodic requests to the specified endpoints to determine their responsiveness and health status. by configuring these checks via the [DNSPolicy](./dns-policy.md), you can ensure that your applications are correctly registered, operational, and serving traffic as expected.
+DNS Health Checks are a way to assess the availability and health of DNS endpoints associated with your applications. These checks involve sending periodic requests to the specified endpoints to determine their responsiveness and health status. by configuring these checks via the [DNSPolicy](dns-policy.md), you can ensure that your applications are correctly registered, operational, and serving traffic as expected.
 
 ## Configuration of Health Checks
 >Note: By default, health checks occur at 60-second intervals.
