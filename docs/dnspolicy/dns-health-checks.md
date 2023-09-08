@@ -14,6 +14,7 @@ To configure a DNS health check, you need to specify the `healthCheck` section o
 * `endpoint`: This is the path where the health checks take place, usually represented as '/healthz' or something similar.
 * `expectedResponses`: This setting lets you specify the expected HTTP response codes. If you don't set this, the default values assumed are 200 and 201.
 * `failureThreshold`: It's the number of times the health check can fail for the endpoint before it's marked as unhealthy.
+* `interval`: This property allows you to specify the time interval between consecutive health checks. The minimum allowed value is 5 seconds.
 * `port`: Specific port for the connection to be checked.
 * `protocol`: Type of protocol being used, like HTTP or HTTPS. **(Required)**
 
