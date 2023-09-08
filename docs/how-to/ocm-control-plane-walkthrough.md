@@ -346,8 +346,8 @@ So now we have a working gateway with DNS and TLS configured. Let place this gat
 
 1. In `T2`, targeting the second cluster, go ahead and create the HTTPRoute in the second gateway cluster.
 
->:exclamation: **Note:** Ensure the `MGC_SUB_DOMAIN` environment variable has been exported in this terminal session before applying this config.
-
+    >:exclamation: **Note:** Ensure the `MGC_SUB_DOMAIN` environment variable has been exported in this terminal session before applying this config.
+   
     ```bash
     kubectl apply -f - <<EOF
     apiVersion: gateway.networking.k8s.io/v1beta1
