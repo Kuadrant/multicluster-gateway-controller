@@ -9,7 +9,8 @@ exposed (using the skupper cli) from either cluster. If the Service is
 unavailable on the local cluster, it will be routed to another cluster that has
 exposed that Service.
 
-<img src="../images/skupper/skupper-poc-2-gateways-resiliency-walkthrough.png" alt="architecture" width="600"/>
+![arch](../images/skupper/skupper-poc-2-gateways-resiliency-walkthrough.png)
+
 
 ## Requirements
 

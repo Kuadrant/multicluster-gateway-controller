@@ -6,7 +6,7 @@ This walkthrough shows how to install a metrics federation stack locally and que
 
 >**Note:** :exclamation: this walkthrough is incomplete. It will be updated as issues from https://github.com/Kuadrant/multicluster-gateway-controller/issues/197 land
 
-<img src="../images/metrics/metrics-federation.png" alt="architecture" width="600"/>
+![arch](../images/metrics/metrics-federation.png)
 
 ## Requirements
 
@@ -40,7 +40,7 @@ sum(rate(container_cpu_usage_seconds_total{namespace="monitoring",container="pro
 You should see a response in the table view.
 In the Graph view you should see some data over time as well.
 
-<img src="../images/metrics/metrics-federation-example-data.png" alt="architecture" width="600"/>
+![arch](../images/metrics/metrics-federation-example-data.png)
 
 
 ## Istio Metrics
@@ -70,7 +70,7 @@ In the graph view you should see something that looks like the graph below.
 This shows the rate of requests (per second) for each Isito workload.
 In this case, there is 1 workload, balanced across 2 clusters.
 
-<img src="../images/metrics/metrics-federation-traffic-data.png" alt="architecture" width="600"/>
+![arch](../images/metrics/metrics-federation-traffic-data.png)
 
 To see the rate of requests per cluster (actually per pod across all clusters), the below query can be used.
 Over long periods of time, this graph can show traffic load balancing between application instances.
@@ -79,7 +79,7 @@ Over long periods of time, this graph can show traffic load balancing between ap
 sum(rate(istio_requests_total{}[5m])) by(pod)
 ```
 
-<img src="../images/metrics/metrics-federation-traffic-data-per-pod.png" alt="architecture" width="600"/>
+![arch](../images/metrics/metrics-federation-traffic-data-per-pod.png)
 
 ### Grafana UI
 
@@ -96,8 +96,8 @@ The default login is admin/admin.
 
 Using the left sidebar in the Grafana UI, navigate to `Dashboards > Browse` and click on the `Istio Workload Dashboard`.
 
-<img src="../images/metrics/metrics-federation-grafana-dashboard-1.png" width="600"/>
+![arch](../images/metrics/metrics-federation-grafana-dashboard-1.png)
 
 You should be able to see the following layout, which will include data from the `curl` command you ran in the previous section.
 
-<img src="../images/metrics/metrics-federation-grafana-dashboard-2.png" width="600"/>
+![arch](../images/metrics/metrics-federation-grafana-dashboard-2.png)

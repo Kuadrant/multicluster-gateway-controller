@@ -50,16 +50,15 @@ https://grafana.172.31.0.2.nip.io
 
 Using the left sidebar in the Grafana UI, navigate to `Dashboards > Browse` and select either the `Istio Workload Dashboard` or `MGC SRE Dashboard`.
 
-
-<img src="../images/metrics/metrics-federation-grafana-dashboard-3.png" width="600"/>
+![arch](../images/metrics/metrics-federation-grafana-dashboard-3.png)
 
 In `Istio Workload Dashboard` you should be able to see the following layout, which will include data from the `curl` command you ran in the previous section.
 
-<img src="../images/metrics/metrics-federation-grafana-dashboard-2.png" width="600"/>
+![arch](../images/metrics/metrics-federation-grafana-dashboard-2.png)
 
 The `MGC SRE Dashboard` displays real-time insights and visualizations of resources managed by the multicluster-gateway-controller e.g. DNSPolicy, TLSPolicy, DNSRecord etc..
 
-<img src="../images/metrics/metrics-federation-grafana-dashboard-4.png" width="600"/>
+![arch](../images/metrics/metrics-federation-grafana-dashboard-4.png)
 
 The Grafana dashboard will provide you with real-time insights and visualizations of your gateway's performance and metrics.
 
