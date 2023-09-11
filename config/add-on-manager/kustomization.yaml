@@ -6,4 +6,4 @@ kind: Kustomization
 images:
 - name: addon-manager
   newName: quay.io/kuadrant/addon-manager
-  newTag: release-test
+  newTag: v0.1.0-test
