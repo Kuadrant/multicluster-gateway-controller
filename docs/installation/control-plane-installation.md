@@ -1,13 +1,14 @@
 # Setting up MGC in Existing OCM Clusters
 
-This guide will show you how to install and configure the Multi-Cluster Gateway Controller in preexisting [Open Cluster Management](https://open-cluster-management.io/)-configured clusters.
+This guide will show you how to install and configure the Multi-Cluster Gateway Controller in pre-existing [Open Cluster Management](https://open-cluster-management.io/) configured clusters.
 
 ## Prerequisites
 
 - A **hub cluster** running the OCM control plane (v0.11.0 or greater)
 - Any number of additional **spoke clusters** that have been configured as OCM [ManagedClusters](https://open-cluster-management.io/concepts/managedcluster/)
 - [Kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl) (>= v1.14.0)
-- Either a preexisting [cert-manager](https://cert-manager.io/) installation or the [Kustomize](https://kubectl.docs.kubernetes.io/installation/kustomize/) and [Helm](https://helm.sh/docs/intro/quickstart/#install-helm) CLIs
+- Either a pre-existing [cert-manager](https://cert-manager.io/)(>=v1.12.2) installation or the [Kustomize](https://kubectl.docs.kubernetes.io/installation/kustomize/) and [Helm](https://helm.sh/docs/intro/quickstart/#install-helm) CLIs
+- Amazon Web services (AWS) and or Google cloud provider (GCP) credential [secret](../dnspolicy/dns-provider.md)
 
 ## Configure OCM with RawFeedbackJsonString Feature Gate
 
@@ -73,12 +74,13 @@ gatewayclass.gateway.networking.k8s.io/kuadrant-multi-cluster-gateway-instance-p
 
 ## Creating a ManagedZone
 
-To manage the creation of DNS records, MGC uses [ManagedZone](../dnspolicy/managed-zone.md) resources. A `ManagedZone` can be configured to use DNS Zones on either AWS (Route53), and GCP. We will now create a ManagedZone on the cluster using AWS credentials.
+To manage the creation of DNS records, MGC uses [ManagedZone](https://docs.kuadrant.io/multicluster-gateway-controller/docs/how-to/managedZone/) resources. A `ManagedZone` can be configured to use DNS Zones on both AWS (Route53), and GCP (Cloud DNS). 
 
-First, export the [environment variables detailed here](https://docs.kuadrant.io/multicluster-gateway-controller/docs/getting-started/#config) in a terminal session.
+First, depending on the provider you would like to use export the [environment variables detailed here](https://docs.kuadrant.io/multicluster-gateway-controller/docs/getting-started/#config) in a terminal session.
 
-Next, create a secret containing the AWS credentials. We'll also create a namespace for your MGC configs:
+Next, create a secret containing either the AWS or GCP credentials. We'll also create a namespace for your MGC configs:
 
+#### AWS:
 ```bash
 cat <<EOF | kubectl apply -f -
 apiVersion: v1
@@ -98,8 +100,29 @@ stringData:
   AWS_REGION: ${MGC_AWS_REGION}
 EOF
 ```
+#### GCP
+```bash
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: multi-cluster-gateways
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mgc-gcp-credentials
+  namespace: multi-cluster-gateways
+type: "kuadrant.io/gcp"
+stringData:
+  GOOGLE: ${GOOGLE}
+  PROJECT_ID: ${PROJECT_ID}
+EOF
+```
 
 A `ManagedZone` can then be created:
+
+#### AWS:
 
 ```bash
 cat <<EOF | kubectl apply -f -
@@ -114,6 +137,24 @@ spec:
   description: "Dev Managed Zone"
   dnsProviderSecretRef:
     name: mgc-aws-credentials
+    namespace: multi-cluster-gateways
+EOF
+```
+#### GCP
+
+```bash
+cat <<EOF | kubectl apply -f -
+apiVersion: kuadrant.io/v1alpha1
+kind: ManagedZone
+metadata:
+  name: mgc-dev-mz
+  namespace: multi-cluster-gateways
+spec:
+  id: ${ZONE_NAME}
+  domainName: ${ZONE_DNS_NAME}
+  description: "Dev Managed Zone"
+  dnsProviderSecretRef:
+    name: mgc-gcp-credentials
     namespace: multi-cluster-gateways
 EOF
 ```
