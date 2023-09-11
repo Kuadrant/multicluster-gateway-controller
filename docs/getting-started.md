@@ -33,5 +33,5 @@ Export environment variables with the keys listed below. Fill in your own values
 
 ### What's Next
 
-Now that you have two Kind clusters configured with the Multicluster Gateway Controller installed you are ready to begin [creating gateways](https://docs.kuadrant.io/multicluster-gateway-controller/docs/how-to/ocm-control-plane-walkthrough/#open-terminal-sessions-and-set-cluster-context).
+Now that you have two Kind clusters configured with the Multicluster Gateway Controller installed you are ready to begin [the Multicluster Gateways walkthrough.](how-to/multicluster-gateways-walkthrough.md)
 
