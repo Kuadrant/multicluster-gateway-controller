@@ -19,12 +19,12 @@
 
 MGC_BRANCH=${MGC_BRANCH:="main"}
 
-source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/R-Lawton/multi-cluster-traffic-controller/gh-502/hack/.quickstartEnv)"
-source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/R-Lawton/multi-cluster-traffic-controller/gh-502/hack/.kindUtils)"
-source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/R-Lawton/multi-cluster-traffic-controller/gh-502/hack/.cleanupUtils)"
-source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/R-Lawton/multi-cluster-traffic-controller/gh-502/hack/.deployUtils)"
-source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/R-Lawton/multi-cluster-traffic-controller/gh-502/hack/.startUtils)"
-source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/R-Lawton/multi-cluster-traffic-controller/gh-502/hack/.setupEnv)"
+source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/${MGC_BRANCH}/hack/.quickstartEnv)"
+source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/${MGC_BRANCH}/hack/.kindUtils)"
+source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/${MGC_BRANCH}/hack/.cleanupUtils)"
+source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/${MGC_BRANCH}/hack/.deployUtils)"
+source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/${MGC_BRANCH}/hack/.startUtils)"
+source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/${MGC_BRANCH}/hack/.setupEnv)"
 
 export OPERATOR_SDK_BIN=$(dockerBinCmd "operator-sdk")
 export YQ_BIN=$(dockerBinCmd "yq")
@@ -44,8 +44,7 @@ fi
 
 
 # Prompt user for any required env vars that have not been set
-echo "tesssst"
-requiredENV 
+requiredENV
 
 # Default config
 if [[ -z "${LOG_LEVEL}" ]]; then
@@ -71,7 +70,7 @@ deployOCMHub ${KIND_CLUSTER_CONTROL_PLANE} "minimal"
 # Deploy Quick start kustomize
 deployQuickStartControl ${KIND_CLUSTER_CONTROL_PLANE}
 # Initialize local dev setup for the controller on the control-plane cluster
-configureController ${KIND_CLUSTER_CONTROL_PLANE} 
+configureController ${KIND_CLUSTER_CONTROL_PLANE}
 # Deploy MetalLb
 configureMetalLB ${KIND_CLUSTER_CONTROL_PLANE} ${metalLBSubnetStart}
 configureControlCluster ${KIND_CLUSTER_CONTROL_PLANE}

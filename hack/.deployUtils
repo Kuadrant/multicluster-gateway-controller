@@ -324,14 +324,10 @@ deployPrometheusForFederation() {
 
 configureController() {
     clusterName=${1}
-    PROVIDER=${2}
     kubectl config use-context kind-${clusterName}
     echo "Initialize local dev setup for the controller on ${clusterName}"
-    echo "TEST $PROVIDER"
 
   if [ -n "$MGC_AWS_ACCESS_KEY_ID" ]; then
-    echo "AWSSSSSS $MGC_AWS_ACCESS_KEY_ID"
-
     cat <<EOF | kubectl apply -f -
 apiVersion: v1
 kind: Secret
@@ -372,10 +368,6 @@ spec:
     namespace: multicluster-gateway-controller-system
 EOF
 else
-echo "GCPPPPP"
-echo "TEST $GOOGLE"
-echo "TEST $PROJECT_ID"
-
     cat <<EOF | kubectl apply -f -
 apiVersion: v1
 kind: Secret
@@ -414,7 +406,6 @@ spec:
     name: ${KIND_CLUSTER_PREFIX}gcp-credentials
     namespace: multicluster-gateway-controller-system
 EOF
-
 fi
 }
 

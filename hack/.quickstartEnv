@@ -20,9 +20,9 @@ requiredENV() {
     exit 1
   fi
 
-  if [[ "$PROVIDER" == "aws" ]]; then
+  if [[ "$PROVIDER" == "AWS" ]]; then
     if [[ -z "${MGC_AWS_ACCESS_KEY_ID}" ]]; then
-    echo "Enter an AWS access key id for an Account where you have access to Route53:"
+    echo "Enter an AWS secret access key id for an Account where you have access to Route53:"
     read MGC_AWS_ACCESS_KEY_ID </dev/tty
     echo "export MGC_AWS_ACCESS_KEY_ID for future executions of the script to skip this step"
     fi
@@ -74,10 +74,5 @@ requiredENV() {
       read ZONE_NAME </dev/tty
       echo "export ZONE_NAME for future executions of the script to skip this step"
       fi
-    fi  
-
-    
-    
-
-
+    fi 
 }
