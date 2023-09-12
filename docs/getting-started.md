@@ -27,9 +27,11 @@ Export environment variables with the keys listed below. Fill in your own values
 
 ### Set Up Clusters and Multicluster Gateway Controller
 
-   ```bash
-    curl https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/quickstart-setup.sh | bash
-   ```
+Run the following:
+
+```bash
+curl https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/main/hack/quickstart-setup.sh | bash
+```
 
 ### What's Next
 
