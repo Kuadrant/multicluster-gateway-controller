@@ -129,7 +129,7 @@ func (r *DNSPolicyReconciler) expectedProbesForGateway(ctx context.Context, gw c
 			log.V(1).Info("reconcileHealthChecks: adding health check for target", "target", address.Value)
 			healthCheck := &v1alpha1.DNSHealthCheckProbe{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      fmt.Sprintf("%s-%s-%s", matches[1], dnsPolicy.Name, listener.Name),
+					Name:      dnsHealthCheckProbeName(matches[1], gw.Name, string(listener.Name)),
 					Namespace: gw.Namespace,
 					Labels:    commonDNSRecordLabels(client.ObjectKeyFromObject(gw), client.ObjectKeyFromObject(dnsPolicy)),
 				},
@@ -151,4 +151,8 @@ func (r *DNSPolicyReconciler) expectedProbesForGateway(ctx context.Context, gw c
 	}
 
 	return healthChecks
+}
+
+func dnsHealthCheckProbeName(address, gatewayName, listenerName string) string {
+	return fmt.Sprintf("%s-%s", address, dnsRecordName(gatewayName, listenerName))
 }
