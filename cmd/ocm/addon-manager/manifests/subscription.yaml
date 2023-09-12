@@ -7,7 +7,7 @@ spec:
   channel: alpha
   installPlanApproval: Automatic
   name: kuadrant-operator
-  source: operatorhubio-catalog
+  source: {{.CatalogSource}}
   sourceNamespace: olm
   config:
     env: 
