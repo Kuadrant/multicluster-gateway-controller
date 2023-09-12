@@ -171,8 +171,14 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// gateway now in expected state, place gateway and its associated objects in correct places. Update gateway spec/metadata
 	log.V(3).Info("reconcileDownstreamFromUpstreamGateway result ", "requeue", requeue, "status", programmedStatus, "clusters", clusters, "Err", reconcileErr)
 	if reconcileErr != nil {
+		//TODO (cbrookes) refactor how status is handled in this controller
 		if errors.Is(reconcileErr, gracePeriod.ErrGracePeriodNotExpired) || requeue {
 			log.V(3).Info("requeueing gateway ", "error", reconcileErr, "requeue", requeue)
+			programmedCondition := buildProgrammedCondition(upstreamGateway.Generation, clusters, metav1.ConditionUnknown, reconcileErr)
+			meta.SetStatusCondition(&upstreamGateway.Status.Conditions, programmedCondition)
+			if !isDeleting(upstreamGateway) && !reflect.DeepEqual(upstreamGateway.Status, previous.Status) {
+				return reconcile.Result{}, r.Status().Update(ctx, upstreamGateway)
+			}
 			return reconcile.Result{
 				Requeue:      true,
 				RequeueAfter: 30 * time.Second,
@@ -244,6 +250,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	upstreamGateway.Status.Listeners = allListenerStatuses
 
 	acceptedCondition := buildAcceptedCondition(upstreamGateway.Generation, metav1.ConditionTrue)
+	fmt.Println("PROGRAMMED CONDITION ** ", err, programmedStatus)
 	programmedCondition := buildProgrammedCondition(upstreamGateway.Generation, clusters, programmedStatus, err)
 
 	meta.SetStatusCondition(&upstreamGateway.Status.Conditions, acceptedCondition)
@@ -329,6 +336,7 @@ func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.C
 func (r *GatewayReconciler) getTLSSecrets(ctx context.Context, upstreamGateway *gatewayv1beta1.Gateway, downstreamGateway *gatewayv1beta1.Gateway) ([]metav1.Object, error) {
 	log := crlog.FromContext(ctx)
 	tlsSecrets := []metav1.Object{}
+	var listenerTLSErr error
 	for _, listener := range upstreamGateway.Spec.Listeners {
 		if listener.TLS != nil {
 			for _, secretRef := range listener.TLS.CertificateRefs {
@@ -342,6 +350,7 @@ func (r *GatewayReconciler) getTLSSecrets(ctx context.Context, upstreamGateway *
 				}}
 				if err := r.Client.Get(ctx, client.ObjectKeyFromObject(tlsSecret), tlsSecret); err != nil {
 					log.Error(err, "cant find tls secret")
+					listenerTLSErr = errors.Join(fmt.Errorf("failed to find tls secret for listener %s %w", listener.Name, err))
 					continue
 				}
 
@@ -356,7 +365,7 @@ func (r *GatewayReconciler) getTLSSecrets(ctx context.Context, upstreamGateway *
 			}
 		}
 	}
-	return tlsSecrets, nil
+	return tlsSecrets, listenerTLSErr
 }
 
 func (r *GatewayReconciler) reconcileParams(_ context.Context, gateway *gatewayv1beta1.Gateway, params *Params) error {
@@ -375,21 +384,24 @@ func buildProgrammedCondition(generation int64, placed []string, programmedStatu
 	if err != nil {
 		errorMsg = err.Error()
 	}
+	var reason = gatewayv1beta1.GatewayReasonProgrammed
 	message := "waiting for gateway to placed on clusters %v %s"
 	if programmedStatus == metav1.ConditionTrue {
 		message = "gateway placed on clusters %v %s"
 	}
 	if programmedStatus == metav1.ConditionFalse {
 		message = "gateway failed to be placed on all clusters %v error %s"
+		reason = gatewayv1beta1.GatewayReasonInvalid
 	}
 	if programmedStatus == metav1.ConditionUnknown {
 		message = "current state of the gateway is unknown error %s"
+		reason = gatewayv1beta1.GatewayReasonPending
 	}
 
 	cond := metav1.Condition{
 		Type:               string(gatewayv1beta1.GatewayConditionProgrammed),
 		Status:             programmedStatus,
-		Reason:             string(gatewayv1beta1.GatewayReasonProgrammed),
+		Reason:             string(reason),
 		Message:            fmt.Sprintf(message, placed, errorMsg),
 		ObservedGeneration: generation,
 	}

@@ -400,7 +400,7 @@ func TestGatewayReconciler_getTLSSecrets(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "returns empty list for HTTPS listener when secret doesn't exist",
+			name: "returns error for HTTPS listener when secret doesn't exist",
 			fields: fields{
 				Client: testutil.GetValidTestClient(),
 				Scheme: testutil.GetValidTestScheme(),
@@ -450,7 +450,7 @@ func TestGatewayReconciler_getTLSSecrets(t *testing.T) {
 				},
 			},
 			want:    []v1.Object{},
-			wantErr: false,
+			wantErr: true,
 		},
 		{
 			name: "returns empty list for HTTP listener",
@@ -557,8 +557,8 @@ func Test_buildProgrammedStatus(t *testing.T) {
 					Type:               string(gatewayv1beta1.GatewayConditionProgrammed),
 					Status:             v1.ConditionFalse,
 					ObservedGeneration: 1,
-					Reason:             string(gatewayv1beta1.GatewayReasonProgrammed),
-					Message:            "gateway failed to be placed",
+					Reason:             string(gatewayv1beta1.GatewayReasonInvalid),
+					Message:            "gateway failed to be placed on all clusters [] error",
 				},
 			},
 		},
@@ -578,7 +578,7 @@ func Test_buildProgrammedStatus(t *testing.T) {
 					Type:               string(gatewayv1beta1.GatewayConditionProgrammed),
 					Status:             v1.ConditionUnknown,
 					ObservedGeneration: 1,
-					Reason:             string(gatewayv1beta1.ListenerReasonProgrammed),
+					Reason:             string(gatewayv1beta1.GatewayReasonPending),
 					Message:            "current state of the gateway is unknown error",
 				},
 			},
