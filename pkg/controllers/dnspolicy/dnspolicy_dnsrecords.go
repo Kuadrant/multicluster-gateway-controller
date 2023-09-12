@@ -111,9 +111,14 @@ func (r *DNSPolicyReconciler) reconcileGatewayDNSRecords(ctx context.Context, ga
 		if err != nil {
 			return fmt.Errorf("failed to create multi cluster gateway target for listener %s : %s ", listener.Name, err)
 		}
-		log.Info("setting dns dnsTargets for gateway listener", "listener", dnsRecord.Name, "values", mcgTarget)
 
-		if err := r.dnsHelper.setEndpoints(ctx, mcgTarget, dnsRecord, dnsPolicy, listener); err != nil {
+		log.Info("setting dns dnsTargets for gateway listener", "listener", dnsRecord.Name, "values", mcgTarget)
+		probes, err := r.dnsHelper.getDNSHealthCheckProbes(ctx, mcgTarget.Gateway, dnsPolicy)
+		if err != nil {
+			return err
+		}
+		mcgTarget.RemoveUnhealthyGatewayAddresses(probes, listener)
+		if err := r.dnsHelper.setEndpoints(ctx, mcgTarget, dnsRecord, listener); err != nil {
 			return fmt.Errorf("failed to add dns record dnsTargets %s %v", err, mcgTarget)
 		}
 	}
