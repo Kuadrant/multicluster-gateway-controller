@@ -74,7 +74,7 @@ gatewayclass.gateway.networking.k8s.io/kuadrant-multi-cluster-gateway-instance-p
 
 ## Creating a ManagedZone
 
-To manage the creation of DNS records, MGC uses [ManagedZone](https://docs.kuadrant.io/multicluster-gateway-controller/docs/how-to/managedZone/) resources. A `ManagedZone` can be configured to use DNS Zones on both AWS (Route53), and GCP (Cloud DNS). 
+To manage the creation of DNS records, MGC uses [ManagedZone](../dnspolicy/managed-zone.md) resources. A `ManagedZone` can be configured to use DNS Zones on both AWS (Route53), and GCP (Cloud DNS). 
 
 First, depending on the provider you would like to use export the [environment variables detailed here](https://docs.kuadrant.io/multicluster-gateway-controller/docs/getting-started/#config) in a terminal session.
 
