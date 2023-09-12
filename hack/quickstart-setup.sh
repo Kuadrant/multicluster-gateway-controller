@@ -16,9 +16,12 @@
 # limitations under the License.
 #
 
-
-MGC_BRANCH=${MGC_BRANCH:="main"}
+if [ -z $MGC_BRANCH ]; then
+  MGC_BRANCH=${MGC_BRANCH:="main"}
+fi
+if [ -z $MGC_ACCOUNT ]; then
 MGC_ACCOUNT=${MGC_ACCOUNT:="kuadrant"}
+fi
 
 source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/${MGC_ACCOUNT}/multicluster-gateway-controller/${MGC_BRANCH}/hack/.quickstartEnv)"
 source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/${MGC_ACCOUNT}/multicluster-gateway-controller/${MGC_BRANCH}/hack/.kindUtils)"

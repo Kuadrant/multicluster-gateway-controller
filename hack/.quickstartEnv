@@ -11,16 +11,16 @@ export KUSTOMIZE_BIN=$(dockerBinCmd "kustomize")
 
 requiredENV() {
 
-  echo "Enter which DNS provider you will be using (GCP/AWS)"
+  echo "Enter which DNS provider you will be using (gcp/aws)"
   read PROVIDER </dev/tty
-  if [[ "$PROVIDER" =~ ^(GCP|AWS)$ ]]; then
+  if [[ "$PROVIDER" =~ ^(gcp|aws)$ ]]; then
     echo "Provider chosen: $PROVIDER."
   else
-    echo "Invalid input given. Please enter either 'GCP' or 'AWS' (case sensitive)."
+    echo "Invalid input given. Please enter either 'gcp' or 'aws' (case sensitive)."
     exit 1
   fi
 
-  if [[ "$PROVIDER" == "AWS" ]]; then
+  if [[ "$PROVIDER" == "aws" ]]; then
     if [[ -z "${MGC_AWS_ACCESS_KEY_ID}" ]]; then
     echo "Enter an AWS secret access key id for an Account where you have access to Route53:"
     read MGC_AWS_ACCESS_KEY_ID </dev/tty
@@ -51,12 +51,16 @@ requiredENV() {
     echo "export MGC_ZONE_ROOT_DOMAIN for future executions of the script to skip this step"
     fi
   else 
-    if [[ -z "${GOOGLE}" ]]; then
+      if [[ -z "${GOOGLE}" ]]; then
       echo "Enter either credentials created either by CLI or by service account (Please make sure the credentials provided are in JSON format)"
       read GOOGLE </dev/tty
+        if ! jq -e . <<< "$GOOGLE" >/dev/null 2>&1; then
+          echo "Credentials provided is not in JSON format"
+          exit 1
+        fi
       echo "export GOOGLE for future executions of the script to skip this step"
       fi
-
+        
       if [[ -z "${PROJECT_ID}" ]]; then
       echo "Enter the project id for your GCP Cloud DNS:"
       read PROJECT_ID </dev/tty
