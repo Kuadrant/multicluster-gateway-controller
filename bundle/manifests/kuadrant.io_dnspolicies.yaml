@@ -61,6 +61,8 @@ spec:
                     type: array
                   failureThreshold:
                     type: integer
+                  interval:
+                    type: string
                   port:
                     type: integer
                   protocol:
