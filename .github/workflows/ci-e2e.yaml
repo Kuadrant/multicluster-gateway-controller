@@ -67,7 +67,7 @@ jobs:
           make local-setup
       - name: Deploy MGC
         run: |
-          make kind-load-controller deploy-controller
+          make docker-build-controller kind-load-controller deploy-controller
           kubectl --context kind-mgc-control-plane -n multicluster-gateway-controller-system wait --timeout=300s --for=condition=Available deployment/mgc-controller-manager
           kubectl --context kind-mgc-control-plane logs --all-containers --ignore-errors deployment/mgc-controller-manager -n multicluster-gateway-controller-system
           kubectl get managedzones -n multi-cluster-gateways mgc-dev-mz-aws -o yaml
