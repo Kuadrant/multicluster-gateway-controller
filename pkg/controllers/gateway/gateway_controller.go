@@ -28,6 +28,7 @@ import (
 	workv1 "open-cluster-management.io/api/work/v1"
 
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -293,9 +294,12 @@ func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.C
 	}
 
 	// get tls secrets for all TLS listeners.
-	tlsSecrets, err := r.getTLSSecrets(ctx, upstreamGateway, downstream)
+	tlsSecrets, ok, err := r.getTLSSecrets(ctx, upstreamGateway, downstream)
 	if err != nil {
 		return true, metav1.ConditionFalse, clusters, fmt.Errorf("failed to get tls secrets : %s", err)
+	}
+	if !ok {
+		return true, metav1.ConditionFalse, clusters, errors.New("not all tls secrets were found")
 	}
 
 	// some of this should be pulled from gateway class params
@@ -326,7 +330,7 @@ func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.C
 	return false, metav1.ConditionUnknown, clusters, nil
 }
 
-func (r *GatewayReconciler) getTLSSecrets(ctx context.Context, upstreamGateway *gatewayv1beta1.Gateway, downstreamGateway *gatewayv1beta1.Gateway) ([]metav1.Object, error) {
+func (r *GatewayReconciler) getTLSSecrets(ctx context.Context, upstreamGateway *gatewayv1beta1.Gateway, downstreamGateway *gatewayv1beta1.Gateway) ([]metav1.Object, bool, error) {
 	log := crlog.FromContext(ctx)
 	tlsSecrets := []metav1.Object{}
 	for _, listener := range upstreamGateway.Spec.Listeners {
@@ -341,6 +345,10 @@ func (r *GatewayReconciler) getTLSSecrets(ctx context.Context, upstreamGateway *
 					Namespace: ns,
 				}}
 				if err := r.Client.Get(ctx, client.ObjectKeyFromObject(tlsSecret), tlsSecret); err != nil {
+					if k8serrors.IsNotFound(err) {
+						return tlsSecrets, false, nil
+					}
+
 					log.Error(err, "cant find tls secret")
 					continue
 				}
@@ -356,7 +364,7 @@ func (r *GatewayReconciler) getTLSSecrets(ctx context.Context, upstreamGateway *
 			}
 		}
 	}
-	return tlsSecrets, nil
+	return tlsSecrets, true, nil
 }
 
 func (r *GatewayReconciler) reconcileParams(_ context.Context, gateway *gatewayv1beta1.Gateway, params *Params) error {

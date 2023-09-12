@@ -483,7 +483,7 @@ func TestGatewayReconciler_getTLSSecrets(t *testing.T) {
 				Scheme:    testCase.fields.Scheme,
 				Placement: fakeplacement.NewTestGatewayPlacer(),
 			}
-			got, err := r.getTLSSecrets(context.TODO(), testCase.args.upstreamGateway, testCase.args.downstreamGateway)
+			got, _, err := r.getTLSSecrets(context.TODO(), testCase.args.upstreamGateway, testCase.args.downstreamGateway)
 			if (err != nil) != testCase.wantErr {
 				t.Errorf("reconcileTLS() error = %v, wantErr %v", err, testCase.wantErr)
 				return

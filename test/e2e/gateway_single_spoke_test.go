@@ -53,8 +53,19 @@ var _ = Describe("Gateway single target cluster", func() {
 		err := tconfig.HubClient().Create(ctx, placement)
 		Expect(err).ToNot(HaveOccurred())
 
-		By("creating a Gateway in the hub")
 		hostname = gatewayapi.Hostname(strings.Join([]string{testID, tconfig.ManagedZone()}, "."))
+
+		By("creating a dummy TLS secret")
+		tlsSecret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      string(hostname),
+				Namespace: tconfig.HubNamespace(),
+			},
+		}
+		err = tconfig.HubClient().Create(ctx, tlsSecret)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("creating a Gateway in the hub")
 		gw = &gatewayapi.Gateway{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      testID,
