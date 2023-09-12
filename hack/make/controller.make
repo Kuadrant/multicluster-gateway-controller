@@ -20,7 +20,7 @@ docker-build-controller: ## Build docker image with the controller.
 	docker image prune -f --filter label=stage=mgc-builder
 
 .PHONY: kind-load-controller
-kind-load-controller: docker-build-controller
+kind-load-controller: 
 	kind load docker-image ${CONTROLLER_IMG} --name mgc-control-plane  --nodes mgc-control-plane-control-plane
 
 .PHONY: docker-push-controller
