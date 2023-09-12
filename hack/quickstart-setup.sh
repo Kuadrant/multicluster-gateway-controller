@@ -18,19 +18,20 @@
 
 
 MGC_BRANCH=${MGC_BRANCH:="main"}
+MGC_ACCOUNT=${MGC_ACCOUNT:="kuadrant"}
 
-source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/${MGC_BRANCH}/hack/.quickstartEnv)"
-source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/${MGC_BRANCH}/hack/.kindUtils)"
-source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/${MGC_BRANCH}/hack/.cleanupUtils)"
-source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/${MGC_BRANCH}/hack/.deployUtils)"
-source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/${MGC_BRANCH}/hack/.startUtils)"
-source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/kuadrant/multicluster-gateway-controller/${MGC_BRANCH}/hack/.setupEnv)"
+source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/${MGC_ACCOUNT}/multicluster-gateway-controller/${MGC_BRANCH}/hack/.quickstartEnv)"
+source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/${MGC_ACCOUNT}/multicluster-gateway-controller/${MGC_BRANCH}/hack/.kindUtils)"
+source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/${MGC_ACCOUNT}/multicluster-gateway-controller/${MGC_BRANCH}/hack/.cleanupUtils)"
+source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/${MGC_ACCOUNT}/multicluster-gateway-controller/${MGC_BRANCH}/hack/.deployUtils)"
+source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/${MGC_ACCOUNT}/multicluster-gateway-controller/${MGC_BRANCH}/hack/.startUtils)"
+source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/${MGC_ACCOUNT}/multicluster-gateway-controller/${MGC_BRANCH}/hack/.setupEnv)"
 
 export OPERATOR_SDK_BIN=$(dockerBinCmd "operator-sdk")
 export YQ_BIN=$(dockerBinCmd "yq")
 export CLUSTERADM_BIN=$(dockerBinCmd "clusteradm")
 
-MGC_REPO=${MGC_REPO:="github.com/kuadrant/multicluster-gateway-controller.git"}
+MGC_REPO=${MGC_REPO:="github.com/${MGC_ACCOUNT}/multicluster-gateway-controller.git"}
 QUICK_START_HUB_KUSTOMIZATION=${MGC_REPO}/config/quick-start/control-cluster
 QUICK_START_SPOKE_KUSTOMIZATION=${MGC_REPO}/config/quick-start/workload-cluster
 
