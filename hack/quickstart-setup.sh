@@ -94,4 +94,4 @@ echo ""
 echo "What's next...
 
       Now that you have 2 kind clusters configured and with multicluster-gateway-controller installed you are ready to begin creating gateways
-      Visit https://docs.kuadrant.io/multicluster-gateway-controller/docs/how-to/ocm-control-plane-walkthrough/#create-a-gateway for next steps"
+      Visit https://docs.kuadrant.io/multicluster-gateway-controller/docs/how-to/multicluster-gateways-walkthrough/ for next steps"
