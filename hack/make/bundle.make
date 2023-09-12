@@ -50,6 +50,18 @@ bundle: manifests operator-sdk kustomize
 	$(OPERATOR_SDK) generate kustomize manifests -q --apis-dir pkg/apis/v1alpha1
 	$(KUSTOMIZE) build config/manifests | $(OPERATOR_SDK) generate bundle -q $(BUNDLE_METADATA_OPTS)
 	$(OPERATOR_SDK) bundle validate ./bundle
+	$(MAKE) bundle-ignore-createdAt
+
+# Since operator-sdk 1.26.0, `make bundle` changes the `createdAt` field from the bundle
+# even if it is patched:
+#   https://github.com/operator-framework/operator-sdk/pull/6136
+# This code checks if only the createdAt field. If is the only change, it is ignored.
+# Else, it will do nothing.
+# https://github.com/operator-framework/operator-sdk/issues/6285#issuecomment-1415350333
+# https://github.com/operator-framework/operator-sdk/issues/6285#issuecomment-1532150678
+.PHONY: bundle-ignore-createdAt
+bundle-ignore-createdAt:
+	git diff --quiet -I'^    createdAt: ' ./bundle && git checkout ./bundle || true
 
 ## Build the bundle image.
 .PHONY: bundle-build
