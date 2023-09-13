@@ -19,13 +19,13 @@ This walkthrough will show you how to install and setup the Kuadrant Operator in
   * See also: https://istio.io/v1.17/blog/2022/getting-started-gtwapi/
 
 
-Alternatively, if you'd like to quickly get started locally, without having to worry to much about the pre-requisites, take a look our [Quickstart Guide](../getting-started.md). It will get you setup with Kind, OLM, OCM & Kuadrant in a few short steps.
+Alternatively, if you'd like to quickly get started locally, without having to worry to much about the pre-requisites, take a look our [Quickstart Guide](https://docs.kuadrant.io/getting-started/). It will get you setup with Kind, OLM, OCM & Kuadrant in a few short steps.
 
 
 ## Install the Kuadrant OCM Add-On
 
 
-**Note:** if you've run our [Getting Started Guide](../getting-started.md), you'll be set to run this command as-is.
+**Note:** if you've run our [Getting Started Guide](https://docs.kuadrant.io/getting-started/), you'll be set to run this command as-is.
 
 To install the Kuadrant Service Protection components into a `ManagedCluster`, target your OCM hub cluster with `kubectl` and run:
 

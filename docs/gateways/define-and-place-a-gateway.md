@@ -4,7 +4,7 @@ In this guide, we will go through defining a Gateway in the OCM hub cluster that
 
 ### Pre Requisites
 
-- Go through the [getting started guide](../getting-started.md). 
+- Go through the [getting started guide](https://docs.kuadrant.io/getting-started/). 
 
 You should start this guide with OCM installed, 1 or more spoke clusters registered with the hub and Kuadrant installed into the hub.
 
