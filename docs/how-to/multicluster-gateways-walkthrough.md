@@ -37,7 +37,7 @@ export `MGC_SUB_DOMAIN` in each terminal if you haven't already added it to your
     ```bash
     kubectl get managedzone -n multi-cluster-gateways
     ```
-1. You should see the following:
+    You should see the following:
     ```
     NAME          DOMAIN NAME      ID                                  RECORD COUNT   NAMESERVERS                                                                                        READY
     mgc-dev-mz   test.hcpapps.net   /hostedzone/Z08224701SVEG4XHW89W0   7              ["ns-1414.awsdns-48.org","ns-1623.awsdns-10.co.uk","ns-684.awsdns-21.net","ns-80.awsdns-10.com"]   True
@@ -97,14 +97,14 @@ You are now ready to begin creating a gateway! :tada:
     EOF
     ```
 
-1. You should now see a Certificate resource in the hub cluster. In `T1`, run:
+2. You should now see a Certificate resource in the hub cluster. In `T1`, run:
 
     ```bash
     kubectl get certificates -A
     ```
-    you'll see the following:
+    You should see the following:
     
-   ```
+    ```
     NAMESPACE                NAME               READY   SECRET             AGE
     multi-cluster-gateways   apps-hcpapps-tls   True    apps-hcpapps-tls   12m
     ```
@@ -140,7 +140,7 @@ This is because we haven't placed the gateway yet onto any of our ingress cluste
 
     Additionally, you should be able to see a secret containing a self-signed certificate.
 
-1. In `T1`, run:
+3. In `T1`, run:
 
     ```bash
     kubectl get secrets -n kuadrant-multi-cluster-gateways
@@ -167,7 +167,7 @@ So what about DNS how do we bring traffic to these gateways?
     No resources found
     ```
 
-1. Let's create a simple echo app with a HTTPRoute in one of the gateway clusters. Remember to replace the hostnames. Again we are creating this in the single hub cluster for now. In `T1`, run:
+2. Let's create a simple echo app with a HTTPRoute in one of the gateway clusters. Remember to replace the hostnames. Again we are creating this in the single hub cluster for now. In `T1`, run:
 
     ```bash
     kubectl apply -f - <<EOF
@@ -245,7 +245,7 @@ So what about DNS how do we bring traffic to these gateways?
 
    Once this is done, the Kuadrant multi-cluster gateway controller will pick up that a HTTPRoute has been attached to the Gateway it is managing from the hub and it will setup a DNS record to start bringing traffic to that gateway for the host defined in that listener.
 
-1. You should now see a DNSRecord resource in the hub cluster. In `T1`, run:
+2. You should now see a DNSRecord resource in the hub cluster. In `T1`, run:
 
     ```bash
     kubectl get dnsrecord -A
@@ -255,18 +255,18 @@ So what about DNS how do we bring traffic to these gateways?
     multi-cluster-gateways   prod-web-api         True
     ```
 
-1. You should also be able to see there is only 1 endpoint added which corresponds to address assigned to the gateway where the HTTPRoute was created. In `T1`, run:
+3. You should also be able to see there is only 1 endpoint added which corresponds to address assigned to the gateway where the HTTPRoute was created. In `T1`, run:
 
     ```bash
     kubectl get dnsrecord -n multi-cluster-gateways -o=yaml
     ```
 
-1. Give DNS a minute or two to update. You should then be able to execute the following and get back the correct A record. 
+4. Give DNS a minute or two to update. You should then be able to execute the following and get back the correct A record. 
 
     ```bash
     dig $MGC_SUB_DOMAIN
     ```
-1. You should also be able to curl that endpoint
+5. You should also be able to curl that endpoint
 
     ```bash
     curl -k https://$MGC_SUB_DOMAIN
@@ -284,13 +284,13 @@ So now we have a working gateway with DNS and TLS configured. Let place this gat
     kubectl label managedcluster kind-mgc-workload-1 ingress-cluster=true
     ```
 
-1. This has added our workload-1 cluster to the ingress clusterset. Next we need to modify our placement to update our `numberOfClusters` to 2. To patch, in `T1`, run:
+2. This has added our workload-1 cluster to the ingress clusterset. Next we need to modify our placement to update our `numberOfClusters` to 2. To patch, in `T1`, run:
 
     ```bash
     kubectl patch placement http-gateway -n multi-cluster-gateways --type='json' -p='[{"op": "replace", "path": "/spec/numberOfClusters", "value": 2}]'
     ```
 
-1. In `T2` window execute the following to see the gateway on the workload-1 cluster:
+3. In `T2` window execute the following to see the gateway on the workload-1 cluster:
 
     ```bash
     kubectl get gateways -A
@@ -303,7 +303,7 @@ So now we have a working gateway with DNS and TLS configured. Let place this gat
 
     So now we have second ingress cluster configured with the same Gateway. 
 
-1. In `T2`, targeting the second cluster, go ahead and create the HTTPRoute in the second gateway cluster.
+4. In `T2`, targeting the second cluster, go ahead and create the HTTPRoute in the second gateway cluster.
 
     >:exclamation: **Note:** Ensure the `MGC_SUB_DOMAIN` environment variable has been exported in this terminal session before applying this config.
    
@@ -362,7 +362,7 @@ So now we have a working gateway with DNS and TLS configured. Let place this gat
     EOF
     ```
 
-1. Now if you move back to the hub context in `T1` and take a look at the dnsrecord, you will see we now have two A records configured:
+5. Now if you move back to the hub context in `T1` and take a look at the dnsrecord, you will see we now have two A records configured:
 
 
   ```bash
@@ -372,7 +372,7 @@ So now we have a working gateway with DNS and TLS configured. Let place this gat
 ## Watching DNS changes
 If you want you can use ```watch dig $MGC_SUB_DOMAIN``` to see the DNS switching between the two addresses
 
-## Follow on Walkthroughs
-Some good follow on walkthroughs that build on this walkthrough
+## Follow-on Walkthroughs
+Some good follow-on walkthroughs that build on this walkthrough
 
 * [Deploying/Configuring Metrics.](../how-to/metrics-walkthrough.md)
