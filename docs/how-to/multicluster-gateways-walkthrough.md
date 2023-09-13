@@ -9,7 +9,7 @@ We will start with a single cluster and move to multiple clusters to illustrate 
 
 ## Requirements
 
-- Complete the [Getting Started Guide](../getting-started.md)
+- Complete the [Getting Started Guide](https://docs.kuadrant.io/getting-started/)
 
 ## Open terminal sessions and set cluster context
 
