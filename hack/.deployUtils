@@ -327,6 +327,7 @@ configureController() {
     kubectl config use-context kind-${clusterName}
     echo "Initialize local dev setup for the controller on ${clusterName}"
 
+  if [ -n "$MGC_AWS_ACCESS_KEY_ID" ]; then
     cat <<EOF | kubectl apply -f -
 apiVersion: v1
 kind: Secret
@@ -366,6 +367,46 @@ spec:
     name: ${KIND_CLUSTER_PREFIX}aws-credentials
     namespace: multicluster-gateway-controller-system
 EOF
+else
+    cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ${KIND_CLUSTER_PREFIX}gcp-credentials
+  namespace: multicluster-gateway-controller-system
+type: "kuadrant.io/gcp"
+stringData:
+  GOOGLE: '${GOOGLE}'
+  PROJECT_ID: ${PROJECT_ID}
+EOF
+
+    cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ${KIND_CLUSTER_PREFIX}controller-config
+  namespace: multicluster-gateway-controller-system
+data:
+  ZONE_DNS_NAME: ${ZONE_DNS_NAME}
+  ZONE_NAME: ${ZONE_NAME}
+  LOG_LEVEL: "${LOG_LEVEL}"
+EOF
+
+    cat <<EOF | kubectl apply -f -
+apiVersion: kuadrant.io/v1alpha1
+kind: ManagedZone
+metadata:
+  name: ${KIND_CLUSTER_PREFIX}dev-mz
+  namespace: multi-cluster-gateways
+spec:
+  id: ${ZONE_NAME}
+  domainName: ${ZONE_DNS_NAME}
+  description: "Dev Managed Zone"
+  dnsProviderSecretRef:
+    name: ${KIND_CLUSTER_PREFIX}gcp-credentials
+    namespace: multicluster-gateway-controller-system
+EOF
+fi
 }
 
 deployQuickStartControl() {
@@ -378,8 +419,8 @@ deployQuickStartControl() {
     echo "Waiting for cert-manager deployments to be ready"
     kubectl -n cert-manager wait --timeout=300s --for=condition=Available deployments --all
     echo "Waiting for istio deployments to be ready"
-    kubectl -n istio-operator wait --timeout=300s --for=condition=Available deployments --all
-    kubectl -n istio-system wait --timeout=300s --for=condition=Available deployments --all
+    kubectl -n istio-operator wait --timeout=350s --for=condition=Available deployments --all
+    kubectl -n istio-system wait --timeout=350s --for=condition=Available deployments --all
 }
 
 deployQuickStartWorkload() {
