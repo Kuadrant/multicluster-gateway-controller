@@ -7,7 +7,9 @@ across 2 clusters. Each cluster is running a Gateway with a HttpRoute in front
 of an application Service. By leveraging Skupper, the application Service can be
 exposed (using the skupper cli) from either cluster. If the Service is
 unavailable on the local cluster, it will be routed to another cluster that has
-exposed that Service.
+exposed that Service. This can be very useful in a situation where directing
+traffic to a specific Gateway via other means (like DNS) may take some time
+to take effect.
 
 ![arch](../images/skupper/skupper-poc-2-gateways-resiliency-walkthrough.png)
 
