@@ -250,7 +250,6 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	upstreamGateway.Status.Listeners = allListenerStatuses
 
 	acceptedCondition := buildAcceptedCondition(upstreamGateway.Generation, metav1.ConditionTrue)
-	fmt.Println("PROGRAMMED CONDITION ** ", err, programmedStatus)
 	programmedCondition := buildProgrammedCondition(upstreamGateway.Generation, clusters, programmedStatus, err)
 
 	meta.SetStatusCondition(&upstreamGateway.Status.Conditions, acceptedCondition)
