@@ -54,11 +54,11 @@ requiredENV() {
       if [[ -z "${GOOGLE}" ]]; then
       echo "Enter either credentials created either by CLI or by service account (Please make sure the credentials provided are in JSON format)"
       read GOOGLE </dev/tty
-        if ! jq -e . <<< "$GOOGLE" >/dev/null 2>&1; then
+      echo "export GOOGLE for future executions of the script to skip this step"
+      fi
+      if ! jq -e . <<< "$GOOGLE" >/dev/null 2>&1; then
           echo "Credentials provided is not in JSON format"
           exit 1
-        fi
-      echo "export GOOGLE for future executions of the script to skip this step"
       fi
         
       if [[ -z "${PROJECT_ID}" ]]; then
