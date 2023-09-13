@@ -1,0 +1,25 @@
+# Local deployment overlay.
+#
+# This requires the following .env files to exist in the project directory before
+# it can be used:
+# controller-config.env
+# aws-credentials.env
+
+resources:
+  - ../../default
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+configMapGenerator:
+  - name: controller-config
+    envs:
+      - ../../../controller-config.env
+
+secretGenerator:
+  - name: aws-credentials
+    envs:
+      - ../../../aws-credentials.env
+
+patchesStrategicMerge:
+- manager_config_patch.yaml

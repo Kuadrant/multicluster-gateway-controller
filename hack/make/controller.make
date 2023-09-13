@@ -35,6 +35,14 @@ deploy-controller: manifests kustomize ## Deploy controller to the K8s cluster s
 		$(KUSTOMIZE) build config/prometheus | kubectl apply -f -;\
 	fi
 
+.PHONY: deploy-controller-release-candidate
+deploy-controller-release-candidate: 
+	cd config/manager && $(KUSTOMIZE) edit set image controller=${CONTROLLER_IMG}
+	$(KUSTOMIZE) --load-restrictor LoadRestrictionsNone build config/deploy/release-testing | kubectl apply -f -
+	@if [ $(METRICS) = "true" ]; then\
+		$(KUSTOMIZE) build config/prometheus | kubectl apply -f -;\
+	fi
+
 .PHONY: undeploy-controller
 undeploy-controller: ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	@if [ $(METRICS) = "true" ]; then\
