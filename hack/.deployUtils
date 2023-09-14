@@ -322,13 +322,13 @@ deployPrometheusForFederation() {
 
 # quickstart-setup specific functions
 
-configureController() {
-    clusterName=${1}
-    kubectl config use-context kind-${clusterName}
-    echo "Initialize local dev setup for the controller on ${clusterName}"
+setupAWSProvider() {
+  if [ "$MGC_AWS_ACCESS_KEY_ID" == "" ]; then
+    echo "MGC_AWS_ACCESS_KEY_ID is not set"
+    exit 1
+  fi
 
-  if [ -n "$MGC_AWS_ACCESS_KEY_ID" ]; then
-    cat <<EOF | kubectl apply -f -
+  kubectl apply -f - <<EOF
 apiVersion: v1
 kind: Secret
 metadata:
@@ -339,9 +339,7 @@ stringData:
   AWS_ACCESS_KEY_ID: ${MGC_AWS_ACCESS_KEY_ID}
   AWS_SECRET_ACCESS_KEY: ${MGC_AWS_SECRET_ACCESS_KEY}
   AWS_REGION: ${MGC_AWS_REGION}
-EOF
-
-    cat <<EOF | kubectl apply -f -
+---
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -351,9 +349,7 @@ data:
   AWS_DNS_PUBLIC_ZONE_ID: ${MGC_AWS_DNS_PUBLIC_ZONE_ID}
   ZONE_ROOT_DOMAIN: ${MGC_ZONE_ROOT_DOMAIN}
   LOG_LEVEL: "${LOG_LEVEL}"
-EOF
-
-    cat <<EOF | kubectl apply -f -
+---
 apiVersion: kuadrant.io/v1alpha1
 kind: ManagedZone
 metadata:
@@ -367,8 +363,10 @@ spec:
     name: ${KIND_CLUSTER_PREFIX}aws-credentials
     namespace: multicluster-gateway-controller-system
 EOF
-else
-    cat <<EOF | kubectl apply -f -
+}
+
+setupGCPProvider() {
+  kubectl apply -f - <<EOF
 apiVersion: v1
 kind: Secret
 metadata:
@@ -378,9 +376,7 @@ type: "kuadrant.io/gcp"
 stringData:
   GOOGLE: '${GOOGLE}'
   PROJECT_ID: ${PROJECT_ID}
-EOF
-
-    cat <<EOF | kubectl apply -f -
+---
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -390,9 +386,7 @@ data:
   ZONE_DNS_NAME: ${ZONE_DNS_NAME}
   ZONE_NAME: ${ZONE_NAME}
   LOG_LEVEL: "${LOG_LEVEL}"
-EOF
-
-    cat <<EOF | kubectl apply -f -
+---
 apiVersion: kuadrant.io/v1alpha1
 kind: ManagedZone
 metadata:
@@ -406,8 +400,29 @@ spec:
     name: ${KIND_CLUSTER_PREFIX}gcp-credentials
     namespace: multicluster-gateway-controller-system
 EOF
-fi
 }
+
+configureController() {
+    clusterName=${1}
+    kubectl config use-context kind-${clusterName}
+    echo "Initialize local dev setup for the controller on ${clusterName}"
+
+    case $DNS_PROVIDER in
+      aws)
+          echo "Setting up an AWS Route 53 DNS provider"
+          setupAWSProvider
+          ;;
+      gcp)
+          echo "Setting up a Google Cloud DNS provider"
+          setupGCPProvider
+          ;;
+      *)
+        echo "Unknown DNS provider"
+        exit
+        ;;
+    esac
+}
+
 
 deployQuickStartControl() {
     clusterName=${1}
