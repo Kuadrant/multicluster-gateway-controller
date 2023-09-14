@@ -24,6 +24,7 @@ import (
 	gatewayapi "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	mgcv1alpha1 "github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	. "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 )
@@ -37,6 +38,7 @@ var _ = Describe("Gateway single target cluster", func() {
 	var hostname gatewayapi.Hostname
 	var gw *gatewayapi.Gateway
 	var placement *ocm_cluster_v1beta1.Placement
+	var tlsPolicy *v1alpha1.TLSPolicy
 
 	BeforeEach(func(ctx SpecContext) {
 		testID = "t-e2e-" + tconfig.GenerateName()
@@ -85,7 +87,32 @@ var _ = Describe("Gateway single target cluster", func() {
 		err = tconfig.HubClient().Create(ctx, gw)
 		Expect(err).ToNot(HaveOccurred())
 
-		By("creating a a test application in the spoke")
+		By("setting up  TLSPolicy in the hub")
+		tlsPolicy = &mgcv1alpha1.TLSPolicy{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      testID,
+				Namespace: tconfig.HubNamespace(),
+			},
+			Spec: mgcv1alpha1.TLSPolicySpec{
+				TargetRef: gatewayapiv1alpha2.PolicyTargetReference{
+					Group:     "gateway.networking.k8s.io",
+					Kind:      "Gateway",
+					Name:      gatewayapi.ObjectName(testID),
+					Namespace: Pointer(gatewayapi.Namespace(tconfig.HubNamespace())),
+				},
+				CertificateSpec: mgcv1alpha1.CertificateSpec{
+					IssuerRef: cmmetav1.ObjectReference{
+						Name:  "glbc-ca",
+						Kind:  "ClusterIssuer",
+						Group: "cert-manager.io",
+					},
+				},
+			},
+		}
+		err = tconfig.HubClient().Create(ctx, tlsPolicy)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("creating a test application in the spoke")
 
 		key := client.ObjectKey{Name: "test", Namespace: testID}
 
@@ -102,6 +129,10 @@ var _ = Describe("Gateway single target cluster", func() {
 
 	AfterEach(func(ctx SpecContext) {
 		err := tconfig.HubClient().Delete(ctx, gw,
+			client.PropagationPolicy(metav1.DeletePropagationForeground))
+		Expect(err).ToNot(HaveOccurred())
+
+		err = tconfig.HubClient().Delete(ctx, tlsPolicy,
 			client.PropagationPolicy(metav1.DeletePropagationForeground))
 		Expect(err).ToNot(HaveOccurred())
 
@@ -127,17 +158,24 @@ var _ = Describe("Gateway single target cluster", func() {
 				return tconfig.HubClient().Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.HubNamespace()}, gw)
 			}).WithContext(ctx).WithTimeout(10 * time.Second).WithPolling(2 * time.Second).ShouldNot(HaveOccurred())
 
-			Eventually(func(ctx SpecContext) bool {
+			Eventually(func(ctx SpecContext) error {
 				err := tconfig.HubClient().Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.HubNamespace()}, gw)
 				Expect(err).ToNot(HaveOccurred())
-				return meta.IsStatusConditionPresentAndEqual(gw.Status.Conditions, string(gatewayapi.GatewayConditionProgrammed), "Unknown")
-			}).WithContext(ctx).WithTimeout(10 * time.Second).WithPolling(2 * time.Second).Should(BeTrue())
+				if !meta.IsStatusConditionPresentAndEqual(gw.Status.Conditions, string(gatewayapi.GatewayConditionProgrammed), "Unknown") {
+					cond := meta.FindStatusCondition(gw.Status.Conditions, string(gatewayapi.GatewayConditionProgrammed))
+					return fmt.Errorf("Expected condition %s to be Unknown but got %v", string(gatewayapi.GatewayConditionProgrammed), cond)
+				}
+				return nil
+			}).WithContext(ctx).WithTimeout(10 * time.Second).WithPolling(2 * time.Second).ShouldNot(HaveOccurred())
 
-			Eventually(func(ctx SpecContext) bool {
+			Eventually(func(ctx SpecContext) error {
 				err := tconfig.HubClient().Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.HubNamespace()}, gw)
 				Expect(err).ToNot(HaveOccurred())
-				return meta.IsStatusConditionTrue(gw.Status.Conditions, string(gatewayapi.GatewayConditionAccepted))
-			}).WithContext(ctx).WithTimeout(10 * time.Second).WithPolling(2 * time.Second).Should(BeTrue())
+				if !meta.IsStatusConditionTrue(gw.Status.Conditions, string(gatewayapi.GatewayConditionAccepted)) {
+					return fmt.Errorf("Expected condition %s to be true", string(gatewayapi.GatewayConditionAccepted))
+				}
+				return nil
+			}).WithContext(ctx).WithTimeout(10 * time.Second).WithPolling(2 * time.Second).ShouldNot(HaveOccurred())
 
 		})
 	})
@@ -152,12 +190,11 @@ var _ = Describe("Gateway single target cluster", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		It("it is placed on the spoke cluster", func(ctx SpecContext) {
-
+		It("it is placed on the spoke cluster once the tls secrets exist", func(ctx SpecContext) {
 			istioGW := &gatewayapi.Gateway{}
 			Eventually(func(ctx SpecContext) error {
 				return tconfig.SpokeClient(0).Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.SpokeNamespace()}, istioGW)
-			}).WithContext(ctx).WithTimeout(60 * time.Second).WithPolling(10 * time.Second).ShouldNot(HaveOccurred())
+			}).WithContext(ctx).WithTimeout(120 * time.Second).WithPolling(10 * time.Second).ShouldNot(HaveOccurred())
 		})
 
 		When("an HTTPRoute is attached to the Gateway", func() {
@@ -204,37 +241,10 @@ var _ = Describe("Gateway single target cluster", func() {
 				Expect(err).ToNot(HaveOccurred())
 			})
 
-			When("a DNSPolicy and TLSPolicy are attached to the Gateway", func() {
-				var tlsPolicy *mgcv1alpha1.TLSPolicy
+			When("a DNSPolicy is attached to the Gateway", func() {
 				var dnsPolicy *mgcv1alpha1.DNSPolicy
 
 				BeforeEach(func(ctx SpecContext) {
-
-					By("creating a TLSPolicy in the hub")
-
-					tlsPolicy = &mgcv1alpha1.TLSPolicy{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      testID,
-							Namespace: tconfig.HubNamespace(),
-						},
-						Spec: mgcv1alpha1.TLSPolicySpec{
-							TargetRef: gatewayapiv1alpha2.PolicyTargetReference{
-								Group:     "gateway.networking.k8s.io",
-								Kind:      "Gateway",
-								Name:      gatewayapi.ObjectName(testID),
-								Namespace: Pointer(gatewayapi.Namespace(tconfig.HubNamespace())),
-							},
-							CertificateSpec: mgcv1alpha1.CertificateSpec{
-								IssuerRef: cmmetav1.ObjectReference{
-									Name:  "glbc-ca",
-									Kind:  "ClusterIssuer",
-									Group: "cert-manager.io",
-								},
-							},
-						},
-					}
-					err := tconfig.HubClient().Create(ctx, tlsPolicy)
-					Expect(err).ToNot(HaveOccurred())
 
 					By("creating a DNSPolicy in the hub")
 
@@ -252,14 +262,12 @@ var _ = Describe("Gateway single target cluster", func() {
 							},
 						},
 					}
-					err = tconfig.HubClient().Create(ctx, dnsPolicy)
+					err := tconfig.HubClient().Create(ctx, dnsPolicy)
 					Expect(err).ToNot(HaveOccurred())
 				})
 
 				AfterEach(func(ctx SpecContext) {
-					err := tconfig.SpokeClient(0).Delete(ctx, dnsPolicy)
-					Expect(err).ToNot(HaveOccurred())
-					err = tconfig.SpokeClient(0).Delete(ctx, tlsPolicy)
+					err := tconfig.HubClient().Delete(ctx, dnsPolicy)
 					Expect(err).ToNot(HaveOccurred())
 				})
 
