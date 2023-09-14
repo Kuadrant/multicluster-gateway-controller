@@ -6,4 +6,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: quay.io/kuadrant/multicluster-gateway-controller
-  newTag: main
+  newTag: 2c894f1
