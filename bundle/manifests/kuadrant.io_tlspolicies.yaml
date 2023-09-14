@@ -3,6 +3,7 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.10.0
+    gateway.networking.k8s.io/policy: direct
   creationTimestamp: null
   name: tlspolicies.kuadrant.io
 spec:

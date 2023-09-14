@@ -12,3 +12,7 @@ resources:
 # the following config is for teaching kustomize how to do kustomization for CRDs.
 configurations:
 - kustomizeconfig.yaml
+
+# Set the gateway.networking.k8s.io/policy annotation in the policies
+patchesStrategicMerge:
+  - patches/policy-patch.yaml
