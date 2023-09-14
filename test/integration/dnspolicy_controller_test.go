@@ -425,7 +425,13 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 					},
 				}
 				Eventually(func() error { // DNS record exists
-					return k8sClient.Get(ctx, client.ObjectKey{Name: dnsRecordName, Namespace: testNamespace}, createdDNSRecord)
+					if err := k8sClient.Get(ctx, client.ObjectKey{Name: dnsRecordName, Namespace: testNamespace}, createdDNSRecord); err != nil {
+						return err
+					}
+					if len(createdDNSRecord.Spec.Endpoints) != len(expectedEndpoints) {
+						return fmt.Errorf("expected %v endpoints in DNSRecord, got %v", len(expectedEndpoints), len(createdDNSRecord.Spec.Endpoints))
+					}
+					return nil
 				}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
 				Expect(createdDNSRecord.Spec.ManagedZoneRef.Name).To(Equal("example.com"))
 				Expect(createdDNSRecord.Spec.Endpoints).To(HaveLen(len(expectedEndpoints)))
@@ -508,7 +514,13 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 					},
 				}
 				Eventually(func() error { // DNS record exists
-					return k8sClient.Get(ctx, client.ObjectKey{Name: wildcardDNSRecordName, Namespace: testNamespace}, wildcardDNSRecord)
+					if err := k8sClient.Get(ctx, client.ObjectKey{Name: wildcardDNSRecordName, Namespace: testNamespace}, wildcardDNSRecord); err != nil {
+						return err
+					}
+					if len(wildcardDNSRecord.Spec.Endpoints) != len(expectedEndpoints) {
+						return fmt.Errorf("expected %v wildcard endpoints in DNSRecord, got %v", len(expectedEndpoints), len(wildcardDNSRecord.Spec.Endpoints))
+					}
+					return nil
 				}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
 				Expect(wildcardDNSRecord.Spec.ManagedZoneRef.Name).To(Equal("example.com"))
 				Expect(wildcardDNSRecord.Spec.Endpoints).To(HaveLen(len(expectedEndpoints)))
@@ -762,7 +774,13 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 					},
 				}
 				Eventually(func() error { // DNS record exists
-					return k8sClient.Get(ctx, client.ObjectKey{Name: dnsRecordName, Namespace: dnsPolicy.Namespace}, createdDNSRecord)
+					if err := k8sClient.Get(ctx, client.ObjectKey{Name: dnsRecordName, Namespace: dnsPolicy.Namespace}, createdDNSRecord); err != nil {
+						return err
+					}
+					if len(createdDNSRecord.Spec.Endpoints) != len(expectedEndpoints) {
+						return fmt.Errorf("expected %v endpoints in DNSRecord, got %v", len(expectedEndpoints), len(createdDNSRecord.Spec.Endpoints))
+					}
+					return nil
 				}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
 				Expect(createdDNSRecord.Spec.ManagedZoneRef.Name).To(Equal("example.com"))
 				Expect(createdDNSRecord.Spec.Endpoints).To(HaveLen(len(expectedEndpoints)))
@@ -773,7 +791,7 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 
 			It("should create a wildcard dns record", func() {
 				wildcardDNSRecord := &v1alpha1.DNSRecord{}
-				_ = []*v1alpha1.Endpoint{
+				expectedEndpoints := []*v1alpha1.Endpoint{
 					{
 						DNSName: "*.example.com",
 						Targets: []string{
@@ -864,12 +882,18 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 					},
 				}
 				Eventually(func() error { // DNS record exists
-					return k8sClient.Get(ctx, client.ObjectKey{Name: wildcardDNSRecordName, Namespace: dnsPolicy.Namespace}, wildcardDNSRecord)
+					if err := k8sClient.Get(ctx, client.ObjectKey{Name: wildcardDNSRecordName, Namespace: dnsPolicy.Namespace}, wildcardDNSRecord); err != nil {
+						return err
+					}
+					if len(wildcardDNSRecord.Spec.Endpoints) != len(expectedEndpoints) {
+						return fmt.Errorf("expected %v endpoints in DNSRecord, got %v", len(expectedEndpoints), len(wildcardDNSRecord.Spec.Endpoints))
+					}
+					return nil
 				}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
 				Expect(wildcardDNSRecord.Spec.ManagedZoneRef.Name).To(Equal("example.com"))
-				//Expect(wildcardDNSRecord.Spec.Endpoints).To(HaveLen(len(expectedEndpoints)))
-				//Expect(wildcardDNSRecord.Spec.Endpoints).Should(ContainElements(expectedEndpoints))
-				//Expect(expectedEndpoints).Should(ContainElements(wildcardDNSRecord.Spec.Endpoints))
+				Expect(wildcardDNSRecord.Spec.Endpoints).To(HaveLen(len(expectedEndpoints)))
+				Expect(wildcardDNSRecord.Spec.Endpoints).Should(ContainElements(expectedEndpoints))
+				Expect(expectedEndpoints).Should(ContainElements(wildcardDNSRecord.Spec.Endpoints))
 			})
 		})
 		Context("probes status impact DNS records", func() {
@@ -887,16 +911,26 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 			It("should create a dns record", func() {
 				createdDNSRecord := &v1alpha1.DNSRecord{}
 				Eventually(func() error { // DNS record exists
-					return k8sClient.Get(ctx, client.ObjectKey{Name: dnsRecordName, Namespace: testNamespace}, createdDNSRecord)
+					if err := k8sClient.Get(ctx, client.ObjectKey{Name: dnsRecordName, Namespace: testNamespace}, createdDNSRecord); err != nil {
+						return err
+					}
+					if len(createdDNSRecord.Spec.Endpoints) != 6 {
+						return fmt.Errorf("expected %v endpoints in DNSRecord, got %v", 6, len(createdDNSRecord.Spec.Endpoints))
+					}
+					return nil
 				}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
 				Expect(createdDNSRecord.Spec.Endpoints).To(HaveLen(6))
 			})
 			It("should have probes that are healthy", func() {
 				probeList := &v1alpha1.DNSHealthCheckProbeList{}
 				Eventually(func() error {
-					return k8sClient.List(ctx, probeList, &client.ListOptions{Namespace: testNamespace})
+					Expect(k8sClient.List(ctx, probeList, &client.ListOptions{Namespace: testNamespace})).To(BeNil())
+					if len(probeList.Items) != 2 {
+						return fmt.Errorf("expected %v probes, got %v", 2, len(probeList.Items))
+					}
+					return nil
 				}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
-				Expect(probeList.Items).To(HaveLen(2))
+				Expect(len(probeList.Items)).To(Equal(2))
 			})
 
 			Context("all unhealthy probes", func() {
@@ -1017,6 +1051,9 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 						if err != nil && k8serrors.IsNotFound(err) {
 							return err
 						}
+						if len(createdDNSRecord.Spec.Endpoints) != len(expectedEndpoints) {
+							return fmt.Errorf("expected %v endpoints in DNSRecord, got %v", len(expectedEndpoints), len(createdDNSRecord.Spec.Endpoints))
+						}
 						return nil
 					}, TestTimeoutLong, TestRetryIntervalMedium).Should(BeNil())
 					Expect(createdDNSRecord.Spec.Endpoints).To(HaveLen(len(expectedEndpoints)))
@@ -1040,6 +1077,15 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 							RecordTTL:     60,
 						},
 						{
+							DNSName: "s07c46.lb-" + lbHash + ".test.example.com",
+							Targets: []string{
+								TestAttachedRouteAddressOne,
+							},
+							RecordType:    "A",
+							SetIdentifier: "",
+							RecordTTL:     60,
+						},
+						{
 							DNSName: "default.lb-" + lbHash + ".test.example.com",
 							Targets: []string{
 								"2w705o.lb-" + lbHash + ".test.example.com",
@@ -1047,6 +1093,22 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 							RecordType:    "CNAME",
 							SetIdentifier: "2w705o.lb-" + lbHash + ".test.example.com",
 							RecordTTL:     60,
+							ProviderSpecific: v1alpha1.ProviderSpecific{
+								{
+									Name:  "weight",
+									Value: "120",
+								},
+							},
+						},
+						{
+							DNSName: "default.lb-" + lbHash + ".test.example.com",
+							Targets: []string{
+								"s07c46.lb-" + lbHash + ".test.example.com",
+							},
+							RecordType:    "CNAME",
+							SetIdentifier: "s07c46.lb-" + lbHash + ".test.example.com",
+							RecordTTL:     60,
+							Labels:        nil,
 							ProviderSpecific: v1alpha1.ProviderSpecific{
 								{
 									Name:  "weight",
@@ -1082,13 +1144,17 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 
 					probeList := &v1alpha1.DNSHealthCheckProbeList{}
 					Eventually(func() error {
-						return k8sClient.List(ctx, probeList, &client.ListOptions{Namespace: testNamespace})
+						Expect(k8sClient.List(ctx, probeList, &client.ListOptions{Namespace: testNamespace})).To(BeNil())
+						if len(probeList.Items) != 2 {
+							return fmt.Errorf("expected %v probes, got %v", 2, len(probeList.Items))
+						}
+						return nil
 					}, TestTimeoutLong, TestRetryIntervalMedium).Should(BeNil())
 					Expect(probeList.Items).To(HaveLen(2))
 
 					Eventually(func() error {
 						getProbe := &v1alpha1.DNSHealthCheckProbe{}
-						if err := k8sClient.Get(ctx, client.ObjectKey{Name: fmt.Sprintf("%s-%s-%s", TestAttachedRouteAddressOne, TestPlacedGatewayName, "api"), Namespace: testNamespace}, getProbe); err != nil {
+						if err := k8sClient.Get(ctx, client.ObjectKey{Name: fmt.Sprintf("%s-%s-%s", TestAttachedRouteAddressOne, TestPlacedGatewayName, TestAttachedRouteName), Namespace: testNamespace}, getProbe); err != nil {
 							return err
 						}
 						patch := client.MergeFrom(getProbe.DeepCopy())
@@ -1199,22 +1265,6 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 					}
 
 					err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway)
-					Expect(err).NotTo(HaveOccurred())
-					patch := client.MergeFrom(gateway.DeepCopy())
-					addressType := mgcgateway.MultiClusterIPAddressType
-					gateway.Status.Addresses = []gatewayv1beta1.GatewayAddress{
-						{
-							Type:  &addressType,
-							Value: fmt.Sprintf("%s/%s", "kind-mgc-control-plane", TestAttachedRouteAddressOne),
-						},
-						{
-							Type:  &addressType,
-							Value: fmt.Sprintf("%s/%s", "kind-mgc-control-plane", TestAttachedRouteAddressTwo),
-						},
-					}
-					Expect(k8sClient.Status().Patch(ctx, gateway, patch)).To(BeNil())
-
-					err = k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway)
 					Expect(err).NotTo(HaveOccurred())
 					Expect(gateway.Spec.Listeners).NotTo(BeNil())
 					// add another listener, should result in 4 probes

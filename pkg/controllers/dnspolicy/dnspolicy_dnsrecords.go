@@ -143,21 +143,26 @@ func (r *DNSPolicyReconciler) deleteGatewayDNSRecords(ctx context.Context, gatew
 
 func (r *DNSPolicyReconciler) buildClusterGateway(ctx context.Context, downstreamClusterName string, clusterAddress []gatewayv1beta1.GatewayAddress) (dns.ClusterGateway, error) {
 	var target dns.ClusterGateway
+	singleClusterAddresses := make([]gatewayv1beta1.GatewayAddress, len(clusterAddress))
 
 	mc := &clusterv1.ManagedCluster{}
 	if err := r.Client().Get(ctx, client.ObjectKey{Name: downstreamClusterName}, mc, &client.GetOptions{}); err != nil {
 		return target, err
 	}
 
-	for _, addr := range clusterAddress {
+	for i, addr := range clusterAddress {
 		addrType := gatewayv1beta1.IPAddressType
 		if *addr.Type == gateway.MultiClusterHostnameAddressType {
 			addrType = gatewayv1beta1.HostnameAddressType
 		}
-		addr.Type = &addrType
+
+		singleClusterAddresses[i] = gatewayv1beta1.GatewayAddress{
+			Type:  &addrType,
+			Value: addr.Value,
+		}
 	}
 
-	target = *dns.NewClusterGateway(mc, clusterAddress)
+	target = *dns.NewClusterGateway(mc, singleClusterAddresses)
 
 	return target, nil
 }
@@ -167,11 +172,6 @@ func getClusterGatewayAddresses(gw *gatewayv1beta1.Gateway) map[string][]gateway
 
 	for _, address := range gw.Status.Addresses {
 		var gatewayAddresses []gatewayv1beta1.GatewayAddress
-
-		//addressType := gatewayv1beta1.IPAddressType
-		//if *address.Type == gateway.MultiClusterHostnameAddressType {
-		//	addressType = gatewayv1beta1.HostnameAddressType
-		//}
 
 		//Default to Single Cluster (Normal Gateway Status)
 		cluster := "none"
