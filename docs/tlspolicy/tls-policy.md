@@ -42,7 +42,7 @@ spec:
 ## TLSPolicy creation and attachment
 
 The TLSPolicy requires a reference to an existing [CertManager Issuer](https://cert-manager.io/docs/configuration/). 
-If we create a [selfigned cluster](https://cert-manager.io/docs/configuration/selfsigned/) issuer with the following:
+If we create a [self-signed cluster](https://cert-manager.io/docs/configuration/selfsigned/) issuer with the following:
 
 ```yaml
 apiVersion: cert-manager.io/v1
@@ -80,7 +80,7 @@ spec:
 - `Namespace` is the namespace of the referent. Currently only local objects can be referred so value is ignored.
 
 ### Issuer Reference
-- `issuerRef` field is required and is a reference to a [CertManager Issuer] https://cert-manager.io/docs/configuration/. Fields included inside:
+- `issuerRef` field is required and is a reference to a [CertManager Issuer](https://cert-manager.io/docs/configuration/). Fields included inside:
 - `Group` is the group of the target resource. Only valid option is `cert-manager.io`.
 - `Kind` is kind of issuer. Only valid options are `Issuer` and `ClusterIssuer`.
 - `Name` is the name of the target issuer.
