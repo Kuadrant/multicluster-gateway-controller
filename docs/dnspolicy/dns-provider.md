@@ -12,7 +12,7 @@ Kuadrant Supports the following DNS providers currently
 
 ### AWS Route 53 Provider
 
-Kuadant expects a `Secret` with a credential. Below is an example for AWS Route 53. It is important to set the secret type to `aws`:
+Kuadrant expects a `Secret` with a credential. Below is an example for AWS Route 53. It is important to set the secret type to `aws`:
 
 
 ```bash
@@ -61,7 +61,7 @@ See: https://cloud.google.com/dns/docs/access-control#dns.admin
 
 It is recommended that you create the secret in the same namespace as your `ManagedZones`. In the examples above, we've stored these in a namespace called `multicluster-gateway-controller-system`.
 
-Now that we have the credential created we have a DNS provdier ready to go and can start using it.
+Now that we have the credential created we have a DNS provider ready to go and can start using it.
 
 ## Using a Credential
 
@@ -90,9 +90,9 @@ If a unsupported value is given to a provider, DNS records will **not** be creat
 
 :**Note:** :exclamation: For more information please the official AWS documentation 
 
-To see all regions supported by AWS Route 53 please see the offical (documentation)[https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/resource-record-sets-values-geo.html]
+To see all regions supported by AWS Route 53 please see the official (documentation)[https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/resource-record-sets-values-geo.html]
 
 ### Regions supported by Google Cloud DNS
 
-To see all regions supported by Google Cloud DNS, please see the offical (documentation)[https://cloud.google.com/compute/docs/regions-zones]
+To see all regions supported by Google Cloud DNS, please see the official (documentation)[https://cloud.google.com/compute/docs/regions-zones]
 
