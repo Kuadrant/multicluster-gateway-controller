@@ -41,7 +41,7 @@ spec:
 
 ## TLSPolicy creation and attachment
 
-The TLSPolicy requires a reference to an existing [CertManager Issuer] https://cert-manager.io/docs/configuration/. 
+The TLSPolicy requires a reference to an existing [CertManager Issuer](https://cert-manager.io/docs/configuration/). 
 If we create a [selfigned cluster](https://cert-manager.io/docs/configuration/selfsigned/) issuer with the following:
 
 ```yaml
@@ -73,14 +73,14 @@ spec:
 ```
 
 ### Target Reference
-`targetRef` field is taken from [policy attachment's target reference API](https://gateway-api.sigs.k8s.io/v1alpha2/references/policy-attachment/#target-reference-api). It can only target one resource at a time. Fields included inside:
+- `targetRef` field is taken from [policy attachment's target reference API](https://gateway-api.sigs.k8s.io/v1alpha2/references/policy-attachment/#target-reference-api). It can only target one resource at a time. Fields included inside:
 - `Group` is the group of the target resource. Only valid option is `gateway.networking.k8s.io`.
 - `Kind` is kind of the target resource. Only valid options are `Gateway`.
 - `Name` is the name of the target resource.
 - `Namespace` is the namespace of the referent. Currently only local objects can be referred so value is ignored.
 
 ### Issuer Reference
-`issuerRef` field is required and is a reference to a [CertManager Issuer] https://cert-manager.io/docs/configuration/. Fields included inside:
+- `issuerRef` field is required and is a reference to a [CertManager Issuer] https://cert-manager.io/docs/configuration/. Fields included inside:
 - `Group` is the group of the target resource. Only valid option is `cert-manager.io`.
 - `Kind` is kind of issuer. Only valid options are `Issuer` and `ClusterIssuer`.
 - `Name` is the name of the target issuer.
