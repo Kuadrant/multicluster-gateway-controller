@@ -90,9 +90,9 @@ If a unsupported value is given to a provider, DNS records will **not** be creat
 
 :**Note:** :exclamation: For more information please the official AWS documentation 
 
-To see all regions supported by AWS Route 53 please see the official (documentation)[https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/resource-record-sets-values-geo.html]
+To see all regions supported by AWS Route 53 please see the official [documentation](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/resource-record-sets-values-geo.html)
 
 ### Regions supported by Google Cloud DNS
 
-To see all regions supported by Google Cloud DNS, please see the official (documentation)[https://cloud.google.com/compute/docs/regions-zones]
+To see all regions supported by Google Cloud DNS, please see the official [documentation](https://cloud.google.com/compute/docs/regions-zones)
 
