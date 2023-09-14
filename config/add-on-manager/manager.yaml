@@ -31,6 +31,7 @@ spec:
         args:
         - --leader-elect
         image: addon-manager:latest
+        imagePullPolicy: Always
         envFrom:
           - configMapRef:
               name: controller-config

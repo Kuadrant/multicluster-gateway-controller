@@ -4,7 +4,7 @@ metadata:
   annotations:
     alm-examples: '[]'
     capabilities: Basic Install
-    createdAt: "2023-09-14T11:20:33Z"
+    createdAt: "2023-09-14T13:57:32Z"
     operators.operatorframework.io/builder: operator-sdk-v1.28.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
   name: multicluster-gateway-controller.v0.0.0
@@ -465,6 +465,7 @@ spec:
                 command:
                 - /controller
                 image: quay.io/kuadrant/multicluster-gateway-controller:main
+                imagePullPolicy: Always
                 livenessProbe:
                   httpGet:
                     path: /healthz
@@ -529,6 +530,7 @@ spec:
                     name: controller-config
                     optional: true
                 image: quay.io/kuadrant/addon-manager:main
+                imagePullPolicy: Always
                 name: controller
                 resources:
                   limits:
