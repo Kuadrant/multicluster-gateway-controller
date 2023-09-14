@@ -8,7 +8,7 @@ This guide will show you how to install and configure the Multi-Cluster Gateway 
 - Any number of additional **spoke clusters** that have been configured as OCM [ManagedClusters](https://open-cluster-management.io/concepts/managedcluster/)
 - [Kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl) (>= v1.14.0)
 - Either a pre-existing [cert-manager](https://cert-manager.io/)(>=v1.12.2) installation or the [Kustomize](https://kubectl.docs.kubernetes.io/installation/kustomize/) and [Helm](https://helm.sh/docs/intro/quickstart/#install-helm) CLIs
-- Amazon Web services (AWS) and or Google cloud provider (GCP) credential [secret](../dnspolicy/dns-provider.md)
+- Amazon Web services (AWS) and or Google cloud provider (GCP) credentials. See the [DNS Provider](../dnspolicy/dns-provider.md) guide for obtaining these credentials.
 
 ## Configure OCM with RawFeedbackJsonString Feature Gate
 
@@ -79,6 +79,8 @@ To manage the creation of DNS records, MGC uses [ManagedZone](../dnspolicy/manag
 First, depending on the provider you would like to use export the [environment variables detailed here](https://docs.kuadrant.io/multicluster-gateway-controller/docs/getting-started/#config) in a terminal session.
 
 Next, create a secret containing either the AWS or GCP credentials. We'll also create a namespace for your MGC configs:
+
+:**Note:** :exclamation: If you need help getting the configuration for these credentials, see the [DNS Provider](../dnspolicy/dns-provider.md) guide.
 
 #### AWS:
 ```bash
