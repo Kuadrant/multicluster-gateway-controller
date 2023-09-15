@@ -9,24 +9,17 @@ We will start with a single cluster and move to multiple clusters to illustrate 
 
 ## Requirements
 
-- Complete the [Getting Started Guide](https://docs.kuadrant.io/getting-started/)
+- Complete the [Getting Started Guide](https://docs.kuadrant.io/getting-started/).
 
-## Open terminal sessions and set cluster context
+## Initial Setup
 
-For this walkthrough, we're going to use multiple terminal sessions/windows.
+In this walkthrough, we'll deploy test echo services across multiple clusters. Before starting, set up a `MGC_SUB_DOMAIN` variable to simplify templating. This variable will represent the host for each service.
 
-Open two windows, which we'll refer to throughout this walkthrough as:
+If you followed the [Getting Started Guide](https://docs.kuadrant.io/getting-started/), you would have already set up a `MGC_ZONE_ROOT_DOMAIN` environment variable when creating a `ManagedZone`. For this tutorial, we'll derive a host from this domain.
 
-* `T1` (Hub Cluster)
-* `T2` (Workloads cluster)
-
-Set the kubecontext for each terminal, refer back to these commands if re-config is needed.
-
-In `T1` run `kind export kubeconfig --name=mgc-control-plane --kubeconfig=$(pwd)/control-plane.yaml && export KUBECONFIG=$(pwd)/control-plane.yaml`
-
-In `T2` run `kind export kubeconfig --name=mgc-workload-1 --kubeconfig=$(pwd)/workload1.yaml && export KUBECONFIG=$(pwd)/workload1.yaml`
-
-export `MGC_SUB_DOMAIN` in each terminal if you haven't already added it to your `.zshrc` or `.bash_profile`.
+```bash
+export MGC_SUB_DOMAIN=myapp.$MGC_ZONE_ROOT_DOMAIN
+```
 
 ### Create a gateway
 
