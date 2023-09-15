@@ -70,10 +70,10 @@ func (r *DNSPolicyReconciler) reconcileGatewayDNSRecords(ctx context.Context, ga
 			// Only consider host for dns if there's at least 1 attached route to the listener for this host in *any* gateway
 
 			log.V(3).Info("checking downstream", "listener ", listener.Name)
-			attached := listenerTotalAttachedRoutes(gateway, clusterName, string(listener.Name), clusterAddress)
+			attached := listenerTotalAttachedRoutes(gateway, clusterName, listener, clusterAddress)
 
 			if attached == 0 {
-				log.V(1).Info("no attached routes for ", "listener", listener.Name, "cluster ", clusterName)
+				log.V(1).Info("no attached routes for ", "listener", listener, "cluster ", clusterName)
 				continue
 			}
 			log.V(3).Info("hostHasAttachedRoutes", "host", listener.Name, "hostHasAttachedRoutes", attached)
@@ -197,22 +197,22 @@ func getClusterGatewayAddresses(gw *gatewayv1beta1.Gateway) map[string][]gateway
 	return clusterAddrs
 }
 
-func listenerTotalAttachedRoutes(upstreamGateway *gatewayv1beta1.Gateway, downstreamCluster, specListenerName string, addresses []gatewayv1beta1.GatewayAddress) int {
-	for _, listener := range upstreamGateway.Status.Listeners {
+func listenerTotalAttachedRoutes(upstreamGateway *gatewayv1beta1.Gateway, downstreamCluster string, specListener gatewayv1beta1.Listener, addresses []gatewayv1beta1.GatewayAddress) int {
+	for _, statusListener := range upstreamGateway.Status.Listeners {
 		// assuming all adresses of the same type on the gateway
 		// for Multi Cluster (MGC Gateway Status)
 		if *addresses[0].Type == gateway.MultiClusterIPAddressType || *addresses[0].Type == gateway.MultiClusterHostnameAddressType {
-			clusterName, listenerName, found := strings.Cut(string(listener.Name), ".")
+			clusterName, listenerName, found := strings.Cut(string(statusListener.Name), ".")
 			if !found {
 				return 0
 			}
-			if clusterName == downstreamCluster && (listenerName == specListenerName || specListenerName == "wildcard") {
-				return int(listener.AttachedRoutes)
+			if clusterName == downstreamCluster && (listenerName == string(specListener.Name) || strings.Contains(string(*specListener.Hostname), "*")) {
+				return int(statusListener.AttachedRoutes)
 			}
 		}
 		// Single Cluster (Normal Gateway Status)
-		if string(listener.Name) == specListenerName {
-			return int(listener.AttachedRoutes)
+		if string(statusListener.Name) == string(specListener.Name) {
+			return int(statusListener.AttachedRoutes)
 		}
 	}
 
