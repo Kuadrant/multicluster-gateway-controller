@@ -15,6 +15,7 @@ requiredENV() {
   read PROVIDER </dev/tty
   if [[ "$PROVIDER" =~ ^(gcp|aws)$ ]]; then
     echo "Provider chosen: $PROVIDER."
+    export DNS_PROVIDER=$PROVIDER
   else
     echo "Invalid input given. Please enter either 'gcp' or 'aws' (case sensitive)."
     exit 1

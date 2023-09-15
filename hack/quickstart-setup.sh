@@ -23,12 +23,25 @@ if [ -z $MGC_ACCOUNT ]; then
 MGC_ACCOUNT=${MGC_ACCOUNT:="kuadrant"}
 fi
 
-source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/${MGC_ACCOUNT}/multicluster-gateway-controller/${MGC_BRANCH}/hack/.quickstartEnv)"
-source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/${MGC_ACCOUNT}/multicluster-gateway-controller/${MGC_BRANCH}/hack/.kindUtils)"
-source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/${MGC_ACCOUNT}/multicluster-gateway-controller/${MGC_BRANCH}/hack/.cleanupUtils)"
-source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/${MGC_ACCOUNT}/multicluster-gateway-controller/${MGC_BRANCH}/hack/.deployUtils)"
-source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/${MGC_ACCOUNT}/multicluster-gateway-controller/${MGC_BRANCH}/hack/.startUtils)"
-source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/${MGC_ACCOUNT}/multicluster-gateway-controller/${MGC_BRANCH}/hack/.setupEnv)"
+if [ -n "$MGC_LOCAL_QUICKSTART_SCRIPTS_MODE" ]; then
+    echo "Loading quickstart scripts locally"
+    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    source "${SCRIPT_DIR}/.quickstartEnv"
+    source "${SCRIPT_DIR}/.kindUtils"
+    source "${SCRIPT_DIR}/.cleanupUtils"
+    source "${SCRIPT_DIR}/.deployUtils"
+    source "${SCRIPT_DIR}/.startUtils"
+    source "${SCRIPT_DIR}/.setupEnv"
+  else
+    echo "Loading quickstart scripts from GitHub"
+    source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/${MGC_ACCOUNT}/multicluster-gateway-controller/${MGC_BRANCH}/hack/.quickstartEnv)"
+    source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/${MGC_ACCOUNT}/multicluster-gateway-controller/${MGC_BRANCH}/hack/.kindUtils)"
+    source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/${MGC_ACCOUNT}/multicluster-gateway-controller/${MGC_BRANCH}/hack/.cleanupUtils)"
+    source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/${MGC_ACCOUNT}/multicluster-gateway-controller/${MGC_BRANCH}/hack/.deployUtils)"
+    source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/${MGC_ACCOUNT}/multicluster-gateway-controller/${MGC_BRANCH}/hack/.startUtils)"
+    source /dev/stdin <<< "$(curl -s https://raw.githubusercontent.com/${MGC_ACCOUNT}/multicluster-gateway-controller/${MGC_BRANCH}/hack/.setupEnv)"
+fi
+
 
 export OPERATOR_SDK_BIN=$(dockerBinCmd "operator-sdk")
 export YQ_BIN=$(dockerBinCmd "yq")
