@@ -10,7 +10,7 @@ DNS Health Checks are a way to assess the availability and health of DNS endpoin
 To configure a DNS health check, you need to specify the `healthCheck` section of the DNSPolicy. The key part of this configuration is the `healthCheck` section, which includes important properties such as:
 
 * `allowInsecureCertificates`: Added for development environments, allows health probes to not fail when finding an invalid (e.g. self-signed) certificate.
-* `additionalHeadersRef`: This refers to a secret that holds extra headers, often containing important elements like authentication tokens.
+* `additionalHeadersRef`: This refers to a secret that holds extra headers for the probe to send, often containing important elements like authentication tokens.
 * `endpoint`: This is the path where the health checks take place, usually represented as '/healthz' or something similar.
 * `expectedResponses`: This setting lets you specify the expected HTTP response codes. If you don't set this, the default values assumed are 200 and 201.
 * `failureThreshold`: It's the number of times the health check can fail for the endpoint before it's marked as unhealthy.
@@ -19,7 +19,7 @@ To configure a DNS health check, you need to specify the `healthCheck` section o
 * `protocol`: Type of protocol being used, like HTTP or HTTPS. **(Required)**
 
 
-```
+```bash
 kubectl apply -f - <<EOF
 apiVersion: kuadrant.io/v1alpha1
 kind: DNSPolicy
@@ -44,6 +44,43 @@ spec:
 EOF
 ```
 This configuration sets up a DNS health check by creating DNSHealthCheckProbes for the specified `prod-web` Gateway endpoints.
+
+### `additionalHeadersRef`
+
+The `additionalHeadersRef` field specifies a `Secret` used for storing supplementary HTTP headers. These headers are included when sending probe requests and can contain critical information like authentication tokens. This `Secret` must be in the same namespace as the DNSPolicy.
+
+#### Usage Example
+
+Here's how to use `additionalHeadersRef` in a `DNSPolicy` resource:
+
+```yaml
+apiVersion: kuadrant.io/v1alpha1
+kind: DNSPolicy
+metadata:
+  name: prod-web
+  namespace: multi-cluster-gateways
+spec:
+  targetRef:
+    name: prod-web
+    group: gateway.networking.k8s.io
+    kind: Gateway
+  healthCheck:
+    ...
+    additionalHeadersRef:
+      name: probe-headers
+```
+
+#### Creating a Secret for Additional Headers
+
+To create a `Secret` that carries an additional header named "test-header" with the value "test," execute the following command:
+
+```bash
+kubectl create secret generic probe-headers \
+  --namespace=multi-cluster-gateways \
+  --from-literal=test-header=test
+```
+
+This will create a secret named `probe-headers` in the `multi-cluster-gateways` namespace, which can then be referenced in the `additionalHeadersRef` field of your `DNSPolicy`.
 
 ## How to Validate DNS Health Checks
 
