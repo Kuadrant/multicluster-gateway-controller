@@ -16,15 +16,21 @@ All OCM spoke clusters must be configured with the `RawFeedbackJsonString` featu
 
 1. When running the `clusteradm join` command that joins the spoke cluster to the hub:
 
-```bash
-clusteradm join <snip> --feature-gates=RawFeedbackJsonString=true
-```
+    Get the `join` flags and token by running
+
+    ```bash
+    join=$(clusteradm get token --context kind-test-control-plane | grep -o 'join.*--cluster-name')
+    ```
+    
+    ```bash
+    clusteradm $join --feature-gates=RawFeedbackJsonString=true
+    ```
 
 2. By patching each spoke cluster's `klusterlet` in an existing OCM install:
 
-```bash
-kubectl patch klusterlet klusterlet --type merge --patch '{"spec": {"workConfiguration": {"featureGates": [{"feature": "RawFeedbackJsonString", "mode": "Enable"}]}}}' --context <EACH_SPOKE_CLUSTER>
-```
+    ```bash
+    kubectl patch klusterlet klusterlet --type merge --patch '{"spec": {"workConfiguration": {"featureGates": [{"feature": "RawFeedbackJsonString", "mode": "Enable"}]}}}' --context <EACH_SPOKE_CLUSTER>
+    ```
 
 ## Installing MGC
 
