@@ -7,8 +7,9 @@ This walkthrough will show you how to install and setup the Kuadrant Operator in
 * Access to an Open Cluster Management (>= v0.11.0) Managed Cluster, which has already been bootstrapped and registered with a hub cluster
   * We have [a guide](./control-plane-installation.md) which covers this in detail
   * Also see:
-    * https://open-cluster-management.io/getting-started/quick-start/
-    * https://open-cluster-management.io/concepts/managedcluster/
+    * [https://open-cluster-management.io/getting-started/quick-start/]
+    * [https://open-cluster-management.io/concepts/managedcluster/]
+- [Kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl) (>= v1.14.0)
 * OLM will need to be installed into the ManagedCluster where you want to run the Kuadrant Service Protection components
   * See https://olm.operatorframework.io/docs/getting-started/
 * Kuadrant uses Istio as a Gateway API provider - this will need to be installed into the data plane clusters
@@ -16,22 +17,16 @@ This walkthrough will show you how to install and setup the Kuadrant Operator in
   * ```bash
     kubectl apply -k "github.com/kubernetes-sigs/gateway-api/config/crd?ref=v0.6.2"
     ```
-  * See also: https://istio.io/v1.17/blog/2022/getting-started-gtwapi/
-
-
-Alternatively, if you'd like to quickly get started locally, without having to worry to much about the pre-requisites, take a look our [Quickstart Guide](https://docs.kuadrant.io/getting-started/). It will get you setup with Kind, OLM, OCM & Kuadrant in a few short steps.
-
+  * See also: [https://istio.io/v1.17/blog/2022/getting-started-gtwapi/]
 
 ## Install the Kuadrant OCM Add-On
+To install the Kuadrant Service Protection components into a spoke `ManagedCluster`, target your OCM Hub cluster with `kubectl` and run:
 
+```bash
+kubectl apply -k "github.com/kuadrant/multicluster-gateway-controller.git/config/service-protection-install-guide?ref=main" -n namespace-of-your-managed-spoke-cluster-on-the-hub
+```
 
-**Note:** if you've run our [Getting Started Guide](https://docs.kuadrant.io/getting-started/), you'll be set to run this command as-is.
-
-To install the Kuadrant Service Protection components into a `ManagedCluster`, target your OCM hub cluster with `kubectl` and run:
-
-`kubectl apply -k "github.com/kuadrant/multicluster-gateway-controller.git/config/service-protection-install-guide?ref=main" -n <your-managed-cluster>`
-
-The above command will install the `ManagedClusterAddOn` resource needed to install the Kuadrant addon into the specified namespace, and install the Kuadrant data-plane components into the `open-cluster-management-agent-addon` namespace. 
+The above command will install the `ManagedClusterAddOn` resource needed to install the Kuadrant addon into the namespace representing a spoke cluster, and install the Kuadrant data-plane components into the `open-cluster-management-agent-addon` namespace. 
 
 The Kuadrant addon will install:
 
