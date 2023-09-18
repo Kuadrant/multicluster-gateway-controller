@@ -206,7 +206,7 @@ func listenerTotalAttachedRoutes(upstreamGateway *gatewayv1beta1.Gateway, downst
 			if !found {
 				return 0
 			}
-			if clusterName == downstreamCluster && (listenerName == string(specListener.Name) || strings.Contains(string(*specListener.Hostname), "*")) {
+			if clusterName == downstreamCluster && listenerName == string(specListener.Name) {
 				return int(statusListener.AttachedRoutes)
 			}
 		}

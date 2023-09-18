@@ -318,7 +318,14 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 					return err
 				}
 				gateway.Status.Addresses = testBuildGatewayAddresses()
-				gateway.Status.Listeners = testBuildGatewayListenerStatus([]string{TestPlacedClusterControlName + "." + TestAttachedRouteName, TestPlaceClusterWorkloadName + "." + TestAttachedRouteName}, []int32{1, 1})
+				gateway.Status.Listeners = testBuildGatewayListenerStatus(
+					[]string{
+						TestPlacedClusterControlName + "." + TestAttachedRouteName,
+						TestPlaceClusterWorkloadName + "." + TestAttachedRouteName,
+						TestPlacedClusterControlName + "." + TestWildCardListenerName,
+						TestPlaceClusterWorkloadName + "." + TestWildCardListenerName,
+					},
+					[]int32{1, 1, 1, 1})
 				return k8sClient.Status().Update(ctx, gateway)
 			}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred()) // end of the workaround
 		})
@@ -1276,8 +1283,9 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 						Protocol: gatewayv1beta1.HTTPProtocolType,
 					}
 
-					patch = client.MergeFrom(gateway.DeepCopy())gateway.Spec.Listeners = append(gateway.Spec.Listeners, otherListener)
-					Expect(k8sClient.Patch(ctx, gateway, patch)).To(BeNil())
+					patch = client.MergeFrom(gateway.DeepCopy())
+						gateway.Spec.Listeners = append(gateway.Spec.Listeners, otherListener)
+						Expect(k8sClient.Patch(ctx, gateway, patch)).To(BeNil())
 
 					probeList := &v1alpha1.DNSHealthCheckProbeList{}
 					Eventually(func() error {
