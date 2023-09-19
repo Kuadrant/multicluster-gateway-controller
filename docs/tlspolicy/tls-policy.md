@@ -130,7 +130,7 @@ Any type of Issuer that is supported by CertManager can be referenced in the TLS
 
 Create a secret containing AWS access key and secret:
 ```bash
-kubectl create secret generic mgc-aws-credentials --from-literal=AWS_ACCESS_KEY_ID=<AWS_ACCESS_KEY_ID> --from-literal=AWS_SECRET_ACCESS_KEY=<AWS_SECRET_ACCESS_KEY> -n multi-cluster-gateways
+kubectl create secret generic le-aws-credentials --from-literal=AWS_SECRET_ACCESS_KEY=<AWS_SECRET_ACCESS_KEY> -n multi-cluster-gateways
 ```
 
 Create a new Issuer:
@@ -139,6 +139,7 @@ apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
   name: le-production
+  namespace: multi-cluster-gateways
 spec:
   acme:
     email: <YOUR EMAIL>
@@ -151,10 +152,10 @@ spec:
           route53:
             hostedZoneID: <YOUR HOSTED ZONE ID>
             region: us-east-1
-            accessKeyID: <AWS_SECRET_ACCESS_KEY>
+            accessKeyID: <AWS_SECRET_ACCESS_KEY_ID>
             secretAccessKeySecretRef:
               key: AWS_SECRET_ACCESS_KEY
-              name: mgc-aws-credentials
+              name: le-aws-credentials
 ```
 
 Create a TLSPolicy:
