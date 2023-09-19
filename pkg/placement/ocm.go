@@ -18,6 +18,7 @@ import (
 	k8smeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -114,7 +115,7 @@ func (op *ocmPlacer) Place(ctx context.Context, upStreamGateway *gatewayv1beta1.
 	emyptySet := sets.Set[string](sets.NewString())
 	// where the placement decision says to place the gateway
 	placementTargets, err := op.GetClusters(ctx, upStreamGateway)
-	if err != nil {
+	if err != nil && !k8serrors.IsNotFound(err) {
 		return emyptySet, err
 	}
 	log.V(3).Info("placement: ", "targets", placementTargets.UnsortedList(), "gateway", downStreamGateway.Name, "gateway ns", upStreamGateway.Namespace)
@@ -254,7 +255,8 @@ func (op *ocmPlacer) GetClusters(ctx context.Context, gateway *gatewayv1beta1.Ga
 		return targetClusters, err
 	}
 	if len(pdList.Items) == 0 {
-		return targetClusters, fmt.Errorf("no placemement decisions found for placement selector %s", selectedPlacement)
+		placementNotFound := k8serrors.NewNotFound(schema.GroupResource{Group: "cluster.open-cluster-management.io", Resource: "PlacementDecision"}, selectedPlacement)
+		return targetClusters, fmt.Errorf("no placemement decisions found for placement selector %s : %w", selectedPlacement, placementNotFound)
 	}
 	for _, pd := range pdList.Items {
 		for _, d := range pd.Status.Decisions {
