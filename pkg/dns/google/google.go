@@ -491,8 +491,8 @@ func toResourceRecordSets(allEndpoints []*v1alpha1.Endpoint) []*dnsv1.ResourceRe
 				}
 				record.RoutingPolicy.Geo.Items = append(record.RoutingPolicy.Geo.Items, item)
 			}
-			records = append(records, record)
 		}
+		records = append(records, record)
 	}
 	return records
 }
