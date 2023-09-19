@@ -115,6 +115,8 @@ The health check section is optional, the following fields are available:
 - `port`: The port to connect to
 - `protocol`: The protocol to use for this connection
 
+For more information about DNS Health Checks, see [this guide](./dns-health-checks.md).
+
 #### Checking status of health checks
 To list all health checks:
 ```
