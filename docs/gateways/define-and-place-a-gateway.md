@@ -30,7 +30,7 @@ To define a Gateway and have it managed by the multi-cluster gateway controller,
   apiVersion: gateway.networking.k8s.io/v1beta1
   kind: Gateway
   metadata:
-    name: prod-websdy
+    name: prod-web
     namespace: multi-cluster-gateways
   spec:
     gatewayClassName: kuadrant-multi-cluster-gateway-instance-per-cluster
