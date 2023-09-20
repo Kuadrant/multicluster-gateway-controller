@@ -45,6 +45,7 @@ help: ## Display this help.
 clean: ## Clean up temporary files.
 	-rm -rf ./bin/*
 	-rm -rf ./tmp
+	-rm -rf ./config/**/charts
 
 .PHONY: manifests
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
