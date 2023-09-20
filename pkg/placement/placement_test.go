@@ -11,6 +11,7 @@ import (
 	workv1 "open-cluster-management.io/api/work/v1"
 
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -521,15 +522,15 @@ func TestGetClusters(t *testing.T) {
 				if err == nil {
 					t.Fatalf("expected an error but got none")
 				}
+				if !k8serrors.IsNotFound(err) {
+					t.Fatalf("expected a not found err %v", err)
+				}
 				if !got.Equal(expected) {
 					t.Fatalf("expected clusters %v but it was not present in %v", expected.UnsortedList(), got.UnsortedList())
 				}
 			},
 			PlacementDecision: func(clusters sets.Set[string]) *pd.PlacementDecision {
-				dec := &pd.PlacementDecision{
-					Status: pd.PlacementDecisionStatus{},
-				}
-				return dec
+				return nil
 			},
 		},
 	}
@@ -537,7 +538,9 @@ func TestGetClusters(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.Name, func(t *testing.T) {
 			f := fake.NewClientBuilder()
-			f.WithObjects(testCase.PlacementDecision(testCase.Clusters))
+			if pds := testCase.PlacementDecision(testCase.Clusters); pds != nil {
+				f.WithObjects(pds)
+			}
 			p := placement.NewOCMPlacer(f.Build())
 			cs, err := p.GetClusters(context.TODO(), testCase.Gateway)
 			testCase.Assert(t, err, cs, testCase.Clusters)

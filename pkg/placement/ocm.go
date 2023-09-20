@@ -18,6 +18,7 @@ import (
 	k8smeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -254,7 +255,8 @@ func (op *ocmPlacer) GetClusters(ctx context.Context, gateway *gatewayv1beta1.Ga
 		return targetClusters, err
 	}
 	if len(pdList.Items) == 0 {
-		return targetClusters, fmt.Errorf("no placemement decisions found for placement selector %s", selectedPlacement)
+		placementNotFound := k8serrors.NewNotFound(schema.GroupResource{Resource: "PlacementDecision"}, selectedPlacement)
+		return targetClusters, fmt.Errorf("no PlacementDecisions found for placement %s via label selector: %s error: %w", selectedPlacement, labelSelector, placementNotFound)
 	}
 	for _, pd := range pdList.Items {
 		for _, d := range pd.Status.Decisions {
