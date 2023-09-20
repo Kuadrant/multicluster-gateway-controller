@@ -211,7 +211,8 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 
 		AfterEach(func() {
 			err := k8sClient.Delete(ctx, gateway)
-			Expect(err).ToNot(HaveOccurred())
+			// ignore not found err
+			Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
 		})
 
 		Context("weighted dnspolicy", func() {
