@@ -1328,8 +1328,10 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 					Protocol: gatewayv1beta1.HTTPProtocolType,
 				}
 
-				gateway.Spec.Listeners = append(gateway.Spec.Listeners, otherListener)
-				Expect(k8sClient.Update(ctx, gateway)).To(BeNil())
+				Eventually(func() error {
+					gateway.Spec.Listeners = append(gateway.Spec.Listeners, otherListener)
+					return k8sClient.Update(ctx, gateway)
+				}).Should(BeNil())
 
 				probeList := &v1alpha1.DNSHealthCheckProbeList{}
 				Eventually(func() error {
