@@ -18,7 +18,9 @@ package tlspolicy
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"reflect"
 
 	"github.com/go-logr/logr"
 
@@ -45,9 +47,10 @@ import (
 )
 
 const (
-	TLSPolicyFinalizer           = "kuadrant.io/tls-policy"
-	TLSPoliciesBackRefAnnotation = "kuadrant.io/tlspolicies"
-	TLSPolicyBackRefAnnotation   = "kuadrant.io/tlspolicy"
+	TLSPolicyFinalizer                                    = "kuadrant.io/tls-policy"
+	TLSPoliciesBackRefAnnotation                          = "kuadrant.io/tlspolicies"
+	TLSPolicyBackRefAnnotation                            = "kuadrant.io/tlspolicy"
+	TLSPolicyAffected            conditions.ConditionType = "kuadrant.io/TLSPolicyAffected"
 )
 
 type TLSPolicyRefsConfig struct{}
@@ -145,6 +148,8 @@ func (r *TLSPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 }
 
 func (r *TLSPolicyReconciler) reconcileResources(ctx context.Context, tlsPolicy *v1alpha1.TLSPolicy, targetNetworkObject client.Object) error {
+	gatewayCondition := conditions.BuildPolicyAffectedCondition(TLSPolicyAffected, tlsPolicy, targetNetworkObject, conditions.PolicyReasonAccepted, nil)
+
 	// validate
 	err := tlsPolicy.Validate()
 	if err != nil {
@@ -157,17 +162,33 @@ func (r *TLSPolicyReconciler) reconcileResources(ctx context.Context, tlsPolicy 
 		return err
 	}
 
-	if err := r.reconcileCertificates(ctx, tlsPolicy, gatewayDiffObj); err != nil {
-		return err
+	if err = r.reconcileCertificates(ctx, tlsPolicy, gatewayDiffObj); err != nil {
+		gatewayCondition = conditions.BuildPolicyAffectedCondition(TLSPolicyAffected, tlsPolicy, targetNetworkObject, conditions.PolicyReasonInvalid, err)
+		updateErr := r.updateGatewayCondition(ctx, gatewayCondition, gatewayDiffObj)
+		return errors.Join(fmt.Errorf("reconcile Certificates error %w", err), updateErr)
 	}
 
 	// set direct back ref - i.e. claim the target network object as taken asap
-	if err := r.ReconcileTargetBackReference(ctx, client.ObjectKeyFromObject(tlsPolicy), targetNetworkObject, TLSPolicyBackRefAnnotation); err != nil {
-		return err
+	if err = r.ReconcileTargetBackReference(ctx, client.ObjectKeyFromObject(tlsPolicy), targetNetworkObject, TLSPolicyBackRefAnnotation); err != nil {
+		gatewayCondition = conditions.BuildPolicyAffectedCondition(TLSPolicyAffected, tlsPolicy, targetNetworkObject, conditions.PolicyReasonConflicted, err)
+		updateErr := r.updateGatewayCondition(ctx, gatewayCondition, gatewayDiffObj)
+		return errors.Join(fmt.Errorf("reconcile TargetBackReference error %w", err), updateErr)
 	}
 
-	// set annotation of policies affecting the gateway - should be the last step, only when all the reconciliation steps succeed
-	return r.ReconcileGatewayPolicyReferences(ctx, tlsPolicy, gatewayDiffObj)
+	// set annotation of policies affecting the gateway
+	if err = r.ReconcileGatewayPolicyReferences(ctx, tlsPolicy, gatewayDiffObj); err != nil {
+		gatewayCondition = conditions.BuildPolicyAffectedCondition(TLSPolicyAffected, tlsPolicy, targetNetworkObject, conditions.PolicyReasonUnknown, err)
+		updateErr := r.updateGatewayCondition(ctx, gatewayCondition, gatewayDiffObj)
+		return errors.Join(fmt.Errorf("ReconcileGatewayPolicyReferences error %w", err), updateErr)
+	}
+
+	// set gateway policy affected condition status - should be the last step, only when all the reconciliation steps succeed
+	updateErr := r.updateGatewayCondition(ctx, gatewayCondition, gatewayDiffObj)
+	if updateErr != nil {
+		return fmt.Errorf("failed to update gateway conditions %w ", updateErr)
+	}
+
+	return nil
 }
 
 func (r *TLSPolicyReconciler) deleteResources(ctx context.Context, tlsPolicy *v1alpha1.TLSPolicy, targetNetworkObject client.Object) error {
@@ -190,7 +211,12 @@ func (r *TLSPolicyReconciler) deleteResources(ctx context.Context, tlsPolicy *v1
 	}
 
 	// update annotation of policies affecting the gateway
-	return r.ReconcileGatewayPolicyReferences(ctx, tlsPolicy, gatewayDiffObj)
+	if err := r.ReconcileGatewayPolicyReferences(ctx, tlsPolicy, gatewayDiffObj); err != nil {
+		return err
+	}
+
+	// remove gateway policy affected condition status
+	return r.updateGatewayCondition(ctx, metav1.Condition{Type: string(TLSPolicyAffected)}, gatewayDiffObj)
 }
 
 func (r *TLSPolicyReconciler) calculateStatus(tlsPolicy *v1alpha1.TLSPolicy, specErr error) *v1alpha1.TLSPolicyStatus {
@@ -218,6 +244,33 @@ func (r *TLSPolicyReconciler) readyCondition(targetNetworkObjectectKind string, 
 	}
 
 	return cond
+}
+
+func (r *TLSPolicyReconciler) updateGatewayCondition(ctx context.Context, condition metav1.Condition, gatewayDiff *reconcilers.GatewayDiff) error {
+
+	// update condition if needed
+	for _, gw := range append(gatewayDiff.GatewaysWithValidPolicyRef, gatewayDiff.GatewaysMissingPolicyRef...) {
+		previous := gw.DeepCopy()
+		meta.SetStatusCondition(&gw.Status.Conditions, condition)
+		if !reflect.DeepEqual(previous.Status.Conditions, gw.Status.Conditions) {
+			if err := r.Client().Status().Update(ctx, gw.Gateway); err != nil {
+				return err
+			}
+		}
+	}
+
+	// remove condition from gateway that is no longer referenced
+	for _, gw := range gatewayDiff.GatewaysWithInvalidPolicyRef {
+		previous := gw.DeepCopy()
+		meta.RemoveStatusCondition(&gw.Status.Conditions, condition.Type)
+		if !reflect.DeepEqual(previous.Status.Conditions, gw.Status.Conditions) {
+			if err := r.Client().Status().Update(ctx, gw.Gateway); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

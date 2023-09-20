@@ -142,6 +142,27 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 				}, time.Second*5, time.Second).Should(BeNil())
 			})
 
+			It("should set policy affected condition in gateway status", func() {
+				Eventually(func() error {
+					if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(gateway), gateway); err != nil {
+						return err
+					}
+
+					policyAffectedCond := meta.FindStatusCondition(gateway.Status.Conditions, string(TLSPolicyAffected))
+					if policyAffectedCond == nil {
+						return fmt.Errorf("policy affected conditon expected but not found")
+					}
+					if policyAffectedCond.ObservedGeneration != gateway.Generation {
+						return fmt.Errorf("expected policy affected cond generation to be %d but got %d", gateway.Generation, policyAffectedCond.ObservedGeneration)
+					}
+					if !meta.IsStatusConditionTrue(gateway.Status.Conditions, string(TLSPolicyAffected)) {
+						return fmt.Errorf("expected gateway status condition %s to be True", TLSPolicyAffected)
+					}
+
+					return nil
+				}, time.Second*15, time.Second).Should(BeNil())
+			})
+
 		})
 
 		Context("with http listener", func() {
