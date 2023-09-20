@@ -3,6 +3,7 @@ package placement
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -18,10 +19,10 @@ import (
 	k8smeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
@@ -30,11 +31,14 @@ import (
 )
 
 const (
-	OCMPlacementLabel = "cluster.open-cluster-management.io/placement"
-	rbacName          = "open-cluster-management:klusterlet-work:gateway"
-	rbacManifest      = "gateway-rbac"
-	WorkManifestLabel = "kuadrant.io/manifestKey"
+	OCMPlacementLabel          = "cluster.open-cluster-management.io/placement"
+	rbacName                   = "open-cluster-management:klusterlet-work:gateway"
+	rbacManifest               = "gateway-rbac"
+	WorkManifestLabel          = "kuadrant.io/manifestKey"
+	PlacementDecisionFinalizer = "kuadrant.io/finalizer"
 )
+
+var logger = log.Log
 
 type ocmPlacer struct {
 	c client.Client
@@ -106,111 +110,215 @@ func WorkName(rootObj runtime.Object) string {
 	return strings.ToLower(fmt.Sprintf("%s-%s-%s", kind, rootMeta.GetNamespace(), rootMeta.GetName()))
 }
 
-// Place ensures the gateway is placed onto the chosen clusters by creating the required manifestwork resources
-func (op *ocmPlacer) Place(ctx context.Context, upStreamGateway *gatewayv1beta1.Gateway, downStreamGateway *gatewayv1beta1.Gateway, children ...metav1.Object) (sets.Set[string], error) {
-	//PoC currently each object is put into its own manifestwork. This shouldn't be needed but would require finding the manifest work and replacing the existing object
-	log := log.Log
-	log.V(3).Info("placement: placing ", "gateway", upStreamGateway.Name, "gateway ns", upStreamGateway.Namespace)
-	workname := WorkName(upStreamGateway)
-	emyptySet := sets.Set[string](sets.NewString())
-	// where the placement decision says to place the gateway
-	placementTargets, err := op.GetClusters(ctx, upStreamGateway)
-	if err != nil {
-		return emyptySet, err
+func hasPlacementLabel(upstreamGateway *gatewayv1beta1.Gateway) bool {
+	if upstreamGateway.Labels == nil {
+		return false
 	}
-	log.V(3).Info("placement: ", "targets", placementTargets.UnsortedList(), "gateway", downStreamGateway.Name, "gateway ns", upStreamGateway.Namespace)
-	existingClusters, err := op.GetPlacedClusters(ctx, upStreamGateway)
-	if err != nil {
-		return emyptySet, err
-	}
+	_, ok := upstreamGateway.Labels[OCMPlacementLabel]
+	return ok
+}
 
-	// not in target clusters so need to be removed
-	removeFrom := existingClusters.Difference(placementTargets)
-	log.V(3).Info("placement: ", "removeFrom", removeFrom.UnsortedList(), "gateway", upStreamGateway.Name, "gateway ns", upStreamGateway.Namespace)
-	// if being deleted entirely remove manifest from all existing clusters
-	if upStreamGateway.GetDeletionTimestamp() != nil {
-		log.V(3).Info("placement: ", "deleting gateway from ", existingClusters.UnsortedList(), "gateway", upStreamGateway.Name, "gateway ns", upStreamGateway.Namespace)
-		for _, cluster := range existingClusters.UnsortedList() {
-			// being deleted need to remove from clusters
-			w := &workv1.ManifestWork{ObjectMeta: metav1.ObjectMeta{
-				Name:      workname,
-				Namespace: cluster,
-			}}
-			if err := op.c.Delete(ctx, w, &client.DeleteOptions{}); client.IgnoreNotFound(err) != nil {
-				return existingClusters, err
-			}
-			existingClusters.Delete(cluster)
-		}
-		return existingClusters, nil
+// Place ensures the gateway is placed onto the chosen clusters by creating the required manifestwork resources
+func (op *ocmPlacer) Place(ctx context.Context, upStreamGateway *gatewayv1beta1.Gateway, downStreamGateway *gatewayv1beta1.Gateway, children ...metav1.Object) (sets.Set[string], string, error) {
+
+	// load existing placement decisions and build existing clusters
+	// load targetted placement decisons and build expected clusters
+	var (
+		existingPlacementTarget = ""
+		expectedPlacementTarget = ""
+	)
+	if existingPlacement, ok := upStreamGateway.Labels["kuadrant.io/placed"]; ok {
+		existingPlacementTarget = existingPlacement
 	}
+	if expectedPlacement, ok := upStreamGateway.Labels[OCMPlacementLabel]; ok {
+		expectedPlacementTarget = expectedPlacement
+	}
+	// assume no existing clusters or expected
+	existingClusters := sets.Set[string](sets.NewString())
+	expectedClusters := sets.Set[string](sets.NewString())
+
+	existingPlacementDecisions, err := op.GetPlacementDecsions(ctx, existingPlacementTarget, upStreamGateway.Namespace)
+	if err != nil {
+		return existingClusters, expectedPlacementTarget, fmt.Errorf("failed to get existing placement decisons %w", err)
+	}
+	existingClusters = op.GetTargetClusters(existingPlacementDecisions)
+
+	expectedPlacementDecisions, err := op.GetPlacementDecsions(ctx, expectedPlacementTarget, upStreamGateway.Namespace)
+	if err != nil {
+		return existingClusters, expectedPlacementTarget, fmt.Errorf("failed to get expected placement decisons %w", err)
+	}
+	expectedClusters = op.GetTargetClusters(expectedPlacementDecisions)
+
+	workname := WorkName(upStreamGateway)
+	// if no expected placement or upstream being deleted  remove from all existing clusters
+	if expectedPlacementTarget == "" || upStreamGateway.DeletionTimestamp != nil {
+		logger.V(3).Info("removing gateway from all existing gateways ", "placement target ", expectedPlacementTarget, "gatway deletion", upStreamGateway.DeletionTimestamp)
+		var removeErr error
+		for _, existingCluster := range existingClusters.UnsortedList() {
+			if err := op.removeGatewayFromSpoke(ctx, existingCluster, workname); err != nil {
+				removeErr = errors.Join(err)
+				existingClusters.Delete(existingCluster)
+			}
+		}
+		if removeErr != nil {
+			return existingClusters, expectedPlacementTarget, removeErr
+		}
+		if err := op.removeFinalizerPlacementDecisons(ctx, existingPlacementDecisions); err != nil {
+			return existingClusters, expectedPlacementTarget, err
+		}
+		return existingClusters, existingPlacementTarget, nil
+	}
+	if existingPlacementTarget == expectedPlacementTarget {
+		// nothing to do return existing clusters
+		logger.V(3).Info("no placement change needed ", "existing placement", existingPlacementTarget, "expectd placement", expectedPlacementTarget)
+		return existingClusters, expectedPlacementTarget, nil
+	}
+	// the placement has changed or been applied
+	logger.V(3).Info("placement: placing ", "gateway", upStreamGateway.Name, "gateway ns", upStreamGateway.Namespace, "expected placement", expectedPlacementTarget, "existing placement", existingPlacementTarget)
+
+	logger.V(3).Info("placement: ", "targets", expectedClusters.UnsortedList(), "gateway", downStreamGateway.Name, "gateway ns", upStreamGateway.Namespace)
+
+	// build what will be placed into the down stream
 	objects := []metav1.Object{downStreamGateway}
 	objects = append(objects, children...)
-	for _, cluster := range placementTargets.UnsortedList() {
-		log.V(3).Info("placement: ", "adding gateway rbac to cluster ", cluster, "gateway", upStreamGateway.Name, "gateway ns", upStreamGateway.Namespace)
+
+	for _, cluster := range expectedClusters.UnsortedList() {
+		logger.V(3).Info("placement: ", "adding gateway rbac to cluster ", cluster, "gateway", upStreamGateway.Name, "gateway ns", upStreamGateway.Namespace)
 		if err := op.defaultRBAC(ctx, cluster); err != nil {
-			log.V(3).Info("placement: ", "adding gateway rbac to cluster ", cluster, "gateway", upStreamGateway.Name, "gateway ns", upStreamGateway.Namespace, "error", err)
-			return existingClusters, err
+			logger.V(3).Info("placement: ", "adding gateway rbac to cluster ", cluster, "gateway", upStreamGateway.Name, "gateway ns", upStreamGateway.Namespace, "error", err)
+			return existingClusters, expectedPlacementTarget, err
 		}
-		log.V(3).Info("placement: ", "adding gateway to cluster ", cluster, "gateway", upStreamGateway.Name, "gateway ns", upStreamGateway.Namespace)
+		logger.V(3).Info("placement: ", "adding gateway to cluster ", cluster, "gateway", upStreamGateway.Name, "gateway ns", upStreamGateway.Namespace)
 		if err := op.createUpdateClusterManifests(ctx, workname, upStreamGateway, downStreamGateway, cluster, objects...); err != nil {
-			log.V(3).Info("placement: ", "adding gateway to cluster ", cluster, "gateway", upStreamGateway.Name, "error", err)
-			return existingClusters, err
+			logger.V(3).Info("placement: ", "adding gateway to cluster ", cluster, "gateway", upStreamGateway.Name, "error", err)
+			return existingClusters, expectedPlacementTarget, err
 		}
-		log.V(3).Info("placement: ", "added gateway to cluster ", cluster, "gateway", upStreamGateway.Name, "gateway ns", upStreamGateway.Namespace)
+		logger.V(3).Info("placement: ", "added gateway to cluster ", cluster, "gateway", upStreamGateway.Name, "gateway ns", upStreamGateway.Namespace)
 		existingClusters.Insert(cluster)
 	}
+	// not in target clusters so need to be removed
+	removeFrom := existingClusters.Difference(expectedClusters)
+	logger.V(3).Info("placement: ", "removeFrom", removeFrom.UnsortedList(), "gateway", upStreamGateway.Name, "gateway ns", upStreamGateway.Namespace)
 
 	// remove from remove
 	for _, cluster := range removeFrom.UnsortedList() {
-		log.V(3).Info("placement: ", "removing gateway from cluster ", cluster, "gateway", upStreamGateway.Name, "gateway ns", upStreamGateway.Namespace)
-		//todo remove rbac
-		w := &workv1.ManifestWork{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      workname,
-				Namespace: cluster,
-			},
+		logger.V(3).Info("placement: ", "removing gateway from cluster ", cluster, "gateway", upStreamGateway.Name, "gateway ns", upStreamGateway.Namespace)
+		var removeError error
+		if err := op.removeGatewayFromSpoke(ctx, cluster, workname); err != nil {
+			removeError = errors.Join(err)
 		}
-		err = op.c.Get(ctx, client.ObjectKeyFromObject(w), w)
-		if err != nil {
-			return existingClusters, err
+		if removeError != nil {
+			return existingClusters, expectedPlacementTarget, removeError
 		}
-
-		// Check if the ManagedCluster still exists,
-		// otherwise delete without any grace period.
-		// This can happen if a ManagedCluster is deleted,
-		// as opposed to just a placement decision changing
-		ignoreGrace := false
-		managedCluster := &clusterv1.ManagedCluster{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: cluster,
-			},
-		}
-		err = op.c.Get(ctx, client.ObjectKeyFromObject(managedCluster), managedCluster)
-		if k8serrors.IsNotFound(err) {
-			log.V(3).Info(fmt.Sprintf("ManagedCluster not found '%s', ignoring grace period", cluster))
-			ignoreGrace = true
-		}
-		if err := gracePeriod.GracefulDelete(ctx, op.c, w, ignoreGrace); err != nil {
-			// use a multi-error
-			log.V(3).Info("error during graceful delete", "error", err)
-			return existingClusters, err
-		}
-
-		log.V(3).Info("graceful delete of gateway manifestwork complete, deleting RBAC")
-		rbac := &workv1.ManifestWork{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: cluster,
-				Name:      rbacManifest,
-			},
-		}
-		if err := op.c.Delete(ctx, rbac, &client.DeleteOptions{}); client.IgnoreNotFound(err) != nil {
-			// use a multi-error
-			return existingClusters, err
-		}
-		existingClusters.Delete(cluster)
 	}
 
-	return existingClusters, nil
+	//placement done add and remove any finalizers from the no longer targeted placement decisons
+	if err := op.removeFinlizerPlacementDecisons(ctx, existingPlacementDecisions); err != nil {
+		return existingClusters, expectedPlacementTarget, fmt.Errorf("failed to remove finalizers from placement decisons for no longer targeted placements %w", err)
+	}
+	if err := op.addFinalizePlacementDecisions(ctx, expectedPlacementDecisions); err != nil {
+		return existingClusters, expectedPlacementTarget, fmt.Errorf("failed to add finalizers after placement complete to targeted placement decisons %w", err)
+	}
+
+	return existingClusters, expectedPlacementTarget, nil
+}
+
+var placementCondType = "Placement"
+var placementReason = "ResolvedPlacementDecision"
+
+func (op *ocmPlacer) removeGatewayFromSpoke(ctx context.Context, cluster string, workname string) error {
+	w := &workv1.ManifestWork{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      workname,
+			Namespace: cluster,
+		},
+	}
+	err := op.c.Get(ctx, client.ObjectKeyFromObject(w), w)
+	if err != nil {
+		return fmt.Errorf("failed to remove gateway from spoke %s : %w", cluster, err)
+	}
+
+	// Check if the ManagedCluster still exists,
+	// otherwise delete without any grace period.
+	// This can happen if a ManagedCluster is deleted,
+	// as opposed to just a placement decision changing
+	ignoreGrace := false
+	managedCluster := &clusterv1.ManagedCluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: cluster,
+		},
+	}
+	err = op.c.Get(ctx, client.ObjectKeyFromObject(managedCluster), managedCluster)
+	if k8serrors.IsNotFound(err) {
+		logger.V(3).Info(fmt.Sprintf("ManagedCluster not found '%s', ignoring grace period", cluster))
+		ignoreGrace = true
+	}
+	if err := gracePeriod.GracefulDelete(ctx, op.c, w, ignoreGrace); err != nil {
+		return fmt.Errorf("failed graceful delete when removing gateway manifestwork from spoke cluster %s : %w", cluster, err)
+	}
+
+	logger.V(3).Info("graceful delete of gateway manifestwork complete, deleting RBAC")
+	rbac := &workv1.ManifestWork{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: cluster,
+			Name:      rbacManifest,
+		},
+	}
+	if err := op.c.Delete(ctx, rbac, &client.DeleteOptions{}); client.IgnoreNotFound(err) != nil {
+		return fmt.Errorf("failed to delete rbac manifestwoork when removing gateway from spoke cluster %s : %w ", cluster, err)
+	}
+	return nil
+}
+
+func (op *ocmPlacer) removeFinlizerPlacementDecisons(ctx context.Context, pds placement.PlacementDecisionList) error {
+	var finalizerErr error
+	for _, pd := range pds.Items {
+		if controllerutil.RemoveFinalizer(&pd, PlacementDecisionFinalizer) {
+			if err := op.c.Update(ctx, &pd); err != nil {
+				finalizerErr = errors.Join(err)
+			}
+		}
+	}
+	return finalizerErr
+}
+
+func (op *ocmPlacer) addFinalizePlacementDecisions(ctx context.Context, pds placement.PlacementDecisionList) error {
+	var finalizerErr error
+	for _, pd := range pds.Items {
+		if pd.DeletionTimestamp == nil {
+			if controllerutil.AddFinalizer(&pd, PlacementDecisionFinalizer) {
+				if err := op.c.Update(ctx, &pd); err != nil {
+					finalizerErr = errors.Join(err)
+				}
+			}
+		}
+	}
+	return finalizerErr
+}
+
+func (op ocmPlacer) removeFinalizerPlacementDecisons(ctx context.Context, pds placement.PlacementDecisionList) error {
+	var finalizerErr error
+	for _, pd := range pds.Items {
+		if controllerutil.RemoveFinalizer(&pd, PlacementDecisionFinalizer) {
+			if err := op.c.Update(ctx, &pd); err != nil {
+				finalizerErr = errors.Join(err)
+			}
+		}
+	}
+	return finalizerErr
+}
+
+func (op *ocmPlacer) GetPlacementDecsions(ctx context.Context, targetPlacement, targetNS string) (placement.PlacementDecisionList, error) {
+	pdList := &placement.PlacementDecisionList{}
+	if targetPlacement == "" {
+		return *pdList, nil
+	}
+	labelSelector := client.MatchingLabels{
+		OCMPlacementLabel: targetPlacement,
+	}
+
+	err := op.c.List(ctx, pdList, &client.ListOptions{Namespace: targetNS}, labelSelector)
+	return *pdList, err
 }
 
 // GetPlacedClusters will return the list of clusters this gateway has been successfully placed on
@@ -235,35 +343,14 @@ func (op *ocmPlacer) GetPlacedClusters(ctx context.Context, gateway *gatewayv1be
 	return existingClusters, nil
 }
 
-// GetClusters will return the set of clusters this gateway is targeted to be placed on. It does not check the placement has happened
-func (op *ocmPlacer) GetClusters(ctx context.Context, gateway *gatewayv1beta1.Gateway) (sets.Set[string], error) {
-	rootMeta, _ := k8smeta.Accessor(gateway)
-	labels := rootMeta.GetLabels()
-	selectedPlacement := labels[OCMPlacementLabel]
-	targetClusters := sets.Set[string](sets.NewString())
-	if selectedPlacement == "" {
-		return targetClusters, nil
-	}
-
-	// find the placement decsion
-	pdList := &placement.PlacementDecisionList{}
-	labelSelector := client.MatchingLabels{
-		OCMPlacementLabel: selectedPlacement,
-	}
-
-	if err := op.c.List(ctx, pdList, &client.ListOptions{Namespace: rootMeta.GetNamespace()}, labelSelector); err != nil {
-		return targetClusters, err
-	}
-	if len(pdList.Items) == 0 {
-		placementNotFound := k8serrors.NewNotFound(schema.GroupResource{Resource: "PlacementDecision"}, selectedPlacement)
-		return targetClusters, fmt.Errorf("no PlacementDecisions found for placement %s via label selector: %s error: %w", selectedPlacement, labelSelector, placementNotFound)
-	}
-	for _, pd := range pdList.Items {
-		for _, d := range pd.Status.Decisions {
-			targetClusters.Insert(d.ClusterName)
+func (op *ocmPlacer) GetTargetClusters(decisions placement.PlacementDecisionList) sets.Set[string] {
+	targeted := sets.Set[string](sets.NewString())
+	for _, pd := range decisions.Items {
+		for _, c := range pd.Status.Decisions {
+			targeted.Insert(c.ClusterName)
 		}
 	}
-	return targetClusters, nil
+	return targeted
 }
 
 func (op *ocmPlacer) GetClusterGateway(ctx context.Context, gateway *gatewayv1beta1.Gateway, clusterName string) (dns.ClusterGateway, error) {
@@ -293,7 +380,6 @@ func (op *ocmPlacer) GetClusterGateway(ctx context.Context, gateway *gatewayv1be
 }
 
 func (op *ocmPlacer) createUpdateClusterManifests(ctx context.Context, manifestName string, upstream *gatewayv1beta1.Gateway, downstream *gatewayv1beta1.Gateway, cluster string, obj ...metav1.Object) error {
-	log := log.Log
 	// set up gateway manifest
 	key, err := cache.MetaNamespaceKeyFunc(upstream)
 	if err != nil {
@@ -313,7 +399,7 @@ func (op *ocmPlacer) createUpdateClusterManifests(ctx context.Context, manifestN
 	if err != nil {
 		return err
 	}
-	log.V(3).Info("placement:", "manifests prepared", len(objManifests))
+	logger.V(3).Info("placement:", "manifests prepared", len(objManifests))
 
 	work.Spec.Workload = workv1.ManifestsTemplate{
 		Manifests: objManifests,
@@ -348,8 +434,7 @@ func (op *ocmPlacer) createUpdateClusterManifests(ctx context.Context, manifestN
 	}
 
 	work.Spec.ManifestConfigs[0].FeedbackRules[0].JsonPaths = jsonPaths
-	log.V(3).Info("feedback rules set ", "feedback ", work.Spec.ManifestConfigs[0].FeedbackRules)
-	log.V(3).Info("placement: creating updating maniftests for ", "cluster", cluster)
+	logger.V(3).Info("placement: creating updating maniftests for ", "cluster", cluster)
 	return op.createUpdateManifest(ctx, cluster, work)
 
 }
@@ -460,7 +545,7 @@ func (op *ocmPlacer) createUpdateManifest(ctx context.Context, cluster string, m
 	}
 	if err := op.c.Get(ctx, client.ObjectKeyFromObject(mw), mw, &client.GetOptions{}); err != nil {
 		if k8serrors.IsNotFound(err) {
-			log.Log.V(3).Info("placement: manifest not found creating it ", "cluster", mw.Namespace)
+			logger.V(3).Info("placement: manifest not found creating it ", "cluster", mw.Namespace)
 			if err := op.c.Create(ctx, &m, &client.CreateOptions{}); err != nil {
 				return err
 			}
@@ -469,10 +554,10 @@ func (op *ocmPlacer) createUpdateManifest(ctx context.Context, cluster string, m
 	}
 
 	if !equality.Semantic.DeepEqual(mw.Spec, m.Spec) {
-		log.Log.V(3).Info("placement: manifest found updating it ")
+		logger.V(3).Info("placement: manifest found updating it ")
 		mw.Spec = m.Spec
 		if err := op.c.Update(ctx, mw, &client.UpdateOptions{}); err != nil {
-			log.Log.V(3).Info("placement:  updating manifest ", "error", err)
+			logger.V(3).Info("placement:  updating manifest ", "error", err)
 			return err
 		}
 	}

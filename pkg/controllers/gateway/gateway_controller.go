@@ -53,6 +53,8 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 )
 
+type PlacmentReason string
+
 const (
 	GatewayClusterLabelSelectorAnnotation                            = "kuadrant.io/gateway-cluster-label-selector"
 	GatewayClustersAnnotation                                        = "kuadrant.io/gateway-clusters"
@@ -60,16 +62,17 @@ const (
 	ManagedLabel                                                     = "kuadrant.io/managed"
 	MultiClusterIPAddressType             gatewayv1beta1.AddressType = "kuadrant.io/MultiClusterIPAddress"
 	MultiClusterHostnameAddressType       gatewayv1beta1.AddressType = "kuadrant.io/MultiClusterHostnameAddress"
+	PlacementConditonType                                            = "Placed"
+	PlacmentConditionReasonPlaced         PlacmentReason             = "PlacementCompleted"
+	PlacmentConditionReasonFailed         PlacmentReason             = "PlacementFailed"
 )
 
 type GatewayPlacer interface {
 	//Place will use the placement logic to create the needed resources and ensure the objects are synced to the targeted clusters
 	// it will return the set of clusters it has targeted
-	Place(ctx context.Context, upstream *gatewayv1beta1.Gateway, downstream *gatewayv1beta1.Gateway, children ...metav1.Object) (sets.Set[string], error)
+	Place(ctx context.Context, upstream *gatewayv1beta1.Gateway, downstream *gatewayv1beta1.Gateway, children ...metav1.Object) (sets.Set[string], string, error)
 	// gets the clusters the gateway has actually been placed on
 	GetPlacedClusters(ctx context.Context, gateway *gatewayv1beta1.Gateway) (sets.Set[string], error)
-	//GetClusters returns the clusters decided on by the placement logic
-	GetClusters(ctx context.Context, gateway *gatewayv1beta1.Gateway) (sets.Set[string], error)
 	// ListenerTotalAttachedRoutes returns the total attached routes for a listener from the downstream gateways
 	ListenerTotalAttachedRoutes(ctx context.Context, gateway *gatewayv1beta1.Gateway, listenerName string, downstream string) (int, error)
 	// GetAddresses will look at the downstream view of the gateway and return the LB addresses used for these gateways
@@ -287,9 +290,9 @@ func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.C
 	downstream.Labels[ManagedLabel] = "true"
 	if isDeleting(upstreamGateway) {
 		log.Info("deleting downstream gateways owned by upstream gateway ", "name", downstream.Name, "namespace", downstream.Namespace)
-		targets, err := r.Placement.Place(ctx, upstreamGateway, downstream)
+		targets, placementName, err := r.Placement.Place(ctx, upstreamGateway, downstream)
 		if err != nil {
-			return false, metav1.ConditionFalse, clusters, err
+			return false, metav1.ConditionFalse, clusters, fmt.Errorf("deleting upstream gateway but failed to remove downstream gateways based on placement %s : %w", placementName, err)
 		}
 		return false, metav1.ConditionTrue, targets.UnsortedList(), nil
 	}
@@ -310,12 +313,41 @@ func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.C
 			return false, metav1.ConditionUnknown, clusters, fmt.Errorf("failed to get reconcileParams : %s", err)
 		}
 	}
+	var setPlacementCondition = func(upstreamGateway *gatewayv1beta1.Gateway, status metav1.ConditionStatus, reason PlacmentReason, targetPlacement string, err error) {
+		cond := meta.FindStatusCondition(upstreamGateway.Status.Conditions, PlacementConditonType)
+		if cond == nil {
+			cond = &metav1.Condition{
+				Type: PlacementConditonType,
+			}
+		}
+		cond.ObservedGeneration = upstreamGateway.Generation
+		cond.Reason = string(reason)
+		cond.Status = status
+		if status != metav1.ConditionTrue {
+			cond.Message = "placement not completed for target placement " + targetPlacement
+			if err != nil {
+				cond.Message += " : " + err.Error()
+			}
+		}
+		if status == metav1.ConditionTrue {
+			cond.Message = targetPlacement
+		}
+		meta.SetStatusCondition(&upstreamGateway.Status.Conditions, *cond)
+
+	}
 
 	// ensure the gateways are placed into the right target clusters and removed from any that are no longer targeted
-	targets, err := r.Placement.Place(ctx, upstreamGateway, downstream, tlsSecrets...)
+	targets, placementTarget, err := r.Placement.Place(ctx, upstreamGateway, downstream, tlsSecrets...)
 	if err != nil {
+		// set placement condition but dont change the target as placement has failed
+		setPlacementCondition(upstreamGateway, metav1.ConditionFalse, PlacmentConditionReasonFailed, placementTarget, err)
 		return true, metav1.ConditionFalse, clusters, fmt.Errorf("failed to place gateway : %w", err)
 	}
+	setPlacementCondition(upstreamGateway, metav1.ConditionTrue, PlacmentConditionReasonPlaced, placementTarget, nil)
+	if upstreamGateway.Labels == nil {
+		upstreamGateway.Labels = map[string]string{}
+	}
+	upstreamGateway.Labels["kuadrant.io/gateway-placed"] = placementTarget
 
 	log.Info("Gateway Placed ", "gateway", upstreamGateway.Name, "namespace", upstreamGateway.Namespace, "targets", targets.UnsortedList())
 	//get updated list of clusters where this gateway has been successfully placed

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	pd "open-cluster-management.io/api/cluster/v1beta1"
 	workv1 "open-cluster-management.io/api/work/v1"
@@ -531,6 +532,43 @@ func TestGetClusters(t *testing.T) {
 			},
 			PlacementDecision: func(clusters sets.Set[string]) *pd.PlacementDecision {
 				return nil
+			},
+		},
+		{
+			Name:     "test no clusters returned when placement decision being deleted",
+			Clusters: sets.Set[string](sets.NewString("c1", "c2")),
+			Gateway: &v1beta1.Gateway{
+				ObjectMeta: v1.ObjectMeta{
+					Labels:    map[string]string{placement.OCMPlacementLabel: "test"},
+					Namespace: "test",
+				},
+			},
+			Assert: func(t *testing.T, err error, got, expected sets.Set[string]) {
+				if err != nil {
+					t.Fatalf("did not expect an error but got one %s", err)
+				}
+				if got.Len() != 0 {
+					t.Fatalf("expected not clusters but got %v", got.UnsortedList())
+				}
+			},
+			PlacementDecision: func(clusters sets.Set[string]) *pd.PlacementDecision {
+				t := v1.NewTime(time.Now().Add(time.Second + 5))
+				dec := &pd.PlacementDecision{
+					ObjectMeta: v1.ObjectMeta{
+						DeletionTimestamp: &t,
+						Labels: map[string]string{
+							placement.OCMPlacementLabel: "test",
+						},
+						Namespace: "test",
+					},
+					Status: pd.PlacementDecisionStatus{},
+				}
+				for _, c := range clusters.UnsortedList() {
+					dec.Status.Decisions = append(dec.Status.Decisions, pd.ClusterDecision{
+						ClusterName: c,
+					})
+				}
+				return dec
 			},
 		},
 	}
