@@ -2,92 +2,142 @@
 
 In this guide, we will go through defining a Gateway in the OCM hub cluster that can then be distributed to and instantiated on a set of managed spoke clusters.
 
-### Pre Requisites
+### Prerequisites
+* Complete the [Getting Started Guide](https://docs.kuadrant.io/getting-started/) to bring up a suitable environment. 
 
-- Go through the [getting started guide](https://docs.kuadrant.io/getting-started/). 
+If you are looking to change provider from the default Istio:
+* Please have the Gateway provider of your choice installed and configured (in this example we use Envoy gateway. See the following [docs](https://gateway.envoyproxy.io/v0.5.0/user/quickstart.html))
 
-You should start this guide with OCM installed, 1 or more spoke clusters registered with the hub and Kuadrant installed into the hub.
+## Initial setup 
 
-Going through the installation will also ensure that a supported `GatewayClass` is registered in the hub cluster that the Kuadrant multi-cluster gateway controller will handle. 
+export `MGC_SUB_DOMAIN` in each terminal if you haven't already added it to your `.zshrc` or `.bash_profile`.
+
+Going through the quick start above, will ensure that a supported `GatewayClass` is registered in the hub cluster that the Kuadrant multi-cluster gateway controller will handle. 
+
+**NOTE** :exclamation: The quick start script will create a placement resource as part of the setup. You can use this as further inspiration for other placement resources you would like to create.
 
 
 ### Defining a Gateway
 
-Once you have Kudarant installed in to the OCM hub cluster, you can begin defining and placing Gateways across your OCM managed infrastructure.
+Once you have the Kuadrant multi-cluster gateway controller installed into the OCM hub cluster, you can begin defining and placing Gateways across your OCM managed infrastructure.
 
 To define a Gateway and have it managed by the multi-cluster gateway controller, we need to do the following things
 
-- Create a Gateway API Gateway resource in the Hub cluster
-- Ensure that gateway resource specifies the correct gateway class so that it will be picked up and managed by the multi-cluster gateway controller
+- Create a Gateway API Gateway resource in the Hub cluster, ensuring the gateway resource specifies the correct gateway class allowing it to be picked up and managed by the multi-cluster gateway controller
 
-So really there is very little different from setting up a gateway in a none OCM hub. The key difference here is this gateway definition, represents a "template" gateway that will then be distributed and provisioned on chosen spoke clusters. The actual provider for this Gateway instance defaults to Istio. This is because kuadrant also offers APIs that integrate at the gateway provider level and the gateway provider we currently support is Istio.
-
-The Gateway API CRDS will have been installed into your hub as part of installation of Kuadrant into the hub. Below is an example gateway. [More Examples](https://github.com/kubernetes-sigs/gateway-api/tree/main/examples/standard). Assuming you have the correct RBAC permissions and a namespace, the key thing is to define the correct `GatewayClass` name to use and a listener host.
-
-```
-apiVersion: gateway.networking.k8s.io/v1beta1
-kind: Gateway
-metadata:
-  name: prod-web
-  namespace: multi-cluster-gateways
-spec:
-  gatewayClassName: kuadrant-multi-cluster-gateway-instance-per-cluster #this needs to be set in your gateway definiton
-  listeners:
-  - allowedRoutes:
-      namespaces:
-        from: All
-    name: specific
-    hostname: 'some.domain.example.com'
-    port: 443
-    protocol: HTTP
-
-```
+  ```bash
+  kubectl --context kind-mgc-control-plane apply -f - <<EOF
+  apiVersion: gateway.networking.k8s.io/v1beta1
+  kind: Gateway
+  metadata:
+    name: prod-websdy
+    namespace: multi-cluster-gateways
+  spec:
+    gatewayClassName: kuadrant-multi-cluster-gateway-instance-per-cluster
+    listeners:
+    - allowedRoutes:
+        namespaces:
+          from: All
+      name: api
+      hostname: $MGC_SUB_DOMAIN
+      port: 443
+      protocol: HTTP
+  EOF
+    ```
 
 ### Placing a Gateway
 
-To place a gateway, we will need to create a Placement resource. 
-
-Below is an example placement resource. To learn more about placement check out the OCM docs [placement](https://open-cluster-management.io/concepts/placement/)
-
-
+ To place a gateway, we will need to create a Placement resource. 
+```bash
+kubectl --context kind-mgc-control-plane apply -f - <<EOF
+apiVersion: cluster.open-cluster-management.io/v1beta1
+kind: Placement
+metadata:
+  name: http-gateway-placement
+  namespace: multi-cluster-gateways
+spec:
+  clusterSets:
+  - gateway-clusters # defines which ManagedClusterSet to use.  
+  numberOfClusters: 2 # defines how many clusters to select from the chosen clusterSets
+EOF
 ```
- apiVersion: cluster.open-cluster-management.io/v1beta1
-  kind: Placement
-  metadata:
-    name: http-gateway-placement
-    namespace: multi-cluster-gateways
-  spec:
-    clusterSets:
-    - gateway-clusters # defines which ManagedClusterSet to use. https://open-cluster-management.io/concepts/managedclusterset/ 
-    numberOfClusters: 2 #defines how many clusters to select from the chosen clusterSets
-
-```
+For more information on ManagedClusterSets and placements please see the OCM official docs
+* [ManagedClusterSets](https://open-cluster-management.io/concepts/managedclusterset/)
+* [Placements](https://open-cluster-management.io/concepts/placement/)
 
 
-Finally in order to actually have the Gateway instances deployed to your spoke clusters that can start receiving traffic, you need to label the hub gateway with a placement label. In the above example we would add the following label to the gateway.
 
+Finally in order to have the Gateway instances deployed to your spoke clusters that can start receiving traffic, you need to 
+* Add the second cluster to the clusterset
+* Label the hub gateway with a placement label.
 
-```
-cluster.open-cluster-management.io/placement: http-gateway #this value should match the name of your placement.
-```
+1. Add the second cluster to the clusterset, by running the following:
 
-### What if you want to use a different gateway provider?
+    ```bash
+    kubectl --context kind-mgc-control-plane label managedcluster kind-mgc-workload-1 ingress-cluster=true
+    ```
+1. To place the gateway, we need to add a placement label to gateway resource to instruct the gateway controller where we want this gateway instantiated.
+
+    ```bash
+    kubectl --context kind-mgc-control-plane label gateway prod-web "cluster.open-cluster-management.io/placement"="http-gateway-placement" -n multi-cluster-gateways
+    ```
+
+2. To find a configured gateway and instantiated gateway on the hub cluster. Run the following  
+
+    ```bash
+    kubectl --context kind-mgc-control-plane get gateway -A
+    ```
+
+    You'll see the following:
+
+    ```
+    kuadrant-multi-cluster-gateways   prod-web   istio                                         172.31.200.0                29s
+    multi-cluster-gateways            prod-web   kuadrant-multi-cluster-gateway-instance-per-cluster                  True         2m42s
+    ```
+3.  Execute the following to see the gateway on the workload-1 cluster:
+
+    ```bash
+    kubectl --context kind-mgc-workload-1 get gateways -A
+    ```
+    You'll see the following
+    ```
+    NAMESPACE                         NAME       CLASS   ADDRESS        PROGRAMMED   AGE
+    kuadrant-multi-cluster-gateways   prod-web   istio   172.31.201.0                90s
+    ```
+### Using a different gateway provider?
 
 While we recommend using Istio as the gateway provider as that is how you will get access to the full suite of policy APIs, it is possible to use another provider if you choose to however this will result in a reduced set of applicable policy objects.
 
-If you are only using the DNSPolicy and TLSPolicy resources, you can use these APIs with any Gateway provider. To change the underlying provider, you need to set the gatewayclass param `downstreamClass`. To do this create the following configmap:
+If you are only using the DNSPolicy and TLSPolicy resources, you can use these APIs with any Gateway provider. To change the underlying provider, you need to set the gatewayclass param `downstreamClass`. 
 
-``` 
-apiVersion: v1
-data:
-  params: |
-    {
-      "downstreamClass": "eg" #this is the class for envoy gateway used as an example
-    }
-kind: ConfigMap
-metadata:
-  name: gateway-params
-  namespace: multi-cluster-gateways
-```
+1.  Create the following configmap. Note: In this example, 'eg' stands for the Envoy gateway, which is mentioned in the prerequisites above:
 
-Once this has been created, any gateway created from that gateway class will result in a downstream gateway being provisioned with the configured downstreamClass.
+    ```bash
+    kubectl --context kind-mgc-control-plane apply -f - <<EOF
+    apiVersion: v1
+    data:
+      params: |
+        {
+          "downstreamClass": "eg"
+        }
+    kind: ConfigMap
+    metadata:
+      name: gateway-params
+      namespace: multi-cluster-gateways
+    EOF
+    ```
+2. Update the gatewayclass to include the above Configmap
+
+    ```bash
+    kubectl --context kind-mgc-control-plane patch gatewayclass kuadrant-multi-cluster-gateway-instance-per-cluster -n multi-cluster-gateways --type merge --patch '{"spec":{"parametersRef":{"group":"","kind":"ConfigMap","name":"gateway-params","namespace":"multi-cluster-gateways"}}}'
+    ```
+
+Once this has been created, any gateways created from that gateway class will result in a downstream gateway being provisioned with the configured downstreamClass.
+Run the following in both your hub  and spoke cluster to see the gateways:
+
+  ```bash
+  kubectl --context kind-mgc-control-plane get gateway -A
+  ```
+  ```bash
+  kubectl --context kind-mgc-workload-1 get gateway -A
+  ```
