@@ -25,25 +25,25 @@ To define a Gateway and have it managed by the multi-cluster gateway controller,
 
 - Create a Gateway API Gateway resource in the Hub cluster, ensuring the gateway resource specifies the correct gateway class allowing it to be picked up and managed by the multi-cluster gateway controller
 
-  ```bash
-  kubectl --context kind-mgc-control-plane apply -f - <<EOF
-  apiVersion: gateway.networking.k8s.io/v1beta1
-  kind: Gateway
-  metadata:
-    name: prod-web
-    namespace: multi-cluster-gateways
-  spec:
-    gatewayClassName: kuadrant-multi-cluster-gateway-instance-per-cluster
-    listeners:
-    - allowedRoutes:
-        namespaces:
-          from: All
-      name: api
-      hostname: $MGC_SUB_DOMAIN
-      port: 443
-      protocol: HTTP
-  EOF
-    ```
+```bash
+kubectl --context kind-mgc-control-plane apply -f - <<EOF
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: Gateway
+metadata:
+  name: prod-web
+  namespace: multi-cluster-gateways
+spec:
+  gatewayClassName: kuadrant-multi-cluster-gateway-instance-per-cluster
+  listeners:
+  - allowedRoutes:
+      namespaces:
+        from: All
+    name: api
+    hostname: $MGC_SUB_DOMAIN
+    port: 443
+    protocol: HTTP
+EOF
+```
 
 ### Placing a Gateway
 
@@ -61,8 +61,10 @@ spec:
   numberOfClusters: 2 # defines how many clusters to select from the chosen clusterSets
 EOF
 ```
-For more information on ManagedClusterSets and placements please see the OCM official docs
+For more information on ManagedClusterSets and placements please see the OCM official docs:
+
 * [ManagedClusterSets](https://open-cluster-management.io/concepts/managedclusterset/)
+
 * [Placements](https://open-cluster-management.io/concepts/placement/)
 
 
