@@ -87,6 +87,9 @@ config/deploy/**/_*
 /ratelimitpolicy.yaml
 /echo_httproute.yaml
 
+/control-plane.yaml
+/workload*.yaml
+
 cmd/controller/__debug_bin
 
 # Submariner broker config
