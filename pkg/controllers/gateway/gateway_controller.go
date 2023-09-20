@@ -111,7 +111,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	log.V(3).Info("reconciling gateway", "classname", upstreamGateway.Spec.GatewayClassName)
 	if isDeleting(upstreamGateway) {
 		log.Info("gateway being deleted ", "gateway", upstreamGateway.Name, "namespace", upstreamGateway.Namespace)
-		if _, _, _, err := r.reconcileDownstreamFromUpstreamGateway(ctx, upstreamGateway, nil); err != nil {
+		if _, _, _, err := r.reconcileDownstreamFromUpstreamGateway(ctx, upstreamGateway, nil); client.IgnoreNotFound(err) != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to reconcile downstream gateway after upstream gateway deleted: %s ", err)
 		}
 		controllerutil.RemoveFinalizer(upstreamGateway, GatewayFinalizer)
@@ -379,29 +379,29 @@ func (r *GatewayReconciler) reconcileParams(_ context.Context, gateway *gatewayv
 }
 
 func buildProgrammedCondition(generation int64, placed []string, programmedStatus metav1.ConditionStatus, err error) metav1.Condition {
-	errorMsg := ""
-	if err != nil {
-		errorMsg = err.Error()
-	}
 	var reason = gatewayv1beta1.GatewayReasonProgrammed
-	message := "waiting for gateway to placed on clusters %v %s"
+	message := "waiting for gateway to placed on clusters %v"
 	if programmedStatus == metav1.ConditionTrue {
-		message = "gateway placed on clusters %v %s"
+		message = fmt.Sprintf("gateway placed on clusters %v", placed)
 	}
 	if programmedStatus == metav1.ConditionFalse {
-		message = "gateway failed to be placed on all clusters %v error %s"
+		message = fmt.Sprintf("gateway failed to be placed on all clusters %v", placed)
 		reason = gatewayv1beta1.GatewayReasonInvalid
 	}
 	if programmedStatus == metav1.ConditionUnknown {
-		message = "current state of the gateway is unknown error %s"
+		message = "current state of the gateway is unknown"
 		reason = gatewayv1beta1.GatewayReasonPending
+	}
+
+	if err != nil {
+		message += " error: " + err.Error()
 	}
 
 	cond := metav1.Condition{
 		Type:               string(gatewayv1beta1.GatewayConditionProgrammed),
 		Status:             programmedStatus,
 		Reason:             string(reason),
-		Message:            fmt.Sprintf(message, placed, errorMsg),
+		Message:            message,
 		ObservedGeneration: generation,
 	}
 	return cond

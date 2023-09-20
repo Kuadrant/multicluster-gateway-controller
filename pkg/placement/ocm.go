@@ -115,7 +115,7 @@ func (op *ocmPlacer) Place(ctx context.Context, upStreamGateway *gatewayv1beta1.
 	emyptySet := sets.Set[string](sets.NewString())
 	// where the placement decision says to place the gateway
 	placementTargets, err := op.GetClusters(ctx, upStreamGateway)
-	if err != nil && !k8serrors.IsNotFound(err) {
+	if err != nil {
 		return emyptySet, err
 	}
 	log.V(3).Info("placement: ", "targets", placementTargets.UnsortedList(), "gateway", downStreamGateway.Name, "gateway ns", upStreamGateway.Namespace)
@@ -255,8 +255,8 @@ func (op *ocmPlacer) GetClusters(ctx context.Context, gateway *gatewayv1beta1.Ga
 		return targetClusters, err
 	}
 	if len(pdList.Items) == 0 {
-		placementNotFound := k8serrors.NewNotFound(schema.GroupResource{Group: "cluster.open-cluster-management.io", Resource: "PlacementDecision"}, selectedPlacement)
-		return targetClusters, fmt.Errorf("no placemement decisions found for placement selector %s : %w", selectedPlacement, placementNotFound)
+		placementNotFound := k8serrors.NewNotFound(schema.GroupResource{Resource: "PlacementDecision"}, selectedPlacement)
+		return targetClusters, fmt.Errorf("no PlacementDecisions found for placement %s via label selector: %s error: %w", selectedPlacement, labelSelector, placementNotFound)
 	}
 	for _, pd := range pdList.Items {
 		for _, d := range pd.Status.Decisions {
