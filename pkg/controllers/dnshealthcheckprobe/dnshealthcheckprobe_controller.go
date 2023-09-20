@@ -92,8 +92,18 @@ func (r *DNSHealthCheckProbeReconciler) Reconcile(ctx context.Context, req ctrl.
 	additionalHeaders, err := getAdditionalHeaders(ctx, r.Client, probeObj)
 
 	if err != nil {
-		//update probe status, ignore update errors
-		_ = r.Client.Status().Update(ctx, probeObj)
+		f := false
+		logger.V(1).Info(
+			"error getting additional headers for probe",
+			"secret name", probeObj.Spec.AdditionalHeadersRef.Name,
+			"error", err)
+		//update probe status
+		probeObj.Status.Healthy = &f
+		probeObj.Status.LastCheckedAt = metav1.Now()
+		updateErr := r.Client.Status().Update(ctx, probeObj)
+		if updateErr != nil {
+			logger.V(1).Info("error updating probe status", "error", updateErr)
+		}
 		return ctrl.Result{}, err
 	}
 
@@ -160,7 +170,7 @@ func getAdditionalHeaders(ctx context.Context, clt client.Client, probeObj *v1al
 		} else if err != nil {
 			probeError := fmt.Errorf("error retrieving additional headers secret %v/%v: %w", secretKey.Namespace, secretKey.Name, err)
 			probeObj.Status.ConsecutiveFailures = 0
-			probeObj.Status.Reason = "additional headers secret not found"
+			probeObj.Status.Reason = fmt.Sprintf("additional headers secret '%v' not found", secretKey.Name)
 			return additionalHeaders, probeError
 		}
 		for k, v := range additionalHeadersSecret.Data {
