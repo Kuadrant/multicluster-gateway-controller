@@ -161,13 +161,32 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 				}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
 			})
 
-			It("should not create any certificates", func() {
+			It("should not create any certificates when TLS is not present", func() {
 				Consistently(func() []certmanv1.Certificate {
 					certList := &certmanv1.CertificateList{}
 					err := k8sClient.List(ctx, certList, &client.ListOptions{Namespace: testNamespace})
 					Expect(err).ToNot(HaveOccurred())
 					return certList.Items
 				}, time.Second*10, time.Second).Should(BeEmpty())
+			})
+
+			It("should create certificate when TLS is present", func() {
+				certNS := gatewayv1beta1.Namespace(testNamespace)
+				patch := client.MergeFrom(gateway.DeepCopy())
+				gateway.Spec.Listeners[0].TLS = &gatewayv1beta1.GatewayTLSConfig{
+					Mode: Pointer(gatewayv1beta1.TLSModeTerminate),
+					CertificateRefs: []gatewayv1beta1.SecretObjectReference{
+						{
+							Name:      "test-tls-secret",
+							Namespace: &certNS,
+						},
+					},
+				}
+				Expect(k8sClient.Patch(ctx, gateway, patch)).To(BeNil())
+				Eventually(func() error {
+					cert := &certmanv1.Certificate{}
+					return k8sClient.Get(ctx, client.ObjectKey{Name: "test-tls-secret", Namespace: testNamespace}, cert)
+				}, time.Second*10, time.Second).Should(BeNil())
 			})
 
 		})
