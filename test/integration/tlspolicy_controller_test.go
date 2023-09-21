@@ -27,6 +27,7 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 
 	var testNamespace string
 	var gatewayClass *gatewayv1beta1.GatewayClass
+	var issuer *certmanv1.Issuer
 
 	BeforeAll(func() {
 		logger = zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true))
@@ -42,6 +43,11 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 
 	BeforeEach(func() {
 		CreateNamespace(&testNamespace)
+		issuer = NewTestIssuer("testissuer", testNamespace)
+		Expect(k8sClient.Create(ctx, issuer)).To(BeNil())
+		Eventually(func() error { //issuer exists
+			return k8sClient.Get(ctx, client.ObjectKey{Name: issuer.Name, Namespace: issuer.Namespace}, issuer)
+		}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
 	})
 
 	AfterEach(func() {
@@ -54,6 +60,11 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 		Expect(k8sClient.List(ctx, &policyList)).To(BeNil())
 		for _, policy := range policyList.Items {
 			k8sClient.Delete(ctx, &policy)
+		}
+		issuerList := certmanv1.IssuerList{}
+		Expect(k8sClient.List(ctx, &issuerList)).To(BeNil())
+		for _, issuer := range issuerList.Items {
+			k8sClient.Delete(ctx, &issuer)
 		}
 	})
 
@@ -74,7 +85,7 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		Context("valid target and policy", func() {
+		Context("valid target, issuer and policy", func() {
 
 			BeforeEach(func() {
 				gateway = NewTestGateway("test-gateway", gwClassName, testNamespace).
@@ -84,7 +95,8 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 					return k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway)
 				}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
 				tlsPolicy = NewTestTLSPolicy("test-tls-policy", testNamespace).
-					WithTargetGateway(gateway.Name).TLSPolicy
+					WithTargetGateway(gateway.Name).
+					WithIssuer("testissuer", certmanv1.IssuerKind, "cert-manager.io").TLSPolicy
 				Expect(k8sClient.Create(ctx, tlsPolicy)).To(BeNil())
 				Eventually(func() error { //tls policy exists
 					return k8sClient.Get(ctx, client.ObjectKey{Name: tlsPolicy.Name, Namespace: tlsPolicy.Namespace}, tlsPolicy)
@@ -144,6 +156,43 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 
 		})
 
+		Context("valid target, clusterissuer and policy", func() {
+			var clusterIssuer *certmanv1.ClusterIssuer
+
+			BeforeEach(func() {
+				gateway = NewTestGateway("test-gateway", gwClassName, testNamespace).
+					WithHTTPListener("test.example.com").Gateway
+				Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
+				Eventually(func() error { //gateway exists
+					return k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway)
+				}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
+				tlsPolicy = NewTestTLSPolicy("test-tls-policy", testNamespace).
+					WithTargetGateway(gateway.Name).
+					WithIssuer("testclusterissuer", certmanv1.ClusterIssuerKind, "cert-manager.io").TLSPolicy
+				Expect(k8sClient.Create(ctx, tlsPolicy)).To(BeNil())
+				Eventually(func() error { //tls policy exists
+					return k8sClient.Get(ctx, client.ObjectKey{Name: tlsPolicy.Name, Namespace: tlsPolicy.Namespace}, tlsPolicy)
+				}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
+				clusterIssuer = NewTestClusterIssuer("testclusterissuer")
+				Expect(k8sClient.Create(ctx, clusterIssuer)).To(BeNil())
+				Eventually(func() error { //clusterIssuer exists
+					return k8sClient.Get(ctx, client.ObjectKey{Name: clusterIssuer.Name}, clusterIssuer)
+				}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
+			})
+
+			It("should have ready status", func() {
+				Eventually(func() error {
+					if err := k8sClient.Get(ctx, client.ObjectKey{Name: tlsPolicy.Name, Namespace: tlsPolicy.Namespace}, tlsPolicy); err != nil {
+						return err
+					}
+					if !meta.IsStatusConditionTrue(tlsPolicy.Status.Conditions, string(conditions.ConditionTypeReady)) {
+						return fmt.Errorf("expected tlsPolicy status condition to be %s", string(conditions.ConditionTypeReady))
+					}
+					return nil
+				}, time.Second*15, time.Second).Should(BeNil())
+			})
+		})
+
 		Context("with http listener", func() {
 
 			BeforeEach(func() {
@@ -154,7 +203,8 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 					return k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway)
 				}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
 				tlsPolicy = NewTestTLSPolicy("test-tls-policy", testNamespace).
-					WithTargetGateway(gateway.Name).TLSPolicy
+					WithTargetGateway(gateway.Name).
+					WithIssuer("testissuer", certmanv1.IssuerKind, "cert-manager.io").TLSPolicy
 				Expect(k8sClient.Create(ctx, tlsPolicy)).To(BeNil())
 				Eventually(func() error { //tls policy exists
 					return k8sClient.Get(ctx, client.ObjectKey{Name: tlsPolicy.Name, Namespace: tlsPolicy.Namespace}, tlsPolicy)
@@ -182,7 +232,8 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 					return k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway)
 				}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
 				tlsPolicy = NewTestTLSPolicy("test-tls-policy", testNamespace).
-					WithTargetGateway(gateway.Name).TLSPolicy
+					WithTargetGateway(gateway.Name).
+					WithIssuer("testissuer", certmanv1.IssuerKind, "cert-manager.io").TLSPolicy
 				Expect(k8sClient.Create(ctx, tlsPolicy)).To(BeNil())
 				Eventually(func() error { //tls policy exists
 					return k8sClient.Get(ctx, client.ObjectKey{Name: tlsPolicy.Name, Namespace: tlsPolicy.Namespace}, tlsPolicy)
@@ -218,7 +269,8 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 					return k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway)
 				}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
 				tlsPolicy = NewTestTLSPolicy("test-tls-policy", testNamespace).
-					WithTargetGateway(gateway.Name).TLSPolicy
+					WithTargetGateway(gateway.Name).
+					WithIssuer("testissuer", certmanv1.IssuerKind, "cert-manager.io").TLSPolicy
 				Expect(k8sClient.Create(ctx, tlsPolicy)).To(BeNil())
 				Eventually(func() error { //tls policy exists
 					return k8sClient.Get(ctx, client.ObjectKey{Name: tlsPolicy.Name, Namespace: tlsPolicy.Namespace}, tlsPolicy)

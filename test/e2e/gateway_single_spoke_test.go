@@ -87,7 +87,7 @@ var _ = Describe("Gateway single target cluster", func() {
 		err = tconfig.HubClient().Create(ctx, gw)
 		Expect(err).ToNot(HaveOccurred())
 
-		By("setting up  TLSPolicy in the hub")
+		By("setting up TLSPolicy in the hub")
 		tlsPolicy = &mgcv1alpha1.TLSPolicy{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      testID,

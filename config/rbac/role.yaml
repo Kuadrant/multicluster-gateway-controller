@@ -39,6 +39,20 @@ rules:
   - update
   - watch
 - apiGroups:
+  - cert-manager.io
+  resources:
+  - clusterissuers
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - cert-manager.io
+  resources:
+  - issuers
+  verbs:
+  - get
+  - list
+- apiGroups:
   - cluster.open-cluster-management.io
   resources:
   - managedclusters

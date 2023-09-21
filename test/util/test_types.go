@@ -3,6 +3,7 @@
 package testutil
 
 import (
+	certmanv1 "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
 	cmmeta "github.com/jetstack/cert-manager/pkg/apis/meta/v1"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,6 +31,23 @@ func NewTestGateway(gwName, gwClassName, ns string) *TestGateway {
 				GatewayClassName: gatewayv1beta1.ObjectName(gwClassName),
 				Listeners:        []gatewayv1beta1.Listener{},
 			},
+		},
+	}
+}
+
+func NewTestIssuer(name, ns string) *certmanv1.Issuer {
+	return &certmanv1.Issuer{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: ns,
+		},
+	}
+}
+
+func NewTestClusterIssuer(name string) *certmanv1.ClusterIssuer {
+	return &certmanv1.ClusterIssuer{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
 		},
 	}
 }

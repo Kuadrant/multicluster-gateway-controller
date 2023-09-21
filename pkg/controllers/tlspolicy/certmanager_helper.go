@@ -1,10 +1,14 @@
 package tlspolicy
 
 import (
+	"context"
+	"fmt"
+
 	certmanv1 "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
@@ -112,4 +116,20 @@ func translatePolicy(crt *certmanv1.Certificate, tlsPolicy v1alpha1.TLSPolicySpe
 		}
 	}
 
+}
+
+// validateIssuer validates that the issuer specified exists
+func validateIssuer(ctx context.Context, k8sClient client.Client, policy *v1alpha1.TLSPolicy) error {
+	var issuer client.Object
+	issuerNamespace := ""
+	switch policy.Spec.IssuerRef.Kind {
+	case "", certmanv1.IssuerKind:
+		issuer = &certmanv1.Issuer{}
+		issuerNamespace = policy.Namespace
+	case certmanv1.ClusterIssuerKind:
+		issuer = &certmanv1.ClusterIssuer{}
+	default:
+		return fmt.Errorf(`invalid value %q for issuerRef.kind. Must be empty, %q or %q`, policy.Spec.IssuerRef.Kind, certmanv1.IssuerKind, certmanv1.ClusterIssuerKind)
+	}
+	return k8sClient.Get(ctx, client.ObjectKey{Name: policy.Spec.IssuerRef.Name, Namespace: issuerNamespace}, issuer)
 }
