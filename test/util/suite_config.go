@@ -10,6 +10,7 @@ import (
 	"strconv"
 
 	"github.com/goombaio/namegenerator"
+	certmanv1 "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
 	ocm_cluster_v1 "open-cluster-management.io/api/cluster/v1"
 	ocm_cluster_v1beta1 "open-cluster-management.io/api/cluster/v1beta1"
 	ocm_cluster_v1beta2 "open-cluster-management.io/api/cluster/v1beta2"
@@ -107,6 +108,10 @@ func (cfg *SuiteConfig) Build() error {
 		return err
 	}
 	err = mgcv1alpha1.AddToScheme(scheme.Scheme)
+	if err != nil {
+		return err
+	}
+	err = certmanv1.AddToScheme(scheme.Scheme)
 	if err != nil {
 		return err
 	}
