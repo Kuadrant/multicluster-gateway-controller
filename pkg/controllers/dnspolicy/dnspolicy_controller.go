@@ -183,18 +183,19 @@ func (r *DNSPolicyReconciler) reconcileResources(ctx context.Context, dnsPolicy 
 		return errors.Join(fmt.Errorf("reconcile TargetBackReference error %w", err), updateErr)
 	}
 
+	// set annotation of policies affecting the gateway
 	if err := r.ReconcileGatewayPolicyReferences(ctx, dnsPolicy, gatewayDiffObj); err != nil {
 		gatewayCondition = conditions.BuildPolicyAffectedCondition(DNSPolicyAffected, dnsPolicy, targetNetworkObject, conditions.PolicyReasonUnknown, err)
 		updateErr := r.updateGatewayCondition(ctx, gatewayCondition, gatewayDiffObj)
 		return errors.Join(fmt.Errorf("ReconcileGatewayPolicyReferences error %w", err), updateErr)
 	}
 
+	// set gateway policy affected condition status - should be the last step, only when all the reconciliation steps succeed
 	updateErr := r.updateGatewayCondition(ctx, gatewayCondition, gatewayDiffObj)
 	if updateErr != nil {
 		return fmt.Errorf("failed to update gateway conditions %w ", updateErr)
 	}
 
-	// set annotation of policies affecting the gateway - should be the last step, only when all the reconciliation steps succeed
 	return nil
 }
 
@@ -227,13 +228,13 @@ func (r *DNSPolicyReconciler) deleteResources(ctx context.Context, dnsPolicy *v1
 		return err
 	}
 
-	// clean up condition on gateway
-	if err := r.updateGatewayCondition(ctx, metav1.Condition{Type: string(DNSPolicyAffected)}, gatewayDiffObj); err != nil {
+	// update annotation of policies affecting the gateway
+	if err := r.ReconcileGatewayPolicyReferences(ctx, dnsPolicy, gatewayDiffObj); err != nil {
 		return err
 	}
 
-	// update annotation of policies affecting the gateway
-	return r.ReconcileGatewayPolicyReferences(ctx, dnsPolicy, gatewayDiffObj)
+	// remove gateway policy affected condition status
+	return r.updateGatewayCondition(ctx, metav1.Condition{Type: string(DNSPolicyAffected)}, gatewayDiffObj)
 }
 
 func (r *DNSPolicyReconciler) calculateStatus(dnsPolicy *v1alpha1.DNSPolicy, specErr error) *v1alpha1.DNSPolicyStatus {
