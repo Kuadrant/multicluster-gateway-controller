@@ -36,6 +36,18 @@ The Kuadrant addon will install:
 
 For more details, see the Kuadrant components installed by the (kuadrant-operator)[https://github.com/Kuadrant/kuadrant-operator#kuadrant-components]
 
+### OLM and OpenShift CatalogSource
+
+The Kuadrant OCM (Open Cluster Management) Add-On depends on the Operator Lifecycle Manager (OLM)'s `CatalogSource`. By default, this is set to `olm/operatorhubio-catalog`.
+
+In OpenShift environments, OLM comes pre-installed. However, it is configured to use the `openshift-marketplace/community-operators` CatalogSource by default, not the `olm/operatorhubio-catalog`.
+
+To align the Kuadrant add-on with the OpenShift default CatalogSource, you can patch the add-on's CatalogSource configuration. Run the following command (note it needs to be run for each managed cluster where the add-on is installed): 
+
+```bash
+kubectl annotate managedclusteraddon kuadrant-addon "addon.open-cluster-management.io/values"='{"CatalogSource":"openshift-marketplace/community-operators"}' -n managed-cluster-ns
+```
+
 ### Existing Istio installations and changing the default Istio Operator name
 In the case where you have an existing Istio installation on a cluster, you may encounter an issue where the Kuadrant Operator expects Istio's Operator to be named `istiocontrolplane`.
 
