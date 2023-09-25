@@ -297,8 +297,6 @@ So now we have a working gateway with DNS and TLS configured. Let place this gat
     So now we have second ingress cluster configured with the same Gateway. 
 
 4. Let's create the HTTPRoute in the second gateway cluster:
-
-    >:exclamation: **Note:** Ensure the `MGC_SUB_DOMAIN` environment variable has been exported in this terminal session before applying this config.
    
     ```bash
     kubectl --context kind-mgc-workload-1 apply -f - <<EOF
