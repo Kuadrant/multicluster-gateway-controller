@@ -83,7 +83,7 @@ test: test-unit test-integration ## Run tests.
 
 .PHONY: test-e2e
 test-e2e: ginkgo
-	$(GINKGO) -tags=e2e -v ./test/e2e
+	$(GINKGO) -tags=e2e --focus "${FOCUS}" -v ./test/e2e
 
 .PHONY: local-setup
 local-setup: local-setup-kind local-setup-mgc ## Setup multi cluster traffic controller locally using kind.
