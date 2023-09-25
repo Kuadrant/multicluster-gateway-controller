@@ -6,4 +6,4 @@ kind: Kustomization
 images:
 - name: addon-manager
   newName: quay.io/kuadrant/addon-manager
-  newTag: 07a8f01
+  newTag: e40380a
