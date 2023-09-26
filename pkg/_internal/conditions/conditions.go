@@ -1,6 +1,7 @@
 package conditions
 
 import (
+	"errors"
 	"fmt"
 
 	k8smeta "k8s.io/apimachinery/pkg/api/meta"
@@ -20,7 +21,11 @@ const (
 	PolicyReasonInvalid    ConditionReason = "Invalid"
 	PolicyReasonUnknown    ConditionReason = "Unknown"
 	PolicyReasonConflicted ConditionReason = "Conflicted"
+
+	PolicyReasonTargetNotFound ConditionReason = "TargetNotFound"
 )
+
+var ErrTargetNotFound = errors.New("target not found")
 
 func BuildPolicyAffectedCondition(conditionType ConditionType, policyObject runtime.Object, targetRef metav1.Object, reason ConditionReason, err error) metav1.Condition {
 

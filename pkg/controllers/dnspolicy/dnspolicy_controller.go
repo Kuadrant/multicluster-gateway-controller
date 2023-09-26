@@ -93,8 +93,11 @@ func (r *DNSPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		if !markedForDeletion {
 			if apierrors.IsNotFound(err) {
 				log.V(3).Info("Network object not found. Cleaning up")
-				err := r.deleteResources(ctx, dnsPolicy, nil)
-				return ctrl.Result{}, err
+				delResErr := r.deleteResources(ctx, dnsPolicy, nil)
+				if delResErr == nil {
+					delResErr = err
+				}
+				return r.reconcileStatus(ctx, dnsPolicy, fmt.Errorf("%w : %w", conditions.ErrTargetNotFound, delResErr))
 			}
 			return ctrl.Result{}, err
 		}
@@ -126,25 +129,13 @@ func (r *DNSPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	specErr := r.reconcileResources(ctx, dnsPolicy, targetNetworkObject)
 
-	newStatus := r.calculateStatus(dnsPolicy, specErr)
-	dnsPolicy.Status = *newStatus
-
-	if !equality.Semantic.DeepEqual(previous.Status, dnsPolicy.Status) {
-		updateErr := r.Client().Status().Update(ctx, dnsPolicy)
-		if updateErr != nil {
-			// Ignore conflicts, resource might just be outdated.
-			if apierrors.IsConflict(updateErr) {
-				return ctrl.Result{Requeue: true}, nil
-			}
-			return ctrl.Result{}, updateErr
-		}
-	}
+	statusResult, statusErr := r.reconcileStatus(ctx, dnsPolicy, specErr)
 
 	if specErr != nil {
 		return ctrl.Result{}, specErr
 	}
 
-	return ctrl.Result{}, nil
+	return statusResult, statusErr
 }
 
 func (r *DNSPolicyReconciler) reconcileResources(ctx context.Context, dnsPolicy *v1alpha1.DNSPolicy, targetNetworkObject client.Object) error {
@@ -237,6 +228,28 @@ func (r *DNSPolicyReconciler) deleteResources(ctx context.Context, dnsPolicy *v1
 	return r.updateGatewayCondition(ctx, metav1.Condition{Type: string(DNSPolicyAffected)}, gatewayDiffObj)
 }
 
+func (r *DNSPolicyReconciler) reconcileStatus(ctx context.Context, dnsPolicy *v1alpha1.DNSPolicy, specErr error) (ctrl.Result, error) {
+	newStatus := r.calculateStatus(dnsPolicy, specErr)
+
+	if !equality.Semantic.DeepEqual(newStatus, dnsPolicy.Status) {
+		dnsPolicy.Status = *newStatus
+		updateErr := r.Client().Status().Update(ctx, dnsPolicy)
+		if updateErr != nil {
+			// Ignore conflicts, resource might just be outdated.
+			if apierrors.IsConflict(updateErr) {
+				return ctrl.Result{Requeue: true}, nil
+			}
+			return ctrl.Result{}, updateErr
+		}
+	}
+
+	if errors.Is(specErr, conditions.ErrTargetNotFound) {
+		return ctrl.Result{Requeue: true}, nil
+	}
+
+	return ctrl.Result{}, nil
+}
+
 func (r *DNSPolicyReconciler) calculateStatus(dnsPolicy *v1alpha1.DNSPolicy, specErr error) *v1alpha1.DNSPolicyStatus {
 	newStatus := dnsPolicy.Status.DeepCopy()
 	if specErr != nil {
@@ -257,8 +270,12 @@ func (r *DNSPolicyReconciler) readyCondition(targetNetworkObjectectKind string, 
 
 	if specErr != nil {
 		cond.Status = metav1.ConditionFalse
-		cond.Reason = "ReconciliationError"
 		cond.Message = specErr.Error()
+		cond.Reason = "ReconciliationError"
+
+		if errors.Is(specErr, conditions.ErrTargetNotFound) {
+			cond.Reason = string(conditions.PolicyReasonTargetNotFound)
+		}
 	}
 
 	return cond

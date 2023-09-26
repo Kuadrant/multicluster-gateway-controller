@@ -12,6 +12,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -71,6 +72,71 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 	AfterAll(func() {
 		err := k8sClient.Delete(ctx, gatewayClass)
 		Expect(err).ToNot(HaveOccurred())
+	})
+
+	Context("invalid target", func() {
+		var gateway *gatewayv1beta1.Gateway
+		var tlsPolicy *v1alpha1.TLSPolicy
+		gwClassName := "istio"
+
+		BeforeEach(func() {
+			tlsPolicy = NewTestTLSPolicy("test-tls-policy", testNamespace).
+				WithTargetGateway("test-gateway").
+				WithIssuer("testissuer", certmanv1.IssuerKind, "cert-manager.io").TLSPolicy
+			Expect(k8sClient.Create(ctx, tlsPolicy)).To(BeNil())
+			Eventually(func() error { //tls policy exists
+				return k8sClient.Get(ctx, client.ObjectKey{Name: tlsPolicy.Name, Namespace: tlsPolicy.Namespace}, tlsPolicy)
+			}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
+		})
+
+		AfterEach(func() {
+			err := k8sClient.Delete(ctx, tlsPolicy)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("should have ready condition with status false and correct reason", func() {
+			Eventually(func() error {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Name: tlsPolicy.Name, Namespace: tlsPolicy.Namespace}, tlsPolicy); err != nil {
+					return err
+				}
+				readyCond := meta.FindStatusCondition(tlsPolicy.Status.Conditions, string(conditions.ConditionTypeReady))
+				if readyCond == nil {
+					return fmt.Errorf("expected tlsPolicy to have %s condition, got none",
+						string(conditions.ConditionTypeReady))
+				}
+				if readyCond.Status != metav1.ConditionFalse {
+					return fmt.Errorf("expected tlsPolicy %s condition to have status %s, got %s",
+						string(conditions.ConditionTypeReady), metav1.ConditionFalse, readyCond.Status)
+				}
+				if readyCond.Reason != string(conditions.PolicyReasonTargetNotFound) {
+					return fmt.Errorf("expected tlsPolicy %s condition to have reason %s, got %s",
+						string(conditions.ConditionTypeReady), string(conditions.PolicyReasonTargetNotFound), readyCond.Reason)
+				}
+				return nil
+			}, time.Second*15, time.Second).Should(BeNil())
+		})
+
+		It("should have ready condition with status true", func() {
+			By("creating a valid Gateway")
+
+			gateway = NewTestGateway("test-gateway", gwClassName, testNamespace).
+				WithHTTPListener("test.example.com").Gateway
+			Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
+			Eventually(func() error { //gateway exists
+				return k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway)
+			}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
+
+			Eventually(func() error {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Name: tlsPolicy.Name, Namespace: tlsPolicy.Namespace}, tlsPolicy); err != nil {
+					return err
+				}
+				if !meta.IsStatusConditionTrue(tlsPolicy.Status.Conditions, string(conditions.ConditionTypeReady)) {
+					return fmt.Errorf("expected tlsPolicy %s condition to have status %s ", string(conditions.ConditionTypeReady), metav1.ConditionTrue)
+				}
+				return nil
+			}, time.Second*15, time.Second).Should(BeNil())
+		})
+
 	})
 
 	Context("istio gateway", func() {
