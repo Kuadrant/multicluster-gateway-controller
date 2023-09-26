@@ -75,10 +75,10 @@ var _ = Describe("DNSHealthCheckProbe controller", func() {
 			}, probeObj)
 			Expect(err).NotTo(HaveOccurred())
 
+			patch := client.MergeFrom(probeObj.DeepCopy())
 			lastUpdate := probeObj.Status.LastCheckedAt
 			probeObj.Spec.Path = "/unhealthy"
-			err = k8sClient.Update(ctx, probeObj)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(k8sClient.Patch(ctx, probeObj, patch)).To(BeNil())
 
 			Eventually(func() error {
 				err := k8sClient.Get(ctx, client.ObjectKeyFromObject(probeObj), probeObj)

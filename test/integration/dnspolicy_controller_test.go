@@ -534,9 +534,10 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 						}
 					}
 
+					patch := client.MergeFrom(existingGateway.DeepCopy())
 					existingGateway.Spec.Listeners = newListeners
 					rec := &v1alpha1.DNSRecord{}
-					if err := k8sClient.Update(ctx, existingGateway, &client.UpdateOptions{}); err != nil {
+					if err := k8sClient.Patch(ctx, existingGateway, patch); err != nil {
 						return err
 					}
 					//dns record should be removed for non wildcard
@@ -1393,12 +1394,9 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 					Protocol: gatewayv1beta1.HTTPProtocolType,
 				}
 
-				Eventually(func() error {
-					err = k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway)
-					Expect(err).NotTo(HaveOccurred())
-					gateway.Spec.Listeners = append(gateway.Spec.Listeners, otherListener)
-					return k8sClient.Update(ctx, gateway)
-				}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
+				patch = client.MergeFrom(gateway.DeepCopy())
+				gateway.Spec.Listeners = append(gateway.Spec.Listeners, otherListener)
+				Expect(k8sClient.Patch(ctx, gateway, patch)).To(BeNil())
 
 				probeList := &v1alpha1.DNSHealthCheckProbeList{}
 				Eventually(func() error {

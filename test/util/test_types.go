@@ -3,6 +3,8 @@
 package testutil
 
 import (
+	"strings"
+
 	certmanv1 "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
 	cmmeta "github.com/jetstack/cert-manager/pkg/apis/meta/v1"
 
@@ -71,8 +73,9 @@ func (t *TestGateway) WithHTTPListener(hostname string) *TestGateway {
 func (t *TestGateway) WithHTTPSListener(hostname, tlsSecretName string) *TestGateway {
 	typedHostname := gatewayv1beta1.Hostname(hostname)
 	typedNamespace := gatewayv1beta1.Namespace(t.GetNamespace())
+	typedNamed := gatewayv1beta1.SectionName(strings.Replace(hostname, "*", "wildcard", 1))
 	t.WithListener(gatewayv1beta1.Listener{
-		Name:     gatewayv1beta1.SectionName(hostname),
+		Name:     typedNamed,
 		Hostname: &typedHostname,
 		Port:     gatewayv1beta1.PortNumber(443),
 		Protocol: gatewayv1beta1.HTTPSProtocolType,
