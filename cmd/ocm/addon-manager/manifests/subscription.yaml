@@ -8,7 +8,7 @@ spec:
   installPlanApproval: Automatic
   name: kuadrant-operator
   source: {{.CatalogSource}}
-  sourceNamespace: olm
+  sourceNamespace: {{.CatalogSourceNS}}
   config:
     env: 
       - name: ISTIOOPERATOR_NAME

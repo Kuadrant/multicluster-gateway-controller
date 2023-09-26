@@ -36,6 +36,7 @@ func GetDefaultValues(cluster *clusterv1.ManagedCluster,
 	defaultIstioOperatorNS := "istio-system"
 	defaultIstioConfigMap := "istio"
 	defaultCatalog := "operatorhubio-catalog"
+	defaultCatalogNS := "olm"
 
 	manifestConfig := struct {
 		IstioOperator          string
@@ -43,12 +44,14 @@ func GetDefaultValues(cluster *clusterv1.ManagedCluster,
 		IstioOperatorNamespace string
 		ClusterName            string
 		CatalogSource          string
+		CatalogSourceNS        string
 	}{
 		ClusterName:            cluster.Name,
 		IstioOperator:          defaultIstioOperator,
 		IstioConfigMapName:     defaultIstioConfigMap,
 		IstioOperatorNamespace: defaultIstioOperatorNS,
 		CatalogSource:          defaultCatalog,
+		CatalogSourceNS:        defaultCatalogNS,
 	}
 
 	return addonfactory.StructToValues(manifestConfig), nil
