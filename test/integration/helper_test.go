@@ -82,8 +82,8 @@ func NewTestOCMPlacer() *FakeOCMPlacer {
 	return NewFakeOCMPlacer(TestPlacedGatewayName, TestAttachedRouteName)
 }
 
-func (f FakeOCMPlacer) Place(ctx context.Context, upstream *gatewayv1beta1.Gateway, downstream *gatewayv1beta1.Gateway, children ...metav1.Object) (sets.Set[string], error) {
-	return nil, nil
+func (f FakeOCMPlacer) Place(ctx context.Context, upstream *gatewayv1beta1.Gateway, downstream *gatewayv1beta1.Gateway, children ...metav1.Object) (sets.Set[string],string, error) {
+	return nil,"", nil
 }
 
 func (f FakeOCMPlacer) GetPlacedClusters(ctx context.Context, gateway *gatewayv1beta1.Gateway) (sets.Set[string], error) {
