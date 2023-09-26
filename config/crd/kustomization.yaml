@@ -13,6 +13,6 @@ resources:
 configurations:
 - kustomizeconfig.yaml
 
-# Set the gateway.networking.k8s.io/policy annotation in the policies
+# Set the gateway.networking.k8s.io/policy label in the policies
 patchesStrategicMerge:
   - patches/policy-patch.yaml
