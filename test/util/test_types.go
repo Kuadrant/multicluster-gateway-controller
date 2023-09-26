@@ -1,4 +1,4 @@
-//go:build unit || integration
+//go:build unit || integration || e2e
 
 package testutil
 
@@ -52,8 +52,41 @@ func NewTestClusterIssuer(name string) *certmanv1.ClusterIssuer {
 	}
 }
 
+func AddListener(name string, hostname gatewayapiv1alpha2.Hostname, secretName gatewayv1beta1.ObjectName, gw *gatewayv1beta1.Gateway) {
+	listener := gatewayapiv1alpha2.Listener{
+		Name:     gatewayv1beta1.SectionName(name),
+		Hostname: &hostname,
+		Port:     443,
+		Protocol: gatewayv1beta1.HTTPSProtocolType,
+		TLS: &gatewayv1beta1.GatewayTLSConfig{
+			CertificateRefs: []gatewayv1beta1.SecretObjectReference{
+				{
+					Name: secretName,
+				},
+			},
+		},
+		AllowedRoutes: &gatewayv1beta1.AllowedRoutes{
+			Namespaces: &gatewayv1beta1.RouteNamespaces{
+				From: Pointer(gatewayv1beta1.NamespacesFromAll),
+			},
+		},
+	}
+	gw.Spec.Listeners = append(gw.Spec.Listeners, listener)
+
+}
+
 func (t *TestGateway) WithListener(listener gatewayv1beta1.Listener) *TestGateway {
 	t.Spec.Listeners = append(t.Spec.Listeners, listener)
+	return t
+}
+
+func (t *TestGateway) WithLabels(labels map[string]string) *TestGateway {
+	if t.Labels == nil {
+		t.Labels = map[string]string{}
+	}
+	for key, value := range labels {
+		t.Labels[key] = value
+	}
 	return t
 }
 
