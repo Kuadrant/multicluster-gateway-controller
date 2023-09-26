@@ -56,7 +56,7 @@ You are now ready to begin creating a gateway! :tada:
         namespaces:
           from: All
       name: api
-      hostname: $MGC_SUB_DOMAIN
+      hostname: "$MGC_ZONE_ROOT_DOMAIN"
       port: 443
       protocol: HTTPS
       tls:
