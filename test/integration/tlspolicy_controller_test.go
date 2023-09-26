@@ -5,6 +5,7 @@ package integration
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	certmanv1 "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
@@ -145,14 +146,54 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 		gwClassName := "istio"
 
 		AfterEach(func() {
-			err := k8sClient.Delete(ctx, gateway)
-			Expect(err).ToNot(HaveOccurred())
-			err = k8sClient.Delete(ctx, tlsPolicy)
-			Expect(err).ToNot(HaveOccurred())
+			if gateway != nil {
+				Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, gateway))).ToNot(HaveOccurred())
+			}
+			if tlsPolicy != nil {
+				Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, tlsPolicy))).ToNot(HaveOccurred())
+			}
+		})
+
+		Context("gateway with no TLS Policy and multiple listeners", func() {
+			manualSecretName := "manual-tls-secret"
+			manualListenerName := "manual-test.example.com"
+			BeforeEach(func() {
+				gateway = NewTestGateway("test-gateway", gwClassName, testNamespace).
+					WithHTTPSListener(manualListenerName, manualSecretName).
+					WithHTTPSListener("test2.example.com", "test2-tls-secret").
+					WithHTTPSListener("*.example.com", "wildcard-test-tls-secret").Gateway
+				Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
+				Eventually(func() error { //gateway exists
+					return k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway)
+				}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
+			})
+			AfterEach(func() {
+				err := k8sClient.Delete(ctx, gateway)
+				Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
+			})
+			It("should not be programmed", func() {
+				Consistently(func() error {
+					freshGW := &gatewayv1beta1.Gateway{}
+					err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, freshGW)
+					if err != nil {
+						return err
+					}
+					if freshGW.Status.Conditions == nil {
+						return nil
+					}
+					for _, condition := range freshGW.Status.Conditions {
+						if condition.Type == string(gatewayv1beta1.GatewayConditionProgrammed) {
+							if strings.ToLower(string(condition.Status)) == "true" {
+								return fmt.Errorf("expected programmed status false, got true")
+							}
+						}
+					}
+					return nil
+				}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
+			})
 		})
 
 		Context("valid target, issuer and policy", func() {
-
 			BeforeEach(func() {
 				gateway = NewTestGateway("test-gateway", gwClassName, testNamespace).
 					WithHTTPListener("test.example.com").Gateway
@@ -363,8 +404,7 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 			})
 		})
 
-		Context("with multiple https listener", func() {
-
+		Context("with multiple https listener and some shared secrets", func() {
 			BeforeEach(func() {
 				gateway = NewTestGateway("test-gateway", gwClassName, testNamespace).
 					WithHTTPSListener("test1.example.com", "test-tls-secret").
@@ -392,18 +432,121 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 						return fmt.Errorf("expected CertificateList to be 2")
 					}
 					return nil
-				}, time.Second*10, time.Second).Should(BeNil())
+				}, time.Second*30, time.Second).Should(BeNil())
 
 				cert1 := &certmanv1.Certificate{}
 				err := k8sClient.Get(ctx, client.ObjectKey{Name: "test-tls-secret", Namespace: testNamespace}, cert1)
 				Expect(err).ToNot(HaveOccurred())
 
+				Expect(cert1.Spec.DNSNames).To(ConsistOf("test1.example.com", "test2.example.com"))
+
 				cert2 := &certmanv1.Certificate{}
 				err = k8sClient.Get(ctx, client.ObjectKey{Name: "test2-tls-secret", Namespace: testNamespace}, cert2)
 				Expect(err).ToNot(HaveOccurred())
+
+				Expect(cert2.Spec.DNSNames).To(ConsistOf("test3.example.com"))
+			})
+		})
+
+		Context("with multiple https listener", func() {
+			BeforeEach(func() {
+				gateway = NewTestGateway("test-gateway", gwClassName, testNamespace).
+					WithHTTPSListener("test1.example.com", "test1-tls-secret").
+					WithHTTPSListener("test2.example.com", "test2-tls-secret").
+					WithHTTPSListener("test3.example.com", "test3-tls-secret").Gateway
+				Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
+				Eventually(func() error { //gateway exists
+					return k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway)
+				}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
+				tlsPolicy = NewTestTLSPolicy("test-tls-policy", testNamespace).
+					WithTargetGateway(gateway.Name).
+					WithIssuer("testissuer", certmanv1.IssuerKind, "cert-manager.io").TLSPolicy
+				Expect(k8sClient.Create(ctx, tlsPolicy)).To(BeNil())
+				Eventually(func() error { //tls policy exists
+					return k8sClient.Get(ctx, client.ObjectKey{Name: tlsPolicy.Name, Namespace: tlsPolicy.Namespace}, tlsPolicy)
+				}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
+			})
+
+			It("should create tls certificates", func() {
+				Eventually(func() error {
+					certList := &certmanv1.CertificateList{}
+					err := k8sClient.List(ctx, certList, &client.ListOptions{Namespace: testNamespace})
+					Expect(err).ToNot(HaveOccurred())
+					if len(certList.Items) != 3 {
+						return fmt.Errorf("expected CertificateList to be 3")
+					}
+					return nil
+				}, time.Second*30, time.Second).Should(BeNil())
+
+				cert1 := &certmanv1.Certificate{}
+				err := k8sClient.Get(ctx, client.ObjectKey{Name: "test1-tls-secret", Namespace: testNamespace}, cert1)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(cert1.Spec.DNSNames).To(ConsistOf("test1.example.com"))
+
+				cert2 := &certmanv1.Certificate{}
+				err = k8sClient.Get(ctx, client.ObjectKey{Name: "test2-tls-secret", Namespace: testNamespace}, cert2)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(cert2.Spec.DNSNames).To(ConsistOf("test2.example.com"))
+
+				cert3 := &certmanv1.Certificate{}
+				err = k8sClient.Get(ctx, client.ObjectKey{Name: "test3-tls-secret", Namespace: testNamespace}, cert3)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(cert3.Spec.DNSNames).To(ConsistOf("test3.example.com"))
+			})
+			It("should delete tls certificate when listener is removed", func() {
+				//confirm all expected certificates are present
+				Eventually(func() error {
+					certificateList := &certmanv1.CertificateList{}
+					Expect(k8sClient.List(ctx, certificateList, &client.ListOptions{Namespace: testNamespace})).To(BeNil())
+					if len(certificateList.Items) != 3 {
+						return fmt.Errorf("expected 3 certificates, found: %v", len(certificateList.Items))
+					}
+					return nil
+				}, time.Second*60, time.Second).Should(BeNil())
+
+				//remove a listener
+				patch := client.MergeFrom(gateway.DeepCopy())
+				gateway.Spec.Listeners = gateway.Spec.Listeners[1:]
+				Expect(k8sClient.Patch(ctx, gateway, patch)).To(BeNil())
+
+				//confirm a certificate has been deleted
+				Eventually(func() error {
+					certificateList := &certmanv1.CertificateList{}
+					Expect(k8sClient.List(ctx, certificateList, &client.ListOptions{Namespace: testNamespace})).To(BeNil())
+					if len(certificateList.Items) != 2 {
+						return fmt.Errorf("expected 2 certificates, found: %v", len(certificateList.Items))
+					}
+					return nil
+				}, time.Second*120, time.Second).Should(BeNil())
+			})
+			It("should delete all tls certificates when tls policy is removed", func() {
+				//confirm all expected certificates are present
+				Eventually(func() error {
+					certificateList := &certmanv1.CertificateList{}
+					Expect(k8sClient.List(ctx, certificateList, &client.ListOptions{Namespace: testNamespace})).To(BeNil())
+					if len(certificateList.Items) != 3 {
+						return fmt.Errorf("expected 3 certificates, found: %v", len(certificateList.Items))
+					}
+					return nil
+				}, time.Second*10, time.Second).Should(BeNil())
+
+				//delete the tls policy
+				Expect(k8sClient.Delete(ctx, tlsPolicy)).To(BeNil())
+
+				//confirm all certificates have been deleted
+				Eventually(func() error {
+					certificateList := &certmanv1.CertificateList{}
+					Expect(k8sClient.List(ctx, certificateList, &client.ListOptions{Namespace: testNamespace})).To(BeNil())
+					if len(certificateList.Items) != 0 {
+						return fmt.Errorf("expected 0 certificates, found: %v", len(certificateList.Items))
+					}
+					return nil
+				}, time.Second*60, time.Second).Should(BeNil())
 			})
 		})
 
 	})
-
 })
