@@ -3,6 +3,8 @@ kind: Kustomization
 
 resources:
   - github.com/prometheus-operator/kube-prometheus?ref=release-0.11
+  - github.com/Kuadrant/gateway-api-state-metrics?ref=main
+  - github.com/Kuadrant/gateway-api-state-metrics/config/examples/dashboards?ref=main
   - grafana_ingress.yaml
 # To scrape istio metrics, 3 configurations are required:
 # 1. Envoy metrics directly from the istio ingress gateway pod
@@ -65,6 +67,18 @@ patches:
 
 # Patch grafana deployment to include dashboard configmaps
 patchesJson6902:
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: kube-state-metrics
+    path: ksm_deployment_patch.yaml
+  - target:
+      group: rbac.authorization.k8s.io
+      version: v1
+      kind: ClusterRole
+      name: kube-state-metrics
+    path: ksm_clusterrole_patch.yaml
   - target:
       group: apps
       version: v1
