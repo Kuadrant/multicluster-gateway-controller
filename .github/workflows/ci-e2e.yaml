@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - test-quickstart-e2e
       - "release-*"
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+"
@@ -63,8 +64,8 @@ jobs:
           echo "PROJECT_ID=${{ secrets.E2E_PROJECT_ID }}" >> gcp-credentials.env   
       - name: Setup environment
         run: |
-          export OCM_SINGLE=1
-          make local-setup
+          export MGC_BRANCH=main
+          curl https://raw.githubusercontent.com/Kuadrant/multicluster-gateway-controller/$MGC_BRANCH/hack/quickstart-setup.sh | bash
       - name: Deploy MGC
         run: |
           make docker-build-controller kind-load-controller deploy-controller
