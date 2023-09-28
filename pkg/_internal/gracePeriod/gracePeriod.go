@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -25,12 +26,17 @@ func GracefulDelete(ctx context.Context, c client.Client, obj client.Object, ign
 	at := time.Now().Add(DefaultGracePeriod)
 	if err := c.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
 		log.V(3).Info("error finding object to graceful delete")
+		if k8serrors.IsNotFound(err) {
+			return nil
+		}
 		return err
 	}
 
 	// If ignored the grace, of if At is before the current time, just delete it
 	if ignoreGrace || at.Before(time.Now()) || at.Equal(time.Now()) {
-		return c.Delete(ctx, obj)
+		if err := c.Delete(ctx, obj); client.IgnoreNotFound(err) != nil {
+			return err
+		}
 	}
 
 	//ensure annotation is present
@@ -60,5 +66,5 @@ func GracefulDelete(ctx context.Context, c client.Client, obj client.Object, ign
 
 	log.V(3).Info("grace period still pending")
 
-	return ErrGracePeriodNotExpired
+	return fmt.Errorf("%w expires at %s", ErrGracePeriodNotExpired, deleteAt)
 }
