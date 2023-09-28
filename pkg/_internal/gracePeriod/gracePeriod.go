@@ -37,6 +37,7 @@ func GracefulDelete(ctx context.Context, c client.Client, obj client.Object, ign
 		if err := c.Delete(ctx, obj); client.IgnoreNotFound(err) != nil {
 			return err
 		}
+		return nil
 	}
 
 	//ensure annotation is present

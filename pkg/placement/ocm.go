@@ -19,6 +19,7 @@ import (
 	k8smeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -250,18 +251,18 @@ func (op *ocmPlacer) removeGatewayFromSpoke(ctx context.Context, cluster string,
 	// otherwise delete without any grace period.
 	// This can happen if a ManagedCluster is deleted,
 	// as opposed to just a placement decision changing
-	ignoreGrace := forceDelete
 	managedCluster := &clusterv1.ManagedCluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: cluster,
 		},
 	}
+
 	err = op.c.Get(ctx, client.ObjectKeyFromObject(managedCluster), managedCluster)
 	if k8serrors.IsNotFound(err) {
 		logger.V(3).Info(fmt.Sprintf("ManagedCluster not found '%s', ignoring grace period", cluster))
-		ignoreGrace = true
+		forceDelete = true
 	}
-	if err := gracePeriod.GracefulDelete(ctx, op.c, w, ignoreGrace); err != nil {
+	if err := gracePeriod.GracefulDelete(ctx, op.c, w, forceDelete); err != nil {
 		return fmt.Errorf("failed graceful delete when removing gateway manifestwork from spoke cluster %s : %w", cluster, err)
 	}
 
@@ -272,8 +273,8 @@ func (op *ocmPlacer) removeGatewayFromSpoke(ctx context.Context, cluster string,
 			Name:      rbacManifest,
 		},
 	}
-	if err := op.c.Delete(ctx, rbac, &client.DeleteOptions{}); client.IgnoreNotFound(err) != nil {
-		return fmt.Errorf("failed to delete rbac manifestwoork when removing gateway from spoke cluster %s : %w ", cluster, err)
+	if err := gracePeriod.GracefulDelete(ctx, op.c, rbac, forceDelete); err != nil {
+		return fmt.Errorf("failed graceful delete when removing gateway manifestwork from spoke cluster %s : %w", cluster, err)
 	}
 	return nil
 }
@@ -320,7 +321,8 @@ func (op *ocmPlacer) GetPlacementDecsions(ctx context.Context, targetPlacement, 
 	}
 	if len(pdList.Items) == 0 {
 		// this is the same as 0 clusters
-		logger.V(3).Info("placement: no placementdecisions found", "for placement %s ", targetPlacement)
+		placementNotFound := k8serrors.NewNotFound(schema.GroupResource{Resource: "PlacementDecision"}, targetPlacement)
+		return *pdList, fmt.Errorf("no PlacementDecisions found for placement %s via label selector: %s error: %w", targetPlacement, labelSelector, placementNotFound)
 	}
 	return *pdList, err
 }
