@@ -96,10 +96,6 @@ func (f FakeOCMPlacer) GetPlacedClusters(ctx context.Context, gateway *gatewayv1
 	return clusters, nil
 }
 
-func (f FakeOCMPlacer) GetClusters(ctx context.Context, gateway *gatewayv1beta1.Gateway) (sets.Set[string], error) {
-	return f.GetPlacedClusters(ctx, gateway)
-}
-
 func (f FakeOCMPlacer) ListenerTotalAttachedRoutes(ctx context.Context, gateway *gatewayv1beta1.Gateway, listenerName string, downstream string) (int, error) {
 	count := 0
 	for _, placedCluster := range f.placedClusters {

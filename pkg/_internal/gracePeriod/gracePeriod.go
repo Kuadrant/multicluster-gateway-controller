@@ -66,5 +66,5 @@ func GracefulDelete(ctx context.Context, c client.Client, obj client.Object, ign
 
 	log.V(3).Info("grace period still pending")
 
-	return fmt.Errorf("%w expires at %s", ErrGracePeriodNotExpired, deleteAt)
+	return fmt.Errorf("%w expires at %v", ErrGracePeriodNotExpired, deleteAt)
 }

@@ -24,16 +24,16 @@ func (p *FakeGatewayPlacer) GetClusterGateway(_ context.Context, _ *v1beta1.Gate
 	return dns.ClusterGateway{}, nil
 }
 
-func (p *FakeGatewayPlacer) Place(_ context.Context, upstream *v1beta1.Gateway, _ *v1beta1.Gateway, _ ...metav1.Object) (sets.Set[string], error) {
+func (p *FakeGatewayPlacer) Place(_ context.Context, upstream *v1beta1.Gateway, _ *v1beta1.Gateway, _ ...metav1.Object) (sets.Set[string], string, error) {
 	if upstream.Labels == nil {
-		return nil, nil
+		return nil, "", nil
 	}
 	if *upstream.Spec.Listeners[0].Hostname == testutil.FailPlacementHostname {
-		return nil, fmt.Errorf(testutil.FailPlacementHostname)
+		return nil, "", fmt.Errorf(testutil.FailPlacementHostname)
 	}
 	targetClusters := sets.Set[string](sets.NewString())
 	targetClusters.Insert(testutil.Cluster)
-	return targetClusters, nil
+	return targetClusters, "", nil
 }
 
 func (p *FakeGatewayPlacer) GetPlacedClusters(_ context.Context, gateway *v1beta1.Gateway) (sets.Set[string], error) {

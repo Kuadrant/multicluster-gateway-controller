@@ -222,7 +222,7 @@ func (op *ocmPlacer) Place(ctx context.Context, upStreamGateway *gatewayv1beta1.
 	logger.V(3).Info("placement: removing and adding finalizers")
 	//placement done add and remove any finalizers from the no longer targeted placement decisons
 	if existingPlacementTarget != expectedPlacementTarget {
-		if err := op.removeFinlizerPlacementDecisons(ctx, existingPlacementDecisions); err != nil {
+		if err := op.removeFinalizerPlacementDecisons(ctx, existingPlacementDecisions); err != nil {
 			return existingClusters, expectedPlacementTarget, fmt.Errorf("failed to remove finalizers from placement decisons for no longer targeted placements %w", err)
 		}
 	}
@@ -231,10 +231,6 @@ func (op *ocmPlacer) Place(ctx context.Context, upStreamGateway *gatewayv1beta1.
 	}
 
 	return existingClusters, expectedPlacementTarget, nil
-}
-
-func (op *ocmPlacer) addGatewayToSpoke(ctx context.Context, cluster string, workname string, downStreamGateway *gatewayv1beta1.Gateway, children ...[]metav1.Object) error {
-
 }
 
 func (op *ocmPlacer) removeGatewayFromSpoke(ctx context.Context, cluster string, workname string, forceDelete bool) error {
@@ -282,7 +278,7 @@ func (op *ocmPlacer) removeGatewayFromSpoke(ctx context.Context, cluster string,
 	return nil
 }
 
-func (op *ocmPlacer) removeFinlizerPlacementDecisons(ctx context.Context, pds placement.PlacementDecisionList) error {
+func (op *ocmPlacer) removeFinalizerPlacementDecisons(ctx context.Context, pds placement.PlacementDecisionList) error {
 	var finalizerErr error
 	for _, pd := range pds.Items {
 		if controllerutil.RemoveFinalizer(&pd, PlacementDecisionFinalizer) {
@@ -303,19 +299,6 @@ func (op *ocmPlacer) addFinalizePlacementDecisions(ctx context.Context, pds plac
 				if err := op.c.Update(ctx, &pd); err != nil {
 					finalizerErr = errors.Join(err)
 				}
-			}
-		}
-	}
-	return finalizerErr
-}
-
-func (op ocmPlacer) removeFinalizerPlacementDecisons(ctx context.Context, pds placement.PlacementDecisionList) error {
-	var finalizerErr error
-	for _, pd := range pds.Items {
-		if controllerutil.RemoveFinalizer(&pd, PlacementDecisionFinalizer) {
-			fmt.Println("remove finailzer from pd ", &pd.Name)
-			if err := op.c.Update(ctx, &pd); err != nil {
-				finalizerErr = errors.Join(err)
 			}
 		}
 	}
