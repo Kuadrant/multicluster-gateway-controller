@@ -4,7 +4,7 @@ metadata:
   name: kuadrant-operator
   namespace: kuadrant-system
 spec:
-  channel: alpha
+  channel: {{.Channel}}
   installPlanApproval: Automatic
   name: kuadrant-operator
   source: {{.CatalogSource}}
