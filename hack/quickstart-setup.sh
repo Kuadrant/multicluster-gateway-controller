@@ -76,6 +76,10 @@ fi
 if [[ -z "${MGC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
   MGC_WORKLOAD_CLUSTERS_COUNT=1
 fi
+if [[ -z "${MGC_DEPLOY_SERVICE_PROTECTION}"]]; then
+  MGC_DEPLOY_SERVICE_PROTECTION=true
+fi  
+
 
 # Make temporary directory for kubeconfig
 mkdir -p ${TMP_DIR}
@@ -103,7 +107,10 @@ if [[ -n "${MGC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
     configureMetalLB ${KIND_CLUSTER_WORKLOAD}-${i} $((${metalLBSubnetStart} + ${i}))
     deployOLM ${KIND_CLUSTER_WORKLOAD}-${i}
     deployOCMSpoke ${KIND_CLUSTER_WORKLOAD}-${i}
-    configureManagedAddon ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_WORKLOAD}-${i}
+    if [ "${MGC_DEPLOY_SERVICE_PROTECTION}" = true ]; then
+      echo "deploying kuadrant service protection"
+      configureManagedAddon ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_WORKLOAD}-${i}
+    fi
   done
 fi
 

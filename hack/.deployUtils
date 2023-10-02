@@ -64,7 +64,10 @@ deployOCMHub(){
   echo "checking if cluster is single or multi"
   if [[ -n "${OCM_SINGLE}" ]]; then
     deployOCMSpoke ${clusterName}
-    configureManagedAddon ${clusterName} ${clusterName}
+    if [ "${MGC_DEPLOY_SERVICE_PROTECTION}" = true ]; then
+      echo "deploying kuadrant service protection to ${clusterName}"
+      configureManagedAddon ${clusterName} ${clusterName}
+    fi  
     deployOLM ${KIND_CLUSTER_CONTROL_PLANE}
 
     if ! [[ -n "${minimal}" ]]; then
