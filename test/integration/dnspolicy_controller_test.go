@@ -25,6 +25,7 @@ import (
 	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnspolicy"
 	mgcgateway "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
+	. "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 )
 
 func testBuildManagedZone(domainName, ns string) *v1alpha1.ManagedZone {
@@ -192,6 +193,69 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 	AfterAll(func() {
 		err := k8sClient.Delete(ctx, gatewayClass)
 		Expect(err).ToNot(HaveOccurred())
+	})
+
+	Context("invalid target", func() {
+		var gateway *gatewayv1beta1.Gateway
+		var dnsPolicy *v1alpha1.DNSPolicy
+		gwClassName := "istio"
+
+		BeforeEach(func() {
+			dnsPolicy = testBuildDNSPolicyWithHealthCheck("test-dns-policy", "test-gateway", testNamespace, nil)
+			Expect(k8sClient.Create(ctx, dnsPolicy)).To(BeNil())
+			Eventually(func() error { //dns policy exists
+				return k8sClient.Get(ctx, client.ObjectKey{Name: dnsPolicy.Name, Namespace: dnsPolicy.Namespace}, dnsPolicy)
+			}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
+		})
+
+		AfterEach(func() {
+			err := k8sClient.Delete(ctx, dnsPolicy)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("should have ready condition with status false and correct reason", func() {
+			Eventually(func() error {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Name: dnsPolicy.Name, Namespace: dnsPolicy.Namespace}, dnsPolicy); err != nil {
+					return err
+				}
+				readyCond := meta.FindStatusCondition(dnsPolicy.Status.Conditions, string(conditions.ConditionTypeReady))
+				if readyCond == nil {
+					return fmt.Errorf("expected dnsPolicy to have %s condition, got none",
+						string(conditions.ConditionTypeReady))
+				}
+				if readyCond.Status != metav1.ConditionFalse {
+					return fmt.Errorf("expected dnsPolicy %s condition to have status %s, got %s",
+						string(conditions.ConditionTypeReady), metav1.ConditionFalse, readyCond.Status)
+				}
+				if readyCond.Reason != string(conditions.PolicyReasonTargetNotFound) {
+					return fmt.Errorf("expected dnsPolicy %s condition to have reason %s, got %s",
+						string(conditions.ConditionTypeReady), string(conditions.PolicyReasonTargetNotFound), readyCond.Reason)
+				}
+				return nil
+			}, time.Second*15, time.Second).Should(BeNil())
+		})
+
+		It("should have ready condition with status true", func() {
+			By("creating a valid Gateway")
+
+			gateway = NewTestGateway("test-gateway", gwClassName, testNamespace).
+				WithHTTPListener("test.example.com").Gateway
+			Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
+			Eventually(func() error { //gateway exists
+				return k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway)
+			}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
+
+			Eventually(func() error {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Name: dnsPolicy.Name, Namespace: dnsPolicy.Namespace}, dnsPolicy); err != nil {
+					return err
+				}
+				if !meta.IsStatusConditionTrue(dnsPolicy.Status.Conditions, string(conditions.ConditionTypeReady)) {
+					return fmt.Errorf("expected dnsPolicy %s condition to have status %s ", string(conditions.ConditionTypeReady), metav1.ConditionTrue)
+				}
+				return nil
+			}, time.Second*15, time.Second).Should(BeNil())
+		})
+
 	})
 
 	Context("gateway placed", func() {
@@ -1330,9 +1394,11 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 				}
 
 				Eventually(func() error {
+					err = k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway)
+					Expect(err).NotTo(HaveOccurred())
 					gateway.Spec.Listeners = append(gateway.Spec.Listeners, otherListener)
 					return k8sClient.Update(ctx, gateway)
-				}).Should(BeNil())
+				}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
 
 				probeList := &v1alpha1.DNSHealthCheckProbeList{}
 				Eventually(func() error {
