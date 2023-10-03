@@ -267,7 +267,7 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 		It("should have ready condition with status true", func() {
 			By("creating a valid Gateway")
 
-			gateway = NewTestGateway("test-gateway", gwClassName, testNamespace).
+			gateway = testutil.NewTestGateway("test-gateway", gwClassName, testNamespace).
 				WithHTTPListener("test.example.com").Gateway
 			Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
 			Eventually(func() error { //gateway exists
@@ -1283,9 +1283,9 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 						Protocol: gatewayv1beta1.HTTPProtocolType,
 					}
 
-					patch = client.MergeFrom(gateway.DeepCopy())
-						gateway.Spec.Listeners = append(gateway.Spec.Listeners, otherListener)
-						Expect(k8sClient.Patch(ctx, gateway, patch)).To(BeNil())
+					patch := client.MergeFrom(gateway.DeepCopy())
+					gateway.Spec.Listeners = append(gateway.Spec.Listeners, otherListener)
+					Expect(k8sClient.Patch(ctx, gateway, patch)).To(BeNil())
 
 					probeList := &v1alpha1.DNSHealthCheckProbeList{}
 					Eventually(func() error {
