@@ -3,11 +3,13 @@
 package dns
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
@@ -594,5 +596,249 @@ func buildGatewayAddress(value string) []gatewayv1beta1.GatewayAddress {
 			Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
 			Value: value,
 		},
+	}
+}
+
+func TestMultiClusterGatewayTarget_RemoveUnhealthyGatewayAddresses(t *testing.T) {
+	type fields struct {
+		Gateway               *gatewayv1beta1.Gateway
+		ClusterGatewayTargets []ClusterGatewayTarget
+		LoadBalancing         *v1alpha1.LoadBalancingSpec
+	}
+	type args struct {
+		probes   []*v1alpha1.DNSHealthCheckProbe
+		listener gatewayv1beta1.Listener
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		want   []ClusterGatewayTarget
+	}{
+		{
+			name: "healthy probes or no probes results in all gateways being kept",
+			fields: fields{
+				ClusterGatewayTargets: []ClusterGatewayTarget{
+					{
+						ClusterGateway: &ClusterGateway{
+							GatewayAddresses: []v1alpha2.GatewayAddress{
+								{
+									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+									Value: "1.1.1.1",
+								},
+								{
+									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+									Value: "2.2.2.2",
+								},
+							},
+						},
+					},
+				},
+				Gateway: &gatewayv1beta1.Gateway{
+					ObjectMeta: v1.ObjectMeta{Name: "testgw"},
+				},
+			},
+			args: args{
+				probes: []*v1alpha1.DNSHealthCheckProbe{
+					{
+						ObjectMeta: v1.ObjectMeta{
+							Name:      dnsHealthCheckProbeName("1.1.1.1", "testgw", "test"),
+							Namespace: "namespace",
+						},
+						Status: v1alpha1.DNSHealthCheckProbeStatus{
+							ConsecutiveFailures: 0,
+							Healthy:             testutil.Pointer(true),
+						},
+						Spec: v1alpha1.DNSHealthCheckProbeSpec{
+							FailureThreshold: testutil.Pointer(5),
+						},
+					},
+					{
+						ObjectMeta: v1.ObjectMeta{
+							Name:      dnsHealthCheckProbeName("2.2.2.2", "testgw", "test"),
+							Namespace: "namespace",
+						},
+						Status: v1alpha1.DNSHealthCheckProbeStatus{
+							ConsecutiveFailures: 0,
+							Healthy:             testutil.Pointer(true),
+						},
+						Spec: v1alpha1.DNSHealthCheckProbeSpec{
+							FailureThreshold: testutil.Pointer(5),
+						},
+					},
+				},
+				listener: gatewayv1beta1.Listener{Name: "test"},
+			},
+			want: []ClusterGatewayTarget{
+				{
+					ClusterGateway: &ClusterGateway{
+						GatewayAddresses: []v1alpha2.GatewayAddress{
+							{
+								Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+								Value: "1.1.1.1",
+							},
+							{
+								Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+								Value: "2.2.2.2",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "some unhealthy probes results in the removal of a gateway",
+			fields: fields{
+				ClusterGatewayTargets: []ClusterGatewayTarget{
+					{
+						ClusterGateway: &ClusterGateway{
+							GatewayAddresses: []v1alpha2.GatewayAddress{
+								{
+									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+									Value: "1.1.1.1",
+								},
+								{
+									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+									Value: "2.2.2.2",
+								},
+							},
+						},
+					},
+				},
+				Gateway: &gatewayv1beta1.Gateway{
+					ObjectMeta: v1.ObjectMeta{Name: "testgw"},
+				},
+			},
+			args: args{
+				probes: []*v1alpha1.DNSHealthCheckProbe{
+					{
+						ObjectMeta: v1.ObjectMeta{
+							Name:      dnsHealthCheckProbeName("1.1.1.1", "testgw", "test"),
+							Namespace: "namespace",
+						},
+						Status: v1alpha1.DNSHealthCheckProbeStatus{
+							ConsecutiveFailures: 6,
+							Healthy:             testutil.Pointer(false),
+						},
+						Spec: v1alpha1.DNSHealthCheckProbeSpec{
+							FailureThreshold: testutil.Pointer(5),
+						},
+					},
+					{
+						ObjectMeta: v1.ObjectMeta{
+							Name:      dnsHealthCheckProbeName("2.2.2.2", "testgw", "test"),
+							Namespace: "namespace",
+						},
+						Status: v1alpha1.DNSHealthCheckProbeStatus{
+							ConsecutiveFailures: 0,
+							Healthy:             testutil.Pointer(true),
+						},
+						Spec: v1alpha1.DNSHealthCheckProbeSpec{
+							FailureThreshold: testutil.Pointer(5),
+						},
+					},
+				},
+				listener: gatewayv1beta1.Listener{Name: "test"},
+			},
+			want: []ClusterGatewayTarget{
+				{
+					ClusterGateway: &ClusterGateway{
+						GatewayAddresses: []v1alpha2.GatewayAddress{
+							{
+								Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+								Value: "2.2.2.2",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "all unhealthy probes results in all gateways being kept",
+			fields: fields{
+				ClusterGatewayTargets: []ClusterGatewayTarget{
+					{
+						ClusterGateway: &ClusterGateway{
+							GatewayAddresses: []v1alpha2.GatewayAddress{
+								{
+									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+									Value: "1.1.1.1",
+								},
+								{
+									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+									Value: "2.2.2.2",
+								},
+							},
+						},
+					},
+				},
+				Gateway: &gatewayv1beta1.Gateway{
+					ObjectMeta: v1.ObjectMeta{Name: "testgw"},
+				},
+			},
+			args: args{
+				probes: []*v1alpha1.DNSHealthCheckProbe{
+					{
+						ObjectMeta: v1.ObjectMeta{
+							Name:      dnsHealthCheckProbeName("1.1.1.1", "testgw", "test"),
+							Namespace: "namespace",
+						},
+						Status: v1alpha1.DNSHealthCheckProbeStatus{
+							ConsecutiveFailures: 6,
+							Healthy:             testutil.Pointer(false),
+						},
+						Spec: v1alpha1.DNSHealthCheckProbeSpec{
+							FailureThreshold: testutil.Pointer(5),
+						},
+					},
+					{
+						ObjectMeta: v1.ObjectMeta{
+							Name:      dnsHealthCheckProbeName("2.2.2.2", "testgw", "test"),
+							Namespace: "namespace",
+						},
+						Status: v1alpha1.DNSHealthCheckProbeStatus{
+							ConsecutiveFailures: 6,
+							Healthy:             testutil.Pointer(false),
+						},
+						Spec: v1alpha1.DNSHealthCheckProbeSpec{
+							FailureThreshold: testutil.Pointer(5),
+						},
+					},
+				},
+				listener: gatewayv1beta1.Listener{Name: "test"},
+			},
+			want: []ClusterGatewayTarget{
+				{
+					ClusterGateway: &ClusterGateway{
+						GatewayAddresses: []v1alpha2.GatewayAddress{
+							{
+								Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+								Value: "1.1.1.1",
+							},
+							{
+								Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+								Value: "2.2.2.2",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t1 *testing.T) {
+			mgt := &MultiClusterGatewayTarget{
+				Gateway:               tt.fields.Gateway,
+				ClusterGatewayTargets: tt.fields.ClusterGatewayTargets,
+				LoadBalancing:         tt.fields.LoadBalancing,
+			}
+			mgt.RemoveUnhealthyGatewayAddresses(tt.args.probes, tt.args.listener)
+			if !reflect.DeepEqual(mgt.ClusterGatewayTargets, tt.want) {
+				for _, target := range mgt.ClusterGatewayTargets {
+					fmt.Println(target)
+				}
+				t.Errorf("got = %v, want %v", mgt.ClusterGatewayTargets, tt.want)
+			}
+		})
 	}
 }
