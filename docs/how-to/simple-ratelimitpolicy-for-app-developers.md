@@ -14,6 +14,10 @@ We will rate limit the `POST /toys` endpoint to a maximum of 5rp10s ("5 requests
 
 ### ① Deploy the Toy Store API
 
+#### Create the Deployment
+
+> **Note:** You can skip this step and proceed to [Create the HTTPRoute](#create-the-httproute) if you've already deployed the Toy Store API as part of [the AuthPolicy for App Developers guide](./simple-authpolicy-for-app-developers.md#-deploy-the-toy-store-api).
+
 Create the deployments for both clusters we've created previously (`kind-mgc-control-plane` & `kind-mgc-workload-1`):
 
 ```bash
