@@ -1,0 +1,8 @@
+apiVersion: kuadrant.io/v1alpha1
+kind: ManagedZone
+metadata:
+  name: google-dev-mz
+spec:
+  id: "google-hcpapps-net"
+  domainName: "google.hcpapps.net"
+  description: "Dev Managed Zone"

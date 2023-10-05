@@ -1,0 +1,8 @@
+apiVersion: kuadrant.io/v1alpha1
+kind: ManagedZone
+metadata:
+  name: coredns-dev-mz
+spec:
+  id: "coredns-hcpapps-local"
+  domainName: "coredns.hcpapps.local"
+  description: "Dev Managed Zone"

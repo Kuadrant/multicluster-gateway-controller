@@ -1,0 +1,15 @@
+apiVersion: kuadrant.io/v1alpha1
+kind: DNSRecord
+metadata:
+  name: dnsrecord-sample
+spec:
+  managedZone:
+    name: coredns-dev-mz
+  endpoints:
+    - dnsName: myapp.coredns.hcpapps.local
+      recordTTL: 20
+      recordType: A
+      targets:
+        - 1.1.1.1
+        - 2.2.2.2
+        - 3.3.3.3

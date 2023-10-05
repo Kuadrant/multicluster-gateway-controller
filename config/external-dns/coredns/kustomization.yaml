@@ -1,0 +1,78 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: external-dns
+resources:
+  - ../namespace.yaml
+helmGlobals:
+  chartHome: ../charts
+helmCharts:
+  - name: coredns
+    repo: https://coredns.github.io/helm
+    releaseName: mctc
+    valuesInline:
+      isClusterService: false
+      serviceType: LoadBalancer
+      servers:
+        - zones:
+            - zone: .
+          port: 53
+          # If serviceType is nodePort you can specify nodePort here
+          # nodePort: 30053
+          # hostPort: 53
+          plugins:
+            - name: errors
+            # Serves a /health endpoint on :8080, required for livenessProbe
+            - name: health
+              configBlock: |-
+                lameduck 5s
+            # Serves a /ready endpoint on :8181, required for readinessProbe
+            - name: ready
+            # Required to query kubernetes API for data
+            - name: kubernetes
+              parameters: cluster.local in-addr.arpa ip6.arpa
+              configBlock: |-
+                pods insecure
+                fallthrough in-addr.arpa ip6.arpa
+                ttl 30
+            # Serves a /metrics endpoint on :9153, required for serviceMonitor
+            - name: prometheus
+              parameters: 0.0.0.0:9153
+            - name: forward
+              parameters: . /etc/resolv.conf
+            - name: cache
+              parameters: 30
+            - name: loop
+            - name: reload
+            - name: loadbalance
+            - name: etcd
+              parameters: local.dev.hcpapps.net
+              configBlock: |-
+                stubzones
+                path /skydns
+                endpoint http://10.96.125.73:2379
+  - name: external-dns
+    repo: https://charts.bitnami.com/bitnami
+    version: 6.19.1
+    releaseName: mctc
+    valuesInline:
+      coredns:
+        etcdEndpoints: "http://10.96.125.73:2379"
+      interval: "5s"
+      image:
+        registry: quay.io
+        repository: kuadrant/external-dns
+        tag: v0.13.4-dirty-amd64
+      domainFilters:
+       - coredns.hcpapps.local
+      provider: coredns
+      sources:
+        - crd
+      logLevel: debug
+      crd:
+        create: false
+        apiversion: "kuadrant.io/v1alpha1"
+        kind: "DNSRecord"
+      policy: sync
+      #Issues with txt registry and records with multiple targets
+      registry: noop
+      txtPrefix: mctc-

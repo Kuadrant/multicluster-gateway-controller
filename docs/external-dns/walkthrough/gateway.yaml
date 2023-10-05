@@ -1,0 +1,37 @@
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: Gateway
+metadata:
+  name: example-gateway
+  annotations:
+    kuadrant.io/gateway-cluster-label-selector: type=test
+spec:
+  gatewayClassName: mctc-gw-istio-external-instance-per-cluster
+  listeners:
+  - name: coedns
+    port: 443
+    protocol: HTTPS
+    hostname: myapp.coredns.hcpapps.local
+    allowedRoutes:
+      namespaces:
+        from: All
+  - name: google
+    port: 443
+    protocol: HTTPS
+    hostname: myapp.google.hcpapps.net
+    allowedRoutes:
+      namespaces:
+        from: All
+  - name: aws
+    port: 443
+    protocol: HTTPS
+    hostname: myapp.aws.hcpapps.net
+    allowedRoutes:
+      namespaces:
+        from: All
+  - name: azure
+    port: 443
+    protocol: HTTPS
+    hostname: myapp.azure.hcpapps.net
+    allowedRoutes:
+      namespaces:
+        from: All
