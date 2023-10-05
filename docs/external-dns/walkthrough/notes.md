@@ -29,7 +29,7 @@ kube-system   kube-dns             ClusterIP   10.96.0.10     <none>        53/U
 ```
 
 ```bash
-kubectl port-forward -n default svc/mctc-etcd 2379:2379&                    
+kubectl port-forward -n default svc/mgc-etcd 2379:2379&        
 [1] 281331                                                                                                                                                                                                                                    
 Forwarding from 127.0.0.1:2379 -> 2379                                                                                                                                    
 Forwarding from [::1]:2379 -> 2379
@@ -54,17 +54,17 @@ Handling connection for 2379
 ```
 
 ```bash
-kubectl logs -f deployments/mctc-coredns -n external-dns
+kubectl logs -f deployments/mgc-coredns -n coredns
 ```
 
 ```bash
-kubectl get svc -n external-dns
+kubectl get svc -n coredns
 NAME           TYPE       CLUSTER-IP      EXTERNAL-IP   PORT(S)                     AGE
 mctc-coredns   NodePort   10.96.197.211   <none>        53:31541/UDP,53:31825/TCP   21m
 ```
 
 ```bash
-nodeIP=$(kubectl get nodes -o json | jq -r ".items[] | select(.metadata.name == \"mctc-control-plane-control-plane\").status | .addresses[] | select(.type == \"InternalIP\").address")
+nodeIP=$(kubectl get nodes -o json | jq -r ".items[] | select(.metadata.name == \"mgc-control-plane-control-plane\").status | .addresses[] | select(.type == \"InternalIP\").address")
 echo $nodeIP
 172.32.0.2
 ```
@@ -85,6 +85,8 @@ E0522 12:31:40.123374  278088 portforward.go:391] error copying from local conne
 
 ```
 
+
+// the port here is the port 53 forwarded port for the mgc-coredns service
 ```bash
 dig @172.32.0.2 -p 31541 google.com +short
 209.85.202.139

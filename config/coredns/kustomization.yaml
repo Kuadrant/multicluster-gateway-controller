@@ -1,14 +1,12 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-namespace: external-dns
+namespace: coredns
 resources:
-  - ../namespace.yaml
-helmGlobals:
-  chartHome: ../charts
+  - namespace.yaml
 helmCharts:
   - name: coredns
     repo: https://coredns.github.io/helm
-    releaseName: mctc
+    releaseName: mgc
     valuesInline:
       isClusterService: false
       serviceType: LoadBalancer
@@ -49,30 +47,4 @@ helmCharts:
               configBlock: |-
                 stubzones
                 path /skydns
-                endpoint http://10.96.125.73:2379
-  - name: external-dns
-    repo: https://charts.bitnami.com/bitnami
-    version: 6.19.1
-    releaseName: mctc
-    valuesInline:
-      coredns:
-        etcdEndpoints: "http://10.96.125.73:2379"
-      interval: "5s"
-      image:
-        registry: quay.io
-        repository: kuadrant/external-dns
-        tag: v0.13.4-dirty-amd64
-      domainFilters:
-       - coredns.hcpapps.local
-      provider: coredns
-      sources:
-        - crd
-      logLevel: debug
-      crd:
-        create: false
-        apiversion: "kuadrant.io/v1alpha1"
-        kind: "DNSRecord"
-      policy: sync
-      #Issues with txt registry and records with multiple targets
-      registry: noop
-      txtPrefix: mctc-
+                endpoint http://100.9.125.73:2379
