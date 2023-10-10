@@ -57,7 +57,7 @@ func NewTestClusterIssuer(name string) *certmanv1.ClusterIssuer {
 	}
 }
 
-func AddListener(name string, hostname gatewayapiv1alpha2.Hostname, secretName gatewayv1beta1.ObjectName, gw *gatewayv1beta1.Gateway, appended bool) gatewayv1beta1.Listener {
+func AddListener(name string, hostname gatewayapiv1alpha2.Hostname, secretName gatewayv1beta1.ObjectName, gw *gatewayv1beta1.Gateway) {
 	listener := gatewayapiv1alpha2.Listener{
 		Name:     gatewayv1beta1.SectionName(name),
 		Hostname: &hostname,
@@ -79,9 +79,32 @@ func AddListener(name string, hostname gatewayapiv1alpha2.Hostname, secretName g
 			},
 		},
 	}
-	if appended == true {
 
-		gw.Spec.Listeners = append(gw.Spec.Listeners, listener)
+	gw.Spec.Listeners = append(gw.Spec.Listeners, listener)
+
+}
+
+func ListenerSpec(name string, hostname gatewayapiv1alpha2.Hostname, secretName gatewayv1beta1.ObjectName) gatewayv1beta1.Listener {
+	listener := gatewayapiv1alpha2.Listener{
+		Name:     gatewayv1beta1.SectionName(name),
+		Hostname: &hostname,
+		Port:     443,
+		Protocol: gatewayv1beta1.HTTPSProtocolType,
+		TLS: &gatewayv1beta1.GatewayTLSConfig{
+			Mode: &modtype,
+			CertificateRefs: []gatewayv1beta1.SecretObjectReference{
+				{
+					Group: &group,
+					Name:  secretName,
+					Kind:  &kindSecret,
+				},
+			},
+		},
+		AllowedRoutes: &gatewayv1beta1.AllowedRoutes{
+			Namespaces: &gatewayv1beta1.RouteNamespaces{
+				From: Pointer(gatewayv1beta1.NamespacesFromAll),
+			},
+		},
 	}
 	return listener
 

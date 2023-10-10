@@ -128,11 +128,6 @@ var _ = Describe("Gateway single target cluster", func() {
 			client.PropagationPolicy(metav1.DeletePropagationForeground))
 		Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
 
-		//Workaround for https://github.com/Kuadrant/multicluster-gateway-controller/issues/420
-		Eventually(func(ctx SpecContext) error {
-			return tconfig.HubClient().Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.HubNamespace()}, gw)
-		}).WithContext(ctx).WithTimeout(10 * time.Second).WithPolling(2 * time.Second).Should(MatchError(ContainSubstring("not found")))
-
 		err = tconfig.HubClient().Delete(ctx, placement,
 			client.PropagationPolicy(metav1.DeletePropagationForeground))
 		Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
@@ -210,7 +205,7 @@ var _ = Describe("Gateway single target cluster", func() {
 					},
 				}},
 			}
-
+			// the status of the spoke gateway should be true for both Ready and accepted
 			Eventually(func(ctx SpecContext) error {
 				tconfig.SpokeClient(0).Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.SpokeNamespace()}, istioGW)
 				if !meta.IsStatusConditionPresentAndEqual(istioGW.Status.Conditions, string(gatewayapi.GatewayConditionAccepted), "True") {
@@ -222,7 +217,7 @@ var _ = Describe("Gateway single target cluster", func() {
 					return fmt.Errorf("Expected condition %s to be true but got %v", string(gatewayapi.GatewayConditionReady), cond)
 				}
 				return nil
-			}).WithContext(ctx).WithTimeout(120 * time.Second).WithPolling(10 * time.Second).ShouldNot(HaveOccurred())
+			}).WithContext(ctx).WithTimeout(120 * time.Second).WithPolling(2 * time.Second).ShouldNot(HaveOccurred())
 			Expect(istioGW.Spec).Should(Equal(istioGWSpec))
 		})
 
@@ -406,7 +401,6 @@ var _ = Describe("Gateway single target cluster", func() {
 					By("adding wildcard listener to the gateway")
 					{
 						gw := &gatewayapi.Gateway{}
-						// istioGW := &gatewayapi.Gateway{}
 
 						err = tconfig.HubClient().Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.HubNamespace()}, gw)
 						Expect(err).ToNot(HaveOccurred())
@@ -416,7 +410,7 @@ var _ = Describe("Gateway single target cluster", func() {
 						}
 						wildcardHostname = gatewayapi.Hostname(strings.Join([]string{"*", tconfig.ManagedZone()}, "."))
 						secretName := gatewayapi.Hostname(strings.Join([]string{testID, tconfig.ManagedZone()}, "."))
-						AddListener("wildcard", wildcardHostname, gatewayapi.ObjectName(secretName), gw, true)
+						AddListener("wildcard", wildcardHostname, gatewayapi.ObjectName(secretName), gw)
 						err = tconfig.HubClient().Update(ctx, gw)
 						Expect(err).ToNot(HaveOccurred())
 						expectedListeners := 2
@@ -430,24 +424,25 @@ var _ = Describe("Gateway single target cluster", func() {
 								return nil
 							}
 							return fmt.Errorf("should be %d listeners in the gateway", expectedListeners)
-						}).WithContext(ctx).WithTimeout(100 * time.Second).WithPolling(2 * time.Second).ShouldNot(HaveOccurred())
+						}).WithContext(ctx).WithTimeout(120 * time.Second).WithPolling(2 * time.Second).ShouldNot(HaveOccurred())
 
 						istioGWSpec := gatewayapi.GatewaySpec{
 							GatewayClassName: "istio",
 							Listeners: []gatewayapi.Listener{
 
-								AddListener("https", hostname, gatewayapi.ObjectName(hostname), gw, false),
-								AddListener("wildcard", wildcardHostname, gatewayapi.ObjectName(secretName), gw, false),
+								ListenerSpec("https", hostname, gatewayapi.ObjectName(hostname)),
+								ListenerSpec("wildcard", wildcardHostname, gatewayapi.ObjectName(secretName)),
 							},
 						}
 
+						//the gateway from the spoke cluster should match the expected spec with the additional listener
 						getIstioGW := func() (gatewayapi.GatewaySpec, error) {
 							var istioGW gatewayapi.Gateway
 							err = tconfig.SpokeClient(0).Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.SpokeNamespace()}, &istioGW)
 							Expect(err).ToNot(HaveOccurred())
 							return istioGW.Spec, nil
 						}
-						Eventually(getIstioGW, 120*time.Second, 10*time.Second).WithContext(ctx).Should(Equal(istioGWSpec))
+						Eventually(getIstioGW, 120*time.Second, 2*time.Second).WithContext(ctx).Should(Equal(istioGWSpec))
 
 					}
 
@@ -471,7 +466,7 @@ var _ = Describe("Gateway single target cluster", func() {
 								}
 							}
 							return fmt.Errorf("dns names for secret not as expected")
-						}).WithContext(ctx).WithTimeout(180 * time.Second).WithPolling(2 * time.Second).ShouldNot(HaveOccurred())
+						}).WithContext(ctx).WithTimeout(120 * time.Second).WithPolling(2 * time.Second).ShouldNot(HaveOccurred())
 					}
 
 					By("checking a wildcard cert is present via get request")
@@ -510,7 +505,7 @@ var _ = Describe("Gateway single target cluster", func() {
 							gw.Spec.Listeners = []gatewayapi.Listener{}
 						}
 						otherHostname = gatewayapi.Hostname(strings.Join([]string{"other", tconfig.ManagedZone()}, "."))
-						AddListener("other", otherHostname, gatewayapi.ObjectName(otherHostname), gw, true)
+						AddListener("other", otherHostname, gatewayapi.ObjectName(otherHostname), gw)
 						err = tconfig.HubClient().Update(ctx, gw)
 						Expect(err).ToNot(HaveOccurred())
 						expectedLiseners := 3
@@ -522,25 +517,26 @@ var _ = Describe("Gateway single target cluster", func() {
 								return nil
 							}
 							return fmt.Errorf("expected %d listeners in the ", expectedLiseners)
-						}).WithContext(ctx).WithTimeout(100 * time.Second).WithPolling(2 * time.Second).ShouldNot(HaveOccurred())
+						}).WithContext(ctx).WithTimeout(120 * time.Second).WithPolling(2 * time.Second).ShouldNot(HaveOccurred())
 
 						istioGWSpec := gatewayapi.GatewaySpec{
 							GatewayClassName: "istio",
 							Listeners: []gatewayapi.Listener{
 
-								AddListener("https", hostname, gatewayapi.ObjectName(hostname), gw, false),
-								AddListener("wildcard", wildcardHostname, gatewayapi.ObjectName(hostname), gw, false),
-								AddListener("other", otherHostname, gatewayapi.ObjectName(otherHostname), gw, false),
+								ListenerSpec("https", hostname, gatewayapi.ObjectName(hostname)),
+								ListenerSpec("wildcard", wildcardHostname, gatewayapi.ObjectName(hostname)),
+								ListenerSpec("other", otherHostname, gatewayapi.ObjectName(otherHostname)),
 							},
 						}
 
+						//the gateway from the spoke cluster should match the expected spec with the additional listener
 						getIstioGW := func() (gatewayapi.GatewaySpec, error) {
 							var istioGW gatewayapi.Gateway
 							err = tconfig.SpokeClient(0).Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.SpokeNamespace()}, &istioGW)
 							Expect(err).ToNot(HaveOccurred())
 							return istioGW.Spec, nil
 						}
-						Eventually(getIstioGW, 300*time.Second, 10*time.Second).WithContext(ctx).Should(Equal(istioGWSpec))
+						Eventually(getIstioGW, 120*time.Second, 2*time.Second).WithContext(ctx).Should(Equal(istioGWSpec))
 
 						Eventually(func(ctx SpecContext) error {
 							secret := &corev1.Secret{}
@@ -552,15 +548,15 @@ var _ = Describe("Gateway single target cluster", func() {
 								return err
 							}
 							return nil
-						}).WithContext(ctx).WithTimeout(180 * time.Second).WithPolling(2 * time.Second).ShouldNot(HaveOccurred())
+						}).WithContext(ctx).WithTimeout(120 * time.Second).WithPolling(2 * time.Second).ShouldNot(HaveOccurred())
 
 						// remove the listener
 						istioGWSpecRemove := gatewayapi.GatewaySpec{
 							GatewayClassName: "istio",
 							Listeners: []gatewayapi.Listener{
 
-								AddListener("https", hostname, gatewayapi.ObjectName(hostname), gw, false),
-								AddListener("wildcard", wildcardHostname, gatewayapi.ObjectName(hostname), gw, false),
+								ListenerSpec("https", hostname, gatewayapi.ObjectName(hostname)),
+								ListenerSpec("wildcard", wildcardHostname, gatewayapi.ObjectName(hostname)),
 							},
 						}
 						err = tconfig.HubClient().Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.HubNamespace()}, gw)
@@ -587,8 +583,10 @@ var _ = Describe("Gateway single target cluster", func() {
 								return err
 							}
 							return fmt.Errorf("secret %s found, should be removed", otherHostname)
-						}).WithContext(ctx).WithTimeout(180 * time.Second).WithPolling(2 * time.Second).ShouldNot(HaveOccurred())
-						Eventually(getIstioGW, 300*time.Second, 10*time.Second).WithContext(ctx).Should(Equal(istioGWSpecRemove))
+						}).WithContext(ctx).WithTimeout(120 * time.Second).WithPolling(2 * time.Second).ShouldNot(HaveOccurred())
+						//the gateway from the spoke cluster should match the expected spec with the additional listener removed
+
+						Eventually(getIstioGW, 120*time.Second, 2*time.Second).WithContext(ctx).Should(Equal(istioGWSpecRemove))
 
 					}
 					By("deleting tls policy, tls secrets are removed")
@@ -613,7 +611,7 @@ var _ = Describe("Gateway single target cluster", func() {
 								return err
 							}
 							return fmt.Errorf("secret %s found, should be removed", hostname)
-						}).WithContext(ctx).WithTimeout(180 * time.Second).WithPolling(2 * time.Second).ShouldNot(HaveOccurred())
+						}).WithContext(ctx).WithTimeout(120 * time.Second).WithPolling(2 * time.Second).ShouldNot(HaveOccurred())
 					}
 				})
 			})
@@ -640,7 +638,7 @@ var _ = Describe("Gateway single target cluster", func() {
 				}
 				return nil
 			}).WithContext(ctx).WithTimeout(120 * time.Second).WithPolling(2 * time.Second).ShouldNot(HaveOccurred())
-			AddListener("testfake", otherHostname, gatewayapi.ObjectName("fake"), gw, true)
+			AddListener("testfake", otherHostname, gatewayapi.ObjectName("fake"), gw)
 			err := tconfig.HubClient().Update(ctx, gw)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -652,10 +650,10 @@ var _ = Describe("Gateway single target cluster", func() {
 					return fmt.Errorf("Expected condition %s to be unknown but got %v", string(gatewayapi.GatewayConditionProgrammed), cond)
 				}
 				return nil
-			}).WithContext(ctx).WithTimeout(350 * time.Second).WithPolling(2 * time.Second).ShouldNot(HaveOccurred())
+			}).WithContext(ctx).WithTimeout(180 * time.Second).WithPolling(2 * time.Second).ShouldNot(HaveOccurred())
 		})
 
-		It("The placement is changed to remove the number of clusters the spoke cluster should be removed", func(ctx SpecContext) {
+		It("The placement is changed to remove the number of clusters the spoke cluster gateway should be removed", func(ctx SpecContext) {
 
 			istioGW := gatewayapi.Gateway{}
 			Eventually(func(ctx SpecContext) error {
@@ -683,7 +681,7 @@ var _ = Describe("Gateway single target cluster", func() {
 				err = tconfig.SpokeClient(0).Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.SpokeNamespace()}, &istioGW)
 				Expect(err).To(HaveOccurred())
 				return nil
-			}, 300*time.Second, 10*time.Second).WithContext(ctx)
+			}, 120*time.Second, 2*time.Second).WithContext(ctx)
 
 		})
 	})
@@ -697,9 +695,10 @@ var _ = Describe("Gateway single target cluster", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		It("Wrong placment label the gateway should show errors and programmed should be unknown", func(ctx SpecContext) {
+		It("If a wrong placement label is given to the gateway, it should show errors and programmed status should be unknown", func(ctx SpecContext) {
 			gw := &gatewayapi.Gateway{}
 
+			// Checking the status is programmed true first to ensure a gateway is on the spoke cluster begin with
 			Eventually(func(ctx SpecContext) error {
 				err := tconfig.HubClient().Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.HubNamespace()}, gw)
 				Expect(err).ToNot(HaveOccurred())
@@ -709,7 +708,7 @@ var _ = Describe("Gateway single target cluster", func() {
 				}
 				return nil
 			}).WithContext(ctx).WithTimeout(120 * time.Second).WithPolling(2 * time.Second).ShouldNot(HaveOccurred())
-
+			// adding a unknown label to see if the status will show up as unknown
 			patch := client.MergeFrom(gw.DeepCopy())
 			gw.GetLabels()[PlacementLabel] = "fake"
 			err := tconfig.HubClient().Patch(ctx, gw, patch)
@@ -723,7 +722,7 @@ var _ = Describe("Gateway single target cluster", func() {
 					return fmt.Errorf("Expected condition %s to be unknown but got %v", string(gatewayapi.GatewayConditionProgrammed), cond)
 				}
 				return nil
-			}).WithContext(ctx).WithTimeout(200 * time.Second).WithPolling(2 * time.Second).ShouldNot(HaveOccurred())
+			}).WithContext(ctx).WithTimeout(120 * time.Second).WithPolling(2 * time.Second).ShouldNot(HaveOccurred())
 		})
 		It("Removing the placment should delete the gateway", func(ctx SpecContext) {
 			istioGW := gatewayapi.Gateway{}
@@ -733,14 +732,12 @@ var _ = Describe("Gateway single target cluster", func() {
 			err = tconfig.HubClient().Delete(ctx, placement, &client.DeleteOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
-
 			Eventually(func(ctx SpecContext) error {
-				 err = tconfig.SpokeClient(0).Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.SpokeNamespace()}, &istioGW)
-				  Expect(err).To(HaveOccurred())
+				err = tconfig.SpokeClient(0).Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.SpokeNamespace()}, &istioGW)
+				Expect(err).To(HaveOccurred())
 
-				  return nil
+				return nil
 			}).WithContext(ctx).WithTimeout(10 * time.Second).WithPolling(2 * time.Second).ShouldNot(HaveOccurred())
-
 
 		})
 
