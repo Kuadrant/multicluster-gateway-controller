@@ -127,6 +127,15 @@ rules:
 - apiGroups:
   - kuadrant.io
   resources:
+  - authpolicies
+  - ratelimitpolicies
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - kuadrant.io
+  resources:
   - dnshealthcheckprobes
   verbs:
   - create

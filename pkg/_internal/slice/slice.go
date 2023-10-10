@@ -58,6 +58,16 @@ func Filter[T any](slice []T, predicate func(T) bool) []T {
 	return result
 }
 
+func Map[T, R any](slice []T, f func(T) R) []R {
+	result := make([]R, len(slice))
+
+	for i, elem := range slice {
+		result[i] = f(elem)
+	}
+
+	return result
+}
+
 func MapErr[T, R any](slice []T, f func(T) (R, error)) ([]R, error) {
 	result := make([]R, len(slice))
 

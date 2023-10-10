@@ -17,6 +17,24 @@ type Params struct {
 	// DownstreamClass specifies what GatewayClassName to set in the
 	// downstream clusters. For example:
 	DownstreamClass string `json:"downstreamClass,omitempty"`
+
+	// PoliciesToSync specifies a listof Policy GVRs that will be watched
+	// in the hub and synced to the spokes
+	PoliciesToSync []ParamsGroupVersionResource `json:"policiesToSync,omitempty"`
+}
+
+type ParamsGroupVersionResource struct {
+	Group    string `json:"group"`
+	Version  string `json:"version"`
+	Resource string `json:"resource"`
+}
+
+func (gvr ParamsGroupVersionResource) ToGroupVersionResource() schema.GroupVersionResource {
+	return schema.GroupVersionResource{
+		Group:    gvr.Group,
+		Version:  gvr.Version,
+		Resource: gvr.Resource,
+	}
 }
 
 func (p *Params) GetDownstreamClass() string {

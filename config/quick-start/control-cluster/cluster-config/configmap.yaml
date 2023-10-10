@@ -4,4 +4,9 @@ metadata:
   name: gateway-params
   namespace: multi-cluster-gateways
 data:
-  downstreamClass: "istio"
+  params: |
+    {
+      "policiesToSync": [
+        { "group": "kuadrant.io", "version": "v1beta1", "resource": "authpolicies" }
+      ]
+    }
