@@ -9,6 +9,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	v1 "open-cluster-management.io/api/cluster/v1"
 
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -25,7 +26,7 @@ import (
 	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnspolicy"
 	mgcgateway "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
-	. "github.com/Kuadrant/multicluster-gateway-controller/test/util"
+	testutil "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 )
 
 func testBuildManagedZone(domainName, ns string) *v1alpha1.ManagedZone {
@@ -90,6 +91,34 @@ func testBuildGateway(gwName, gwClassName, hostname, ns, dnspolicy string) *gate
 			},
 		},
 	}
+}
+
+func testBuildGatewayAddresses() []gatewayv1beta1.GatewayAddress {
+	return []gatewayv1beta1.GatewayAddress{
+		{
+			Type:  testutil.Pointer(mgcgateway.MultiClusterIPAddressType),
+			Value: TestPlacedClusterControlName + "/" + TestAttachedRouteAddressOne,
+		},
+		{
+			Type:  testutil.Pointer(mgcgateway.MultiClusterIPAddressType),
+			Value: TestPlaceClusterWorkloadName + "/" + TestAttachedRouteAddressTwo,
+		},
+	}
+}
+
+func testBuildGatewayListenerStatus(names []string, numRoutes []int32) []gatewayv1beta1.ListenerStatus {
+	listeners := []gatewayv1beta1.ListenerStatus{}
+
+	for i, name := range names {
+		listeners = append(listeners, gatewayv1beta1.ListenerStatus{
+			AttachedRoutes: numRoutes[i],
+			Name:           gatewayv1beta1.SectionName(name),
+			Conditions:     make([]metav1.Condition, 0),
+			SupportedKinds: make([]gatewayv1beta1.RouteGroupKind, 0),
+		})
+	}
+
+	return listeners
 }
 
 func testBuildDNSPolicyWithHealthCheck(policyName, gwName, ns string, threshold *int) *v1alpha1.DNSPolicy {
@@ -238,7 +267,7 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 		It("should have ready condition with status true", func() {
 			By("creating a valid Gateway")
 
-			gateway = NewTestGateway("test-gateway", gwClassName, testNamespace).
+			gateway = testutil.NewTestGateway("test-gateway", gwClassName, testNamespace).
 				WithHTTPListener("test.example.com").Gateway
 			Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
 			Eventually(func() error { //gateway exists
@@ -263,7 +292,7 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 		var lbHash, dnsRecordName, wildcardDNSRecordName string
 
 		BeforeEach(func() {
-			gateway = testBuildGateway(TestPlacedGatewayName, gatewayClass.Name, TestAttachedRouteName, testNamespace, "test-dns-policy")
+			gateway = testBuildGateway(TestPlacedGatewayName, testutil.DummyCRName, TestAttachedRouteName, testNamespace, "test-dns-policy")
 			lbHash = dns.ToBase36hash(fmt.Sprintf("%s-%s", gateway.Name, gateway.Namespace))
 			dnsRecordName = fmt.Sprintf("%s-%s", TestPlacedGatewayName, TestAttachedRouteName)
 			wildcardDNSRecordName = fmt.Sprintf("%s-%s", TestPlacedGatewayName, TestWildCardListenerName)
@@ -271,12 +300,48 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 			Eventually(func() error { //gateway exists
 				return k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway)
 			}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
+			Eventually(func() error { // TODO remove the workaround during https://github.com/Kuadrant/multicluster-gateway-controller/issues/330
+				// also use a proper gateway class
+
+				if err := k8sClient.Create(ctx, &v1.ManagedCluster{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: TestPlacedClusterControlName,
+					},
+				}); err != nil && !k8serrors.IsAlreadyExists(err) {
+					return err
+				}
+				if err := k8sClient.Create(ctx, &v1.ManagedCluster{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: TestPlaceClusterWorkloadName,
+					},
+				}); err != nil && !k8serrors.IsAlreadyExists(err) {
+					return err
+				}
+				gateway.Status.Addresses = testBuildGatewayAddresses()
+				gateway.Status.Listeners = testBuildGatewayListenerStatus(
+					[]string{
+						TestPlacedClusterControlName + "." + TestAttachedRouteName,
+						TestPlaceClusterWorkloadName + "." + TestAttachedRouteName,
+						TestPlacedClusterControlName + "." + TestWildCardListenerName,
+						TestPlaceClusterWorkloadName + "." + TestWildCardListenerName,
+					},
+					[]int32{1, 1, 1, 1})
+				return k8sClient.Status().Update(ctx, gateway)
+			}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred()) // end of the workaround
 		})
 
 		AfterEach(func() {
 			err := k8sClient.Delete(ctx, gateway)
 			// ignore not found err
 			Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
+
+			dnsRecordList := &v1alpha1.DNSRecordList{}
+			err = k8sClient.List(ctx, dnsRecordList)
+			Expect(err).ToNot(HaveOccurred())
+
+			for _, record := range dnsRecordList.Items {
+				Expect(k8sClient.Delete(ctx, &record)).ToNot(HaveOccurred())
+			}
 		})
 
 		Context("weighted dnspolicy", func() {
@@ -376,7 +441,7 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 					return nil
 				}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
 				Expect(createdDNSRecord.Spec.ManagedZoneRef.Name).To(Equal("example.com"))
-				Expect(createdDNSRecord.Spec.Endpoints).To(HaveLen(6))
+				Expect(createdDNSRecord.Spec.Endpoints).To(HaveLen(len(expectedEndpoints)))
 				Expect(createdDNSRecord.Spec.Endpoints).Should(ContainElements(expectedEndpoints))
 			})
 			It("should create a wildcard dns record", func() {
@@ -465,7 +530,7 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 					return nil
 				}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
 				Expect(wildcardDNSRecord.Spec.ManagedZoneRef.Name).To(Equal("example.com"))
-				Expect(wildcardDNSRecord.Spec.Endpoints).To(HaveLen(6))
+				Expect(wildcardDNSRecord.Spec.Endpoints).To(HaveLen(len(expectedEndpoints)))
 				Expect(wildcardDNSRecord.Spec.Endpoints).Should(ContainElements(expectedEndpoints))
 				Expect(expectedEndpoints).Should(ContainElements(wildcardDNSRecord.Spec.Endpoints))
 			})
@@ -624,11 +689,6 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 				}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
 			})
 
-			AfterEach(func() {
-				err := k8sClient.Delete(ctx, gateway)
-				Expect(err).ToNot(HaveOccurred())
-			})
-
 			It("should create a dns record", func() {
 				createdDNSRecord := &v1alpha1.DNSRecord{}
 				expectedEndpoints := []*v1alpha1.Endpoint{
@@ -730,7 +790,7 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 					return nil
 				}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
 				Expect(createdDNSRecord.Spec.ManagedZoneRef.Name).To(Equal("example.com"))
-				Expect(createdDNSRecord.Spec.Endpoints).To(HaveLen(7))
+				Expect(createdDNSRecord.Spec.Endpoints).To(HaveLen(len(expectedEndpoints)))
 				Expect(createdDNSRecord.Spec.Endpoints).Should(ContainElements(expectedEndpoints))
 				Expect(expectedEndpoints).Should(ContainElements(createdDNSRecord.Spec.Endpoints))
 
@@ -838,9 +898,437 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 					return nil
 				}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
 				Expect(wildcardDNSRecord.Spec.ManagedZoneRef.Name).To(Equal("example.com"))
-				Expect(wildcardDNSRecord.Spec.Endpoints).To(HaveLen(7))
+				Expect(wildcardDNSRecord.Spec.Endpoints).To(HaveLen(len(expectedEndpoints)))
 				Expect(wildcardDNSRecord.Spec.Endpoints).Should(ContainElements(expectedEndpoints))
 				Expect(expectedEndpoints).Should(ContainElements(wildcardDNSRecord.Spec.Endpoints))
+			})
+		})
+		Context("probes status impact DNS records", func() {
+			var dnsPolicy *v1alpha1.DNSPolicy
+			var unhealthy bool
+
+			BeforeEach(func() {
+				dnsPolicy = testBuildDNSPolicyWithHealthCheck("test-dns-policy", TestPlacedGatewayName, testNamespace, testutil.Pointer(4))
+				Expect(k8sClient.Create(ctx, dnsPolicy)).To(BeNil())
+				Eventually(func() error { //dns policy exists
+					return k8sClient.Get(ctx, client.ObjectKey{Name: dnsPolicy.Name, Namespace: dnsPolicy.Namespace}, dnsPolicy)
+				}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
+			})
+
+			It("should create a dns record", func() {
+				createdDNSRecord := &v1alpha1.DNSRecord{}
+				Eventually(func() error { // DNS record exists
+					if err := k8sClient.Get(ctx, client.ObjectKey{Name: dnsRecordName, Namespace: testNamespace}, createdDNSRecord); err != nil {
+						return err
+					}
+					if len(createdDNSRecord.Spec.Endpoints) != 6 {
+						return fmt.Errorf("expected %v endpoints in DNSRecord, got %v", 6, len(createdDNSRecord.Spec.Endpoints))
+					}
+					return nil
+				}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
+				Expect(createdDNSRecord.Spec.Endpoints).To(HaveLen(6))
+			})
+			It("should have probes that are healthy", func() {
+				probeList := &v1alpha1.DNSHealthCheckProbeList{}
+				Eventually(func() error {
+					Expect(k8sClient.List(ctx, probeList, &client.ListOptions{Namespace: testNamespace})).To(BeNil())
+					if len(probeList.Items) != 2 {
+						return fmt.Errorf("expected %v probes, got %v", 2, len(probeList.Items))
+					}
+					return nil
+				}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
+				Expect(len(probeList.Items)).To(Equal(2))
+			})
+
+			Context("all unhealthy probes", func() {
+				It("should publish all dns records endpoints", func() {
+					lbHash = dns.ToBase36hash(fmt.Sprintf("%s-%s", gateway.Name, gateway.Namespace))
+
+					expectedEndpoints := []*v1alpha1.Endpoint{
+						{
+							DNSName: "2w705o.lb-" + lbHash + ".test.example.com",
+							Targets: []string{
+								TestAttachedRouteAddressTwo,
+							},
+							RecordType:    "A",
+							SetIdentifier: "",
+							RecordTTL:     60,
+						},
+						{
+							DNSName: "s07c46.lb-" + lbHash + ".test.example.com",
+							Targets: []string{
+								TestAttachedRouteAddressOne,
+							},
+							RecordType:    "A",
+							SetIdentifier: "",
+							RecordTTL:     60,
+						},
+						{
+							DNSName: "default.lb-" + lbHash + ".test.example.com",
+							Targets: []string{
+								"2w705o.lb-" + lbHash + ".test.example.com",
+							},
+							RecordType:    "CNAME",
+							SetIdentifier: "2w705o.lb-" + lbHash + ".test.example.com",
+							RecordTTL:     60,
+							ProviderSpecific: v1alpha1.ProviderSpecific{
+								{
+									Name:  "weight",
+									Value: "120",
+								},
+							},
+						},
+						{
+							DNSName: "default.lb-" + lbHash + ".test.example.com",
+							Targets: []string{
+								"s07c46.lb-" + lbHash + ".test.example.com",
+							},
+							RecordType:    "CNAME",
+							SetIdentifier: "s07c46.lb-" + lbHash + ".test.example.com",
+							RecordTTL:     60,
+							Labels:        nil,
+							ProviderSpecific: v1alpha1.ProviderSpecific{
+								{
+									Name:  "weight",
+									Value: "120",
+								},
+							},
+						},
+						{
+							DNSName: "lb-" + lbHash + ".test.example.com",
+							Targets: []string{
+								"default.lb-" + lbHash + ".test.example.com",
+							},
+							RecordType:    "CNAME",
+							SetIdentifier: "default",
+							RecordTTL:     300,
+							ProviderSpecific: v1alpha1.ProviderSpecific{
+								{
+									Name:  "geo-code",
+									Value: "*",
+								},
+							},
+						},
+						{
+							DNSName: "test.example.com",
+							Targets: []string{
+								"lb-" + lbHash + ".test.example.com",
+							},
+							RecordType:    "CNAME",
+							SetIdentifier: "",
+							RecordTTL:     300,
+						},
+					}
+
+					probeList := &v1alpha1.DNSHealthCheckProbeList{}
+					Eventually(func() error {
+						Expect(k8sClient.List(ctx, probeList, &client.ListOptions{Namespace: testNamespace})).To(BeNil())
+						if len(probeList.Items) != 2 {
+							return fmt.Errorf("expected %v probes, got %v", 2, len(probeList.Items))
+						}
+						return nil
+					}, TestTimeoutLong, TestRetryIntervalMedium).Should(BeNil())
+
+					for _, probe := range probeList.Items {
+						Eventually(func() error {
+							if probe.Name == fmt.Sprintf("%s-%s-%s", TestAttachedRouteAddressTwo, TestPlacedGatewayName, TestAttachedRouteName) ||
+								probe.Name == fmt.Sprintf("%s-%s-%s", TestAttachedRouteAddressOne, TestPlacedGatewayName, TestAttachedRouteName) {
+								getProbe := &v1alpha1.DNSHealthCheckProbe{}
+								if err := k8sClient.Get(ctx, client.ObjectKey{Name: probe.Name, Namespace: probe.Namespace}, getProbe); err != nil {
+									return err
+								}
+								patch := client.MergeFrom(getProbe.DeepCopy())
+								unhealthy = false
+								getProbe.Status = v1alpha1.DNSHealthCheckProbeStatus{
+									LastCheckedAt:       metav1.NewTime(time.Now()),
+									ConsecutiveFailures: *getProbe.Spec.FailureThreshold + 1,
+									Healthy:             &unhealthy,
+								}
+								if err := k8sClient.Status().Patch(ctx, getProbe, patch); err != nil {
+									return err
+								}
+							}
+							return nil
+						}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
+					}
+					createdDNSRecord := &v1alpha1.DNSRecord{}
+					Eventually(func() error {
+
+						err := k8sClient.Get(ctx, client.ObjectKey{Name: dnsRecordName, Namespace: testNamespace}, createdDNSRecord)
+						if err != nil && k8serrors.IsNotFound(err) {
+							return err
+						}
+						if len(createdDNSRecord.Spec.Endpoints) != len(expectedEndpoints) {
+							return fmt.Errorf("expected %v endpoints in DNSRecord, got %v", len(expectedEndpoints), len(createdDNSRecord.Spec.Endpoints))
+						}
+						return nil
+					}, TestTimeoutLong, TestRetryIntervalMedium).Should(BeNil())
+					Expect(createdDNSRecord.Spec.Endpoints).To(HaveLen(len(expectedEndpoints)))
+					Expect(createdDNSRecord.Spec.Endpoints).Should(ContainElements(expectedEndpoints))
+					Expect(expectedEndpoints).Should(ContainElements(createdDNSRecord.Spec.Endpoints))
+
+				})
+			})
+			Context("some unhealthy probes", func() {
+				It("should publish expected endpoints", func() {
+					lbHash = dns.ToBase36hash(fmt.Sprintf("%s-%s", gateway.Name, gateway.Namespace))
+
+					expectedEndpoints := []*v1alpha1.Endpoint{
+						{
+							DNSName: "2w705o.lb-" + lbHash + ".test.example.com",
+							Targets: []string{
+								TestAttachedRouteAddressTwo,
+							},
+							RecordType:    "A",
+							SetIdentifier: "",
+							RecordTTL:     60,
+						},
+						{
+							DNSName: "s07c46.lb-" + lbHash + ".test.example.com",
+							Targets: []string{
+								TestAttachedRouteAddressOne,
+							},
+							RecordType:    "A",
+							SetIdentifier: "",
+							RecordTTL:     60,
+						},
+						{
+							DNSName: "default.lb-" + lbHash + ".test.example.com",
+							Targets: []string{
+								"2w705o.lb-" + lbHash + ".test.example.com",
+							},
+							RecordType:    "CNAME",
+							SetIdentifier: "2w705o.lb-" + lbHash + ".test.example.com",
+							RecordTTL:     60,
+							ProviderSpecific: v1alpha1.ProviderSpecific{
+								{
+									Name:  "weight",
+									Value: "120",
+								},
+							},
+						},
+						{
+							DNSName: "default.lb-" + lbHash + ".test.example.com",
+							Targets: []string{
+								"s07c46.lb-" + lbHash + ".test.example.com",
+							},
+							RecordType:    "CNAME",
+							SetIdentifier: "s07c46.lb-" + lbHash + ".test.example.com",
+							RecordTTL:     60,
+							Labels:        nil,
+							ProviderSpecific: v1alpha1.ProviderSpecific{
+								{
+									Name:  "weight",
+									Value: "120",
+								},
+							},
+						},
+						{
+							DNSName: "lb-" + lbHash + ".test.example.com",
+							Targets: []string{
+								"default.lb-" + lbHash + ".test.example.com",
+							},
+							RecordType:    "CNAME",
+							SetIdentifier: "default",
+							RecordTTL:     300,
+							ProviderSpecific: v1alpha1.ProviderSpecific{
+								{
+									Name:  "geo-code",
+									Value: "*",
+								},
+							},
+						},
+						{
+							DNSName: "test.example.com",
+							Targets: []string{
+								"lb-" + lbHash + ".test.example.com",
+							},
+							RecordType:    "CNAME",
+							SetIdentifier: "",
+							RecordTTL:     300,
+						},
+					}
+
+					probeList := &v1alpha1.DNSHealthCheckProbeList{}
+					Eventually(func() error {
+						Expect(k8sClient.List(ctx, probeList, &client.ListOptions{Namespace: testNamespace})).To(BeNil())
+						if len(probeList.Items) != 2 {
+							return fmt.Errorf("expected %v probes, got %v", 2, len(probeList.Items))
+						}
+						return nil
+					}, TestTimeoutLong, TestRetryIntervalMedium).Should(BeNil())
+					Expect(probeList.Items).To(HaveLen(2))
+
+					Eventually(func() error {
+						getProbe := &v1alpha1.DNSHealthCheckProbe{}
+						if err := k8sClient.Get(ctx, client.ObjectKey{Name: fmt.Sprintf("%s-%s-%s", TestAttachedRouteAddressOne, TestPlacedGatewayName, TestAttachedRouteName), Namespace: testNamespace}, getProbe); err != nil {
+							return err
+						}
+						patch := client.MergeFrom(getProbe.DeepCopy())
+						unhealthy = false
+						getProbe.Status = v1alpha1.DNSHealthCheckProbeStatus{
+							LastCheckedAt:       metav1.NewTime(time.Now()),
+							ConsecutiveFailures: *getProbe.Spec.FailureThreshold + 1,
+							Healthy:             &unhealthy,
+						}
+						if err := k8sClient.Status().Patch(ctx, getProbe, patch); err != nil {
+							return err
+						}
+						return nil
+					}, TestTimeoutLong, TestRetryIntervalMedium).Should(BeNil())
+
+					// after that verify that in time the endpoints are 5 in the dnsrecord
+					createdDNSRecord := &v1alpha1.DNSRecord{}
+					Eventually(func() error {
+						err := k8sClient.Get(ctx, client.ObjectKey{Name: dnsRecordName, Namespace: testNamespace}, createdDNSRecord)
+						if err != nil && k8serrors.IsNotFound(err) {
+							return err
+						}
+						return nil
+					}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
+					Expect(createdDNSRecord.Spec.Endpoints).To(HaveLen(len(expectedEndpoints)))
+					Expect(createdDNSRecord.Spec.Endpoints).Should(ContainElements(expectedEndpoints))
+					Expect(expectedEndpoints).Should(ContainElements(createdDNSRecord.Spec.Endpoints))
+				})
+			})
+			Context("some unhealthy endpoints for other listener", func() {
+				It("should publish expected endpoints", func() {
+					lbHash = dns.ToBase36hash(fmt.Sprintf("%s-%s", gateway.Name, gateway.Namespace))
+
+					expectedEndpoints := []*v1alpha1.Endpoint{
+						{
+							DNSName: "2w705o.lb-" + lbHash + ".test.example.com",
+							Targets: []string{
+								TestAttachedRouteAddressTwo,
+							},
+							RecordType:    "A",
+							SetIdentifier: "",
+							RecordTTL:     60,
+						},
+						{
+							DNSName: "s07c46.lb-" + lbHash + ".test.example.com",
+							Targets: []string{
+								TestAttachedRouteAddressOne,
+							},
+							RecordType:    "A",
+							SetIdentifier: "",
+							RecordTTL:     60,
+						},
+						{
+							DNSName: "default.lb-" + lbHash + ".test.example.com",
+							Targets: []string{
+								"2w705o.lb-" + lbHash + ".test.example.com",
+							},
+							RecordType:    "CNAME",
+							SetIdentifier: "2w705o.lb-" + lbHash + ".test.example.com",
+							RecordTTL:     60,
+							ProviderSpecific: v1alpha1.ProviderSpecific{
+								{
+									Name:  "weight",
+									Value: "120",
+								},
+							},
+						},
+						{
+							DNSName: "default.lb-" + lbHash + ".test.example.com",
+							Targets: []string{
+								"s07c46.lb-" + lbHash + ".test.example.com",
+							},
+							RecordType:    "CNAME",
+							SetIdentifier: "s07c46.lb-" + lbHash + ".test.example.com",
+							RecordTTL:     60,
+							Labels:        nil,
+							ProviderSpecific: v1alpha1.ProviderSpecific{
+								{
+									Name:  "weight",
+									Value: "120",
+								},
+							},
+						},
+						{
+							DNSName: "lb-" + lbHash + ".test.example.com",
+							Targets: []string{
+								"default.lb-" + lbHash + ".test.example.com",
+							},
+							RecordType:    "CNAME",
+							SetIdentifier: "default",
+							RecordTTL:     300,
+							ProviderSpecific: v1alpha1.ProviderSpecific{
+								{
+									Name:  "geo-code",
+									Value: "*",
+								},
+							},
+						},
+						{
+							DNSName: "test.example.com",
+							Targets: []string{
+								"lb-" + lbHash + ".test.example.com",
+							},
+							RecordType:    "CNAME",
+							SetIdentifier: "",
+							RecordTTL:     300,
+						},
+					}
+
+					err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(gateway.Spec.Listeners).NotTo(BeNil())
+					// add another listener, should result in 4 probes
+					typedHostname := gatewayv1beta1.Hostname(OtherAttachedRouteName)
+					otherListener := gatewayv1beta1.Listener{
+						Name:     gatewayv1beta1.SectionName(OtherAttachedRouteName),
+						Hostname: &typedHostname,
+						Port:     gatewayv1beta1.PortNumber(80),
+						Protocol: gatewayv1beta1.HTTPProtocolType,
+					}
+
+					patch := client.MergeFrom(gateway.DeepCopy())
+					gateway.Spec.Listeners = append(gateway.Spec.Listeners, otherListener)
+					Expect(k8sClient.Patch(ctx, gateway, patch)).To(BeNil())
+
+					probeList := &v1alpha1.DNSHealthCheckProbeList{}
+					Eventually(func() error {
+						Expect(k8sClient.List(ctx, probeList, &client.ListOptions{Namespace: testNamespace})).To(BeNil())
+						if len(probeList.Items) != 4 {
+							return fmt.Errorf("expected %v probes, got %v", 4, len(probeList.Items))
+						}
+						return nil
+					}, TestTimeoutLong, TestRetryIntervalMedium).Should(BeNil())
+					Expect(len(probeList.Items)).To(Equal(4))
+
+					//
+					Eventually(func() error {
+						getProbe := &v1alpha1.DNSHealthCheckProbe{}
+						if err = k8sClient.Get(ctx, client.ObjectKey{Name: fmt.Sprintf("%s-%s-%s", TestAttachedRouteAddressOne, TestPlacedGatewayName, OtherAttachedRouteName), Namespace: testNamespace}, getProbe); err != nil {
+							return err
+						}
+						patch := client.MergeFrom(getProbe.DeepCopy())
+						unhealthy = false
+						getProbe.Status = v1alpha1.DNSHealthCheckProbeStatus{
+							LastCheckedAt:       metav1.NewTime(time.Now()),
+							ConsecutiveFailures: *getProbe.Spec.FailureThreshold + 1,
+							Healthy:             &unhealthy,
+						}
+						if err = k8sClient.Status().Patch(ctx, getProbe, patch); err != nil {
+							return err
+						}
+						return nil
+					}, TestTimeoutLong, TestRetryIntervalMedium).Should(BeNil())
+
+					// after that verify that in time the endpoints are 5 in the dnsrecord
+					createdDNSRecord := &v1alpha1.DNSRecord{}
+					Eventually(func() error {
+						err := k8sClient.Get(ctx, client.ObjectKey{Name: dnsRecordName, Namespace: testNamespace}, createdDNSRecord)
+						if err != nil && k8serrors.IsNotFound(err) {
+							return err
+						}
+						return nil
+					}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
+					Expect(createdDNSRecord.Spec.Endpoints).To(HaveLen(len(expectedEndpoints)))
+					Expect(createdDNSRecord.Spec.Endpoints).Should(ContainElements(expectedEndpoints))
+					Expect(expectedEndpoints).Should(ContainElements(createdDNSRecord.Spec.Endpoints))
+				})
 			})
 		})
 	})
@@ -851,31 +1339,22 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 		testGatewayName := "test-not-placed-gateway"
 
 		BeforeEach(func() {
-			gateway = testBuildGateway(testGatewayName, gatewayClass.Name, TestAttachedRouteName, testNamespace, "test-dns-policy")
+			gateway = testBuildGateway(testGatewayName, testutil.DummyCRName, TestAttachedRouteName, testNamespace, "test-dns-policy")
 			dnsPolicy = testBuildDNSPolicyWithHealthCheck("test-dns-policy", testGatewayName, testNamespace, nil)
 
 			Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
 			Expect(k8sClient.Create(ctx, dnsPolicy)).To(BeNil())
 
 			Eventually(func() error {
-				if err := k8sClient.Get(ctx, client.ObjectKey{Name: dnsPolicy.Name, Namespace: dnsPolicy.Namespace}, dnsPolicy); err != nil {
-					return err
-				}
-				return nil
+				return k8sClient.Get(ctx, client.ObjectKey{Name: dnsPolicy.Name, Namespace: dnsPolicy.Namespace}, dnsPolicy)
 			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
 
 			Eventually(func() error { //gateway exists
-				if err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway); err != nil {
-					return err
-				}
-				return nil
-			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
+				return k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway)
+			}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
 
 			Eventually(func() error { //dns policy exists
-				if err := k8sClient.Get(ctx, client.ObjectKey{Name: dnsPolicy.Name, Namespace: dnsPolicy.Namespace}, dnsPolicy); err != nil {
-					return err
-				}
-				return nil
+				return k8sClient.Get(ctx, client.ObjectKey{Name: dnsPolicy.Name, Namespace: dnsPolicy.Namespace}, dnsPolicy)
 			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
 		})
 
@@ -946,503 +1425,6 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 				}
 				return nil
 			}, time.Second*5, time.Second).Should(BeNil())
-		})
-	})
-
-	Context("probes status impact DNS records", func() {
-		var gateway *gatewayv1beta1.Gateway
-		var dnsRecordName, lbHash string
-		var dnsPolicy *v1alpha1.DNSPolicy
-		var unhealthy bool
-
-		BeforeEach(func() {
-			gateway = testBuildGateway(TestPlacedGatewayName, gatewayClass.Name, TestAttachedRouteName, testNamespace, "test-dns-policy")
-			dnsRecordName = fmt.Sprintf("%s-%s", TestPlacedGatewayName, TestAttachedRouteName)
-			Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
-			Eventually(func() error { //gateway exists
-				if err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway); err != nil {
-					return err
-				}
-				return nil
-			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
-
-			threshold := 4
-			dnsPolicy = testBuildDNSPolicyWithHealthCheck("test-dns-policy", TestPlacedGatewayName, testNamespace, &threshold)
-			Expect(k8sClient.Create(ctx, dnsPolicy)).To(BeNil())
-			Eventually(func() error { //dns policy exists
-				if err := k8sClient.Get(ctx, client.ObjectKey{Name: dnsPolicy.Name, Namespace: dnsPolicy.Namespace}, dnsPolicy); err != nil {
-					return err
-				}
-				return nil
-			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
-		})
-
-		AfterEach(func() {
-			//clean up gateway
-			gatewayList := &gatewayv1beta1.GatewayList{}
-			Expect(k8sClient.List(ctx, gatewayList)).To(BeNil())
-			for _, gw := range gatewayList.Items {
-				k8sClient.Delete(ctx, &gw)
-			}
-		})
-
-		It("should create a dns record", func() {
-			createdDNSRecord := &v1alpha1.DNSRecord{}
-			Eventually(func() error { // DNS record exists
-				if err := k8sClient.Get(ctx, client.ObjectKey{Name: dnsRecordName, Namespace: testNamespace}, createdDNSRecord); err != nil {
-					return err
-				}
-				if len(createdDNSRecord.Spec.Endpoints) != 6 {
-					return fmt.Errorf("expected %v endpoints in DNSRecord, got %v", 6, len(createdDNSRecord.Spec.Endpoints))
-				}
-				return nil
-			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
-		})
-		It("should have probes that are healthy", func() {
-			err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway)
-			Expect(err).NotTo(HaveOccurred())
-			patch := client.MergeFrom(gateway.DeepCopy())
-			addressType := mgcgateway.MultiClusterIPAddressType
-			gateway.Status.Addresses = []gatewayv1beta1.GatewayAddress{
-				{
-					Type:  &addressType,
-					Value: fmt.Sprintf("%s/%s", "kind-mgc-control-plane", TestAttachedRouteAddressOne),
-				},
-				{
-					Type:  &addressType,
-					Value: fmt.Sprintf("%s/%s", "kind-mgc-control-plane", TestAttachedRouteAddressTwo),
-				},
-			}
-			Expect(k8sClient.Status().Patch(ctx, gateway, patch)).To(BeNil())
-
-			probeList := &v1alpha1.DNSHealthCheckProbeList{}
-			Eventually(func() error {
-				Expect(k8sClient.List(ctx, probeList, &client.ListOptions{Namespace: testNamespace})).To(BeNil())
-				if len(probeList.Items) != 2 {
-					return fmt.Errorf("expected %v probes, got %v", 2, len(probeList.Items))
-				}
-				return nil
-			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
-			Expect(len(probeList.Items)).To(Equal(2))
-		})
-
-		Context("all unhealthy probes", func() {
-			It("should publish all dns records endpoints", func() {
-				lbHash = dns.ToBase36hash(fmt.Sprintf("%s-%s", gateway.Name, gateway.Namespace))
-
-				expectedEndpoints := []*v1alpha1.Endpoint{
-					{
-						DNSName: "2w705o.lb-" + lbHash + ".test.example.com",
-						Targets: []string{
-							TestAttachedRouteAddressTwo,
-						},
-						RecordType:    "A",
-						SetIdentifier: "",
-						RecordTTL:     60,
-					},
-					{
-						DNSName: "s07c46.lb-" + lbHash + ".test.example.com",
-						Targets: []string{
-							TestAttachedRouteAddressOne,
-						},
-						RecordType:    "A",
-						SetIdentifier: "",
-						RecordTTL:     60,
-					},
-					{
-						DNSName: "default.lb-" + lbHash + ".test.example.com",
-						Targets: []string{
-							"2w705o.lb-" + lbHash + ".test.example.com",
-						},
-						RecordType:    "CNAME",
-						SetIdentifier: "2w705o.lb-" + lbHash + ".test.example.com",
-						RecordTTL:     60,
-						ProviderSpecific: v1alpha1.ProviderSpecific{
-							{
-								Name:  "weight",
-								Value: "120",
-							},
-						},
-					},
-					{
-						DNSName: "default.lb-" + lbHash + ".test.example.com",
-						Targets: []string{
-							"s07c46.lb-" + lbHash + ".test.example.com",
-						},
-						RecordType:    "CNAME",
-						SetIdentifier: "s07c46.lb-" + lbHash + ".test.example.com",
-						RecordTTL:     60,
-						Labels:        nil,
-						ProviderSpecific: v1alpha1.ProviderSpecific{
-							{
-								Name:  "weight",
-								Value: "120",
-							},
-						},
-					},
-					{
-						DNSName: "lb-" + lbHash + ".test.example.com",
-						Targets: []string{
-							"default.lb-" + lbHash + ".test.example.com",
-						},
-						RecordType:    "CNAME",
-						SetIdentifier: "default",
-						RecordTTL:     300,
-						ProviderSpecific: v1alpha1.ProviderSpecific{
-							{
-								Name:  "geo-code",
-								Value: "*",
-							},
-						},
-					},
-					{
-						DNSName: "test.example.com",
-						Targets: []string{
-							"lb-" + lbHash + ".test.example.com",
-						},
-						RecordType:    "CNAME",
-						SetIdentifier: "",
-						RecordTTL:     300,
-					},
-				}
-
-				err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway)
-				Expect(err).NotTo(HaveOccurred())
-				patch := client.MergeFrom(gateway.DeepCopy())
-				addressType := mgcgateway.MultiClusterIPAddressType
-				gateway.Status.Addresses = []gatewayv1beta1.GatewayAddress{
-					{
-						Type:  &addressType,
-						Value: fmt.Sprintf("%s/%s", "kind-mgc-control-plane", TestAttachedRouteAddressOne),
-					},
-					{
-						Type:  &addressType,
-						Value: fmt.Sprintf("%s/%s", "kind-mgc-control-plane", TestAttachedRouteAddressTwo),
-					},
-				}
-				Expect(k8sClient.Status().Patch(ctx, gateway, patch)).To(BeNil())
-
-				probeList := &v1alpha1.DNSHealthCheckProbeList{}
-				Eventually(func() error {
-					Expect(k8sClient.List(ctx, probeList, &client.ListOptions{Namespace: testNamespace})).To(BeNil())
-					if len(probeList.Items) != 2 {
-						return fmt.Errorf("expected %v probes, got %v", 2, len(probeList.Items))
-					}
-					return nil
-				}, TestTimeoutLong, TestRetryIntervalMedium).Should(BeNil())
-
-				for _, probe := range probeList.Items {
-					Eventually(func() error {
-						if probe.Name == fmt.Sprintf("%s-%s-%s", TestAttachedRouteAddressTwo, TestPlacedGatewayName, TestAttachedRouteName) ||
-							probe.Name == fmt.Sprintf("%s-%s-%s", TestAttachedRouteAddressOne, TestPlacedGatewayName, TestAttachedRouteName) {
-							getProbe := &v1alpha1.DNSHealthCheckProbe{}
-							if err = k8sClient.Get(ctx, client.ObjectKey{Name: probe.Name, Namespace: probe.Namespace}, getProbe); err != nil {
-								return err
-							}
-							patch := client.MergeFrom(getProbe.DeepCopy())
-							unhealthy = false
-							getProbe.Status = v1alpha1.DNSHealthCheckProbeStatus{
-								LastCheckedAt:       metav1.NewTime(time.Now()),
-								ConsecutiveFailures: *getProbe.Spec.FailureThreshold + 1,
-								Healthy:             &unhealthy,
-							}
-							if err = k8sClient.Status().Patch(ctx, getProbe, patch); err != nil {
-								return err
-							}
-						}
-						return nil
-					}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
-				}
-				createdDNSRecord := &v1alpha1.DNSRecord{}
-				Eventually(func() error {
-					err := k8sClient.Get(ctx, client.ObjectKey{Name: dnsRecordName, Namespace: testNamespace}, createdDNSRecord)
-					if err != nil && k8serrors.IsNotFound(err) {
-						return err
-					}
-					if len(createdDNSRecord.Spec.Endpoints) != len(expectedEndpoints) {
-						return fmt.Errorf("expected %v endpoints in DNSRecord, got %v", len(expectedEndpoints), len(createdDNSRecord.Spec.Endpoints))
-					}
-					return nil
-				}, TestTimeoutLong, TestRetryIntervalMedium).Should(BeNil())
-				Expect(createdDNSRecord.Spec.Endpoints).To(HaveLen(6))
-				Expect(createdDNSRecord.Spec.Endpoints).Should(ContainElements(expectedEndpoints))
-				Expect(expectedEndpoints).Should(ContainElements(createdDNSRecord.Spec.Endpoints))
-
-			})
-		})
-		Context("some unhealthy probes", func() {
-			It("should publish expected endpoints", func() {
-				lbHash = dns.ToBase36hash(fmt.Sprintf("%s-%s", gateway.Name, gateway.Namespace))
-
-				expectedEndpoints := []*v1alpha1.Endpoint{
-					{
-						DNSName: "2w705o.lb-" + lbHash + ".test.example.com",
-						Targets: []string{
-							TestAttachedRouteAddressTwo,
-						},
-						RecordType:    "A",
-						SetIdentifier: "",
-						RecordTTL:     60,
-					},
-					{
-						DNSName: "default.lb-" + lbHash + ".test.example.com",
-						Targets: []string{
-							"2w705o.lb-" + lbHash + ".test.example.com",
-						},
-						RecordType:    "CNAME",
-						SetIdentifier: "2w705o.lb-" + lbHash + ".test.example.com",
-						RecordTTL:     60,
-						ProviderSpecific: v1alpha1.ProviderSpecific{
-							{
-								Name:  "weight",
-								Value: "120",
-							},
-						},
-					},
-					{
-						DNSName: "lb-" + lbHash + ".test.example.com",
-						Targets: []string{
-							"default.lb-" + lbHash + ".test.example.com",
-						},
-						RecordType:    "CNAME",
-						SetIdentifier: "default",
-						RecordTTL:     300,
-						ProviderSpecific: v1alpha1.ProviderSpecific{
-							{
-								Name:  "geo-code",
-								Value: "*",
-							},
-						},
-					},
-					{
-						DNSName: "test.example.com",
-						Targets: []string{
-							"lb-" + lbHash + ".test.example.com",
-						},
-						RecordType:    "CNAME",
-						SetIdentifier: "",
-						RecordTTL:     300,
-					},
-				}
-
-				err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway)
-				Expect(err).NotTo(HaveOccurred())
-				patch := client.MergeFrom(gateway.DeepCopy())
-				addressType := mgcgateway.MultiClusterIPAddressType
-				gateway.Status.Addresses = []gatewayv1beta1.GatewayAddress{
-					{
-						Type:  &addressType,
-						Value: fmt.Sprintf("%s/%s", "kind-mgc-control-plane", TestAttachedRouteAddressOne),
-					},
-					{
-						Type:  &addressType,
-						Value: fmt.Sprintf("%s/%s", "kind-mgc-control-plane", TestAttachedRouteAddressTwo),
-					},
-				}
-				Expect(k8sClient.Status().Patch(ctx, gateway, patch)).To(BeNil())
-
-				probeList := &v1alpha1.DNSHealthCheckProbeList{}
-				Eventually(func() error {
-					Expect(k8sClient.List(ctx, probeList, &client.ListOptions{Namespace: testNamespace})).To(BeNil())
-					if len(probeList.Items) != 2 {
-						return fmt.Errorf("expected %v probes, got %v", 2, len(probeList.Items))
-					}
-					return nil
-				}, TestTimeoutLong, TestRetryIntervalMedium).Should(BeNil())
-				Expect(len(probeList.Items)).To(Equal(2))
-
-				Eventually(func() error {
-					getProbe := &v1alpha1.DNSHealthCheckProbe{}
-					if err = k8sClient.Get(ctx, client.ObjectKey{Name: fmt.Sprintf("%s-%s-%s", TestAttachedRouteAddressOne, TestPlacedGatewayName, TestAttachedRouteName), Namespace: testNamespace}, getProbe); err != nil {
-						return err
-					}
-					patch := client.MergeFrom(getProbe.DeepCopy())
-					unhealthy = false
-					getProbe.Status = v1alpha1.DNSHealthCheckProbeStatus{
-						LastCheckedAt:       metav1.NewTime(time.Now()),
-						ConsecutiveFailures: *getProbe.Spec.FailureThreshold + 1,
-						Healthy:             &unhealthy,
-					}
-					if err = k8sClient.Status().Patch(ctx, getProbe, patch); err != nil {
-						return err
-					}
-					return nil
-				}, TestTimeoutLong, TestRetryIntervalMedium).Should(BeNil())
-
-				// after that verify that in time the endpoints are 5 in the dnsrecord
-				createdDNSRecord := &v1alpha1.DNSRecord{}
-				Eventually(func() error {
-					err := k8sClient.Get(ctx, client.ObjectKey{Name: dnsRecordName, Namespace: testNamespace}, createdDNSRecord)
-					if err != nil && k8serrors.IsNotFound(err) {
-						return err
-					}
-					if len(createdDNSRecord.Spec.Endpoints) != len(expectedEndpoints) {
-						return fmt.Errorf("expected %v endpoints in DNSRecord, got %v", len(expectedEndpoints), len(createdDNSRecord.Spec.Endpoints))
-					}
-					return nil
-				}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
-				Expect(createdDNSRecord.Spec.Endpoints).To(HaveLen(4))
-				Expect(createdDNSRecord.Spec.Endpoints).Should(ContainElements(expectedEndpoints))
-				Expect(expectedEndpoints).Should(ContainElements(createdDNSRecord.Spec.Endpoints))
-			})
-		})
-		Context("some unhealthy endpoints for other listener", func() {
-			It("should publish expected endpoints", func() {
-				lbHash = dns.ToBase36hash(fmt.Sprintf("%s-%s", gateway.Name, gateway.Namespace))
-
-				expectedEndpoints := []*v1alpha1.Endpoint{
-					{
-						DNSName: "2w705o.lb-" + lbHash + ".test.example.com",
-						Targets: []string{
-							TestAttachedRouteAddressTwo,
-						},
-						RecordType:    "A",
-						SetIdentifier: "",
-						RecordTTL:     60,
-					},
-					{
-						DNSName: "s07c46.lb-" + lbHash + ".test.example.com",
-						Targets: []string{
-							TestAttachedRouteAddressOne,
-						},
-						RecordType:    "A",
-						SetIdentifier: "",
-						RecordTTL:     60,
-					},
-					{
-						DNSName: "default.lb-" + lbHash + ".test.example.com",
-						Targets: []string{
-							"2w705o.lb-" + lbHash + ".test.example.com",
-						},
-						RecordType:    "CNAME",
-						SetIdentifier: "2w705o.lb-" + lbHash + ".test.example.com",
-						RecordTTL:     60,
-						ProviderSpecific: v1alpha1.ProviderSpecific{
-							{
-								Name:  "weight",
-								Value: "120",
-							},
-						},
-					},
-					{
-						DNSName: "default.lb-" + lbHash + ".test.example.com",
-						Targets: []string{
-							"s07c46.lb-" + lbHash + ".test.example.com",
-						},
-						RecordType:    "CNAME",
-						SetIdentifier: "s07c46.lb-" + lbHash + ".test.example.com",
-						RecordTTL:     60,
-						Labels:        nil,
-						ProviderSpecific: v1alpha1.ProviderSpecific{
-							{
-								Name:  "weight",
-								Value: "120",
-							},
-						},
-					},
-					{
-						DNSName: "lb-" + lbHash + ".test.example.com",
-						Targets: []string{
-							"default.lb-" + lbHash + ".test.example.com",
-						},
-						RecordType:    "CNAME",
-						SetIdentifier: "default",
-						RecordTTL:     300,
-						ProviderSpecific: v1alpha1.ProviderSpecific{
-							{
-								Name:  "geo-code",
-								Value: "*",
-							},
-						},
-					},
-					{
-						DNSName: "test.example.com",
-						Targets: []string{
-							"lb-" + lbHash + ".test.example.com",
-						},
-						RecordType:    "CNAME",
-						SetIdentifier: "",
-						RecordTTL:     300,
-					},
-				}
-
-				err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway)
-				Expect(err).NotTo(HaveOccurred())
-				patch := client.MergeFrom(gateway.DeepCopy())
-				addressType := mgcgateway.MultiClusterIPAddressType
-				gateway.Status.Addresses = []gatewayv1beta1.GatewayAddress{
-					{
-						Type:  &addressType,
-						Value: fmt.Sprintf("%s/%s", "kind-mgc-control-plane", TestAttachedRouteAddressOne),
-					},
-					{
-						Type:  &addressType,
-						Value: fmt.Sprintf("%s/%s", "kind-mgc-control-plane", TestAttachedRouteAddressTwo),
-					},
-				}
-				Expect(k8sClient.Status().Patch(ctx, gateway, patch)).To(BeNil())
-
-				err = k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway)
-				Expect(err).NotTo(HaveOccurred())
-				Expect(gateway.Spec.Listeners).NotTo(BeNil())
-				// add another listener, should result in 4 probes
-				typedHostname := gatewayv1beta1.Hostname(OtherAttachedRouteName)
-				otherListener := gatewayv1beta1.Listener{
-					Name:     gatewayv1beta1.SectionName(OtherAttachedRouteName),
-					Hostname: &typedHostname,
-					Port:     gatewayv1beta1.PortNumber(80),
-					Protocol: gatewayv1beta1.HTTPProtocolType,
-				}
-
-				patch = client.MergeFrom(gateway.DeepCopy())
-				gateway.Spec.Listeners = append(gateway.Spec.Listeners, otherListener)
-				Expect(k8sClient.Patch(ctx, gateway, patch)).To(BeNil())
-
-				probeList := &v1alpha1.DNSHealthCheckProbeList{}
-				Eventually(func() error {
-					Expect(k8sClient.List(ctx, probeList, &client.ListOptions{Namespace: testNamespace})).To(BeNil())
-					if len(probeList.Items) != 4 {
-						return fmt.Errorf("expected %v probes, got %v", 4, len(probeList.Items))
-					}
-					return nil
-				}, TestTimeoutLong, TestRetryIntervalMedium).Should(BeNil())
-				Expect(len(probeList.Items)).To(Equal(4))
-
-				//
-				Eventually(func() error {
-					getProbe := &v1alpha1.DNSHealthCheckProbe{}
-					if err = k8sClient.Get(ctx, client.ObjectKey{Name: fmt.Sprintf("%s-%s-%s", TestAttachedRouteAddressOne, TestPlacedGatewayName, OtherAttachedRouteName), Namespace: testNamespace}, getProbe); err != nil {
-						return err
-					}
-					patch := client.MergeFrom(getProbe.DeepCopy())
-					unhealthy = false
-					getProbe.Status = v1alpha1.DNSHealthCheckProbeStatus{
-						LastCheckedAt:       metav1.NewTime(time.Now()),
-						ConsecutiveFailures: *getProbe.Spec.FailureThreshold + 1,
-						Healthy:             &unhealthy,
-					}
-					if err = k8sClient.Status().Patch(ctx, getProbe, patch); err != nil {
-						return err
-					}
-					return nil
-				}, TestTimeoutLong, TestRetryIntervalMedium).Should(BeNil())
-
-				// after that verify that in time the endpoints are 5 in the dnsrecord
-				createdDNSRecord := &v1alpha1.DNSRecord{}
-				Eventually(func() error {
-					err := k8sClient.Get(ctx, client.ObjectKey{Name: dnsRecordName, Namespace: testNamespace}, createdDNSRecord)
-					if err != nil && k8serrors.IsNotFound(err) {
-						return err
-					}
-					if len(createdDNSRecord.Spec.Endpoints) != len(expectedEndpoints) {
-						return fmt.Errorf("expected %v endpoints in DNSRecord, got %v", len(expectedEndpoints), len(createdDNSRecord.Spec.Endpoints))
-					}
-					return nil
-				}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
-				Expect(createdDNSRecord.Spec.Endpoints).To(HaveLen(6))
-				Expect(createdDNSRecord.Spec.Endpoints).Should(ContainElements(expectedEndpoints))
-				Expect(expectedEndpoints).Should(ContainElements(createdDNSRecord.Spec.Endpoints))
-			})
 		})
 	})
 })

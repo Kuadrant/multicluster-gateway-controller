@@ -137,7 +137,6 @@ func main() {
 			BaseReconciler: dnsPolicyBaseReconciler,
 		},
 		DNSProvider: provider.DNSProviderFactory,
-		Placer:      placer,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DNSPolicy")
 		os.Exit(1)

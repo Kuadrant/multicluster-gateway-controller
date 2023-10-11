@@ -3,6 +3,9 @@ package dnspolicy
 import (
 	"context"
 	"fmt"
+	"strings"
+
+	clusterv1 "open-cluster-management.io/api/cluster/v1"
 
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
@@ -13,6 +16,7 @@ import (
 	"github.com/kuadrant/kuadrant-operator/pkg/reconcilers"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 )
 
@@ -47,14 +51,9 @@ func (r *DNSPolicyReconciler) reconcileGatewayDNSRecords(ctx context.Context, ga
 		return err
 	}
 
-	placed, err := r.Placer.GetPlacedClusters(ctx, gateway)
-	if err != nil {
-		log.V(3).Info("error getting placed clusters")
-		return err
-	}
-	clusters := placed.UnsortedList()
+	clusterAddresses := getClusterGatewayAddresses(gateway)
 
-	log.V(3).Info("checking gateway for attached routes ", "gateway", gateway.Name, "clusters", placed)
+	log.V(3).Info("checking gateway for attached routes ", "gateway", gateway.Name, "clusters", clusterAddresses)
 
 	for _, listener := range gateway.Spec.Listeners {
 		var clusterGateways []dns.ClusterGateway
@@ -67,24 +66,23 @@ func (r *DNSPolicyReconciler) reconcileGatewayDNSRecords(ctx context.Context, ga
 			log.Info("skipping listener no hostname assigned", listener.Name, "in ns ", gateway.Namespace)
 			continue
 		}
-		for _, downstreamCluster := range clusters {
+		for clusterName, clusterAddress := range clusterAddresses {
 			// Only consider host for dns if there's at least 1 attached route to the listener for this host in *any* gateway
 
-			log.V(1).Info("checking downstream", "listener ", listener.Name)
-			attached, err := r.Placer.ListenerTotalAttachedRoutes(ctx, gateway, string(listener.Name), downstreamCluster)
-			if err != nil {
-				log.Error(err, "failed to get total attached routes for listener ", "listener", listener.Name)
-				continue
-			}
+			log.V(3).Info("checking downstream", "listener ", listener.Name)
+			attached := listenerTotalAttachedRoutes(gateway, clusterName, listener, clusterAddress)
+
 			if attached == 0 {
-				log.V(1).Info("no attached routes for ", "listener", listener.Name, "cluster ", downstreamCluster)
+				log.V(1).Info("no attached routes for ", "listener", listener, "cluster ", clusterName)
 				continue
 			}
-			log.V(1).Info("hostHasAttachedRoutes", "host", listener.Name, "hostHasAttachedRoutes", attached)
-			cg, err := r.Placer.GetClusterGateway(ctx, gateway, downstreamCluster)
+			log.V(3).Info("hostHasAttachedRoutes", "host", listener.Name, "hostHasAttachedRoutes", attached)
+
+			cg, err := r.buildClusterGateway(ctx, clusterName, clusterAddress)
 			if err != nil {
 				return fmt.Errorf("get cluster gateway failed: %s", err)
 			}
+
 			clusterGateways = append(clusterGateways, cg)
 		}
 
@@ -141,4 +139,82 @@ func (r *DNSPolicyReconciler) deleteGatewayDNSRecords(ctx context.Context, gatew
 		}
 	}
 	return nil
+}
+
+func (r *DNSPolicyReconciler) buildClusterGateway(ctx context.Context, downstreamClusterName string, clusterAddress []gatewayv1beta1.GatewayAddress) (dns.ClusterGateway, error) {
+	var target dns.ClusterGateway
+	singleClusterAddresses := make([]gatewayv1beta1.GatewayAddress, len(clusterAddress))
+
+	mc := &clusterv1.ManagedCluster{}
+	if err := r.Client().Get(ctx, client.ObjectKey{Name: downstreamClusterName}, mc, &client.GetOptions{}); err != nil {
+		return target, err
+	}
+
+	for i, addr := range clusterAddress {
+		addrType := gatewayv1beta1.IPAddressType
+		if *addr.Type == gateway.MultiClusterHostnameAddressType {
+			addrType = gatewayv1beta1.HostnameAddressType
+		}
+
+		singleClusterAddresses[i] = gatewayv1beta1.GatewayAddress{
+			Type:  &addrType,
+			Value: addr.Value,
+		}
+	}
+
+	target = *dns.NewClusterGateway(mc, singleClusterAddresses)
+
+	return target, nil
+}
+
+func getClusterGatewayAddresses(gw *gatewayv1beta1.Gateway) map[string][]gatewayv1beta1.GatewayAddress {
+	clusterAddrs := make(map[string][]gatewayv1beta1.GatewayAddress, len(gw.Status.Addresses))
+
+	for _, address := range gw.Status.Addresses {
+		var gatewayAddresses []gatewayv1beta1.GatewayAddress
+
+		//Default to Single Cluster (Normal Gateway Status)
+		cluster := "none"
+		addressValue := address.Value
+
+		//Check for Multi Cluster (MGC Gateway Status)
+		if *address.Type == gateway.MultiClusterIPAddressType || *address.Type == gateway.MultiClusterHostnameAddressType {
+			tmpCluster, tmpAddress, found := strings.Cut(address.Value, "/")
+			//If this fails something is wrong and the value hasn't been set correctly
+			if found {
+				cluster = tmpCluster
+				addressValue = tmpAddress
+			}
+		}
+
+		gatewayAddresses = append(gatewayAddresses, gatewayv1beta1.GatewayAddress{
+			Type:  address.Type,
+			Value: addressValue,
+		})
+		clusterAddrs[cluster] = gatewayAddresses
+	}
+
+	return clusterAddrs
+}
+
+func listenerTotalAttachedRoutes(upstreamGateway *gatewayv1beta1.Gateway, downstreamCluster string, specListener gatewayv1beta1.Listener, addresses []gatewayv1beta1.GatewayAddress) int {
+	for _, statusListener := range upstreamGateway.Status.Listeners {
+		// assuming all adresses of the same type on the gateway
+		// for Multi Cluster (MGC Gateway Status)
+		if *addresses[0].Type == gateway.MultiClusterIPAddressType || *addresses[0].Type == gateway.MultiClusterHostnameAddressType {
+			clusterName, listenerName, found := strings.Cut(string(statusListener.Name), ".")
+			if !found {
+				return 0
+			}
+			if clusterName == downstreamCluster && listenerName == string(specListener.Name) {
+				return int(statusListener.AttachedRoutes)
+			}
+		}
+		// Single Cluster (Normal Gateway Status)
+		if string(statusListener.Name) == string(specListener.Name) {
+			return int(statusListener.AttachedRoutes)
+		}
+	}
+
+	return 0
 }
