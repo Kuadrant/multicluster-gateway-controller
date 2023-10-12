@@ -53,6 +53,8 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 )
 
+type PlacmentReason string
+
 const (
 	GatewayClusterLabelSelectorAnnotation                            = "kuadrant.io/gateway-cluster-label-selector"
 	GatewayClustersAnnotation                                        = "kuadrant.io/gateway-clusters"
@@ -60,16 +62,17 @@ const (
 	ManagedLabel                                                     = "kuadrant.io/managed"
 	MultiClusterIPAddressType             gatewayv1beta1.AddressType = "kuadrant.io/MultiClusterIPAddress"
 	MultiClusterHostnameAddressType       gatewayv1beta1.AddressType = "kuadrant.io/MultiClusterHostnameAddress"
+	PlacementConditonType                                            = "Placed"
+	PlacmentConditionReasonPlaced         PlacmentReason             = "PlacementCompleted"
+	PlacmentConditionReasonFailed         PlacmentReason             = "PlacementFailed"
 )
 
 type GatewayPlacer interface {
 	//Place will use the placement logic to create the needed resources and ensure the objects are synced to the targeted clusters
 	// it will return the set of clusters it has targeted
-	Place(ctx context.Context, upstream *gatewayv1beta1.Gateway, downstream *gatewayv1beta1.Gateway, children ...metav1.Object) (sets.Set[string], error)
+	Place(ctx context.Context, upstream *gatewayv1beta1.Gateway, downstream *gatewayv1beta1.Gateway, children ...metav1.Object) (sets.Set[string], string, error)
 	// gets the clusters the gateway has actually been placed on
 	GetPlacedClusters(ctx context.Context, gateway *gatewayv1beta1.Gateway) (sets.Set[string], error)
-	//GetClusters returns the clusters decided on by the placement logic
-	GetClusters(ctx context.Context, gateway *gatewayv1beta1.Gateway) (sets.Set[string], error)
 	// ListenerTotalAttachedRoutes returns the total attached routes for a listener from the downstream gateways
 	ListenerTotalAttachedRoutes(ctx context.Context, gateway *gatewayv1beta1.Gateway, listenerName string, downstream string) (int, error)
 	// GetAddresses will look at the downstream view of the gateway and return the LB addresses used for these gateways
@@ -112,10 +115,13 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if isDeleting(upstreamGateway) {
 		log.Info("gateway being deleted ", "gateway", upstreamGateway.Name, "namespace", upstreamGateway.Namespace)
 		if _, _, _, err := r.reconcileDownstreamFromUpstreamGateway(ctx, upstreamGateway, nil); client.IgnoreNotFound(err) != nil {
+			if errors.Is(err, gracePeriod.ErrGracePeriodNotExpired) {
+				return reconcile.Result{Requeue: true, RequeueAfter: 30 * time.Second}, nil
+			}
 			return ctrl.Result{}, fmt.Errorf("failed to reconcile downstream gateway after upstream gateway deleted: %s ", err)
 		}
 		controllerutil.RemoveFinalizer(upstreamGateway, GatewayFinalizer)
-		if err := r.Update(ctx, upstreamGateway); err != nil {
+		if err := r.Update(ctx, upstreamGateway.DeepCopy()); err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to remove finalizer from gateway : %s", err)
 		}
 		log.Info("gateway being deleted finalizer removed ", "gateway", upstreamGateway.Name, "namespace", upstreamGateway.Namespace)
@@ -124,7 +130,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	if !controllerutil.ContainsFinalizer(upstreamGateway, GatewayFinalizer) {
 		controllerutil.AddFinalizer(upstreamGateway, GatewayFinalizer)
-		if err = r.Update(ctx, upstreamGateway); err != nil {
+		if err = r.Update(ctx, upstreamGateway.DeepCopy()); err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to add finalizer to gateway : %s", err)
 		}
 		return ctrl.Result{}, nil
@@ -143,7 +149,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		meta.SetStatusCondition(&upstreamGateway.Status.Conditions, programmedCondition)
 
 		if !reflect.DeepEqual(upstreamGateway, previous) {
-			err = r.Status().Update(ctx, upstreamGateway)
+			err = r.Status().Update(ctx, upstreamGateway.DeepCopy())
 			if err != nil {
 				return ctrl.Result{}, err
 			}
@@ -162,29 +168,30 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		programmedCondition := buildProgrammedCondition(upstreamGateway.Generation, []string{}, metav1.ConditionUnknown, nil)
 		meta.SetStatusCondition(&upstreamGateway.Status.Conditions, acceptedCondition)
 		meta.SetStatusCondition(&upstreamGateway.Status.Conditions, programmedCondition)
-		return reconcile.Result{}, r.Status().Update(ctx, upstreamGateway)
+		return reconcile.Result{}, r.Status().Update(ctx, upstreamGateway.DeepCopy())
 	}
 
-	log.V(3).Info("gateway pre downstream", "labels", upstreamGateway.Labels)
 	requeue, programmedStatus, clusters, reconcileErr := r.reconcileDownstreamFromUpstreamGateway(ctx, upstreamGateway, params)
-	log.V(3).Info("gateway post downstream", "labels", upstreamGateway.Labels)
 	// gateway now in expected state, place gateway and its associated objects in correct places. Update gateway spec/metadata
-	log.V(3).Info("reconcileDownstreamFromUpstreamGateway result ", "requeue", requeue, "status", programmedStatus, "clusters", clusters, "Err", reconcileErr)
+	log.V(3).Info("reconcileDownstreamFromUpstreamGateway result ", "requeue", requeue, "status", programmedStatus, "clusters", clusters, "Err", reconcileErr, "gateway conditons", upstreamGateway.Status.Conditions)
 	if reconcileErr != nil {
+		log.Error(fmt.Errorf("gateway reconcile failed %s", reconcileErr), "gateway failed to reconcile", "gateway", upstreamGateway.Name)
 		//TODO (cbrookes) refactor how status is handled in this controller
+		programmedCondition := buildProgrammedCondition(upstreamGateway.Generation, clusters, metav1.ConditionUnknown, reconcileErr)
+		meta.SetStatusCondition(&upstreamGateway.Status.Conditions, programmedCondition)
+		if !isDeleting(upstreamGateway) && !reflect.DeepEqual(upstreamGateway.Status, previous.Status) {
+			err := r.Status().Update(ctx, upstreamGateway.DeepCopy())
+			if err != nil {
+				return reconcile.Result{}, fmt.Errorf("failed up update status of gateway %w", err)
+			}
+		}
 		if errors.Is(reconcileErr, gracePeriod.ErrGracePeriodNotExpired) || requeue {
 			log.V(3).Info("requeueing gateway ", "error", reconcileErr, "requeue", requeue)
-			programmedCondition := buildProgrammedCondition(upstreamGateway.Generation, clusters, metav1.ConditionUnknown, reconcileErr)
-			meta.SetStatusCondition(&upstreamGateway.Status.Conditions, programmedCondition)
-			if !isDeleting(upstreamGateway) && !reflect.DeepEqual(upstreamGateway.Status, previous.Status) {
-				return reconcile.Result{}, r.Status().Update(ctx, upstreamGateway)
-			}
 			return reconcile.Result{
 				Requeue:      true,
 				RequeueAfter: 30 * time.Second,
 			}, nil
 		}
-		log.Error(fmt.Errorf("gateway reconcile failed %s", reconcileErr), "gateway failed to reconcile", "gateway", upstreamGateway.Name)
 	}
 
 	serialized, err := json.Marshal(clusters)
@@ -192,11 +199,6 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 	metadata.AddAnnotation(upstreamGateway, GatewayClustersAnnotation, string(serialized))
-
-	if reconcileErr == nil && !reflect.DeepEqual(upstreamGateway, previous) {
-		log.Info("updating upstream gateway")
-		return reconcile.Result{}, r.Update(ctx, upstreamGateway)
-	}
 
 	var addressErr error
 	allAddresses := []gatewayv1beta1.GatewayAddress{}
@@ -224,7 +226,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 	}
 	if addressErr != nil {
-		return ctrl.Result{}, reconcileErr
+		return ctrl.Result{}, addressErr
 	}
 	log.V(3).Info("allAddresses", "allAddresses", allAddresses)
 	upstreamGateway.Status.Addresses = allAddresses
@@ -250,20 +252,59 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	upstreamGateway.Status.Listeners = allListenerStatuses
 
 	acceptedCondition := buildAcceptedCondition(upstreamGateway.Generation, metav1.ConditionTrue)
-	programmedCondition := buildProgrammedCondition(upstreamGateway.Generation, clusters, programmedStatus, err)
+	programmedCondition := buildProgrammedCondition(upstreamGateway.Generation, clusters, programmedStatus, reconcileErr)
 
 	meta.SetStatusCondition(&upstreamGateway.Status.Conditions, acceptedCondition)
 	meta.SetStatusCondition(&upstreamGateway.Status.Conditions, programmedCondition)
 
-	if !isDeleting(upstreamGateway) && !reflect.DeepEqual(upstreamGateway.Status, previous.Status) {
-		return reconcile.Result{}, r.Status().Update(ctx, upstreamGateway)
+	if reconcileErr == nil && !reflect.DeepEqual(upstreamGateway, previous) {
+		log.Info("updating upstream gateway", "upstream", upstreamGateway.Status)
+		res := ctrl.Result{}
+		if requeue {
+			res = ctrl.Result{Requeue: true, RequeueAfter: time.Second * 10}
+		}
+		if err := r.Update(ctx, upstreamGateway.DeepCopy()); err != nil {
+			log.Error(err, "failed to update upstream gateway")
+			return res, err
+		}
+		if err := r.Status().Update(ctx, upstreamGateway.DeepCopy()); err != nil {
+			log.Error(err, "failed to update upstream gateway status")
+			return res, err
+		}
+		if err := r.Get(ctx, client.ObjectKeyFromObject(upstreamGateway), upstreamGateway); err != nil {
+			log.Info("got updated gateway", "got", upstreamGateway)
+		}
+		log.Info("updated gateway", "got", upstreamGateway.Status)
+		return res, nil
 	}
+	// if !isDeleting(upstreamGateway) && !reflect.DeepEqual(upstreamGateway.Status, previous.Status) {
+	// 	log.V(3).Info("updating gateway status ", "requeue", requeue, "status", programmedStatus, "clusters", clusters, "Err", reconcileErr, "gateway conditons", upstreamGateway.Status.Conditions)
+	// 	return reconcile.Result{}, r.Status().Update(ctx, upstreamGateway)
+	// }
 
-	if requeue {
-		log.V(3).Info("requeuing gateway in ", "namespace", upstreamGateway.Namespace, "with name", upstreamGateway.Name)
-		return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 10}, reconcileErr
-	}
 	return ctrl.Result{}, reconcileErr
+}
+
+func (r *GatewayReconciler) setPlacementCondition(upstreamGateway *gatewayv1beta1.Gateway, status metav1.ConditionStatus, reason PlacmentReason, targetPlacement string, err error) {
+	cond := meta.FindStatusCondition(upstreamGateway.Status.Conditions, PlacementConditonType)
+	if cond == nil {
+		cond = &metav1.Condition{
+			Type: PlacementConditonType,
+		}
+	}
+	cond.ObservedGeneration = upstreamGateway.Generation
+	cond.Reason = string(reason)
+	cond.Status = status
+	if status != metav1.ConditionTrue {
+		cond.Message = "placement not completed for target placement " + targetPlacement
+		if err != nil {
+			cond.Message += " : " + err.Error()
+		}
+	}
+	if status == metav1.ConditionTrue {
+		cond.Message = targetPlacement
+	}
+	meta.SetStatusCondition(&upstreamGateway.Status.Conditions, *cond)
 }
 
 // reconcileDownstreamGateway takes the upstream definition and transforms it as needed to apply it to the downstream spokes
@@ -287,9 +328,9 @@ func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.C
 	downstream.Labels[ManagedLabel] = "true"
 	if isDeleting(upstreamGateway) {
 		log.Info("deleting downstream gateways owned by upstream gateway ", "name", downstream.Name, "namespace", downstream.Namespace)
-		targets, err := r.Placement.Place(ctx, upstreamGateway, downstream)
+		targets, placementName, err := r.Placement.Place(ctx, upstreamGateway, downstream)
 		if err != nil {
-			return false, metav1.ConditionFalse, clusters, err
+			return false, metav1.ConditionFalse, clusters, fmt.Errorf("deleting upstream gateway but failed to remove downstream gateways based on placement %s : %w", placementName, err)
 		}
 		return false, metav1.ConditionTrue, targets.UnsortedList(), nil
 	}
@@ -312,12 +353,19 @@ func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.C
 	}
 
 	// ensure the gateways are placed into the right target clusters and removed from any that are no longer targeted
-	targets, err := r.Placement.Place(ctx, upstreamGateway, downstream, tlsSecrets...)
+	targets, placementTarget, err := r.Placement.Place(ctx, upstreamGateway, downstream, tlsSecrets...)
 	if err != nil {
+		// set placement condition but dont change the target as placement has failed
+		r.setPlacementCondition(upstreamGateway, metav1.ConditionFalse, PlacmentConditionReasonFailed, placementTarget, err)
 		return true, metav1.ConditionFalse, clusters, fmt.Errorf("failed to place gateway : %w", err)
 	}
+	r.setPlacementCondition(upstreamGateway, metav1.ConditionTrue, PlacmentConditionReasonPlaced, placementTarget, nil)
+	if upstreamGateway.Labels == nil {
+		upstreamGateway.Labels = map[string]string{}
+	}
+	upstreamGateway.Labels["kuadrant.io/gateway-placed"] = placementTarget
 
-	log.Info("Gateway Placed ", "gateway", upstreamGateway.Name, "namespace", upstreamGateway.Namespace, "targets", targets.UnsortedList())
+	log.Info("Gateway Placed ", "gateway", upstreamGateway.Name, "namespace", upstreamGateway.Namespace, "targets", targets.UnsortedList(), "conditions", upstreamGateway.Status.Conditions)
 	//get updated list of clusters where this gateway has been successfully placed
 	placed, err := r.Placement.GetPlacedClusters(ctx, upstreamGateway)
 	if err != nil {

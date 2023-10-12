@@ -22,6 +22,12 @@ type TestGateway struct {
 	*gatewayv1beta1.Gateway
 }
 
+var (
+	group      gatewayv1beta1.Group       = ""
+	kindSecret gatewayv1beta1.Kind        = "Secret"
+	modtype    gatewayv1beta1.TLSModeType = "Terminate"
+)
+
 func NewTestGateway(gwName, gwClassName, ns string) *TestGateway {
 	return &TestGateway{
 		&gatewayv1beta1.Gateway{
@@ -61,9 +67,12 @@ func AddListener(name string, hostname gatewayapiv1alpha2.Hostname, secretName g
 		Port:     443,
 		Protocol: gatewayv1beta1.HTTPSProtocolType,
 		TLS: &gatewayv1beta1.GatewayTLSConfig{
+			Mode: &modtype,
 			CertificateRefs: []gatewayv1beta1.SecretObjectReference{
 				{
-					Name: secretName,
+					Group: &group,
+					Name:  secretName,
+					Kind:  &kindSecret,
 				},
 			},
 		},
@@ -73,7 +82,34 @@ func AddListener(name string, hostname gatewayapiv1alpha2.Hostname, secretName g
 			},
 		},
 	}
+
 	gw.Spec.Listeners = append(gw.Spec.Listeners, listener)
+
+}
+
+func ListenerSpec(name string, hostname gatewayapiv1alpha2.Hostname, secretName gatewayv1beta1.ObjectName) gatewayv1beta1.Listener {
+	listener := gatewayapiv1alpha2.Listener{
+		Name:     gatewayv1beta1.SectionName(name),
+		Hostname: &hostname,
+		Port:     443,
+		Protocol: gatewayv1beta1.HTTPSProtocolType,
+		TLS: &gatewayv1beta1.GatewayTLSConfig{
+			Mode: &modtype,
+			CertificateRefs: []gatewayv1beta1.SecretObjectReference{
+				{
+					Group: &group,
+					Name:  secretName,
+					Kind:  &kindSecret,
+				},
+			},
+		},
+		AllowedRoutes: &gatewayv1beta1.AllowedRoutes{
+			Namespaces: &gatewayv1beta1.RouteNamespaces{
+				From: Pointer(gatewayv1beta1.NamespacesFromAll),
+			},
+		},
+	}
+	return listener
 
 }
 

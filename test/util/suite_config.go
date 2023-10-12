@@ -212,7 +212,7 @@ func (cfg *SuiteConfig) InstallPrerequisites(ctx context.Context) error {
 		}
 	}
 
-	//TODO ensure ManagedZone: right now this is added by local-setup
+	// TODO ensure ManagedZone: right now this is added by local-setup
 
 	// ensure ManagedClusterSet
 	{

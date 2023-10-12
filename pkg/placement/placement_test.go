@@ -6,12 +6,12 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	pd "open-cluster-management.io/api/cluster/v1beta1"
 	workv1 "open-cluster-management.io/api/work/v1"
 
 	corev1 "k8s.io/api/core/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -467,11 +467,12 @@ func TestGetPlacedClusters(t *testing.T) {
 
 func TestGetClusters(t *testing.T) {
 	testCases := []struct {
-		Name              string
-		PlacementDecision func(clusters sets.Set[string]) *pd.PlacementDecision
-		Gateway           *v1beta1.Gateway
-		Clusters          sets.Set[string]
-		Assert            func(t *testing.T, err error, clusters, expected sets.Set[string])
+		Name               string
+		PlacementDecisions func(clusters sets.Set[string]) pd.PlacementDecisionList
+		ReturnDeleted      bool
+		Gateway            *v1beta1.Gateway
+		Clusters           sets.Set[string]
+		Assert             func(t *testing.T, clusters, expected sets.Set[string])
 	}{
 		{
 			Name:     "test all targeted clusters returned",
@@ -482,17 +483,17 @@ func TestGetClusters(t *testing.T) {
 					Namespace: "test",
 				},
 			},
-			Assert: func(t *testing.T, err error, got, expected sets.Set[string]) {
-				if err != nil {
-					t.Fatalf("did not expect an error but got one %s", err)
-				}
+			Assert: func(t *testing.T, got, expected sets.Set[string]) {
 				if !got.Equal(expected) {
 					t.Fatalf("expected clusters %v but it was not present in %v", expected.UnsortedList(), got.UnsortedList())
 				}
 			},
-			PlacementDecision: func(clusters sets.Set[string]) *pd.PlacementDecision {
+			PlacementDecisions: func(clusters sets.Set[string]) pd.PlacementDecisionList {
 
-				dec := &pd.PlacementDecision{
+				list := pd.PlacementDecisionList{
+					Items: []pd.PlacementDecision{},
+				}
+				dec := pd.PlacementDecision{
 					ObjectMeta: v1.ObjectMeta{
 						Labels: map[string]string{
 							placement.OCMPlacementLabel: "test",
@@ -506,7 +507,8 @@ func TestGetClusters(t *testing.T) {
 						ClusterName: c,
 					})
 				}
-				return dec
+				list.Items = append(list.Items, dec)
+				return list
 			},
 		},
 		{
@@ -518,19 +520,92 @@ func TestGetClusters(t *testing.T) {
 					Namespace: "test",
 				},
 			},
-			Assert: func(t *testing.T, err error, got, expected sets.Set[string]) {
-				if err == nil {
-					t.Fatalf("expected an error but got none")
-				}
-				if !k8serrors.IsNotFound(err) {
-					t.Fatalf("expected a not found err %v", err)
-				}
+			Assert: func(t *testing.T, got, expected sets.Set[string]) {
 				if !got.Equal(expected) {
 					t.Fatalf("expected clusters %v but it was not present in %v", expected.UnsortedList(), got.UnsortedList())
 				}
 			},
-			PlacementDecision: func(clusters sets.Set[string]) *pd.PlacementDecision {
-				return nil
+			PlacementDecisions: func(clusters sets.Set[string]) pd.PlacementDecisionList {
+				return pd.PlacementDecisionList{}
+			},
+		},
+		{
+			Name:     "test no clusters returned when placement decision being deleted",
+			Clusters: sets.Set[string](sets.NewString("c1", "c2")),
+			Gateway: &v1beta1.Gateway{
+				ObjectMeta: v1.ObjectMeta{
+					Labels:    map[string]string{placement.OCMPlacementLabel: "test"},
+					Namespace: "test",
+				},
+			},
+			Assert: func(t *testing.T, got, expected sets.Set[string]) {
+				if got.Len() != 0 {
+					t.Fatalf("expected not clusters but got %v", got.UnsortedList())
+				}
+			},
+			PlacementDecisions: func(clusters sets.Set[string]) pd.PlacementDecisionList {
+				t := v1.NewTime(time.Now().Add(time.Second + 5))
+				dec := &pd.PlacementDecision{
+					ObjectMeta: v1.ObjectMeta{
+						DeletionTimestamp: &t,
+						Labels: map[string]string{
+							placement.OCMPlacementLabel: "test",
+						},
+						Namespace: "test",
+					},
+					Status: pd.PlacementDecisionStatus{},
+				}
+				for _, c := range clusters.UnsortedList() {
+					dec.Status.Decisions = append(dec.Status.Decisions, pd.ClusterDecision{
+						ClusterName: c,
+					})
+				}
+				pdList := pd.PlacementDecisionList{
+					Items: []pd.PlacementDecision{
+						*dec,
+					},
+				}
+				return pdList
+			},
+		},
+		{
+			Name:     "test clusters returned when placement decision being deleted if requested",
+			Clusters: sets.Set[string](sets.NewString("c1", "c2")),
+			Gateway: &v1beta1.Gateway{
+				ObjectMeta: v1.ObjectMeta{
+					Labels:    map[string]string{placement.OCMPlacementLabel: "test"},
+					Namespace: "test",
+				},
+			},
+			ReturnDeleted: true,
+			Assert: func(t *testing.T, got, expected sets.Set[string]) {
+				if got.Len() != 2 {
+					t.Fatalf("expected not clusters but got %v", got.UnsortedList())
+				}
+			},
+			PlacementDecisions: func(clusters sets.Set[string]) pd.PlacementDecisionList {
+				t := v1.NewTime(time.Now().Add(time.Second + 5))
+				dec := &pd.PlacementDecision{
+					ObjectMeta: v1.ObjectMeta{
+						DeletionTimestamp: &t,
+						Labels: map[string]string{
+							placement.OCMPlacementLabel: "test",
+						},
+						Namespace: "test",
+					},
+					Status: pd.PlacementDecisionStatus{},
+				}
+				for _, c := range clusters.UnsortedList() {
+					dec.Status.Decisions = append(dec.Status.Decisions, pd.ClusterDecision{
+						ClusterName: c,
+					})
+				}
+				pdList := pd.PlacementDecisionList{
+					Items: []pd.PlacementDecision{
+						*dec,
+					},
+				}
+				return pdList
 			},
 		},
 	}
@@ -538,12 +613,9 @@ func TestGetClusters(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.Name, func(t *testing.T) {
 			f := fake.NewClientBuilder()
-			if pds := testCase.PlacementDecision(testCase.Clusters); pds != nil {
-				f.WithObjects(pds)
-			}
 			p := placement.NewOCMPlacer(f.Build())
-			cs, err := p.GetClusters(context.TODO(), testCase.Gateway)
-			testCase.Assert(t, err, cs, testCase.Clusters)
+			cs := p.GetTargetClusters(testCase.PlacementDecisions(testCase.Clusters), testCase.ReturnDeleted)
+			testCase.Assert(t, cs, testCase.Clusters)
 		})
 	}
 }
@@ -683,7 +755,7 @@ func TestDeschedule(t *testing.T) {
 			p := placement.NewOCMPlacer(c)
 			// build a test function as we want to change state and execute twice
 
-			placed, err := p.Place(context.TODO(), testCase.Upstream, testCase.Downstream, testCase.TLSSecrets...)
+			placed, _, err := p.Place(context.TODO(), testCase.Upstream, testCase.Downstream, testCase.TLSSecrets...)
 			if placed != nil && !placed.Equal(testCase.Clusters) {
 				t.Fatalf("expected placed clusters %v to equal the target clusters %v", placed.UnsortedList(), testCase.Clusters.UnsortedList())
 			}
