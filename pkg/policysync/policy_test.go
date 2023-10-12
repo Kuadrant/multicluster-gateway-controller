@@ -26,7 +26,7 @@ func TestReflectPolicy(t *testing.T) {
 	}
 
 	if err := reflectPolicy.IsValidPolicy(); err != nil {
-		t.Fatalf("expectd policy to be valid, but failed with %v", err)
+		t.Fatalf("expected policy to be valid, but failed with %v", err)
 	}
 
 	targetRef := reflectPolicy.GetTargetRef()
@@ -74,7 +74,7 @@ func TestUnstructuredPolicy(t *testing.T) {
 	}
 
 	if err := unstructuredPolicy.IsValidPolicy(); err != nil {
-		t.Fatalf("expectd policy to be valid, but failed with %v", err)
+		t.Fatalf("expected policy to be valid, but failed with %v", err)
 	}
 
 	targetRef := unstructuredPolicy.GetTargetRef()

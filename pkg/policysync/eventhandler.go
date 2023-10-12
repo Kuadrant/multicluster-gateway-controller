@@ -46,7 +46,7 @@ func (h *ResourceEventHandler) OnAdd(reqObj interface{}) {
 		return
 	}
 
-	if err := h.Syncer.SyncPolicy(context.Background(), h.Client, policy); err != nil {
+	if err := h.Syncer.SyncPolicy(ctx, h.Client, policy); err != nil {
 		h.Log.Error(err, "failed to sync policy", "policy", policy)
 	}
 }
@@ -76,7 +76,7 @@ func (h *ResourceEventHandler) OnUpdate(_ interface{}, reqObj interface{}) {
 		return
 	}
 
-	if err := h.Syncer.SyncPolicy(context.Background(), h.Client, policy); err != nil {
+	if err := h.Syncer.SyncPolicy(ctx, h.Client, policy); err != nil {
 		h.Log.Error(err, "failed to sync policy", "policy", policy)
 	}
 }

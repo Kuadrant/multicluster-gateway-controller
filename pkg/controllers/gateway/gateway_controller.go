@@ -94,9 +94,8 @@ type GatewayPlacer interface {
 // GatewayReconciler reconciles a Gateway object
 type GatewayReconciler struct {
 	client.Client
-	Scheme    *runtime.Scheme
-	Placement GatewayPlacer
-	// SharedInformerFactory  dynamicinformer.DynamicSharedInformerFactory
+	Scheme                 *runtime.Scheme
+	Placement              GatewayPlacer
 	PolicyInformersManager *policysync.PolicyInformersManager
 	DynamicClient          dynamic.Interface
 	WatchedPolicies        map[schema.GroupVersionResource]cache.ResourceEventHandlerRegistration

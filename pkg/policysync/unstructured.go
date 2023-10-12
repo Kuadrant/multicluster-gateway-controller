@@ -1,7 +1,6 @@
 package policysync
 
 import (
-	"errors"
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -65,49 +64,41 @@ func (p *UnstructuredPolicy) UpdateTargetRef(update func(*gatewayapiv1alpha2.Pol
 }
 
 func (p *UnstructuredPolicy) IsValidPolicy() error {
-	spec, ok := p.Object["spec"]
-	if !ok {
-		return errors.New("object missing .spec field")
-	}
-
-	specMap, ok := spec.(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("expected .spec to be map[string]interface{} but got %v", spec)
-	}
-
-	targetRef, ok := specMap["targetRef"]
-	if !ok {
-		return errors.New("object missing .spec.targetRef field")
-	}
-
-	targetRefMap, ok := targetRef.(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("expected .spec.targetRef to be map[string]interface{} but got %v", targetRef)
-	}
-
-	if err := validateMapContains[string]("name", targetRefMap); err != nil {
+	spec, err := ensureMapContains[map[string]interface{}]("spec", p.Object)
+	if err != nil {
 		return err
 	}
-	if err := validateMapContains[string]("group", targetRefMap); err != nil {
+
+	targetRef, err := ensureMapContains[map[string]interface{}]("targetRef", spec)
+	if err != nil {
 		return err
 	}
-	if err := validateMapContains[string]("kind", targetRefMap); err != nil {
+
+	if _, err := ensureMapContains[string]("name", targetRef); err != nil {
+		return err
+	}
+	if _, err := ensureMapContains[string]("group", targetRef); err != nil {
+		return err
+	}
+	if _, err := ensureMapContains[string]("kind", targetRef); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func validateMapContains[T any](k string, m map[string]interface{}) error {
+func ensureMapContains[T any](k string, m map[string]interface{}) (T, error) {
+	var result T
+
 	value, ok := m[k]
 	if !ok {
-		return fmt.Errorf("field %s missing", k)
+		return result, fmt.Errorf("field %s is missing", k)
 	}
 
-	_, ok = value.(T)
+	result, ok = value.(T)
 	if !ok {
-		return fmt.Errorf("invalid type of field %s %v", k, value)
+		return result, fmt.Errorf("invalid type of field %s %v", k, value)
 	}
 
-	return nil
+	return result, nil
 }

@@ -13,8 +13,8 @@ type Policy interface {
 
 	// GetTargetRef returns a copy of the TargetRef field of the policy.
 	//
-	// Mutating the return value of this function doesn't change the original
-	// policy. Use SetTargetRef or UpdateTargetRef for that
+	// Mutating the return value of this function doesn't guarantee changes
+	// to the original policy. Use SetTargetRef or UpdateTargetRef for that
 	GetTargetRef() *gatewayapiv1alpha2.PolicyTargetReference
 
 	// SetTargetRef replaces the TargetRef field of the policy with targetRef

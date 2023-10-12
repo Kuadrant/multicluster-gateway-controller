@@ -16,7 +16,6 @@ type FakeSyncer struct {
 
 var _ Syncer = &FakeSyncer{}
 
-// SyncPolicy implements Syncer.
 func (*FakeSyncer) SyncPolicy(ctx context.Context, apiclient client.Client, policy Policy) error {
 	log := crlog.FromContext(ctx)
 
