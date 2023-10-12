@@ -26,10 +26,15 @@ import (
 	clusterv1beta2 "open-cluster-management.io/api/cluster/v1beta1"
 	workv1 "open-cluster-management.io/api/work/v1"
 
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/kubernetes/scheme"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
+	"k8s.io/client-go/tools/cache"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -48,6 +53,7 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/dnsprovider"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/health"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/placement"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/policysync"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -175,10 +181,27 @@ func main() {
 		os.Exit(1)
 	}
 
+	dynamicClient := dynamic.NewForConfigOrDie(mgr.GetConfig())
+	dynamicInformerFactory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(
+		dynamicClient,
+		0,
+		corev1.NamespaceAll,
+		nil,
+	)
+
+	policyInformersManager := policysync.NewPolicyInformersManager(dynamicInformerFactory)
+	if err := policyInformersManager.SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to start policy informers manager")
+		os.Exit(1)
+	}
+
 	if err = (&gateway.GatewayReconciler{
-		Client:    mgr.GetClient(),
-		Scheme:    mgr.GetScheme(),
-		Placement: placer,
+		Client:                 mgr.GetClient(),
+		Scheme:                 mgr.GetScheme(),
+		Placement:              placer,
+		PolicyInformersManager: policyInformersManager,
+		DynamicClient:          dynamicClient,
+		WatchedPolicies:        map[schema.GroupVersionResource]cache.ResourceEventHandlerRegistration{},
 	}).SetupWithManager(mgr, ctx); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Gateway")
 		os.Exit(1)

@@ -31,8 +31,10 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/cache"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -51,6 +53,7 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/policysync"
 )
 
 const (
@@ -86,11 +89,16 @@ type GatewayPlacer interface {
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;delete
 // +kubebuilder:rbac:groups="cert-manager.io",resources=certificates,verbs=get;list;watch;create;update;patch;delete
 
+// +kubebuilder:rbac:groups="kuadrant.io",resources=authpolicies;ratelimitpolicies,verbs=get;list;watch
+
 // GatewayReconciler reconciles a Gateway object
 type GatewayReconciler struct {
 	client.Client
-	Scheme    *runtime.Scheme
-	Placement GatewayPlacer
+	Scheme                 *runtime.Scheme
+	Placement              GatewayPlacer
+	PolicyInformersManager *policysync.PolicyInformersManager
+	DynamicClient          dynamic.Interface
+	WatchedPolicies        map[schema.GroupVersionResource]cache.ResourceEventHandlerRegistration
 }
 
 func isDeleting(g *gatewayv1beta1.Gateway) bool {
@@ -367,13 +375,69 @@ func (r *GatewayReconciler) getTLSSecrets(ctx context.Context, upstreamGateway *
 	return tlsSecrets, listenerTLSErr
 }
 
-func (r *GatewayReconciler) reconcileParams(_ context.Context, gateway *gatewayv1beta1.Gateway, params *Params) error {
+func (r *GatewayReconciler) reconcileParams(ctx context.Context, gateway *gatewayv1beta1.Gateway, params *Params) error {
+	log := crlog.FromContext(ctx)
 
 	downstreamClass := params.GetDownstreamClass()
 
 	// Set the annotations to sync the class name from the parameters
 
 	gateway.Spec.GatewayClassName = gatewayv1beta1.ObjectName(downstreamClass)
+
+	policiesToSync := slice.Map(params.PoliciesToSync, ParamsGroupVersionResource.ToGroupVersionResource)
+
+	for _, gvr := range policiesToSync {
+		// If it's already watched skip it
+		_, ok := r.WatchedPolicies[gvr]
+		if ok {
+			continue
+		}
+
+		log.Info("Creating event handler for policy", "gvr", gvr)
+
+		// Add the event handler for the policy
+		eventHandler := &policysync.ResourceEventHandler{
+			Log:           log,
+			GVR:           gvr,
+			Client:        r.Client,
+			DynamicClient: r.DynamicClient,
+			Gateway:       gateway,
+			Syncer:        &policysync.FakeSyncer{},
+		}
+		informer := r.PolicyInformersManager.InformerFactory.ForResource(gvr).Informer()
+		reg, err := informer.AddEventHandler(eventHandler)
+		if err != nil {
+			return err
+		}
+
+		// Start the informer
+		if err := r.PolicyInformersManager.AddInformer(informer); err != nil {
+			return err
+		}
+
+		// Keep track of the watched policy
+		r.WatchedPolicies[gvr] = reg
+	}
+
+	// Stop watching policies if they're removed from the params
+	policiesToUnwatch := []schema.GroupVersionResource{}
+	for gvr, reg := range r.WatchedPolicies {
+		if slice.Contains(policiesToSync, slice.EqualsTo(gvr)) {
+			continue
+		}
+
+		log.Info("Stopping watch for policy", "gvr", gvr)
+
+		if err := r.PolicyInformersManager.InformerFactory.ForResource(gvr).Informer().RemoveEventHandler(reg); err != nil {
+			return err
+		}
+
+		policiesToUnwatch = append(policiesToUnwatch, gvr)
+	}
+
+	for _, gvr := range policiesToUnwatch {
+		delete(r.WatchedPolicies, gvr)
+	}
 
 	return nil
 }

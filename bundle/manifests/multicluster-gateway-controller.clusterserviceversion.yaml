@@ -4,7 +4,7 @@ metadata:
   annotations:
     alm-examples: '[]'
     capabilities: Basic Install
-    createdAt: "2023-09-21T16:23:26Z"
+    createdAt: "2023-10-10T15:03:19Z"
     operators.operatorframework.io/builder: operator-sdk-v1.28.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
   name: multicluster-gateway-controller.v0.0.0
@@ -292,6 +292,15 @@ spec:
           - get
           - patch
           - update
+        - apiGroups:
+          - kuadrant.io
+          resources:
+          - authpolicies
+          - ratelimitpolicies
+          verbs:
+          - get
+          - list
+          - watch
         - apiGroups:
           - kuadrant.io
           resources:
