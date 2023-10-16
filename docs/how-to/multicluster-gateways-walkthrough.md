@@ -13,13 +13,7 @@ We will start with a single cluster and move to multiple clusters to illustrate 
 
 ## Initial Setup
 
-In this walkthrough, we'll deploy test echo services across multiple clusters. Before starting, set up a `MGC_SUB_DOMAIN` variable to simplify templating. This variable will represent the host for each service.
-
-If you followed the [Getting Started Guide](https://docs.kuadrant.io/getting-started/), you would have already set up a `MGC_ZONE_ROOT_DOMAIN` environment variable when creating a `ManagedZone`. For this tutorial, we'll derive a host from this domain.
-
-```bash
-export MGC_SUB_DOMAIN=myapp.$MGC_ZONE_ROOT_DOMAIN
-```
+In this walkthrough, we'll deploy test echo services across multiple clusters. If you followed the [Getting Started Guide](https://docs.kuadrant.io/getting-started/), you would have already set up a `MGC_ZONE_ROOT_DOMAIN` environment variable. For this tutorial, we'll derive a host from this domain for these echo services.
 
 ### Create a gateway
 
@@ -56,7 +50,7 @@ You are now ready to begin creating a gateway! :tada:
         namespaces:
           from: All
       name: api
-      hostname: $MGC_SUB_DOMAIN
+      hostname: "*.$MGC_ZONE_ROOT_DOMAIN"
       port: 443
       protocol: HTTPS
       tls:
@@ -174,7 +168,7 @@ So what about DNS how do we bring traffic to these gateways?
         name: prod-web
         namespace: kuadrant-multi-cluster-gateways
       hostnames:
-      - "$MGC_SUB_DOMAIN"  
+      - "echo.$MGC_ZONE_ROOT_DOMAIN"
       rules:
       - backendRefs:
         - name: echo
@@ -257,12 +251,12 @@ So what about DNS how do we bring traffic to these gateways?
 4. Give DNS a minute or two to update. You should then be able to execute the following and get back the correct A record. 
 
     ```bash
-    dig $MGC_SUB_DOMAIN
+    dig echo.$MGC_ZONE_ROOT_DOMAIN
     ```
 5. You should also be able to curl that endpoint
 
     ```bash
-    curl -k https://$MGC_SUB_DOMAIN
+    curl -k https://echo.$MGC_ZONE_ROOT_DOMAIN
 
     # Request served by echo-XXX-XXX
     ```
@@ -297,7 +291,6 @@ So now we have a working gateway with DNS and TLS configured. Let place this gat
     So now we have second ingress cluster configured with the same Gateway. 
 
 4. Let's create the HTTPRoute in the second gateway cluster:
-   
     ```bash
     kubectl --context kind-mgc-workload-1 apply -f - <<EOF
     apiVersion: gateway.networking.k8s.io/v1beta1
@@ -310,7 +303,7 @@ So now we have a working gateway with DNS and TLS configured. Let place this gat
         name: prod-web
         namespace: kuadrant-multi-cluster-gateways
       hostnames:
-      - "$MGC_SUB_DOMAIN"  
+      - "echo.$MGC_ZONE_ROOT_DOMAIN"
       rules:
       - backendRefs:
         - name: echo
@@ -361,9 +354,10 @@ So now we have a working gateway with DNS and TLS configured. Let place this gat
   ```
 
 ## Watching DNS changes
-If you want you can use ```watch dig $MGC_SUB_DOMAIN``` to see the DNS switching between the two addresses
+If you want you can use ```watch dig echo.$MGC_ZONE_ROOT_DOMAIN``` to see the DNS switching between the two addresses
 
 ## Follow-on Walkthroughs
-Some good follow-on walkthroughs that build on this walkthrough
+Here are some good, follow-on guides that build on this walkthrough:
 
+* [Simple RateLimitPolicy for App Developers](./simple-ratelimitpolicy-for-app-developers.md)
 * [Deploying/Configuring Metrics.](../how-to/metrics-walkthrough.md)
