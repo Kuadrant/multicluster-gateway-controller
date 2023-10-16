@@ -8,7 +8,7 @@ This policy is used to provide tls for gateway listeners by managing the lifecyc
 - [`GatewayAPI`](https://gateway-api.sigs.k8s.io/): resources that model service networking in Kubernetes.
 - [`Gateway`](https://gateway-api.sigs.k8s.io/api-types/gateway/): Kubernetes Gateway resource. 
 - [`CertManager`](https://cert-manager.io): X.509 certificate management for Kubernetes and OpenShift. 
-- [`TLSPolicy`](https://github.com/Kuadrant/multicluster-gateway-controller/blob/main/config/crd/bases/kuadrant.io_dnspolicies.yaml): Kuadrant policy for managing tls certificates with certificate manager.
+- [`TLSPolicy`](https://github.com/Kuadrant/multicluster-gateway-controller/blob/main/config/crd/bases/kuadrant.io_tlspolicies.yaml): Kuadrant policy for managing tls certificates with certificate manager.
 
 
 ## TLS Provider Setup
