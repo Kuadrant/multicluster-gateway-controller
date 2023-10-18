@@ -252,6 +252,7 @@ var _ = Describe("Gateway single target cluster", func() {
 								Name:      gatewayapi.ObjectName(testID),
 								Namespace: Pointer(gatewayapi.Namespace(tconfig.HubNamespace())),
 							},
+							RoutingStrategy: v1alpha1.LoadBalancedRoutingStrategy,
 						},
 					}
 					err := tconfig.HubClient().Create(ctx, dnsPolicy)

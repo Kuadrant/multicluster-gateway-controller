@@ -131,6 +131,7 @@ func testBuildDNSPolicyWithHealthCheck(policyName, gwName, ns string, threshold 
 			Namespace: ns,
 		},
 		Spec: v1alpha1.DNSPolicySpec{
+			RoutingStrategy: v1alpha1.LoadBalancedRoutingStrategy,
 			TargetRef: gatewayapiv1alpha2.PolicyTargetReference{
 				Group:     "gateway.networking.k8s.io",
 				Kind:      "Gateway",
@@ -159,6 +160,7 @@ func testBuildDNSPolicyWithGeo(policyName, gwName, ns string) *v1alpha1.DNSPolic
 			Namespace: ns,
 		},
 		Spec: v1alpha1.DNSPolicySpec{
+			RoutingStrategy: v1alpha1.LoadBalancedRoutingStrategy,
 			TargetRef: gatewayapiv1alpha2.PolicyTargetReference{
 				Group:     "gateway.networking.k8s.io",
 				Kind:      "Gateway",

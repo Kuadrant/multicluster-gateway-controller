@@ -53,9 +53,9 @@ func (r *DNSPolicyReconciler) reconcileGatewayDNSRecords(ctx context.Context, ga
 		return err
 	}
 
-	clusterAddresses := getClusterGatewayAddresses(gateway)
+	clusterGatewayAddresses := getClusterGatewayAddresses(gateway)
 
-	log.V(3).Info("checking gateway for attached routes ", "gateway", gateway.Name, "clusters", clusterAddresses)
+	log.V(3).Info("checking gateway for attached routes ", "gateway", gateway.Name, "clusters", clusterGatewayAddresses)
 
 	for _, listener := range gateway.Spec.Listeners {
 		var clusterGateways []dns.ClusterGateway
@@ -68,11 +68,11 @@ func (r *DNSPolicyReconciler) reconcileGatewayDNSRecords(ctx context.Context, ga
 			log.Info("skipping listener no hostname assigned", listener.Name, "in ns ", gateway.Namespace)
 			continue
 		}
-		for clusterName, clusterAddress := range clusterAddresses {
+		for clusterName, gatewayAddresses := range clusterGatewayAddresses {
 			// Only consider host for dns if there's at least 1 attached route to the listener for this host in *any* gateway
 
 			log.V(3).Info("checking downstream", "listener ", listener.Name)
-			attached := listenerTotalAttachedRoutes(gateway, clusterName, listener, clusterAddress)
+			attached := listenerTotalAttachedRoutes(gateway, clusterName, listener, gatewayAddresses)
 
 			if attached == 0 {
 				log.V(1).Info("no attached routes for ", "listener", listener, "cluster ", clusterName)
@@ -80,7 +80,7 @@ func (r *DNSPolicyReconciler) reconcileGatewayDNSRecords(ctx context.Context, ga
 			}
 			log.V(3).Info("hostHasAttachedRoutes", "host", listener.Name, "hostHasAttachedRoutes", attached)
 
-			cg, err := r.buildClusterGateway(ctx, clusterName, clusterAddress, gateway)
+			cg, err := r.buildClusterGateway(ctx, clusterName, gatewayAddresses, gateway)
 			if err != nil {
 				return fmt.Errorf("get cluster gateway failed: %s", err)
 			}
@@ -118,7 +118,7 @@ func (r *DNSPolicyReconciler) reconcileGatewayDNSRecords(ctx context.Context, ga
 			return err
 		}
 		mcgTarget.RemoveUnhealthyGatewayAddresses(probes, listener)
-		if err := r.dnsHelper.setEndpoints(ctx, mcgTarget, dnsRecord, listener); err != nil {
+		if err := r.dnsHelper.setEndpoints(ctx, mcgTarget, dnsRecord, listener, dnsPolicy.Spec.RoutingStrategy); err != nil {
 			return fmt.Errorf("failed to add dns record dnsTargets %s %v", err, mcgTarget)
 		}
 	}
@@ -151,14 +151,14 @@ func (r *DNSPolicyReconciler) deleteDNSRecordsWithLabels(ctx context.Context, lb
 	return nil
 }
 
-func (r *DNSPolicyReconciler) buildClusterGateway(ctx context.Context, downstreamClusterName string, clusterAddress []gatewayv1beta1.GatewayAddress, targetGW *gatewayv1beta1.Gateway) (dns.ClusterGateway, error) {
+func (r *DNSPolicyReconciler) buildClusterGateway(ctx context.Context, clusterName string, gatewayAddresses []gatewayv1beta1.GatewayAddress, targetGW *gatewayv1beta1.Gateway) (dns.ClusterGateway, error) {
 	var target dns.ClusterGateway
-	singleClusterAddresses := make([]gatewayv1beta1.GatewayAddress, len(clusterAddress))
+	singleClusterAddresses := make([]gatewayv1beta1.GatewayAddress, len(gatewayAddresses))
 
 	var metaObj client.Object
-	if downstreamClusterName != singleCluster {
+	if clusterName != singleCluster {
 		mc := &clusterv1.ManagedCluster{}
-		if err := r.Client().Get(ctx, client.ObjectKey{Name: downstreamClusterName}, mc, &client.GetOptions{}); err != nil {
+		if err := r.Client().Get(ctx, client.ObjectKey{Name: clusterName}, mc, &client.GetOptions{}); err != nil {
 			return target, err
 		}
 		metaObj = mc
@@ -166,7 +166,7 @@ func (r *DNSPolicyReconciler) buildClusterGateway(ctx context.Context, downstrea
 		metaObj = targetGW
 	}
 
-	for i, addr := range clusterAddress {
+	for i, addr := range gatewayAddresses {
 		addrType := *addr.Type
 		if addrType == gateway.MultiClusterHostnameAddressType {
 			addrType = gatewayv1beta1.HostnameAddressType
@@ -189,8 +189,6 @@ func getClusterGatewayAddresses(gw *gatewayv1beta1.Gateway) map[string][]gateway
 	clusterAddrs := make(map[string][]gatewayv1beta1.GatewayAddress, len(gw.Status.Addresses))
 
 	for _, address := range gw.Status.Addresses {
-		var gatewayAddresses []gatewayv1beta1.GatewayAddress
-
 		//Default to Single Cluster (Normal Gateway Status)
 		cluster := singleCluster
 		addressValue := address.Value
@@ -205,11 +203,14 @@ func getClusterGatewayAddresses(gw *gatewayv1beta1.Gateway) map[string][]gateway
 			}
 		}
 
-		gatewayAddresses = append(gatewayAddresses, gatewayv1beta1.GatewayAddress{
+		if _, ok := clusterAddrs[cluster]; !ok {
+			clusterAddrs[cluster] = []gatewayv1beta1.GatewayAddress{}
+		}
+
+		clusterAddrs[cluster] = append(clusterAddrs[cluster], gatewayv1beta1.GatewayAddress{
 			Type:  address.Type,
 			Value: addressValue,
 		})
-		clusterAddrs[cluster] = gatewayAddresses
 	}
 
 	return clusterAddrs

@@ -25,6 +25,13 @@ import (
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
+type RoutingStrategy string
+
+const (
+	SimpleRoutingStrategy       RoutingStrategy = "simple"
+	LoadBalancedRoutingStrategy RoutingStrategy = "loadbalanced"
+)
+
 // DNSPolicySpec defines the desired state of DNSPolicy
 type DNSPolicySpec struct {
 
@@ -37,6 +44,11 @@ type DNSPolicySpec struct {
 
 	// +optional
 	LoadBalancing *LoadBalancingSpec `json:"loadBalancing"`
+
+	// +required
+	// +kubebuilder:validation:Enum=simple;loadbalanced
+	// +kubebuilder:default=loadbalanced
+	RoutingStrategy RoutingStrategy `json:"routingStrategy"`
 }
 
 type LoadBalancingSpec struct {
