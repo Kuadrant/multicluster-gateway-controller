@@ -86,7 +86,7 @@ kindSetupMGCClusters ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_WORKLOAD} ${po
 
 # Apply Cluster Configurations to Control cluster
 # Deploy OCM hub
-deployOCMHub ${KIND_CLUSTER_CONTROL_PLANE} "minimal"
+#deployOCMHub ${KIND_CLUSTER_CONTROL_PLANE} "minimal"
 # Deploy Quick start kustomize
 deployQuickStartControl ${KIND_CLUSTER_CONTROL_PLANE}
 # Initialize local dev setup for the controller on the control-plane cluster
@@ -102,8 +102,8 @@ if [[ -n "${MGC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
     deployQuickStartWorkload ${KIND_CLUSTER_WORKLOAD}-${i}
     configureMetalLB ${KIND_CLUSTER_WORKLOAD}-${i} $((${metalLBSubnetStart} + ${i}))
     deployOLM ${KIND_CLUSTER_WORKLOAD}-${i}
-    deployOCMSpoke ${KIND_CLUSTER_WORKLOAD}-${i}
-    configureManagedAddon ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_WORKLOAD}-${i}
+    #deployOCMSpoke ${KIND_CLUSTER_WORKLOAD}-${i}
+    #configureManagedAddon ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_WORKLOAD}-${i}
   done
 fi
 
