@@ -155,6 +155,14 @@ spec:
                         type: integer
                     type: object
                 type: object
+              strategy:
+                enum:
+                - simple
+                - loadbalanced
+                type: string
+                x-kubernetes-validations:
+                - message: DNSPolicyStrategy is immutable
+                  rule: self == oldSelf
               targetRef:
                 description: PolicyTargetReference identifies an API object to apply
                   policy to. This should be used as part of Policy resources that
@@ -193,6 +201,7 @@ spec:
                 - name
                 type: object
             required:
+            - strategy
             - targetRef
             type: object
           status:
