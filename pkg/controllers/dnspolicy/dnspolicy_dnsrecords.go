@@ -78,7 +78,7 @@ func (r *DNSPolicyReconciler) reconcileGatewayDNSRecords(ctx context.Context, ga
 			}
 			log.V(3).Info("hostHasAttachedRoutes", "host", listener.Name, "hostHasAttachedRoutes", attached)
 
-			cg, err := r.buildClusterGateway(ctx, clusterName, clusterAddress)
+			cg, err := r.buildClusterGateway(ctx, clusterName, clusterAddress, gateway)
 			if err != nil {
 				return fmt.Errorf("get cluster gateway failed: %s", err)
 			}
@@ -141,13 +141,20 @@ func (r *DNSPolicyReconciler) deleteGatewayDNSRecords(ctx context.Context, gatew
 	return nil
 }
 
-func (r *DNSPolicyReconciler) buildClusterGateway(ctx context.Context, downstreamClusterName string, clusterAddress []gatewayv1beta1.GatewayAddress) (dns.ClusterGateway, error) {
+func (r *DNSPolicyReconciler) buildClusterGateway(ctx context.Context, downstreamClusterName string, clusterAddress []gatewayv1beta1.GatewayAddress, targetGW *gatewayv1beta1.Gateway) (dns.ClusterGateway, error) {
 	var target dns.ClusterGateway
 	singleClusterAddresses := make([]gatewayv1beta1.GatewayAddress, len(clusterAddress))
 
-	mc := &clusterv1.ManagedCluster{}
-	if err := r.Client().Get(ctx, client.ObjectKey{Name: downstreamClusterName}, mc, &client.GetOptions{}); err != nil {
-		return target, err
+	//ToDo Temporary workaround until https://github.com/Kuadrant/multicluster-gateway-controller/issues/496 is completed.
+	var metaObj client.Object
+	if downstreamClusterName != "none" {
+		mc := &clusterv1.ManagedCluster{}
+		if err := r.Client().Get(ctx, client.ObjectKey{Name: downstreamClusterName}, mc, &client.GetOptions{}); err != nil {
+			return target, err
+		}
+		metaObj = mc
+	} else {
+		metaObj = targetGW
 	}
 
 	for i, addr := range clusterAddress {
@@ -161,8 +168,7 @@ func (r *DNSPolicyReconciler) buildClusterGateway(ctx context.Context, downstrea
 			Value: addr.Value,
 		}
 	}
-
-	target = *dns.NewClusterGateway(mc, singleClusterAddresses)
+	target = *dns.NewClusterGateway(metaObj, singleClusterAddresses)
 
 	return target, nil
 }
