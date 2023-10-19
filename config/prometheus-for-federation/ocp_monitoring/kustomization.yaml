@@ -1,0 +1,36 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - monitoring.yaml
+  - github.com/Kuadrant/gateway-api-state-metrics?ref=main
+  - github.com/Kuadrant/gateway-api-state-metrics/config/examples/dashboards?ref=main
+
+# Patch grafana deployment to include dashboard configmaps
+patchesJson6902:
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: grafana
+    path: ../grafana_deployment_patch.yaml
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+secretGenerator:
+- name: grafana-datasources
+  namespace: monitoring
+  behavior: replace
+  files:
+  - grafana_datasources.yaml
+
+configMapGenerator:
+- name: grafana-istio-workload
+  namespace: monitoring
+  files:
+  - ../grafana_dashboard_istio-workload.json
+- name: grafana-mgc-metrics
+  namespace: monitoring
+  files:
+  - ../grafana-dashboard-mgc-metrics.json

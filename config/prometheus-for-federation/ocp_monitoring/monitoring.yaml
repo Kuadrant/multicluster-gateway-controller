@@ -1,0 +1,599 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kuadrant-multi-cluster-gateways
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: istio-system
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: multicluster-gateway-controller-system
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    control-plane: controller-manager
+    app.kubernetes.io/name: servicemonitor
+    app.kubernetes.io/instance: controller-manager-metrics-monitor
+    app.kubernetes.io/component: metrics
+    app.kubernetes.io/created-by: multicluster-gateway-controller
+    app.kubernetes.io/part-of: multicluster-gateway-controller
+    app.kubernetes.io/managed-by: kustomize
+  name: controller-manager-metrics-monitor
+  namespace: multicluster-gateway-controller-system
+spec:
+  endpoints:
+    - path: /metrics
+      port: metrics
+      scheme: http
+      bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+      tlsConfig:
+        insecureSkipVerify: true
+  selector:
+    matchLabels:
+      control-plane: controller-manager
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: istio-metrics-proxy
+  namespace: kuadrant-multi-cluster-gateways
+  labels:
+    istio.io/gateway-name: prod-web
+spec:
+  selector:
+    istio.io/gateway-name: prod-web
+  ports:
+  - name: metrics
+    protocol: TCP
+    port: 15020
+    targetPort: 15020
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: istio
+  namespace: kuadrant-multi-cluster-gateways
+spec:
+  selector:
+    matchLabels:
+      istio.io/gateway-name: prod-web
+  endpoints:
+  - port: metrics
+    path: /stats/prometheus
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: envoy-stats
+  namespace: istio-system
+spec:
+  namespaceSelector:
+    matchNames:
+    - istio-system
+  selector:
+    matchLabels:
+      app: istio-ingressgateway
+  podMetricsEndpoints:
+  - port: http-envoy-prom
+    path: /stats/prometheus
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: istiod
+  namespace: istio-system
+spec:
+  namespaceSelector:
+    matchNames:
+    - istio-system
+  selector:
+    matchLabels:
+      app: istiod
+  endpoints:
+  - port: http-monitoring
+---
+apiVersion: v1
+automountServiceAccountToken: false
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/component: exporter
+    app.kubernetes.io/name: kube-state-metrics-stitch-poc
+    app.kubernetes.io/part-of: stitchpoc
+    app.kubernetes.io/version: 2.5.0
+  name: kube-state-metrics-stitch-poc
+  namespace: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/component: exporter
+    app.kubernetes.io/name: kube-state-metrics-stitch-poc
+    app.kubernetes.io/part-of: stitchpoc
+    app.kubernetes.io/version: 2.5.0
+  name: kube-state-metrics-stitch-poc
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - secrets
+  - nodes
+  - pods
+  - services
+  - resourcequotas
+  - replicationcontrollers
+  - limitranges
+  - persistentvolumeclaims
+  - persistentvolumes
+  - namespaces
+  - endpoints
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - statefulsets
+  - daemonsets
+  - deployments
+  - replicasets
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - batch
+  resources:
+  - cronjobs
+  - jobs
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - autoscaling
+  resources:
+  - horizontalpodautoscalers
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - authentication.k8s.io
+  resources:
+  - tokenreviews
+  verbs:
+  - create
+- apiGroups:
+  - authorization.k8s.io
+  resources:
+  - subjectaccessreviews
+  verbs:
+  - create
+- apiGroups:
+  - policy
+  resources:
+  - poddisruptionbudgets
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - certificates.k8s.io
+  resources:
+  - certificatesigningrequests
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - storage.k8s.io
+  resources:
+  - storageclasses
+  - volumeattachments
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - admissionregistration.k8s.io
+  resources:
+  - mutatingwebhookconfigurations
+  - validatingwebhookconfigurations
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - networkpolicies
+  - ingresses
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - "apiextensions.k8s.io"
+  resources:
+  - customresourcedefinitions
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - "gateway.networking.k8s.io"
+  resources:
+  - gateways
+  - gatewayclasses
+  - httproutes
+  - grpcroutes
+  - tcproutes
+  - tlsroutes
+  - udproutes
+  verbs:
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/component: exporter
+    app.kubernetes.io/name: kube-state-metrics-stitch-poc
+    app.kubernetes.io/part-of: stitchpoc
+    app.kubernetes.io/version: 2.5.0
+  name: kube-state-metrics-stitch-poc
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kube-state-metrics-stitch-poc
+subjects:
+- kind: ServiceAccount
+  name: kube-state-metrics-stitch-poc
+  namespace: monitoring
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: exporter
+    app.kubernetes.io/name: kube-state-metrics-stitch-poc
+    app.kubernetes.io/part-of: stitchpoc
+    app.kubernetes.io/version: 2.5.0
+  name: kube-state-metrics-stitch-poc
+  namespace: monitoring
+spec:
+  clusterIP: None
+  ports:
+  - name: https-main
+    port: 8081
+    targetPort: https-main
+  - name: https-self
+    port: 8082
+    targetPort: https-self
+  selector:
+    app.kubernetes.io/component: exporter
+    app.kubernetes.io/name: kube-state-metrics-stitch-poc
+    app.kubernetes.io/part-of: stitchpoc
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/component: exporter
+    app.kubernetes.io/name: kube-state-metrics-stitch-poc
+    app.kubernetes.io/part-of: stitchpoc
+    app.kubernetes.io/version: 2.5.0
+  name: kube-state-metrics-stitch-poc
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: exporter
+      app.kubernetes.io/name: kube-state-metrics-stitch-poc
+      app.kubernetes.io/part-of: stitchpoc
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: kube-state-metrics
+      labels:
+        app.kubernetes.io/component: exporter
+        app.kubernetes.io/name: kube-state-metrics-stitch-poc
+        app.kubernetes.io/part-of: stitchpoc
+        app.kubernetes.io/version: 2.5.0
+    spec:
+      volumes:
+      - name: custom-resource-state
+        configMap:
+          defaultMode: 420
+          name: custom-resource-state
+      automountServiceAccountToken: true
+      containers:
+      - volumeMounts:
+        - name: custom-resource-state
+          mountPath: /custom-resource-state
+        args:
+        - --port=8081
+        - --telemetry-port=8082
+        - --custom-resource-state-config-file
+        - /custom-resource-state/custom-resource-state.yaml
+        image: registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.9.2
+        name: kube-state-metrics
+        resources:
+          limits:
+            cpu: 100m
+            memory: 250Mi
+          requests:
+            cpu: 10m
+            memory: 190Mi
+        securityContext: {}
+        ports:
+        - containerPort: 8081
+          name: https-main
+        - containerPort: 8082
+          name: https-self
+      nodeSelector:
+        kubernetes.io/os: linux
+      serviceAccountName: kube-state-metrics-stitch-poc
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    app.kubernetes.io/component: exporter
+    app.kubernetes.io/name: kube-state-metrics-stitch-poc
+    app.kubernetes.io/part-of: stitchpoc
+    app.kubernetes.io/version: 2.5.0
+  name: kube-state-metrics-stitch-poc
+  namespace: monitoring
+spec:
+  endpoints:
+  - honorLabels: true
+    interval: 30s
+    port: https-main
+    relabelings:
+    - action: labeldrop
+      regex: (pod|service|endpoint|namespace)
+    scheme: http
+    scrapeTimeout: 30s
+  - interval: 30s
+    port: https-self
+    scheme: http
+  jobLabel: app.kubernetes.io/name
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: exporter
+      app.kubernetes.io/name: kube-state-metrics-stitch-poc
+      app.kubernetes.io/part-of: stitchpoc
+---
+apiVersion: v1
+automountServiceAccountToken: false
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/component: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: kube-prometheus
+    app.kubernetes.io/version: 8.5.5
+  name: grafana
+  namespace: monitoring
+---
+apiVersion: v1
+data:
+  dashboards.yaml: |-
+    {
+        "apiVersion": 1,
+        "providers": [
+            {
+                "folder": "Default",
+                "folderUid": "",
+                "name": "0",
+                "options": {
+                    "path": "/grafana-dashboard-definitions/0"
+                },
+                "orgId": 1,
+                "type": "file"
+            }
+        ]
+    }
+kind: ConfigMap
+metadata:
+  labels:
+    app.kubernetes.io/component: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: kube-prometheus
+    app.kubernetes.io/version: 8.5.5
+  name: grafana-dashboards
+  namespace: monitoring
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  labels:
+    app.kubernetes.io/component: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: kube-prometheus
+    app.kubernetes.io/version: 8.5.5
+  name: grafana-config
+  namespace: monitoring
+stringData:
+  grafana.ini: |
+    [date_formats]
+    default_timezone = UTC
+type: Opaque
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  labels:
+    app.kubernetes.io/component: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: kube-prometheus
+    app.kubernetes.io/version: 8.5.5
+  name: grafana-datasources
+  namespace: monitoring
+stringData:
+  datasources.yaml: |-
+    {
+        "apiVersion": 1,
+        "datasources": [
+            {
+                "access": "proxy",
+                "editable": false,
+                "name": "prometheus",
+                "orgId": 1,
+                "type": "prometheus",
+                "url": "http://prometheus-k8s.monitoring.svc:9090",
+                "version": 1
+            }
+        ]
+    }
+type: Opaque
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: kube-prometheus
+    app.kubernetes.io/version: 8.5.5
+  name: grafana
+  namespace: monitoring
+spec:
+  ports:
+  - name: http
+    port: 3000
+    targetPort: http
+  selector:
+    app.kubernetes.io/component: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: kube-prometheus
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/component: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: kube-prometheus
+    app.kubernetes.io/version: 8.5.5
+  name: grafana
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: grafana
+      app.kubernetes.io/name: grafana
+      app.kubernetes.io/part-of: kube-prometheus
+  template:
+    metadata:
+      annotations:
+        checksum/grafana-config: 4d376802c61554030cfd50d569dabda7
+        checksum/grafana-dashboardproviders: 2d9c006bd11b55212fbb797fdc6d153b
+        checksum/grafana-datasources: efad9cbfdaacad9fdecdff58cc032954
+      labels:
+        app.kubernetes.io/component: grafana
+        app.kubernetes.io/name: grafana
+        app.kubernetes.io/part-of: kube-prometheus
+        app.kubernetes.io/version: 8.5.5
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - env: []
+        image: grafana/grafana:8.5.5
+        name: grafana
+        ports:
+        - containerPort: 3000
+          name: http
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: http
+        resources:
+          limits:
+            cpu: 200m
+            memory: 200Mi
+          requests:
+            cpu: 100m
+            memory: 100Mi
+        volumeMounts:
+        - mountPath: /var/lib/grafana
+          name: grafana-storage
+          readOnly: false
+        - mountPath: /etc/grafana/provisioning/datasources
+          name: grafana-datasources
+          readOnly: false
+        - mountPath: /etc/grafana/provisioning/dashboards
+          name: grafana-dashboards
+          readOnly: false
+        - mountPath: /tmp
+          name: tmp-plugins
+          readOnly: false
+        - mountPath: /etc/grafana
+          name: grafana-config
+          readOnly: false
+      nodeSelector:
+        kubernetes.io/os: linux
+      serviceAccountName: grafana
+      volumes:
+      - emptyDir: {}
+        name: grafana-storage
+      - name: grafana-datasources
+        secret:
+          secretName: grafana-datasources
+      - configMap:
+          name: grafana-dashboards
+        name: grafana-dashboards
+      - emptyDir:
+          medium: Memory
+        name: tmp-plugins
+      - name: grafana-config
+        secret:
+          secretName: grafana-config
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    app.kubernetes.io/component: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: kube-prometheus
+    app.kubernetes.io/version: 8.5.5
+  name: grafana
+  namespace: monitoring
+spec:
+  endpoints:
+  - interval: 15s
+    port: http
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: grafana
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  tls:
+    termination: edge
+  to:
+    kind: Service
+    name: grafana
+    weight: 100
+  wildcardPolicy: None
