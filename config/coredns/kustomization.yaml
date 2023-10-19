@@ -43,7 +43,7 @@ helmCharts:
             - name: reload
             - name: loadbalance
             - name: etcd
-              parameters: local.dev.hcpapps.net
+              parameters: coredns.hcpapps.local
               configBlock: |-
                 stubzones
                 path /skydns
