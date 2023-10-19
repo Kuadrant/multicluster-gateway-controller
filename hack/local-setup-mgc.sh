@@ -42,10 +42,10 @@ set -e pipefail
 cleanupMGC
 
 # Deploy the submariner broker to cluster 1
-deploySubmarinerBroker ${KIND_CLUSTER_CONTROL_PLANE}
+#deploySubmarinerBroker ${KIND_CLUSTER_CONTROL_PLANE}
 
 # Join cluster 1 to the submariner broker
-joinSubmarinerBroker ${KIND_CLUSTER_CONTROL_PLANE}
+#joinSubmarinerBroker ${KIND_CLUSTER_CONTROL_PLANE}
 
 # Install the Gateway API CRDs in the control cluster
 installGatewayAPI ${KIND_CLUSTER_CONTROL_PLANE}
@@ -56,20 +56,22 @@ deployIngressController ${KIND_CLUSTER_CONTROL_PLANE}
 # Deploy cert manager
 deployCertManager ${KIND_CLUSTER_CONTROL_PLANE}
 
+deployIstio ${KIND_CLUSTER_CONTROL_PLANE}
+
 # Deploy argo cd
-deployArgoCD ${KIND_CLUSTER_CONTROL_PLANE}
+#deployArgoCD ${KIND_CLUSTER_CONTROL_PLANE}
 
 # Deploy Dashboard
-deployDashboard $KIND_CLUSTER_CONTROL_PLANE 0
+#deployDashboard $KIND_CLUSTER_CONTROL_PLANE 0
 
 # Add the control plane cluster
-argocdAddCluster ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_CONTROL_PLANE}
+#argocdAddCluster ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_CONTROL_PLANE}
 
 # Initialize local dev setup for the controller on the control-plane cluster
 initController ${KIND_CLUSTER_CONTROL_PLANE}
 
 # Deploy OCM hub
-deployOCMHub ${KIND_CLUSTER_CONTROL_PLANE}
+#deployOCMHub ${KIND_CLUSTER_CONTROL_PLANE}
 
 # Deploy Redis
 deployRedis ${KIND_CLUSTER_CONTROL_PLANE}
@@ -86,19 +88,19 @@ deployThanos ${KIND_CLUSTER_CONTROL_PLANE}
 # Deploy to workload clusters if MGC_WORKLOAD_CLUSTERS_COUNT environment variable is set
 if [[ -n "${MGC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
   for ((i = 1; i <= ${MGC_WORKLOAD_CLUSTERS_COUNT}; i++)); do
-    joinSubmarinerBroker ${KIND_CLUSTER_WORKLOAD}-${i}
+    #joinSubmarinerBroker ${KIND_CLUSTER_WORKLOAD}-${i}
     deployIstio ${KIND_CLUSTER_WORKLOAD}-${i}
     installGatewayAPI ${KIND_CLUSTER_WORKLOAD}-${i}
     deployIngressController ${KIND_CLUSTER_WORKLOAD}-${i}
     deployMetalLB ${KIND_CLUSTER_WORKLOAD}-${i} $((${metalLBSubnetStart} + ${i}))
     deployOLM ${KIND_CLUSTER_WORKLOAD}-${i}
-    deployDashboard ${KIND_CLUSTER_WORKLOAD}-${i} ${i}
-    argocdAddCluster ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_WORKLOAD}-${i}
-    deployAgentSecret ${KIND_CLUSTER_WORKLOAD}-${i} "true"
-    deployAgentSecret ${KIND_CLUSTER_WORKLOAD}-${i} "false"
-    deployOCMSpoke ${KIND_CLUSTER_WORKLOAD}-${i}
+    #deployDashboard ${KIND_CLUSTER_WORKLOAD}-${i} ${i}
+    #argocdAddCluster ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_WORKLOAD}-${i}
+    #deployAgentSecret ${KIND_CLUSTER_WORKLOAD}-${i} "true"
+    #deployAgentSecret ${KIND_CLUSTER_WORKLOAD}-${i} "false"
+    #deployOCMSpoke ${KIND_CLUSTER_WORKLOAD}-${i}
     deployPrometheusForFederation ${KIND_CLUSTER_WORKLOAD}-${i}
-    configureManagedAddon ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_WORKLOAD}-${i}
+    # configureManagedAddon ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_WORKLOAD}-${i}
   done
 fi
 

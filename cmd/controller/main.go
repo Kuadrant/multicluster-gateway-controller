@@ -222,6 +222,7 @@ func main() {
 	}
 
 	if ocmController {
+		setupLog.Info("setting up OCM controllers")
 		ocmControllerSetup()
 	}
 
