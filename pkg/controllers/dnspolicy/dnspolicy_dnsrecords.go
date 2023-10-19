@@ -158,9 +158,12 @@ func (r *DNSPolicyReconciler) buildClusterGateway(ctx context.Context, downstrea
 	}
 
 	for i, addr := range clusterAddress {
-		addrType := gatewayv1beta1.IPAddressType
-		if *addr.Type == gateway.MultiClusterHostnameAddressType {
+		addrType := *addr.Type
+		if addrType == gateway.MultiClusterHostnameAddressType {
 			addrType = gatewayv1beta1.HostnameAddressType
+		}
+		if addrType == gateway.MultiClusterIPAddressType {
+			addrType = gatewayv1beta1.IPAddressType
 		}
 
 		singleClusterAddresses[i] = gatewayv1beta1.GatewayAddress{
