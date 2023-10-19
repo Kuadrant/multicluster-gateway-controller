@@ -306,24 +306,27 @@ func (r *DNSPolicyReconciler) updateGatewayCondition(ctx context.Context, condit
 	return nil
 }
 
-func (r *DNSPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *DNSPolicyReconciler) SetupWithManager(mgr ctrl.Manager, enableOCM bool) error {
 	gatewayEventMapper := events.NewGatewayEventMapper(r.Logger(), &DNSPolicyRefsConfig{}, "dnspolicy")
 	clusterEventMapper := events.NewClusterEventMapper(r.Logger(), r.Client(), &DNSPolicyRefsConfig{}, "dnspolicy")
 	probeEventMapper := events.NewProbeEventMapper(r.Logger(), DNSPolicyBackRefAnnotation, "dnspolicy")
 	r.dnsHelper = dnsHelper{Client: r.Client()}
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.DNSPolicy{}).
-		Watches(
-			&source.Kind{Type: &gatewayapiv1beta1.Gateway{}},
-			handler.EnqueueRequestsFromMapFunc(gatewayEventMapper.MapToPolicy),
-		).
-		Watches(
+	c := ctrl.NewControllerManagedBy(mgr).
+		For(&v1alpha1.DNSPolicy{})
+
+	c.Watches(
+		&source.Kind{Type: &gatewayapiv1beta1.Gateway{}},
+		handler.EnqueueRequestsFromMapFunc(gatewayEventMapper.MapToPolicy),
+	).Watches(
+		&source.Kind{Type: &v1alpha1.DNSHealthCheckProbe{}},
+		handler.EnqueueRequestsFromMapFunc(probeEventMapper.MapToPolicy),
+	)
+
+	if enableOCM {
+		c.Watches(
 			&source.Kind{Type: &clusterv1.ManagedCluster{}},
 			handler.EnqueueRequestsFromMapFunc(clusterEventMapper.MapToPolicy),
-		).
-		Watches(
-			&source.Kind{Type: &v1alpha1.DNSHealthCheckProbe{}},
-			handler.EnqueueRequestsFromMapFunc(probeEventMapper.MapToPolicy),
-		).
-		Complete(r)
+		)
+	}
+	return c.Complete(r)
 }

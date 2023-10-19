@@ -77,6 +77,7 @@ func init() {
 func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
+	var ocmController bool
 	var probeAddr string
 	var certProvider string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
@@ -84,6 +85,7 @@ func main() {
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
+	flag.BoolVar(&ocmController, "ocm", false, "enable if you are in an OCM hub")
 	flag.StringVar(&certProvider, "cert-provider", "glbc-ca", "The name of the certificate provider to use")
 	opts := zap.Options{
 		Development: true,
@@ -107,7 +109,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	placer := placement.NewOCMPlacer(mgr.GetClient())
 	provider := dnsprovider.NewProvider(mgr.GetClient())
 
 	healthMonitor := health.NewMonitor()
@@ -143,7 +144,7 @@ func main() {
 			BaseReconciler: dnsPolicyBaseReconciler,
 		},
 		DNSProvider: provider.DNSProviderFactory,
-	}).SetupWithManager(mgr); err != nil {
+	}).SetupWithManager(mgr, ocmController); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DNSPolicy")
 		os.Exit(1)
 	}
@@ -173,48 +174,57 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "ManagedZone")
 		os.Exit(1)
 	}
-	if err = (&gateway.GatewayClassReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "GatewayClass")
-		os.Exit(1)
+
+	var ocmControllerSetup = func() {
+		placer := placement.NewOCMPlacer(mgr.GetClient())
+		if err = (&gateway.GatewayClassReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "GatewayClass")
+			os.Exit(1)
+		}
+
+		dynamicClient := dynamic.NewForConfigOrDie(mgr.GetConfig())
+		dynamicInformerFactory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(
+			dynamicClient,
+			0,
+			corev1.NamespaceAll,
+			nil,
+		)
+
+		policyInformersManager := policysync.NewPolicyInformersManager(dynamicInformerFactory)
+		if err := policyInformersManager.SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to start policy informers manager")
+			os.Exit(1)
+		}
+
+		if err = (&gateway.GatewayReconciler{
+			Client:                 mgr.GetClient(),
+			Scheme:                 mgr.GetScheme(),
+			Placement:              placer,
+			PolicyInformersManager: policyInformersManager,
+			DynamicClient:          dynamicClient,
+			WatchedPolicies:        map[schema.GroupVersionResource]cache.ResourceEventHandlerRegistration{},
+		}).SetupWithManager(mgr, ctx); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "Gateway")
+			os.Exit(1)
+		}
+
+		if err = (&dnshealthcheckprobe.DNSHealthCheckProbeReconciler{
+			Client:        mgr.GetClient(),
+			HealthMonitor: healthMonitor,
+			Queue:         healthCheckQueue,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "DNSHealthCheckProbe")
+			os.Exit(1)
+		}
 	}
 
-	dynamicClient := dynamic.NewForConfigOrDie(mgr.GetConfig())
-	dynamicInformerFactory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(
-		dynamicClient,
-		0,
-		corev1.NamespaceAll,
-		nil,
-	)
-
-	policyInformersManager := policysync.NewPolicyInformersManager(dynamicInformerFactory)
-	if err := policyInformersManager.SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to start policy informers manager")
-		os.Exit(1)
+	if ocmController {
+		ocmControllerSetup()
 	}
 
-	if err = (&gateway.GatewayReconciler{
-		Client:                 mgr.GetClient(),
-		Scheme:                 mgr.GetScheme(),
-		Placement:              placer,
-		PolicyInformersManager: policyInformersManager,
-		DynamicClient:          dynamicClient,
-		WatchedPolicies:        map[schema.GroupVersionResource]cache.ResourceEventHandlerRegistration{},
-	}).SetupWithManager(mgr, ctx); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Gateway")
-		os.Exit(1)
-	}
-
-	if err = (&dnshealthcheckprobe.DNSHealthCheckProbeReconciler{
-		Client:        mgr.GetClient(),
-		HealthMonitor: healthMonitor,
-		Queue:         healthCheckQueue,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "DNSHealthCheckProbe")
-		os.Exit(1)
-	}
 	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
