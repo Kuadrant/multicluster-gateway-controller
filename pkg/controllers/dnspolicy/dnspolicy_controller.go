@@ -195,13 +195,12 @@ func (r *DNSPolicyReconciler) deleteResources(ctx context.Context, dnsPolicy *v1
 	if err != nil {
 		return err
 	}
-
-	if err := r.reconcileDNSRecords(ctx, dnsPolicy, gatewayDiffObj); err != nil {
+	if err = r.deleteDNSRecords(ctx, dnsPolicy); err != nil {
 		log.V(3).Info("error reconciling DNS records from delete, returning", "error", err)
 		return err
 	}
 
-	if err := r.reconcileHealthChecks(ctx, dnsPolicy, gatewayDiffObj); err != nil {
+	if err := r.deleteProbes(ctx, dnsPolicy); err != nil {
 		return err
 	}
 

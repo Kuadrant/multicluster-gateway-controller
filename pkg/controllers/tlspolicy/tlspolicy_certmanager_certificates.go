@@ -27,14 +27,14 @@ func (r *TLSPolicyReconciler) reconcileCertificates(ctx context.Context, tlsPoli
 
 	for _, gw := range gwDiffObj.GatewaysWithInvalidPolicyRef {
 		log.V(1).Info("reconcileCertificates: gateway with invalid policy ref", "key", gw.Key())
-		if err := r.deleteGatewayCertificates(ctx, gw.Gateway, tlsPolicy); err != nil {
+		if err := r.deleteGatewayCertificates(ctx, []*certmanv1.Certificate{}, gw.Gateway, tlsPolicy); err != nil {
 			return err
 		}
 	}
 
 	// Reconcile Certificates for each gateway directly referred by the policy (existing and new)
 	for _, gw := range append(gwDiffObj.GatewaysWithValidPolicyRef, gwDiffObj.GatewaysMissingPolicyRef...) {
-		log.V(1).Info("reconcileCertificates: gateway with valid and missing policy ref", "key", gw.Key())
+		log.V(1).Info("reconcileCertificates: gateway with valid or missing policy ref", "key", gw.Key())
 		if err := r.reconcileGatewayCertificates(ctx, gw.Gateway, tlsPolicy); err != nil {
 			return err
 		}
@@ -50,7 +50,7 @@ func (r *TLSPolicyReconciler) reconcileGatewayCertificates(ctx context.Context, 
 
 	expectedCerts := r.expectedCertificatesForGateway(ctx, gateway, tlsPolicy)
 
-	if err := r.deleteUnexpectedGatewayCertificates(ctx, expectedCerts, gateway, tlsPolicy); err != nil {
+	if err := r.deleteGatewayCertificates(ctx, expectedCerts, gateway, tlsPolicy); err != nil {
 		return err
 	}
 
@@ -65,14 +65,18 @@ func (r *TLSPolicyReconciler) reconcileGatewayCertificates(ctx context.Context, 
 	return nil
 }
 
-func (r *TLSPolicyReconciler) deleteGatewayCertificates(ctx context.Context, gateway *gatewayv1beta1.Gateway, tlsPolicy *v1alpha1.TLSPolicy) error {
-	return r.deleteUnexpectedGatewayCertificates(ctx, []*certmanv1.Certificate{}, gateway, tlsPolicy)
+func (r *TLSPolicyReconciler) deleteGatewayCertificates(ctx context.Context, expectedCerts []*certmanv1.Certificate, gateway *gatewayv1beta1.Gateway, tlsPolicy *v1alpha1.TLSPolicy) error {
+	return r.deleteCertificatesWithLabels(ctx, expectedCerts, commonTLSCertificateLabels(client.ObjectKeyFromObject(gateway), client.ObjectKeyFromObject(tlsPolicy)), tlsPolicy.Namespace)
 }
 
-func (r *TLSPolicyReconciler) deleteUnexpectedGatewayCertificates(ctx context.Context, expectedCerts []*certmanv1.Certificate, gateway *gatewayv1beta1.Gateway, tlsPolicy *v1alpha1.TLSPolicy) error {
+func (r *TLSPolicyReconciler) deleteCertificates(ctx context.Context, tlsPolicy *v1alpha1.TLSPolicy) error {
+	return r.deleteCertificatesWithLabels(ctx, []*certmanv1.Certificate{}, policyTLSCertificateLabels(client.ObjectKeyFromObject(tlsPolicy)), tlsPolicy.Namespace)
+}
+
+func (r *TLSPolicyReconciler) deleteCertificatesWithLabels(ctx context.Context, expectedCerts []*certmanv1.Certificate, lbls map[string]string, namespace string) error {
 	log := crlog.FromContext(ctx)
 
-	listOptions := &client.ListOptions{LabelSelector: labels.SelectorFromSet(tlsCertificateLabels(client.ObjectKeyFromObject(gateway), client.ObjectKeyFromObject(tlsPolicy)))}
+	listOptions := &client.ListOptions{LabelSelector: labels.SelectorFromSet(lbls), Namespace: namespace}
 	certList := &certmanv1.CertificateList{}
 	if err := r.Client().List(ctx, certList, listOptions); err != nil {
 		return err
@@ -126,7 +130,7 @@ func (r *TLSPolicyReconciler) expectedCertificatesForGateway(ctx context.Context
 }
 
 func (r *TLSPolicyReconciler) buildCertManagerCertificate(gateway *gatewayv1beta1.Gateway, tlsPolicy *v1alpha1.TLSPolicy, secretRef corev1.ObjectReference, hosts []string) *certmanv1.Certificate {
-	tlsCertLabels := tlsCertificateLabels(client.ObjectKeyFromObject(gateway), client.ObjectKeyFromObject(tlsPolicy))
+	tlsCertLabels := commonTLSCertificateLabels(client.ObjectKeyFromObject(gateway), client.ObjectKeyFromObject(tlsPolicy))
 
 	crt := &certmanv1.Certificate{
 		ObjectMeta: metav1.ObjectMeta{
@@ -148,12 +152,28 @@ func (r *TLSPolicyReconciler) buildCertManagerCertificate(gateway *gatewayv1beta
 	return crt
 }
 
-func tlsCertificateLabels(gwKey, apKey client.ObjectKey) map[string]string {
+func commonTLSCertificateLabels(gwKey, apKey client.ObjectKey) map[string]string {
+	common := map[string]string{}
+	for k, v := range policyTLSCertificateLabels(apKey) {
+		common[k] = v
+	}
+	for k, v := range gatewayTLSCertificateLabels(gwKey) {
+		common[k] = v
+	}
+	return common
+}
+
+func policyTLSCertificateLabels(apKey client.ObjectKey) map[string]string {
 	return map[string]string{
 		TLSPolicyBackRefAnnotation:                              apKey.Name,
 		fmt.Sprintf("%s-namespace", TLSPolicyBackRefAnnotation): apKey.Namespace,
-		"gateway-namespace":                                     gwKey.Namespace,
-		"gateway":                                               gwKey.Name,
+	}
+}
+
+func gatewayTLSCertificateLabels(gwKey client.ObjectKey) map[string]string {
+	return map[string]string{
+		"gateway-namespace": gwKey.Namespace,
+		"gateway":           gwKey.Name,
 	}
 }
 

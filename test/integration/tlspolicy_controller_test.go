@@ -56,23 +56,27 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 		gatewayList := &gatewayv1beta1.GatewayList{}
 		Expect(k8sClient.List(ctx, gatewayList)).To(BeNil())
 		for _, gw := range gatewayList.Items {
-			k8sClient.Delete(ctx, &gw)
+			err := k8sClient.Delete(ctx, &gw)
+			Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
 		}
 		policyList := v1alpha1.TLSPolicyList{}
 		Expect(k8sClient.List(ctx, &policyList)).To(BeNil())
 		for _, policy := range policyList.Items {
-			k8sClient.Delete(ctx, &policy)
+			err := k8sClient.Delete(ctx, &policy)
+			Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
 		}
 		issuerList := certmanv1.IssuerList{}
 		Expect(k8sClient.List(ctx, &issuerList)).To(BeNil())
 		for _, issuer := range issuerList.Items {
-			k8sClient.Delete(ctx, &issuer)
+			err := k8sClient.Delete(ctx, &issuer)
+			Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
 		}
 	})
 
 	AfterAll(func() {
 		err := k8sClient.Delete(ctx, gatewayClass)
-		Expect(err).ToNot(HaveOccurred())
+		Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
+
 	})
 
 	Context("invalid target", func() {
@@ -522,7 +526,7 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 					return nil
 				}, time.Second*120, time.Second).Should(BeNil())
 			})
-			It("should delete all tls certificates when tls policy is removed", func() {
+			It("should delete all tls certificates when tls policy is removed even if gateway is already removed", func() {
 				//confirm all expected certificates are present
 				Eventually(func() error {
 					certificateList := &certmanv1.CertificateList{}
@@ -533,8 +537,11 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 					return nil
 				}, time.Second*10, time.Second).Should(BeNil())
 
+				// delete the gateway
+				Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, gateway))).ToNot(HaveOccurred())
+
 				//delete the tls policy
-				Expect(k8sClient.Delete(ctx, tlsPolicy)).To(BeNil())
+				Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, tlsPolicy))).ToNot(HaveOccurred())
 
 				//confirm all certificates have been deleted
 				Eventually(func() error {
