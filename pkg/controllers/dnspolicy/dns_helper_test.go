@@ -17,6 +17,7 @@ import (
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha2"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/utils"
 	testutil "github.com/Kuadrant/multicluster-gateway-controller/test/util"
@@ -25,6 +26,9 @@ import (
 func testScheme(t *testing.T) *runtime.Scheme {
 	scheme := runtime.NewScheme()
 	if err := v1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatalf("falied to add work scheme %s ", err)
+	}
+	if err := v1alpha2.AddToScheme(scheme); err != nil {
 		t.Fatalf("falied to add work scheme %s ", err)
 	}
 	if err := gatewayapiv1.AddToScheme(scheme); err != nil {
@@ -42,8 +46,8 @@ func getTestListener(hostName string) gatewayapiv1.Listener {
 }
 
 func TestSetProviderSpecific(t *testing.T) {
-	endpoint := &v1alpha1.Endpoint{
-		ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
+	endpoint := &v1alpha2.Endpoint{
+		ProviderSpecific: []v1alpha2.ProviderSpecificProperty{
 			{Name: "weight", Value: "120"},
 		},
 	}
@@ -63,16 +67,16 @@ func Test_dnsHelper_createDNSRecordForListener(t *testing.T) {
 		testListenerName = "test"
 	)
 	type args struct {
-		gateway     *gatewayapiv1.Gateway
-		dnsPolicy   *v1alpha1.DNSPolicy
-		managedZone *v1alpha1.ManagedZone
-		listener    gatewayapiv1.Listener
+		gateway   *gatewayapiv1.Gateway
+		dnsPolicy *v1alpha2.DNSPolicy
+		zone      *dns.Zone
+		listener  gatewayapiv1.Listener
 	}
 	testCases := []struct {
 		name       string
 		args       args
-		recordList *v1alpha1.DNSRecordList
-		wantRecord *v1alpha1.DNSRecord
+		recordList *v1alpha2.DNSRecordList
+		wantRecord *v1alpha2.DNSRecord
 		wantErr    bool
 	}{
 		{
@@ -85,24 +89,19 @@ func Test_dnsHelper_createDNSRecordForListener(t *testing.T) {
 					},
 				},
 				listener: getTestListener("test.domain.com"),
-				dnsPolicy: &v1alpha1.DNSPolicy{
+				dnsPolicy: &v1alpha2.DNSPolicy{
 					ObjectMeta: v1.ObjectMeta{
 						Name:      "tstpolicy",
 						Namespace: "test",
 					},
 				},
-				managedZone: &v1alpha1.ManagedZone{
-					ObjectMeta: v1.ObjectMeta{
-						Name:      "mz",
-						Namespace: "test",
-					},
-					Spec: v1alpha1.ManagedZoneSpec{
-						DomainName: "domain.com",
-					},
+				zone: &dns.Zone{
+					ID:      testutil.Pointer("mz"),
+					DNSName: testutil.Pointer("domain.com"),
 				},
 			},
-			recordList: &v1alpha1.DNSRecordList{},
-			wantRecord: &v1alpha1.DNSRecord{
+			recordList: &v1alpha2.DNSRecordList{},
+			wantRecord: &v1alpha2.DNSRecord{
 				ObjectMeta: v1.ObjectMeta{
 					Name:      dnsRecordName(testGatewayName, testListenerName),
 					Namespace: "test",
@@ -113,21 +112,10 @@ func Test_dnsHelper_createDNSRecordForListener(t *testing.T) {
 						LabelGatewayReference:             "tstgateway",
 						LabelListenerReference:            testListenerName,
 					},
-					OwnerReferences: []v1.OwnerReference{
-						{
-							APIVersion:         "kuadrant.io/v1alpha1",
-							Kind:               "ManagedZone",
-							Name:               "mz",
-							Controller:         testutil.Pointer(true),
-							BlockOwnerDeletion: testutil.Pointer(true),
-						},
-					},
 					ResourceVersion: "1",
 				},
-				Spec: v1alpha1.DNSRecordSpec{
-					ManagedZoneRef: &v1alpha1.ManagedZoneReference{
-						Name: "mz",
-					},
+				Spec: v1alpha2.DNSRecordSpec{
+					ZoneID: testutil.Pointer("mz"),
 				},
 			},
 		},
@@ -141,24 +129,19 @@ func Test_dnsHelper_createDNSRecordForListener(t *testing.T) {
 					},
 				},
 				listener: getTestListener("test.domain.com"),
-				dnsPolicy: &v1alpha1.DNSPolicy{
+				dnsPolicy: &v1alpha2.DNSPolicy{
 					ObjectMeta: v1.ObjectMeta{
 						Name:      "tstpolicy",
 						Namespace: "test",
 					},
 				},
-				managedZone: &v1alpha1.ManagedZone{
-					ObjectMeta: v1.ObjectMeta{
-						Name:      "mz",
-						Namespace: "test",
-					},
-					Spec: v1alpha1.ManagedZoneSpec{
-						DomainName: "domain.com",
-					},
+				zone: &dns.Zone{
+					ID:      testutil.Pointer("mz"),
+					DNSName: testutil.Pointer("domain.com"),
 				},
 			},
-			recordList: &v1alpha1.DNSRecordList{
-				Items: []v1alpha1.DNSRecord{
+			recordList: &v1alpha2.DNSRecordList{
+				Items: []v1alpha2.DNSRecord{
 					{
 						ObjectMeta: v1.ObjectMeta{
 							Name:      dnsRecordName(testGatewayName, testListenerName),
@@ -167,7 +150,7 @@ func Test_dnsHelper_createDNSRecordForListener(t *testing.T) {
 					},
 				},
 			},
-			wantRecord: &v1alpha1.DNSRecord{
+			wantRecord: &v1alpha2.DNSRecord{
 				ObjectMeta: v1.ObjectMeta{
 					Name:            dnsRecordName(testGatewayName, testListenerName),
 					Namespace:       "test",
@@ -175,7 +158,7 @@ func Test_dnsHelper_createDNSRecordForListener(t *testing.T) {
 				},
 				TypeMeta: v1.TypeMeta{
 					Kind:       "DNSRecord",
-					APIVersion: "kuadrant.io/v1alpha1",
+					APIVersion: "kuadrant.io/v1alpha2",
 				},
 			},
 		},
@@ -189,26 +172,21 @@ func Test_dnsHelper_createDNSRecordForListener(t *testing.T) {
 					},
 				},
 				listener: getTestListener("*.domain.com"),
-				dnsPolicy: &v1alpha1.DNSPolicy{
+				dnsPolicy: &v1alpha2.DNSPolicy{
 					ObjectMeta: v1.ObjectMeta{
 						Name:      "tstpolicy",
 						Namespace: "test",
 					},
 				},
-				managedZone: &v1alpha1.ManagedZone{
-					ObjectMeta: v1.ObjectMeta{
-						Name:      "mz",
-						Namespace: "test",
-					},
-					Spec: v1alpha1.ManagedZoneSpec{
-						DomainName: "domain.com",
-					},
+				zone: &dns.Zone{
+					ID:      testutil.Pointer("mz"),
+					DNSName: testutil.Pointer("domain.com"),
 				},
 			},
-			recordList: &v1alpha1.DNSRecordList{
-				Items: []v1alpha1.DNSRecord{},
+			recordList: &v1alpha2.DNSRecordList{
+				Items: []v1alpha2.DNSRecord{},
 			},
-			wantRecord: &v1alpha1.DNSRecord{
+			wantRecord: &v1alpha2.DNSRecord{
 				ObjectMeta: v1.ObjectMeta{
 					Name:      dnsRecordName(testGatewayName, testListenerName),
 					Namespace: "test",
@@ -219,21 +197,10 @@ func Test_dnsHelper_createDNSRecordForListener(t *testing.T) {
 						LabelGatewayReference:             "tstgateway",
 						LabelListenerReference:            testListenerName,
 					},
-					OwnerReferences: []v1.OwnerReference{
-						{
-							APIVersion:         "kuadrant.io/v1alpha1",
-							Kind:               "ManagedZone",
-							Name:               "mz",
-							Controller:         testutil.Pointer(true),
-							BlockOwnerDeletion: testutil.Pointer(true),
-						},
-					},
 					ResourceVersion: "1",
 				},
-				Spec: v1alpha1.DNSRecordSpec{
-					ManagedZoneRef: &v1alpha1.ManagedZoneReference{
-						Name: "mz",
-					},
+				Spec: v1alpha2.DNSRecordSpec{
+					ZoneID: testutil.Pointer("mz"),
 				},
 			},
 		},
@@ -243,7 +210,7 @@ func Test_dnsHelper_createDNSRecordForListener(t *testing.T) {
 			f := fake.NewClientBuilder().WithScheme(testScheme(t)).WithLists(testCase.recordList).Build()
 			s := dnsHelper{Client: f}
 
-			gotRecord, err := s.createDNSRecordForListener(context.TODO(), testCase.args.gateway, testCase.args.dnsPolicy, testCase.args.managedZone, testCase.args.listener)
+			gotRecord, err := s.createDNSRecordForListener(context.TODO(), testCase.args.gateway, testCase.args.dnsPolicy, testCase.args.listener, testCase.args.zone)
 			if (err != nil) != testCase.wantErr {
 				t.Errorf("CreateDNSRecord() error = %v, wantErr %v", err, testCase.wantErr)
 				return
@@ -255,24 +222,21 @@ func Test_dnsHelper_createDNSRecordForListener(t *testing.T) {
 	}
 }
 
-func Test_dnsHelper_findMatchingManagedZone(t *testing.T) {
+func Test_dnsHelper_findMatchingZone(t *testing.T) {
 	testCases := []struct {
 		name   string
 		Host   string
-		Zones  []v1alpha1.ManagedZone
-		Assert func(t *testing.T, zone *v1alpha1.ManagedZone, subdomain string, err error)
+		Zones  dns.ZoneList
+		Assert func(t *testing.T, zone *dns.Zone, subdomain string, err error)
 	}{
 		{
 			name: "finds the matching managed zone",
 			Host: "sub.domain.test.example.com",
-			Zones: []v1alpha1.ManagedZone{
-				{
-					ObjectMeta: v1.ObjectMeta{
-						Name:      "example.com",
-						Namespace: "test",
-					},
-					Spec: v1alpha1.ManagedZoneSpec{
-						DomainName: "example.com",
+			Zones: dns.ZoneList{
+				Items: []*dns.Zone{
+					{
+						ID:      testutil.Pointer("example.com"),
+						DNSName: testutil.Pointer("example.com"),
 					},
 				},
 			},
@@ -281,23 +245,15 @@ func Test_dnsHelper_findMatchingManagedZone(t *testing.T) {
 		{
 			name: "finds the most exactly matching managed zone",
 			Host: "sub.domain.test.example.com",
-			Zones: []v1alpha1.ManagedZone{
-				{
-					ObjectMeta: v1.ObjectMeta{
-						Name:      "example.com",
-						Namespace: "test",
+			Zones: dns.ZoneList{
+				Items: []*dns.Zone{
+					{
+						ID:      testutil.Pointer("example.com"),
+						DNSName: testutil.Pointer("example.com"),
 					},
-					Spec: v1alpha1.ManagedZoneSpec{
-						DomainName: "example.com",
-					},
-				},
-				{
-					ObjectMeta: v1.ObjectMeta{
-						Name:      "test.example.com",
-						Namespace: "test",
-					},
-					Spec: v1alpha1.ManagedZoneSpec{
-						DomainName: "test.example.com",
+					{
+						ID:      testutil.Pointer("test.example.com"),
+						DNSName: testutil.Pointer("test.example.com"),
 					},
 				},
 			},
@@ -306,14 +262,11 @@ func Test_dnsHelper_findMatchingManagedZone(t *testing.T) {
 		{
 			name: "returns a single subdomain",
 			Host: "sub.test.example.com",
-			Zones: []v1alpha1.ManagedZone{
-				{
-					ObjectMeta: v1.ObjectMeta{
-						Name:      "test.example.com",
-						Namespace: "test",
-					},
-					Spec: v1alpha1.ManagedZoneSpec{
-						DomainName: "test.example.com",
+			Zones: dns.ZoneList{
+				Items: []*dns.Zone{
+					{
+						ID:      testutil.Pointer("test.example.com"),
+						DNSName: testutil.Pointer("test.example.com"),
 					},
 				},
 			},
@@ -322,14 +275,11 @@ func Test_dnsHelper_findMatchingManagedZone(t *testing.T) {
 		{
 			name: "returns an error when nothing matches",
 			Host: "sub.test.example.com",
-			Zones: []v1alpha1.ManagedZone{
-				{
-					ObjectMeta: v1.ObjectMeta{
-						Name:      "testing.example.com",
-						Namespace: "test",
-					},
-					Spec: v1alpha1.ManagedZoneSpec{
-						DomainName: "testing.example.com",
+			Zones: dns.ZoneList{
+				Items: []*dns.Zone{
+					{
+						ID:      testutil.Pointer("testing.example.com"),
+						DNSName: testutil.Pointer("testing.example.com"),
 					},
 				},
 			},
@@ -338,14 +288,11 @@ func Test_dnsHelper_findMatchingManagedZone(t *testing.T) {
 		{
 			name: "handles TLD with a dot",
 			Host: "sub.domain.test.example.co.uk",
-			Zones: []v1alpha1.ManagedZone{
-				{
-					ObjectMeta: v1.ObjectMeta{
-						Name:      "example.co.uk",
-						Namespace: "test",
-					},
-					Spec: v1alpha1.ManagedZoneSpec{
-						DomainName: "example.co.uk",
+			Zones: dns.ZoneList{
+				Items: []*dns.Zone{
+					{
+						ID:      testutil.Pointer("example.co.uk"),
+						DNSName: testutil.Pointer("example.co.uk"),
 					},
 				},
 			},
@@ -354,24 +301,23 @@ func Test_dnsHelper_findMatchingManagedZone(t *testing.T) {
 		{
 			name: "TLD with a . will not match against a managedzone of the TLD",
 			Host: "sub.domain.test.example.co.uk",
-			Zones: []v1alpha1.ManagedZone{
-				{
-					ObjectMeta: v1.ObjectMeta{
-						Name:      "co.uk",
-						Namespace: "test",
-					},
-					Spec: v1alpha1.ManagedZoneSpec{
-						DomainName: "co.uk",
+			Zones: dns.ZoneList{
+				Items: []*dns.Zone{
+					{
+						ID:      testutil.Pointer("co.uk"),
+						DNSName: testutil.Pointer("co.uk"),
 					},
 				},
 			},
 			Assert: assertSub("", "", "no valid zone found"),
 		},
 		{
-			name:  "no managed zones for host give error",
-			Host:  "sub.domain.test.example.co.uk",
-			Zones: []v1alpha1.ManagedZone{},
-			Assert: func(t *testing.T, zone *v1alpha1.ManagedZone, subdomain string, err error) {
+			name: "no managed zones for host give error",
+			Host: "sub.domain.test.example.co.uk",
+			Zones: dns.ZoneList{
+				Items: []*dns.Zone{},
+			},
+			Assert: func(t *testing.T, zone *dns.Zone, subdomain string, err error) {
 				if err == nil {
 					t.Fatalf("expected error, got %v", err)
 				}
@@ -380,14 +326,11 @@ func Test_dnsHelper_findMatchingManagedZone(t *testing.T) {
 		{
 			name: "should not match when host and zone domain name are identical",
 			Host: "test.example.com",
-			Zones: []v1alpha1.ManagedZone{
-				{
-					ObjectMeta: v1.ObjectMeta{
-						Name:      "test.example.com",
-						Namespace: "test",
-					},
-					Spec: v1alpha1.ManagedZoneSpec{
-						DomainName: "test.example.com",
+			Zones: dns.ZoneList{
+				Items: []*dns.Zone{
+					{
+						ID:      testutil.Pointer("test.example.com"),
+						DNSName: testutil.Pointer("test.example.com"),
 					},
 				},
 			},
@@ -397,7 +340,7 @@ func Test_dnsHelper_findMatchingManagedZone(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			mx, subDomain, err := findMatchingManagedZone(testCase.Host, testCase.Host, testCase.Zones)
+			mx, subDomain, err := findMatchingZone(testCase.Host, testCase.Host, testCase.Zones)
 			testCase.Assert(t, mx, subDomain, err)
 		})
 	}
@@ -409,8 +352,8 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 		name      string
 		mcgTarget *dns.MultiClusterGatewayTarget
 		listener  gatewayapiv1.Listener
-		dnsRecord *v1alpha1.DNSRecord
-		wantSpec  *v1alpha1.DNSRecordSpec
+		dnsRecord *v1alpha2.DNSRecord
+		wantSpec  *v1alpha2.DNSRecordSpec
 		wantErr   bool
 	}{
 		{
@@ -464,13 +407,13 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 					},
 				},
 			},
-			dnsRecord: &v1alpha1.DNSRecord{
+			dnsRecord: &v1alpha2.DNSRecord{
 				ObjectMeta: v1.ObjectMeta{
 					Name: "test.example.com",
 				},
 			},
-			wantSpec: &v1alpha1.DNSRecordSpec{
-				Endpoints: []*v1alpha1.Endpoint{
+			wantSpec: &v1alpha2.DNSRecordSpec{
+				Endpoints: []*v1alpha2.Endpoint{
 					{
 						DNSName:    "20qri0.lb-ocnswx.example.com",
 						Targets:    []string{"1.1.1.1", "2.2.2.2"},
@@ -483,7 +426,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						RecordType:    "CNAME",
 						SetIdentifier: "20qri0.lb-ocnswx.example.com",
 						RecordTTL:     dns.DefaultTTL,
-						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
+						ProviderSpecific: []v1alpha2.ProviderSpecificProperty{
 							{
 								Name:  "weight",
 								Value: "120",
@@ -496,7 +439,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						RecordType:    "CNAME",
 						SetIdentifier: "mylb.example.com",
 						RecordTTL:     dns.DefaultTTL,
-						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
+						ProviderSpecific: []v1alpha2.ProviderSpecificProperty{
 							{
 								Name:  "weight",
 								Value: "120",
@@ -509,7 +452,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						RecordType:    "CNAME",
 						SetIdentifier: "default",
 						RecordTTL:     dns.DefaultCnameTTL,
-						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
+						ProviderSpecific: []v1alpha2.ProviderSpecificProperty{
 							{
 								Name:  "geo-code",
 								Value: "*",
@@ -575,19 +518,19 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						Weight: testutil.Pointer(120),
 					},
 				},
-				LoadBalancing: &v1alpha1.LoadBalancingSpec{
-					Geo: &v1alpha1.LoadBalancingGeo{
+				LoadBalancing: &v1alpha2.LoadBalancingSpec{
+					Geo: &v1alpha2.LoadBalancingGeo{
 						DefaultGeo: "NA",
 					},
 				},
 			},
-			dnsRecord: &v1alpha1.DNSRecord{
+			dnsRecord: &v1alpha2.DNSRecord{
 				ObjectMeta: v1.ObjectMeta{
 					Name: "gw-test",
 				},
 			},
-			wantSpec: &v1alpha1.DNSRecordSpec{
-				Endpoints: []*v1alpha1.Endpoint{
+			wantSpec: &v1alpha2.DNSRecordSpec{
+				Endpoints: []*v1alpha2.Endpoint{
 					{
 						DNSName:    "20qri0.lb-ocnswx.example.com",
 						Targets:    []string{"1.1.1.1", "2.2.2.2"},
@@ -600,7 +543,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						RecordType:    "CNAME",
 						SetIdentifier: "20qri0.lb-ocnswx.example.com",
 						RecordTTL:     dns.DefaultTTL,
-						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
+						ProviderSpecific: []v1alpha2.ProviderSpecificProperty{
 							{
 								Name:  "weight",
 								Value: "120",
@@ -613,7 +556,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						RecordType:    "CNAME",
 						SetIdentifier: "mylb.example.com",
 						RecordTTL:     dns.DefaultTTL,
-						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
+						ProviderSpecific: []v1alpha2.ProviderSpecificProperty{
 							{
 								Name:  "weight",
 								Value: "120",
@@ -626,7 +569,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						RecordType:    "CNAME",
 						SetIdentifier: "default",
 						RecordTTL:     dns.DefaultCnameTTL,
-						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
+						ProviderSpecific: []v1alpha2.ProviderSpecificProperty{
 							{
 								Name:  "geo-code",
 								Value: "*",
@@ -639,7 +582,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						RecordType:    "CNAME",
 						SetIdentifier: "NA",
 						RecordTTL:     dns.DefaultCnameTTL,
-						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
+						ProviderSpecific: []v1alpha2.ProviderSpecificProperty{
 							{
 								Name:  "geo-code",
 								Value: "NA",
@@ -652,7 +595,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						RecordType:    "CNAME",
 						SetIdentifier: "IE",
 						RecordTTL:     dns.DefaultCnameTTL,
-						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
+						ProviderSpecific: []v1alpha2.ProviderSpecificProperty{
 							{
 								Name:  "geo-code",
 								Value: "IE",
@@ -723,13 +666,13 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 					},
 				},
 			},
-			dnsRecord: &v1alpha1.DNSRecord{
+			dnsRecord: &v1alpha2.DNSRecord{
 				ObjectMeta: v1.ObjectMeta{
 					Name: "test.example.com",
 				},
 			},
-			wantSpec: &v1alpha1.DNSRecordSpec{
-				Endpoints: []*v1alpha1.Endpoint{
+			wantSpec: &v1alpha2.DNSRecordSpec{
+				Endpoints: []*v1alpha2.Endpoint{
 					{
 						DNSName:    "20qri0.lb-0ecjaw.test.example.com",
 						Targets:    []string{"1.1.1.1", "2.2.2.2"},
@@ -742,7 +685,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						RecordType:    "CNAME",
 						SetIdentifier: "20qri0.lb-0ecjaw.test.example.com",
 						RecordTTL:     dns.DefaultTTL,
-						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
+						ProviderSpecific: []v1alpha2.ProviderSpecificProperty{
 							{
 								Name:  "weight",
 								Value: "120",
@@ -755,7 +698,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						RecordType:    "CNAME",
 						SetIdentifier: "mylb.example.com",
 						RecordTTL:     dns.DefaultTTL,
-						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
+						ProviderSpecific: []v1alpha2.ProviderSpecificProperty{
 							{
 								Name:  "weight",
 								Value: "120",
@@ -768,7 +711,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						RecordType:    "CNAME",
 						SetIdentifier: "default",
 						RecordTTL:     dns.DefaultCnameTTL,
-						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
+						ProviderSpecific: []v1alpha2.ProviderSpecificProperty{
 							{
 								Name:  "geo-code",
 								Value: "*",
@@ -835,19 +778,19 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						Weight: testutil.Pointer(120),
 					},
 				},
-				LoadBalancing: &v1alpha1.LoadBalancingSpec{
-					Geo: &v1alpha1.LoadBalancingGeo{
+				LoadBalancing: &v1alpha2.LoadBalancingSpec{
+					Geo: &v1alpha2.LoadBalancingGeo{
 						DefaultGeo: "NA",
 					},
 				},
 			},
-			dnsRecord: &v1alpha1.DNSRecord{
+			dnsRecord: &v1alpha2.DNSRecord{
 				ObjectMeta: v1.ObjectMeta{
 					Name: "test.example.com",
 				},
 			},
-			wantSpec: &v1alpha1.DNSRecordSpec{
-				Endpoints: []*v1alpha1.Endpoint{
+			wantSpec: &v1alpha2.DNSRecordSpec{
+				Endpoints: []*v1alpha2.Endpoint{
 					{
 						DNSName:    "20qri0.lb-ocnswx.test.example.com",
 						Targets:    []string{"1.1.1.1", "2.2.2.2"},
@@ -860,7 +803,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						RecordType:    "CNAME",
 						SetIdentifier: "20qri0.lb-ocnswx.test.example.com",
 						RecordTTL:     dns.DefaultTTL,
-						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
+						ProviderSpecific: []v1alpha2.ProviderSpecificProperty{
 							{
 								Name:  "weight",
 								Value: "120",
@@ -873,7 +816,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						RecordType:    "CNAME",
 						SetIdentifier: "mylb.example.com",
 						RecordTTL:     dns.DefaultTTL,
-						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
+						ProviderSpecific: []v1alpha2.ProviderSpecificProperty{
 							{
 								Name:  "weight",
 								Value: "120",
@@ -886,7 +829,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						RecordType:    "CNAME",
 						SetIdentifier: "default",
 						RecordTTL:     dns.DefaultCnameTTL,
-						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
+						ProviderSpecific: []v1alpha2.ProviderSpecificProperty{
 							{
 								Name:  "geo-code",
 								Value: "*",
@@ -899,7 +842,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						RecordType:    "CNAME",
 						SetIdentifier: "NA",
 						RecordTTL:     dns.DefaultCnameTTL,
-						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
+						ProviderSpecific: []v1alpha2.ProviderSpecificProperty{
 							{
 								Name:  "geo-code",
 								Value: "NA",
@@ -912,7 +855,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						RecordType:    "CNAME",
 						SetIdentifier: "IE",
 						RecordTTL:     dns.DefaultCnameTTL,
-						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
+						ProviderSpecific: []v1alpha2.ProviderSpecificProperty{
 							{
 								Name:  "geo-code",
 								Value: "IE",
@@ -965,19 +908,19 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						Weight: testutil.Pointer(120),
 					},
 				},
-				LoadBalancing: &v1alpha1.LoadBalancingSpec{
-					Geo: &v1alpha1.LoadBalancingGeo{
+				LoadBalancing: &v1alpha2.LoadBalancingSpec{
+					Geo: &v1alpha2.LoadBalancingGeo{
 						DefaultGeo: "NA",
 					},
 				},
 			},
-			dnsRecord: &v1alpha1.DNSRecord{
+			dnsRecord: &v1alpha2.DNSRecord{
 				ObjectMeta: v1.ObjectMeta{
 					Name: "test.example.com",
 				},
 			},
-			wantSpec: &v1alpha1.DNSRecordSpec{
-				Endpoints: []*v1alpha1.Endpoint{},
+			wantSpec: &v1alpha2.DNSRecordSpec{
+				Endpoints: []*v1alpha2.Endpoint{},
 			},
 		},
 	}
@@ -985,11 +928,11 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			f := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(testCase.dnsRecord).Build()
 			s := dnsHelper{Client: f}
-			if err := s.setEndpoints(context.TODO(), testCase.mcgTarget, testCase.dnsRecord, testCase.listener, v1alpha1.LoadBalancedRoutingStrategy); (err != nil) != testCase.wantErr {
+			if err := s.setEndpoints(context.TODO(), testCase.mcgTarget, testCase.dnsRecord, testCase.listener, v1alpha2.LoadBalancedRoutingStrategy); (err != nil) != testCase.wantErr {
 				t.Errorf("SetEndpoints() error = %v, wantErr %v", err, testCase.wantErr)
 			}
 
-			gotRecord := &v1alpha1.DNSRecord{}
+			gotRecord := &v1alpha2.DNSRecord{}
 			if err := f.Get(context.TODO(), client.ObjectKeyFromObject(testCase.dnsRecord), gotRecord); err != nil {
 				t.Errorf("error gettinging updated DNSrecord")
 			} else {
@@ -1020,14 +963,14 @@ func Test_dnsHelper_getDNSRecordForListener(t *testing.T) {
 		name      string
 		Listener  gatewayapiv1.Listener
 		Assert    func(t *testing.T, err error)
-		DNSRecord *v1alpha1.DNSRecord
+		DNSRecord *v1alpha2.DNSRecord
 		Gateway   *gatewayapiv1.Gateway
-		DNSPolicy *v1alpha1.DNSPolicy
+		DNSPolicy *v1alpha2.DNSPolicy
 	}{
 		{
 			name:     "test get dns record returns record",
 			Listener: getTestListener("a.b.c.com"),
-			DNSRecord: &v1alpha1.DNSRecord{
+			DNSRecord: &v1alpha2.DNSRecord{
 				ObjectMeta: v1.ObjectMeta{
 					Name:      "gw-test",
 					Namespace: "test",
@@ -1051,7 +994,7 @@ func Test_dnsHelper_getDNSRecordForListener(t *testing.T) {
 		},
 		{
 			name: "test get dns error when not found",
-			DNSRecord: &v1alpha1.DNSRecord{
+			DNSRecord: &v1alpha2.DNSRecord{
 				ObjectMeta: v1.ObjectMeta{
 					Name:      "gw-test",
 					Namespace: "test",
@@ -1062,7 +1005,7 @@ func Test_dnsHelper_getDNSRecordForListener(t *testing.T) {
 		},
 		{
 			name: "test get dns error when referencing different Gateway",
-			DNSRecord: &v1alpha1.DNSRecord{
+			DNSRecord: &v1alpha2.DNSRecord{
 				ObjectMeta: v1.ObjectMeta{
 					Name:      "gw-test",
 					Namespace: "test",
@@ -1086,7 +1029,7 @@ func Test_dnsHelper_getDNSRecordForListener(t *testing.T) {
 		{
 			name:     "test get dns error when not owned by Gateway",
 			Listener: getTestListener("other.com"),
-			DNSRecord: &v1alpha1.DNSRecord{
+			DNSRecord: &v1alpha2.DNSRecord{
 				ObjectMeta: v1.ObjectMeta{
 					Name:      "other.com",
 					Namespace: "test",
@@ -1104,7 +1047,7 @@ func Test_dnsHelper_getDNSRecordForListener(t *testing.T) {
 					Namespace: "test",
 				},
 			},
-			DNSPolicy: &v1alpha1.DNSPolicy{
+			DNSPolicy: &v1alpha2.DNSPolicy{
 				ObjectMeta: v1.ObjectMeta{
 					Name:      "tstpolicy",
 					Namespace: "test",
@@ -1125,8 +1068,8 @@ func Test_dnsHelper_getDNSRecordForListener(t *testing.T) {
 
 }
 
-func assertSub(domain string, subdomain string, err string) func(t *testing.T, expectedzone *v1alpha1.ManagedZone, expectedsubdomain string, expectedErr error) {
-	return func(t *testing.T, expectedzone *v1alpha1.ManagedZone, expectedsubdomain string, expectedErr error) {
+func assertSub(domain string, subdomain string, err string) func(t *testing.T, expectedzone *dns.Zone, expectedsubdomain string, expectedErr error) {
+	return func(t *testing.T, expectedzone *dns.Zone, expectedsubdomain string, expectedErr error) {
 		if (err == "") != (expectedErr == nil) {
 			t.Errorf("expected error '%s' but got '%s'", err, expectedErr)
 		}
@@ -1136,7 +1079,7 @@ func assertSub(domain string, subdomain string, err string) func(t *testing.T, e
 		if subdomain != expectedsubdomain {
 			t.Fatalf("expected subdomain '%v', got '%v'", subdomain, expectedsubdomain)
 		}
-		if expectedzone != nil && domain != expectedzone.Spec.DomainName {
+		if expectedzone != nil && domain != *expectedzone.DNSName {
 			t.Fatalf("expected zone with domain name '%v', got '%v'", domain, expectedzone)
 		}
 		if expectedzone == nil && domain != "" {

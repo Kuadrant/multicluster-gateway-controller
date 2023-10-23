@@ -20,7 +20,7 @@ spec:
       jsonPath: .status.conditions[?(@.type=="Ready")].status
       name: Ready
       type: string
-    name: v1alpha1
+    name: v1alpha2
     schema:
       openAPIV3Schema:
         description: DNSRecord is the Schema for the dnsrecords API
@@ -86,15 +86,24 @@ spec:
                   type: object
                 minItems: 1
                 type: array
-              managedZone:
-                description: ManagedZoneReference holds a reference to a ManagedZone
+              providerRef:
                 properties:
+                  kind:
+                    enum:
+                    - None
+                    - Secret
+                    - ManagedZone
+                    type: string
                   name:
-                    description: '`name` is the name of the managed zone. Required'
                     type: string
                 required:
+                - kind
                 - name
                 type: object
+              zoneID:
+                type: string
+            required:
+            - providerRef
             type: object
           status:
             description: DNSRecordStatus defines the observed state of DNSRecord

@@ -1,0 +1,15 @@
+apiVersion: kuadrant.io/v1alpha2
+kind: DNSRecord
+metadata:
+  name: dnsrecord-sample
+spec:
+  providerRef:
+    name: managedzone-sample
+    kind: ManagedZone
+  endpoints:
+    - dnsName: dnsrecord-simple.mn.hcpapps.net
+      recordTTL: 60
+      recordType: A
+      targets:
+        - 52.215.108.61
+        - 52.30.101.221

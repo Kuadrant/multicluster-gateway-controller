@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1alpha1
+package v1alpha2
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,22 +31,19 @@ type ManagedZoneReference struct {
 type ManagedZoneSpec struct {
 	// ID is the provider assigned id of this  zone (i.e. route53.HostedZone.ID).
 	// +optional
-	ID string `json:"id,omitempty"`
+	ID *string `json:"id,omitempty"`
 	//Domain name of this ManagedZone
+	// +required
 	// +kubebuilder:validation:Pattern=`^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$`
 	DomainName string `json:"domainName"`
 	//Description for this ManagedZone
-	Description string `json:"description"`
+	// +optional
+	Description *string `json:"description"`
 	// Reference to another managed zone that this managed zone belongs to.
 	// +optional
 	ParentManagedZone *ManagedZoneReference `json:"parentManagedZone,omitempty"`
 	// +required
-	SecretRef *SecretRef `json:"dnsProviderSecretRef"`
-}
-
-type SecretRef struct {
-	//+required
-	Name string `json:"name"`
+	ProviderRef ProviderRef `json:"providerRef"`
 }
 
 // ManagedZoneStatus defines the observed state of a Zone
@@ -89,6 +86,10 @@ type ManagedZone struct {
 	Status ManagedZoneStatus `json:"status,omitempty"`
 }
 
+func (p *ManagedZone) GetProviderRef() ProviderRef {
+	return p.Spec.ProviderRef
+}
+
 //+kubebuilder:object:root=true
 
 // ManagedZoneList contains a list of ManagedZone
@@ -96,13 +97,6 @@ type ManagedZoneList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []ManagedZone `json:"items"`
-}
-
-type ManagedHost struct {
-	Subdomain   string
-	Host        string
-	ManagedZone *ManagedZone
-	DnsRecord   *DNSRecord
 }
 
 func init() {

@@ -38,8 +38,8 @@ import (
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha2"
 	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/placement"
 	//+kubebuilder:scaffold:imports
 )
@@ -48,15 +48,12 @@ import (
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
 
 var (
-	cfg             *rest.Config
-	k8sClient       client.Client
-	testEnv         *envtest.Environment
-	ctx             context.Context
-	cancel          context.CancelFunc
-	logger          logr.Logger
-	providerFactory = func(ctx context.Context, managedZone *v1alpha1.ManagedZone) (dns.Provider, error) {
-		return &dns.FakeProvider{}, nil
-	}
+	cfg       *rest.Config
+	k8sClient client.Client
+	testEnv   *envtest.Environment
+	ctx       context.Context
+	cancel    context.CancelFunc
+	logger    logr.Logger
 )
 
 func testClient() client.Client { return k8sClient }
@@ -98,6 +95,9 @@ var _ = BeforeSuite(func() {
 	Expect(cfg).NotTo(BeNil())
 
 	err = v1alpha1.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = v1alpha2.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	err = gatewayapiv1.AddToScheme(scheme.Scheme)

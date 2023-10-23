@@ -23,26 +23,27 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha2"
 	testutil "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 	//+kubebuilder:scaffold:imports
 )
 
 var _ = Describe("ManagedZoneReconciler", func() {
 	Context("testing ManagedZone controller", func() {
-		var managedZone *v1alpha1.ManagedZone
+		var managedZone *v1alpha2.ManagedZone
 
 		BeforeEach(func() {
-			managedZone = &v1alpha1.ManagedZone{
+			managedZone = &v1alpha2.ManagedZone{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      testutil.Domain,
 					Namespace: defaultNS,
 				},
-				Spec: v1alpha1.ManagedZoneSpec{
-					ID:         testutil.Domain,
+				Spec: v1alpha2.ManagedZoneSpec{
+					ID:         testutil.Pointer(testutil.Domain),
 					DomainName: testutil.Domain,
-					SecretRef: &v1alpha1.SecretRef{
+					ProviderRef: v1alpha2.ProviderRef{
 						Name: providerCredential,
+						Kind: v1alpha2.ProviderKindSecret,
 					},
 				},
 			}
@@ -50,7 +51,7 @@ var _ = Describe("ManagedZoneReconciler", func() {
 
 		AfterEach(func() {
 			// Clean up managedZones
-			mzList := &v1alpha1.ManagedZoneList{}
+			mzList := &v1alpha2.ManagedZoneList{}
 			err := k8sClient.List(ctx, mzList, client.InNamespace(defaultNS))
 			Expect(err).NotTo(HaveOccurred())
 			for _, mz := range mzList.Items {
@@ -62,7 +63,7 @@ var _ = Describe("ManagedZoneReconciler", func() {
 		It("should accept a managed zone for this controller and allow deletion", func() {
 			Expect(k8sClient.Create(ctx, managedZone)).To(BeNil())
 
-			createdMZ := &v1alpha1.ManagedZone{}
+			createdMZ := &v1alpha2.ManagedZone{}
 
 			Eventually(func() error {
 				return k8sClient.Get(ctx, client.ObjectKey{Namespace: managedZone.Namespace, Name: managedZone.Name}, createdMZ)
@@ -80,13 +81,13 @@ var _ = Describe("ManagedZoneReconciler", func() {
 		})
 
 		It("should reject a managed zone with an invalid domain name", func() {
-			invalidDomainNameManagedZone := &v1alpha1.ManagedZone{
+			invalidDomainNameManagedZone := &v1alpha2.ManagedZone{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "invalid_domain",
 					Namespace: defaultNS,
 				},
-				Spec: v1alpha1.ManagedZoneSpec{
-					ID:         "invalid_domain",
+				Spec: v1alpha2.ManagedZoneSpec{
+					ID:         testutil.Pointer("invalid_domain"),
 					DomainName: "invalid_domain",
 				},
 			}

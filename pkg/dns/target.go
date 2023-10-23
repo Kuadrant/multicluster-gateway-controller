@@ -12,11 +12,12 @@ import (
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha2"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/utils"
 )
 
 const (
-	DefaultWeight                   = int(v1alpha1.DefaultWeight)
+	DefaultWeight                   = int(v1alpha2.DefaultWeight)
 	DefaultGeo              GeoCode = "default"
 	WildcardGeo             GeoCode = "*"
 	LabelLBAttributeGeoCode         = "kuadrant.io/lb-attribute-geo-code"
@@ -26,10 +27,10 @@ const (
 type MultiClusterGatewayTarget struct {
 	Gateway               *gatewayapiv1.Gateway
 	ClusterGatewayTargets []ClusterGatewayTarget
-	LoadBalancing         *v1alpha1.LoadBalancingSpec
+	LoadBalancing         *v1alpha2.LoadBalancingSpec
 }
 
-func NewMultiClusterGatewayTarget(gateway *gatewayapiv1.Gateway, clusterGateways []utils.ClusterGateway, loadBalancing *v1alpha1.LoadBalancingSpec) (*MultiClusterGatewayTarget, error) {
+func NewMultiClusterGatewayTarget(gateway *gatewayapiv1.Gateway, clusterGateways []utils.ClusterGateway, loadBalancing *v1alpha2.LoadBalancingSpec) (*MultiClusterGatewayTarget, error) {
 	mcg := &MultiClusterGatewayTarget{Gateway: gateway, LoadBalancing: loadBalancing}
 	err := mcg.setClusterGatewayTargets(clusterGateways)
 	return mcg, err
@@ -69,7 +70,7 @@ func (t *MultiClusterGatewayTarget) GetDefaultWeight() int {
 func (t *MultiClusterGatewayTarget) setClusterGatewayTargets(clusterGateways []utils.ClusterGateway) error {
 	var cgTargets []ClusterGatewayTarget
 	for _, cg := range clusterGateways {
-		var customWeights []*v1alpha1.CustomWeight
+		var customWeights []*v1alpha2.CustomWeight
 		if t.LoadBalancing != nil && t.LoadBalancing.Weighted != nil {
 			customWeights = t.LoadBalancing.Weighted.Custom
 		}
@@ -100,7 +101,7 @@ type ClusterGatewayTarget struct {
 	Weight *int
 }
 
-func NewClusterGatewayTarget(cg utils.ClusterGateway, defaultGeoCode GeoCode, defaultWeight int, customWeights []*v1alpha1.CustomWeight) (ClusterGatewayTarget, error) {
+func NewClusterGatewayTarget(cg utils.ClusterGateway, defaultGeoCode GeoCode, defaultWeight int, customWeights []*v1alpha2.CustomWeight) (ClusterGatewayTarget, error) {
 	target := ClusterGatewayTarget{
 		ClusterGateway: &cg,
 	}
@@ -197,7 +198,7 @@ func dnsHealthCheckProbeName(address, gatewayName, listenerName string) string {
 	return fmt.Sprintf("%s-%s-%s", address, gatewayName, listenerName)
 }
 
-func (t *ClusterGatewayTarget) setWeight(defaultWeight int, customWeights []*v1alpha1.CustomWeight) error {
+func (t *ClusterGatewayTarget) setWeight(defaultWeight int, customWeights []*v1alpha2.CustomWeight) error {
 	weight := defaultWeight
 	for k := range customWeights {
 		cw := customWeights[k]

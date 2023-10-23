@@ -42,6 +42,7 @@ import (
 	"github.com/kuadrant/kuadrant-operator/pkg/reconcilers"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha2"
 	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnshealthcheckprobe"
 	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnspolicy"
 	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/managedzone"
@@ -61,7 +62,7 @@ var (
 	ctx             context.Context
 	cancel          context.CancelFunc
 	logger          logr.Logger
-	providerFactory = func(ctx context.Context, managedZone *v1alpha1.ManagedZone) (dns.Provider, error) {
+	providerFactory = func(ctx context.Context, providerAccessor v1alpha2.ProviderAccessor) (dns.Provider, error) {
 		return &dns.FakeProvider{}, nil
 	}
 )
@@ -106,6 +107,9 @@ var _ = BeforeSuite(func() {
 	Expect(cfg).NotTo(BeNil())
 
 	err = v1alpha1.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = v1alpha2.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	err = gatewayapiv1.AddToScheme(scheme.Scheme)

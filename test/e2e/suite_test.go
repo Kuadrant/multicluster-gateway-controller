@@ -24,6 +24,14 @@ var (
 	testSuiteID string
 )
 
+const (
+	TestTimeoutMedium = time.Second * 10
+	TestTimeoutLong   = time.Second * 30
+
+	DNSPoliciesBackRefAnnotation = "kuadrant.io/dnspolicies"
+	DNSPolicyBackRefAnnotation   = "kuadrant.io/dnspolicy"
+)
+
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "E2E Tests Suite")

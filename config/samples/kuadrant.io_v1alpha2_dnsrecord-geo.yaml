@@ -1,16 +1,11 @@
-apiVersion: kuadrant.io/v1alpha1
+apiVersion: kuadrant.io/v1alpha2
 kind: DNSRecord
 metadata:
-  labels:
-    app.kubernetes.io/name: dnsrecord-geo
-    app.kubernetes.io/instance: dnsrecord-sample
-    app.kubernetes.io/part-of: multicluster-gateway-controller
-    app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/created-by: multicluster-gateway-controller
   name: dnsrecord-geo
 spec:
-  managedZone:
-    name: mgc-dev-mz
+  providerRef:
+    name: managedzone-sample
+    kind: ManagedZone
   endpoints:
     - dnsName: dnsrecord-geo.mn.hcpapps.net
       recordTTL: 60

@@ -31,7 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha2"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 )
 
@@ -52,7 +52,7 @@ type ManagedZoneReconciler struct {
 
 func (r *ManagedZoneReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
-	previous := &v1alpha1.ManagedZone{}
+	previous := &v1alpha2.ManagedZone{}
 	err := r.Client.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: req.Name}, previous)
 	if err != nil {
 		if err := client.IgnoreNotFound(err); err == nil {
@@ -155,13 +155,13 @@ func (r *ManagedZoneReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 // SetupWithManager sets up the controller with the Manager.
 func (r *ManagedZoneReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.ManagedZone{}).
-		Owns(&v1alpha1.DNSRecord{}).
-		Owns(&v1alpha1.ManagedZone{}).
+		For(&v1alpha2.ManagedZone{}).
+		Owns(&v1alpha2.DNSRecord{}).
+		Owns(&v1alpha2.ManagedZone{}).
 		Complete(r)
 }
 
-func (r *ManagedZoneReconciler) publishManagedZone(ctx context.Context, managedZone *v1alpha1.ManagedZone) error {
+func (r *ManagedZoneReconciler) publishManagedZone(ctx context.Context, managedZone *v1alpha2.ManagedZone) error {
 
 	dnsProvider, err := r.DNSProvider(ctx, managedZone)
 	if err != nil {
@@ -179,8 +179,8 @@ func (r *ManagedZoneReconciler) publishManagedZone(ctx context.Context, managedZ
 	return nil
 }
 
-func (r *ManagedZoneReconciler) deleteManagedZone(ctx context.Context, managedZone *v1alpha1.ManagedZone) error {
-	if managedZone.Spec.ID != "" {
+func (r *ManagedZoneReconciler) deleteManagedZone(ctx context.Context, managedZone *v1alpha2.ManagedZone) error {
+	if managedZone.Spec.ID != nil {
 		log.Log.Info("Skipping deletion of managed zone with provider ID specified in spec", "managedZone", managedZone.Name)
 		return nil
 	}
@@ -208,11 +208,11 @@ func (r *ManagedZoneReconciler) deleteManagedZone(ctx context.Context, managedZo
 	return nil
 }
 
-func (r *ManagedZoneReconciler) getParentZone(ctx context.Context, managedZone *v1alpha1.ManagedZone) (*v1alpha1.ManagedZone, error) {
+func (r *ManagedZoneReconciler) getParentZone(ctx context.Context, managedZone *v1alpha2.ManagedZone) (*v1alpha2.ManagedZone, error) {
 	if managedZone.Spec.ParentManagedZone == nil {
 		return nil, nil
 	}
-	parentZone := &v1alpha1.ManagedZone{}
+	parentZone := &v1alpha2.ManagedZone{}
 	err := r.Client.Get(ctx, client.ObjectKey{Namespace: managedZone.Namespace, Name: managedZone.Spec.ParentManagedZone.Name}, parentZone)
 	if err != nil {
 		return parentZone, err
@@ -220,7 +220,7 @@ func (r *ManagedZoneReconciler) getParentZone(ctx context.Context, managedZone *
 	return parentZone, nil
 }
 
-func (r *ManagedZoneReconciler) setParentZoneOwner(ctx context.Context, managedZone *v1alpha1.ManagedZone) error {
+func (r *ManagedZoneReconciler) setParentZoneOwner(ctx context.Context, managedZone *v1alpha2.ManagedZone) error {
 	parentZone, err := r.getParentZone(ctx, managedZone)
 	if err != nil {
 		return err
@@ -237,7 +237,7 @@ func (r *ManagedZoneReconciler) setParentZoneOwner(ctx context.Context, managedZ
 	return err
 }
 
-func (r *ManagedZoneReconciler) createParentZoneNSRecord(ctx context.Context, managedZone *v1alpha1.ManagedZone) error {
+func (r *ManagedZoneReconciler) createParentZoneNSRecord(ctx context.Context, managedZone *v1alpha2.ManagedZone) error {
 	parentZone, err := r.getParentZone(ctx, managedZone)
 	if err != nil {
 		return err
@@ -252,19 +252,17 @@ func (r *ManagedZoneReconciler) createParentZoneNSRecord(ctx context.Context, ma
 	for index := range managedZone.Status.NameServers {
 		recordTargets[index] = *managedZone.Status.NameServers[index]
 	}
-	recordType := string(v1alpha1.NSRecordType)
+	recordType := string(v1alpha2.NSRecordType)
 
-	nsRecord := &v1alpha1.DNSRecord{
+	nsRecord := &v1alpha2.DNSRecord{
 		TypeMeta: metav1.TypeMeta{},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      recordName,
 			Namespace: parentZone.Namespace,
 		},
-		Spec: v1alpha1.DNSRecordSpec{
-			ManagedZoneRef: &v1alpha1.ManagedZoneReference{
-				Name: parentZone.Name,
-			},
-			Endpoints: []*v1alpha1.Endpoint{
+		Spec: v1alpha2.DNSRecordSpec{
+			ProviderRef: managedZone.Spec.ProviderRef,
+			Endpoints: []*v1alpha2.Endpoint{
 				{
 					DNSName:    recordName,
 					Targets:    recordTargets,
@@ -286,7 +284,7 @@ func (r *ManagedZoneReconciler) createParentZoneNSRecord(ctx context.Context, ma
 	return nil
 }
 
-func (r *ManagedZoneReconciler) deleteParentZoneNSRecord(ctx context.Context, managedZone *v1alpha1.ManagedZone) error {
+func (r *ManagedZoneReconciler) deleteParentZoneNSRecord(ctx context.Context, managedZone *v1alpha2.ManagedZone) error {
 	parentZone, err := r.getParentZone(ctx, managedZone)
 	if err := client.IgnoreNotFound(err); err != nil {
 		return err
@@ -297,7 +295,7 @@ func (r *ManagedZoneReconciler) deleteParentZoneNSRecord(ctx context.Context, ma
 
 	recordName := managedZone.Spec.DomainName
 
-	nsRecord := &v1alpha1.DNSRecord{}
+	nsRecord := &v1alpha2.DNSRecord{}
 	err = r.Client.Get(ctx, client.ObjectKey{Namespace: parentZone.Namespace, Name: recordName}, nsRecord)
 	if err != nil {
 		if err := client.IgnoreNotFound(err); err == nil {
@@ -315,7 +313,7 @@ func (r *ManagedZoneReconciler) deleteParentZoneNSRecord(ctx context.Context, ma
 	return nil
 }
 
-func (r *ManagedZoneReconciler) parentZoneNSRecordReady(ctx context.Context, managedZone *v1alpha1.ManagedZone) error {
+func (r *ManagedZoneReconciler) parentZoneNSRecordReady(ctx context.Context, managedZone *v1alpha2.ManagedZone) error {
 	parentZone, err := r.getParentZone(ctx, managedZone)
 	if err := client.IgnoreNotFound(err); err != nil {
 		return err
@@ -326,7 +324,7 @@ func (r *ManagedZoneReconciler) parentZoneNSRecordReady(ctx context.Context, man
 
 	recordName := managedZone.Spec.DomainName
 
-	nsRecord := &v1alpha1.DNSRecord{}
+	nsRecord := &v1alpha2.DNSRecord{}
 	err = r.Client.Get(ctx, client.ObjectKey{Namespace: parentZone.Namespace, Name: recordName}, nsRecord)
 	if err != nil {
 		if err := client.IgnoreNotFound(err); err == nil {
@@ -344,7 +342,7 @@ func (r *ManagedZoneReconciler) parentZoneNSRecordReady(ctx context.Context, man
 }
 
 // setManagedZoneCondition adds or updates a given condition in the ManagedZone status.
-func setManagedZoneCondition(managedZone *v1alpha1.ManagedZone, conditionType string, status metav1.ConditionStatus, reason, message string) {
+func setManagedZoneCondition(managedZone *v1alpha2.ManagedZone, conditionType string, status metav1.ConditionStatus, reason, message string) {
 	cond := metav1.Condition{
 		Type:               conditionType,
 		Status:             status,

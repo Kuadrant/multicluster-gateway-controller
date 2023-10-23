@@ -12,7 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	dnsv1 "google.golang.org/api/dns/v1"
 
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha2"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 )
 
@@ -133,7 +133,7 @@ func TestGoogleDNSProvider_toManagedZoneOutput(t *testing.T) {
 
 func Test_toResourceRecordSets(t *testing.T) {
 	type args struct {
-		allEndpoints []*v1alpha1.Endpoint
+		allEndpoints []*v1alpha2.Endpoint
 	}
 	tests := []struct {
 		name string
@@ -143,15 +143,15 @@ func Test_toResourceRecordSets(t *testing.T) {
 		{
 			name: "Successful test Geo & weight",
 			args: args{
-				allEndpoints: []*v1alpha1.Endpoint{
+				allEndpoints: []*v1alpha2.Endpoint{
 					{
 						DNSName:    "2c71gf.lb-4ej5le.unittest.google.hcpapps.net",
 						RecordType: "A",
 						RecordTTL:  60,
-						Targets: v1alpha1.Targets{
+						Targets: v1alpha2.Targets{
 							"0.0.0.0",
 						},
-						ProviderSpecific: v1alpha1.ProviderSpecific{},
+						ProviderSpecific: v1alpha2.ProviderSpecific{},
 						SetIdentifier:    "",
 					},
 					{
@@ -159,11 +159,11 @@ func Test_toResourceRecordSets(t *testing.T) {
 						RecordType:    "CNAME",
 						SetIdentifier: "2c71gf.lb-4ej5le.unittest.google.hcpapps.net",
 						RecordTTL:     60,
-						Targets: v1alpha1.Targets{
+						Targets: v1alpha2.Targets{
 							"2c71gf.lb-4ej5le.unittest.google.hcpapps.net",
 						},
-						ProviderSpecific: v1alpha1.ProviderSpecific{
-							v1alpha1.ProviderSpecificProperty{
+						ProviderSpecific: v1alpha2.ProviderSpecific{
+							v1alpha2.ProviderSpecificProperty{
 								Name:  "weight",
 								Value: "60",
 							},
@@ -177,8 +177,8 @@ func Test_toResourceRecordSets(t *testing.T) {
 							"europe-west1.lb-4ej5le.unittest.google.hcpapps.net",
 						},
 						RecordTTL: 300,
-						ProviderSpecific: v1alpha1.ProviderSpecific{
-							v1alpha1.ProviderSpecificProperty{
+						ProviderSpecific: v1alpha2.ProviderSpecific{
+							v1alpha2.ProviderSpecificProperty{
 								Name:  "geo-code",
 								Value: "europe-west1",
 							},
@@ -254,12 +254,12 @@ func Test_toResourceRecordSets(t *testing.T) {
 		{
 			name: "Successful test no Geo & weight",
 			args: args{
-				allEndpoints: []*v1alpha1.Endpoint{
+				allEndpoints: []*v1alpha2.Endpoint{
 					{
 						DNSName:    "2c71gf.lb-4ej5le.unittest.google.hcpapps.net",
 						RecordType: "A",
 						RecordTTL:  60,
-						Targets: v1alpha1.Targets{
+						Targets: v1alpha2.Targets{
 							"0.0.0.0",
 						},
 						SetIdentifier: "",
@@ -269,11 +269,11 @@ func Test_toResourceRecordSets(t *testing.T) {
 						RecordType:    "CNAME",
 						SetIdentifier: "2c71gf.lb-4ej5le.unittest.google.hcpapps.net",
 						RecordTTL:     60,
-						Targets: v1alpha1.Targets{
+						Targets: v1alpha2.Targets{
 							"2c71gf.lb-4ej5le.unittest.google.hcpapps.net",
 						},
-						ProviderSpecific: v1alpha1.ProviderSpecific{
-							v1alpha1.ProviderSpecificProperty{
+						ProviderSpecific: v1alpha2.ProviderSpecific{
+							v1alpha2.ProviderSpecificProperty{
 								Name:  "weight",
 								Value: "120",
 							},
@@ -287,8 +287,8 @@ func Test_toResourceRecordSets(t *testing.T) {
 							"default.lb-4ej5le.unittest.google.hcpapps.net",
 						},
 						RecordTTL: 300,
-						ProviderSpecific: v1alpha1.ProviderSpecific{
-							v1alpha1.ProviderSpecificProperty{
+						ProviderSpecific: v1alpha2.ProviderSpecific{
+							v1alpha2.ProviderSpecificProperty{
 								Name:  "geo-code",
 								Value: "*",
 							},
@@ -362,12 +362,12 @@ func Test_toResourceRecordSets(t *testing.T) {
 		{
 			name: "Successful test weight round robin with multiple targets",
 			args: args{
-				allEndpoints: []*v1alpha1.Endpoint{
+				allEndpoints: []*v1alpha2.Endpoint{
 					{
 						DNSName:    "2c71gf.lb-4ej5le.unittest.google.hcpapps.net",
 						RecordType: "A",
 						RecordTTL:  60,
-						Targets: v1alpha1.Targets{
+						Targets: v1alpha2.Targets{
 							"0.0.0.0",
 						},
 						SetIdentifier: "",
@@ -376,7 +376,7 @@ func Test_toResourceRecordSets(t *testing.T) {
 						DNSName:    "lrnse3.lb-4ej5le.unittest.google.hcpapps.net",
 						RecordType: "A",
 						RecordTTL:  60,
-						Targets: v1alpha1.Targets{
+						Targets: v1alpha2.Targets{
 							"0.0.0.1",
 						},
 						SetIdentifier: "",
@@ -386,11 +386,11 @@ func Test_toResourceRecordSets(t *testing.T) {
 						RecordType:    "CNAME",
 						SetIdentifier: "2c71gf.lb-4ej5le.unittest.google.hcpapps.net",
 						RecordTTL:     60,
-						Targets: v1alpha1.Targets{
+						Targets: v1alpha2.Targets{
 							"2c71gf.lb-4ej5le.unittest.google.hcpapps.net",
 						},
-						ProviderSpecific: v1alpha1.ProviderSpecific{
-							v1alpha1.ProviderSpecificProperty{
+						ProviderSpecific: v1alpha2.ProviderSpecific{
+							v1alpha2.ProviderSpecificProperty{
 								Name:  "weight",
 								Value: "120",
 							},
@@ -401,11 +401,11 @@ func Test_toResourceRecordSets(t *testing.T) {
 						RecordType:    "CNAME",
 						SetIdentifier: "lrnse3.lb-4ej5le.unittest.google.hcpapps.net",
 						RecordTTL:     60,
-						Targets: v1alpha1.Targets{
+						Targets: v1alpha2.Targets{
 							"lrnse3.lb-4ej5le.unittest.google.hcpapps.net",
 						},
-						ProviderSpecific: v1alpha1.ProviderSpecific{
-							v1alpha1.ProviderSpecificProperty{
+						ProviderSpecific: v1alpha2.ProviderSpecific{
+							v1alpha2.ProviderSpecificProperty{
 								Name:  "weight",
 								Value: "120",
 							},
@@ -419,8 +419,8 @@ func Test_toResourceRecordSets(t *testing.T) {
 							"default.lb-4ej5le.unittest.google.hcpapps.net",
 						},
 						RecordTTL: 300,
-						ProviderSpecific: v1alpha1.ProviderSpecific{
-							v1alpha1.ProviderSpecificProperty{
+						ProviderSpecific: v1alpha2.ProviderSpecific{
+							v1alpha2.ProviderSpecificProperty{
 								Name:  "geo-code",
 								Value: "*",
 							},

@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - "release-*"
+      - 406_dnspolicy_provider_ref
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+"
     paths-ignore:
@@ -43,24 +44,6 @@ jobs:
       - uses: actions/setup-go@v4
         with:
           go-version: "1.21.x"
-      - name: Create controller-config.env
-        run: |
-          echo "AWS_DNS_PUBLIC_ZONE_ID=${{ secrets.E2E_AWS_DNS_PUBLIC_ZONE_ID }}" >> controller-config.env
-          echo "ZONE_ROOT_DOMAIN=${{ secrets.E2E_AWS_DNS_PUBLIC_ZONE_NAME }}" >> controller-config.env
-          echo "ZONE_NAME=${{ secrets.E2E_GCP_ZONE_NAME }}" >> controller-config.env 
-          echo "ZONE_DNS_NAME=${{ secrets.E2E_GCP_ZONE_DNS_NAME }}" >> controller-config.env
-
-      - name: Create aws-credentials.env
-        run: |
-          echo "AWS_ACCESS_KEY_ID=${{ secrets.E2E_AWS_ACCESS_KEY_ID }}" >> aws-credentials.env
-          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.E2E_AWS_SECRET_ACCESS_KEY }}" >> aws-credentials.env
-          echo "AWS_REGION=${{ env.AWS_REGION }}" >> aws-credentials.env
-      - name: Create gcp-credentials.env
-        run: |
-          secret="${{ secrets.E2E_GOOGLE }}"
-          decoded=$(echo "$secret" | base64 --decode )
-          echo "GOOGLE=$decoded" >> gcp-credentials.env
-          echo "PROJECT_ID=${{ secrets.E2E_PROJECT_ID }}" >> gcp-credentials.env   
       - name: Setup environment
         run: |
           export OCM_SINGLE=1
@@ -74,31 +57,42 @@ jobs:
           kubectl --context kind-mgc-control-plane -n multicluster-gateway-controller-system wait --timeout=300s --for=condition=Available deployment/mgc-policy-controller
           kubectl --context kind-mgc-control-plane logs --all-containers --ignore-errors deployment/mgc-controller-manager -n multicluster-gateway-controller-system
           kubectl --context kind-mgc-control-plane logs --all-containers --ignore-errors deployment/mgc-policy-controller -n multicluster-gateway-controller-system
-          kubectl get managedzones -n multi-cluster-gateways mgc-dev-mz-aws -o yaml
-          kubectl --context kind-mgc-control-plane -n multi-cluster-gateways wait --timeout=60s --for=condition=Ready managedzone/mgc-dev-mz-aws
-          kubectl get managedzones -n multi-cluster-gateways mgc-dev-mz-gcp -o yaml
-          kubectl --context kind-mgc-control-plane -n multi-cluster-gateways wait --timeout=60s --for=condition=Ready managedzone/mgc-dev-mz-gcp
+      - name: Create AWS provider secret
+        run: |
+          echo "{\"zoneIDFilter\": [], \"domainFilter\": [\"e2e.hcpapps.net\"]}" > e2e-test-aws-provider-config.json
+          kubectl create secret generic e2e-test-aws-credentials -n multi-cluster-gateways \
+            --type=kuadrant.io/aws \
+            --from-literal=AWS_ACCESS_KEY_ID=${{ secrets.E2E_AWS_ACCESS_KEY_ID }} \
+            --from-literal=AWS_SECRET_ACCESS_KEY=${{ secrets.E2E_AWS_SECRET_ACCESS_KEY }} \
+            --from-file=CONFIG=e2e-test-aws-provider-config.json
+      - name: Create GCP provider secret
+        run: |
+          secret="${{ secrets.E2E_GOOGLE }}"
+          decoded=$(echo "$secret" | base64 --decode )
+          echo "$decoded" >> gcp_credentials.json
+          echo "{\"zoneIDFilter\": [], \"domainFilter\": [\"e2e.google.hcpapps.net\"]}" > e2e-test-gcp-provider-config.json
+          kubectl create secret generic e2e-test-gcp-credentials -n multi-cluster-gateways \
+            --type=kuadrant.io/gcp \
+            --from-literal=PROJECT_ID=${{ secrets.E2E_PROJECT_ID }} \
+            --from-file=GOOGLE=gcp_credentials.json \
+            --from-file=CONFIG=e2e-test-gcp-provider-config.json
       - name: Run suite AWS
         run: |
           export OCM_SINGLE=1
           export TEST_HUB_NAMESPACE=multi-cluster-gateways
           export TEST_HUB_KUBE_CONTEXT=kind-mgc-control-plane
-          export TEST_DNS_PROVIDER_SECRET_NAME=mgc-aws-credentials
+          export TEST_DNS_PROVIDER_SECRET_NAME=e2e-test-aws-credentials
           export TEST_DNS_ZONE_DOMAIN_NAME=e2e.hcpapps.net
           export TEST_DNS_ZONE_ID=Z086929132US3PB46EOLR
-          export TEST_MANAGED_ZONE=${{ secrets.E2E_AWS_DNS_PUBLIC_ZONE_NAME }}
-          export TEST_MANAGED_ZONE_NAME=mgc-dev-mz-aws
           make test-e2e
       - name: Run suite GCP
         run: |
           export OCM_SINGLE=1
           export TEST_HUB_NAMESPACE=multi-cluster-gateways
           export TEST_HUB_KUBE_CONTEXT=kind-mgc-control-plane
-          export TEST_DNS_PROVIDER_SECRET_NAME=mgc-gcp-credentials
+          export TEST_DNS_PROVIDER_SECRET_NAME=e2e-test-gcp-credentials
           export TEST_DNS_ZONE_DOMAIN_NAME=e2e.google.hcpapps.net
           export TEST_DNS_ZONE_ID=e2e-google-hcpapps-net
-          export TEST_MANAGED_ZONE=${{ secrets.E2E_GCP_ZONE_DNS_NAME }}
-          export TEST_MANAGED_ZONE_NAME=mgc-dev-mz-gcp
           make test-e2e
       - name: Dump Gateway Controller logs
         if: ${{ failure() }}

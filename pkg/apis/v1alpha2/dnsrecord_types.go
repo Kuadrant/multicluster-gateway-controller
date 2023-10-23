@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1alpha1
+package v1alpha2
 
 import (
 	"fmt"
@@ -102,12 +102,16 @@ func (e *Endpoint) String() string {
 
 // DNSRecordSpec defines the desired state of DNSRecord
 type DNSRecordSpec struct {
-	// +kubebuilder:validation:Required
-	// +required
-	ManagedZoneRef *ManagedZoneReference `json:"managedZone,omitempty"`
 	// +kubebuilder:validation:MinItems=1
 	// +optional
 	Endpoints []*Endpoint `json:"endpoints,omitempty"`
+
+	// +kubebuilder:validation:Required
+	// +required
+	ProviderRef ProviderRef `json:"providerRef"`
+
+	// +optional
+	ZoneID *string `json:"zoneID,omitempty"`
 }
 
 // DNSRecordStatus defines the observed state of DNSRecord
@@ -149,6 +153,10 @@ type DNSRecord struct {
 
 	Spec   DNSRecordSpec   `json:"spec,omitempty"`
 	Status DNSRecordStatus `json:"status,omitempty"`
+}
+
+func (p *DNSRecord) GetProviderRef() ProviderRef {
+	return p.Spec.ProviderRef
 }
 
 //+kubebuilder:object:root=true

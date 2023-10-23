@@ -5,13 +5,13 @@ import (
 	"reflect"
 	"sync"
 
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha2"
 )
 
 type HealthCheckReconciler interface {
-	Reconcile(ctx context.Context, spec HealthCheckSpec, endpoint *v1alpha1.Endpoint) (HealthCheckResult, error)
+	Reconcile(ctx context.Context, spec HealthCheckSpec, endpoint *v1alpha2.Endpoint) (HealthCheckResult, error)
 
-	Delete(ctx context.Context, endpoint *v1alpha1.Endpoint) (HealthCheckResult, error)
+	Delete(ctx context.Context, endpoint *v1alpha2.Endpoint) (HealthCheckResult, error)
 }
 
 type HealthCheckSpec struct {
@@ -53,11 +53,11 @@ const HealthCheckProtocolHTTPS HealthCheckProtocol = "HTTPS"
 
 type FakeHealthCheckReconciler struct{}
 
-func (*FakeHealthCheckReconciler) Reconcile(ctx context.Context, _ HealthCheckSpec, _ *v1alpha1.Endpoint) (HealthCheckResult, error) {
+func (*FakeHealthCheckReconciler) Reconcile(ctx context.Context, _ HealthCheckSpec, _ *v1alpha2.Endpoint) (HealthCheckResult, error) {
 	return HealthCheckResult{HealthCheckCreated, ""}, nil
 }
 
-func (*FakeHealthCheckReconciler) Delete(ctx context.Context, _ *v1alpha1.Endpoint) (HealthCheckResult, error) {
+func (*FakeHealthCheckReconciler) Delete(ctx context.Context, _ *v1alpha2.Endpoint) (HealthCheckResult, error) {
 	return HealthCheckResult{HealthCheckDeleted, ""}, nil
 }
 
@@ -81,7 +81,7 @@ func NewCachedHealthCheckReconciler(provider Provider, reconciler HealthCheckRec
 }
 
 // Delete implements HealthCheckReconciler
-func (r *CachedHealthCheckReconciler) Delete(ctx context.Context, endpoint *v1alpha1.Endpoint) (HealthCheckResult, error) {
+func (r *CachedHealthCheckReconciler) Delete(ctx context.Context, endpoint *v1alpha2.Endpoint) (HealthCheckResult, error) {
 	id, ok := r.getHealthCheckID(endpoint)
 	if !ok {
 		return NewHealthCheckResult(HealthCheckNoop, ""), nil
@@ -92,7 +92,7 @@ func (r *CachedHealthCheckReconciler) Delete(ctx context.Context, endpoint *v1al
 }
 
 // Reconcile implements HealthCheckReconciler
-func (r *CachedHealthCheckReconciler) Reconcile(ctx context.Context, spec HealthCheckSpec, endpoint *v1alpha1.Endpoint) (HealthCheckResult, error) {
+func (r *CachedHealthCheckReconciler) Reconcile(ctx context.Context, spec HealthCheckSpec, endpoint *v1alpha2.Endpoint) (HealthCheckResult, error) {
 	id, ok := r.getHealthCheckID(endpoint)
 	if !ok {
 		return r.reconciler.Reconcile(ctx, spec, endpoint)
@@ -116,6 +116,6 @@ func (r *CachedHealthCheckReconciler) Reconcile(ctx context.Context, spec Health
 	return r.reconciler.Reconcile(ctx, spec, endpoint)
 }
 
-func (r *CachedHealthCheckReconciler) getHealthCheckID(endpoint *v1alpha1.Endpoint) (string, bool) {
+func (r *CachedHealthCheckReconciler) getHealthCheckID(endpoint *v1alpha2.Endpoint) (string, bool) {
 	return endpoint.GetProviderSpecific(r.provider.ProviderSpecific().HealthCheckID)
 }

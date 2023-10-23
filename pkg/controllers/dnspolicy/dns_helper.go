@@ -14,7 +14,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
@@ -22,6 +21,7 @@ import (
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha2"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 )
 
@@ -33,17 +33,15 @@ const (
 
 var (
 	ErrUnknownRoutingStrategy = fmt.Errorf("unknown routing strategy")
-	ErrNoManagedZoneForHost   = fmt.Errorf("no managed zone for host")
-	ErrAlreadyAssigned        = fmt.Errorf("managed host already assigned")
 )
 
 type dnsHelper struct {
 	client.Client
 }
 
-func findMatchingManagedZone(originalHost, host string, zones []v1alpha1.ManagedZone) (*v1alpha1.ManagedZone, string, error) {
-	if len(zones) == 0 {
-		return nil, "", fmt.Errorf("%w : %s", ErrNoManagedZoneForHost, host)
+func findMatchingZone(originalHost, host string, zones dns.ZoneList) (*dns.Zone, string, error) {
+	if len(zones.Items) == 0 {
+		return nil, "", fmt.Errorf("no zones available")
 	}
 	host = strings.ToLower(host)
 	//get the TLD from this host
@@ -64,18 +62,18 @@ func findMatchingManagedZone(originalHost, host string, zones []v1alpha1.Managed
 	// we should never be trying to find a managed zone that matches the `originalHost` exactly. Instead, we just continue
 	// on to the next possible valid host to try i.e. the parent domain.
 	if host == originalHost {
-		return findMatchingManagedZone(originalHost, parentDomain, zones)
+		return findMatchingZone(originalHost, parentDomain, zones)
 	}
 
-	zone, ok := slice.Find(zones, func(zone v1alpha1.ManagedZone) bool {
-		return strings.ToLower(zone.Spec.DomainName) == host
+	zone, ok := slice.Find(zones.Items, func(zone *dns.Zone) bool {
+		return strings.ToLower(*zone.DNSName) == host
 	})
 
 	if ok {
-		subdomain := strings.Replace(strings.ToLower(originalHost), "."+strings.ToLower(zone.Spec.DomainName), "", 1)
-		return &zone, subdomain, nil
+		subdomain := strings.Replace(strings.ToLower(originalHost), "."+strings.ToLower(*zone.DNSName), "", 1)
+		return zone, subdomain, nil
 	}
-	return findMatchingManagedZone(originalHost, parentDomain, zones)
+	return findMatchingZone(originalHost, parentDomain, zones)
 
 }
 
@@ -104,28 +102,29 @@ func gatewayDNSRecordLabels(gwKey client.ObjectKey) map[string]string {
 	}
 }
 
-func (dh *dnsHelper) buildDNSRecordForListener(gateway *gatewayapiv1.Gateway, dnsPolicy *v1alpha1.DNSPolicy, targetListener gatewayapiv1.Listener, managedZone *v1alpha1.ManagedZone) *v1alpha1.DNSRecord {
+func (dh *dnsHelper) buildDNSRecordForListener(gateway *gatewayapiv1.Gateway, dnsPolicy *v1alpha2.DNSPolicy, targetListener gatewayapiv1.Listener, zone *dns.Zone) *v1alpha2.DNSRecord {
 
-	dnsRecord := &v1alpha1.DNSRecord{
+	dnsRecord := &v1alpha2.DNSRecord{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      dnsRecordName(gateway.Name, string(targetListener.Name)),
-			Namespace: managedZone.Namespace,
+			Namespace: dnsPolicy.Namespace,
 			Labels:    commonDNSRecordLabels(client.ObjectKeyFromObject(gateway), client.ObjectKeyFromObject(dnsPolicy)),
 		},
-		Spec: v1alpha1.DNSRecordSpec{
-			ManagedZoneRef: &v1alpha1.ManagedZoneReference{
-				Name: managedZone.Name,
-			},
+		Spec: v1alpha2.DNSRecordSpec{
+			ProviderRef: dnsPolicy.Spec.ProviderRef,
 		},
+	}
+	if zone != nil {
+		dnsRecord.Spec.ZoneID = zone.ID
 	}
 	dnsRecord.Labels[LabelListenerReference] = string(targetListener.Name)
 	return dnsRecord
 }
 
 // getDNSRecordForListener returns a v1alpha1.DNSRecord, if one exists, for the given listener in the given v1alpha1.ManagedZone.
-func (dh *dnsHelper) getDNSRecordForListener(ctx context.Context, listener gatewayapiv1.Listener, owner metav1.Object) (*v1alpha1.DNSRecord, error) {
+func (dh *dnsHelper) getDNSRecordForListener(ctx context.Context, listener gatewayapiv1.Listener, owner metav1.Object) (*v1alpha2.DNSRecord, error) {
 	recordName := dnsRecordName(owner.GetName(), string(listener.Name))
-	dnsRecord := &v1alpha1.DNSRecord{}
+	dnsRecord := &v1alpha2.DNSRecord{}
 	if err := dh.Get(ctx, client.ObjectKey{Name: recordName, Namespace: owner.GetNamespace()}, dnsRecord); err != nil {
 		if k8serrors.IsNotFound(err) {
 			log.Log.V(1).Info("no dnsrecord found for listener ", "listener", listener)
@@ -146,21 +145,21 @@ func withGatewayListener[T metav1.Object](gateway common.GatewayWrapper, listene
 	return obj
 }
 
-func (dh *dnsHelper) setEndpoints(ctx context.Context, mcgTarget *dns.MultiClusterGatewayTarget, dnsRecord *v1alpha1.DNSRecord, listener gatewayapiv1.Listener, strategy v1alpha1.RoutingStrategy) error {
+func (dh *dnsHelper) setEndpoints(ctx context.Context, mcgTarget *dns.MultiClusterGatewayTarget, dnsRecord *v1alpha2.DNSRecord, listener gatewayapiv1.Listener, strategy v1alpha2.RoutingStrategy) error {
 	old := dnsRecord.DeepCopy()
 	gwListenerHost := string(*listener.Hostname)
-	var endpoints []*v1alpha1.Endpoint
+	var endpoints []*v1alpha2.Endpoint
 
 	//Health Checks currently modify endpoints so we have to keep existing ones in order to not lose health check ids
-	currentEndpoints := make(map[string]*v1alpha1.Endpoint, len(dnsRecord.Spec.Endpoints))
+	currentEndpoints := make(map[string]*v1alpha2.Endpoint, len(dnsRecord.Spec.Endpoints))
 	for _, endpoint := range dnsRecord.Spec.Endpoints {
 		currentEndpoints[endpoint.SetID()] = endpoint
 	}
 
 	switch strategy {
-	case v1alpha1.SimpleRoutingStrategy:
+	case v1alpha2.SimpleRoutingStrategy:
 		endpoints = dh.getSimpleEndpoints(mcgTarget, gwListenerHost, currentEndpoints)
-	case v1alpha1.LoadBalancedRoutingStrategy:
+	case v1alpha2.LoadBalancedRoutingStrategy:
 		endpoints = dh.getLoadBalancedEndpoints(mcgTarget, gwListenerHost, currentEndpoints)
 	default:
 		return fmt.Errorf("%w : %s", ErrUnknownRoutingStrategy, strategy)
@@ -181,10 +180,10 @@ func (dh *dnsHelper) setEndpoints(ctx context.Context, mcgTarget *dns.MultiClust
 
 // getSimpleEndpoints returns the endpoints for the given MultiClusterGatewayTarget using the simple routing strategy
 
-func (dh *dnsHelper) getSimpleEndpoints(mcgTarget *dns.MultiClusterGatewayTarget, hostname string, currentEndpoints map[string]*v1alpha1.Endpoint) []*v1alpha1.Endpoint {
+func (dh *dnsHelper) getSimpleEndpoints(mcgTarget *dns.MultiClusterGatewayTarget, hostname string, currentEndpoints map[string]*v1alpha2.Endpoint) []*v1alpha2.Endpoint {
 
 	var (
-		endpoints  []*v1alpha1.Endpoint
+		endpoints  []*v1alpha2.Endpoint
 		ipValues   []string
 		hostValues []string
 	)
@@ -200,13 +199,13 @@ func (dh *dnsHelper) getSimpleEndpoints(mcgTarget *dns.MultiClusterGatewayTarget
 	}
 
 	if len(ipValues) > 0 {
-		endpoint := createOrUpdateEndpoint(hostname, ipValues, v1alpha1.ARecordType, "", dns.DefaultTTL, currentEndpoints)
+		endpoint := createOrUpdateEndpoint(hostname, ipValues, v1alpha2.ARecordType, "", dns.DefaultTTL, currentEndpoints)
 		endpoints = append(endpoints, endpoint)
 	}
 
 	//ToDO This could possibly result in an invalid record since you can't have multiple CNAME target values https://github.com/Kuadrant/multicluster-gateway-controller/issues/663
 	if len(hostValues) > 0 {
-		endpoint := createOrUpdateEndpoint(hostname, hostValues, v1alpha1.CNAMERecordType, "", dns.DefaultTTL, currentEndpoints)
+		endpoint := createOrUpdateEndpoint(hostname, hostValues, v1alpha2.CNAMERecordType, "", dns.DefaultTTL, currentEndpoints)
 		endpoints = append(endpoints, endpoint)
 	}
 
@@ -252,7 +251,7 @@ func (dh *dnsHelper) getSimpleEndpoints(mcgTarget *dns.MultiClusterGatewayTarget
 // ab2.lb-a1b2.shop.example.com A 192.22.2.3
 // ab3.lb-a1b2.shop.example.com A 192.22.2.4
 
-func (dh *dnsHelper) getLoadBalancedEndpoints(mcgTarget *dns.MultiClusterGatewayTarget, hostname string, currentEndpoints map[string]*v1alpha1.Endpoint) []*v1alpha1.Endpoint {
+func (dh *dnsHelper) getLoadBalancedEndpoints(mcgTarget *dns.MultiClusterGatewayTarget, hostname string, currentEndpoints map[string]*v1alpha2.Endpoint) []*v1alpha2.Endpoint {
 
 	cnameHost := hostname
 	if isWildCardHost(hostname) {
@@ -260,15 +259,15 @@ func (dh *dnsHelper) getLoadBalancedEndpoints(mcgTarget *dns.MultiClusterGateway
 	}
 
 	var (
-		endpoints       []*v1alpha1.Endpoint
-		endpoint        *v1alpha1.Endpoint
-		defaultEndpoint *v1alpha1.Endpoint
+		endpoints       []*v1alpha2.Endpoint
+		endpoint        *v1alpha2.Endpoint
+		defaultEndpoint *v1alpha2.Endpoint
 	)
 	lbName := strings.ToLower(fmt.Sprintf("lb-%s.%s", mcgTarget.GetShortCode(), cnameHost))
 
 	for geoCode, cgwTargets := range mcgTarget.GroupTargetsByGeo() {
 		geoLbName := strings.ToLower(fmt.Sprintf("%s.%s", geoCode, lbName))
-		var clusterEndpoints []*v1alpha1.Endpoint
+		var clusterEndpoints []*v1alpha2.Endpoint
 		for _, cgwTarget := range cgwTargets {
 
 			var ipValues []string
@@ -283,13 +282,13 @@ func (dh *dnsHelper) getLoadBalancedEndpoints(mcgTarget *dns.MultiClusterGateway
 
 			if len(ipValues) > 0 {
 				clusterLbName := strings.ToLower(fmt.Sprintf("%s.%s", cgwTarget.GetShortCode(), lbName))
-				endpoint = createOrUpdateEndpoint(clusterLbName, ipValues, v1alpha1.ARecordType, "", dns.DefaultTTL, currentEndpoints)
+				endpoint = createOrUpdateEndpoint(clusterLbName, ipValues, v1alpha2.ARecordType, "", dns.DefaultTTL, currentEndpoints)
 				clusterEndpoints = append(clusterEndpoints, endpoint)
 				hostValues = append(hostValues, clusterLbName)
 			}
 
 			for _, hostValue := range hostValues {
-				endpoint = createOrUpdateEndpoint(geoLbName, []string{hostValue}, v1alpha1.CNAMERecordType, hostValue, dns.DefaultTTL, currentEndpoints)
+				endpoint = createOrUpdateEndpoint(geoLbName, []string{hostValue}, v1alpha2.CNAMERecordType, hostValue, dns.DefaultTTL, currentEndpoints)
 				endpoint.SetProviderSpecific(dns.ProviderSpecificWeight, strconv.Itoa(cgwTarget.GetWeight()))
 				clusterEndpoints = append(clusterEndpoints, endpoint)
 			}
@@ -300,7 +299,7 @@ func (dh *dnsHelper) getLoadBalancedEndpoints(mcgTarget *dns.MultiClusterGateway
 		endpoints = append(endpoints, clusterEndpoints...)
 
 		//Create lbName CNAME (lb-a1b2.shop.example.com -> default.lb-a1b2.shop.example.com)
-		endpoint = createOrUpdateEndpoint(lbName, []string{geoLbName}, v1alpha1.CNAMERecordType, string(geoCode), dns.DefaultCnameTTL, currentEndpoints)
+		endpoint = createOrUpdateEndpoint(lbName, []string{geoLbName}, v1alpha2.CNAMERecordType, string(geoCode), dns.DefaultCnameTTL, currentEndpoints)
 
 		//Deal with the default geo endpoint first
 		if geoCode.IsDefaultCode() {
@@ -309,7 +308,7 @@ func (dh *dnsHelper) getLoadBalancedEndpoints(mcgTarget *dns.MultiClusterGateway
 			continue
 		} else if (geoCode == mcgTarget.GetDefaultGeo()) || defaultEndpoint == nil {
 			// Ensure that a `defaultEndpoint` is always set, but the expected default takes precedence
-			defaultEndpoint = createOrUpdateEndpoint(lbName, []string{geoLbName}, v1alpha1.CNAMERecordType, "default", dns.DefaultCnameTTL, currentEndpoints)
+			defaultEndpoint = createOrUpdateEndpoint(lbName, []string{geoLbName}, v1alpha2.CNAMERecordType, "default", dns.DefaultCnameTTL, currentEndpoints)
 		}
 
 		endpoint.SetProviderSpecific(dns.ProviderSpecificGeoCode, string(geoCode))
@@ -322,19 +321,19 @@ func (dh *dnsHelper) getLoadBalancedEndpoints(mcgTarget *dns.MultiClusterGateway
 		defaultEndpoint.SetProviderSpecific(dns.ProviderSpecificGeoCode, string(dns.WildcardGeo))
 		endpoints = append(endpoints, defaultEndpoint)
 		//Create gwListenerHost CNAME (shop.example.com -> lb-a1b2.shop.example.com)
-		endpoint = createOrUpdateEndpoint(hostname, []string{lbName}, v1alpha1.CNAMERecordType, "", dns.DefaultCnameTTL, currentEndpoints)
+		endpoint = createOrUpdateEndpoint(hostname, []string{lbName}, v1alpha2.CNAMERecordType, "", dns.DefaultCnameTTL, currentEndpoints)
 		endpoints = append(endpoints, endpoint)
 	}
 
 	return endpoints
 }
 
-func createOrUpdateEndpoint(dnsName string, targets v1alpha1.Targets, recordType v1alpha1.DNSRecordType, setIdentifier string,
-	recordTTL v1alpha1.TTL, currentEndpoints map[string]*v1alpha1.Endpoint) (endpoint *v1alpha1.Endpoint) {
+func createOrUpdateEndpoint(dnsName string, targets v1alpha2.Targets, recordType v1alpha2.DNSRecordType, setIdentifier string,
+	recordTTL v1alpha2.TTL, currentEndpoints map[string]*v1alpha2.Endpoint) (endpoint *v1alpha2.Endpoint) {
 	ok := false
 	endpointID := dnsName + setIdentifier
 	if endpoint, ok = currentEndpoints[endpointID]; !ok {
-		endpoint = &v1alpha1.Endpoint{}
+		endpoint = &v1alpha2.Endpoint{}
 		if setIdentifier != "" {
 			endpoint.SetIdentifier = setIdentifier
 		}
@@ -348,7 +347,7 @@ func createOrUpdateEndpoint(dnsName string, targets v1alpha1.Targets, recordType
 
 // removeDNSForDeletedListeners remove any DNSRecords that are associated with listeners that no longer exist in this gateway
 func (dh *dnsHelper) removeDNSForDeletedListeners(ctx context.Context, upstreamGateway *gatewayapiv1.Gateway) error {
-	dnsList := &v1alpha1.DNSRecordList{}
+	dnsList := &v1alpha2.DNSRecordList{}
 	//List all dns records that belong to this gateway
 	labelSelector := &client.MatchingLabels{
 		LabelGatewayReference: upstreamGateway.Name,
@@ -375,28 +374,14 @@ func (dh *dnsHelper) removeDNSForDeletedListeners(ctx context.Context, upstreamG
 
 }
 
-func (dh *dnsHelper) getManagedZoneForListener(ctx context.Context, ns string, listener gatewayapiv1.Listener) (*v1alpha1.ManagedZone, error) {
-	var managedZones v1alpha1.ManagedZoneList
-	if err := dh.List(ctx, &managedZones, client.InNamespace(ns)); err != nil {
-		log.FromContext(ctx).Error(err, "unable to list managed zones for gateway ", "in ns", ns)
-		return nil, err
-	}
-	host := string(*listener.Hostname)
-	mz, _, err := findMatchingManagedZone(host, host, managedZones.Items)
-	return mz, err
-}
-
 func dnsRecordName(gatewayName, listenerName string) string {
 	return fmt.Sprintf("%s-%s", gatewayName, listenerName)
 }
 
-func (dh *dnsHelper) createDNSRecordForListener(ctx context.Context, gateway *gatewayapiv1.Gateway, dnsPolicy *v1alpha1.DNSPolicy, mz *v1alpha1.ManagedZone, listener gatewayapiv1.Listener) (*v1alpha1.DNSRecord, error) {
+func (dh *dnsHelper) createDNSRecordForListener(ctx context.Context, gateway *gatewayapiv1.Gateway, dnsPolicy *v1alpha2.DNSPolicy, listener gatewayapiv1.Listener, zone *dns.Zone) (*v1alpha2.DNSRecord, error) {
 	logger := log.FromContext(ctx)
 	logger.Info("creating dns for gateway listener", "listener", listener.Name)
-	dnsRecord := dh.buildDNSRecordForListener(gateway, dnsPolicy, listener, mz)
-	if err := controllerutil.SetControllerReference(mz, dnsRecord, dh.Scheme()); err != nil {
-		return dnsRecord, err
-	}
+	dnsRecord := dh.buildDNSRecordForListener(gateway, dnsPolicy, listener, zone)
 
 	err := dh.Create(ctx, dnsRecord, &client.CreateOptions{})
 	if err != nil && !k8serrors.IsAlreadyExists(err) {
@@ -413,7 +398,7 @@ func (dh *dnsHelper) createDNSRecordForListener(ctx context.Context, gateway *ga
 
 func (dh *dnsHelper) deleteDNSRecordForListener(ctx context.Context, owner metav1.Object, listener gatewayapiv1.Listener) error {
 	recordName := dnsRecordName(owner.GetName(), string(listener.Name))
-	dnsRecord := v1alpha1.DNSRecord{
+	dnsRecord := v1alpha2.DNSRecord{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      recordName,
 			Namespace: owner.GetNamespace(),
@@ -426,7 +411,7 @@ func isWildCardHost(host string) bool {
 	return strings.HasPrefix(host, "*")
 }
 
-func (dh *dnsHelper) getDNSHealthCheckProbes(ctx context.Context, gateway *gatewayapiv1.Gateway, dnsPolicy *v1alpha1.DNSPolicy) ([]*v1alpha1.DNSHealthCheckProbe, error) {
+func (dh *dnsHelper) getDNSHealthCheckProbes(ctx context.Context, gateway *gatewayapiv1.Gateway, dnsPolicy *v1alpha2.DNSPolicy) ([]*v1alpha1.DNSHealthCheckProbe, error) {
 	list := &v1alpha1.DNSHealthCheckProbeList{}
 	if err := dh.List(ctx, list, &client.ListOptions{
 		LabelSelector: labels.SelectorFromSet(commonDNSRecordLabels(client.ObjectKeyFromObject(gateway), client.ObjectKeyFromObject(dnsPolicy))),

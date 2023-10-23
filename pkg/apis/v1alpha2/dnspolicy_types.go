@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1alpha1
+package v1alpha2
 
 import (
 	"fmt"
@@ -23,6 +23,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayapiv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 )
 
 type RoutingStrategy string
@@ -49,6 +51,9 @@ type DNSPolicySpec struct {
 	// +kubebuilder:validation:Enum=simple;loadbalanced
 	// +kubebuilder:default=loadbalanced
 	RoutingStrategy RoutingStrategy `json:"routingStrategy"`
+
+	// +required
+	ProviderRef ProviderRef `json:"providerRef"`
 }
 
 type LoadBalancingSpec struct {
@@ -136,6 +141,10 @@ func (p *DNSPolicy) GetTargetRef() gatewayapiv1alpha2.PolicyTargetReference {
 	return p.Spec.TargetRef
 }
 
+func (p *DNSPolicy) GetProviderRef() ProviderRef {
+	return p.Spec.ProviderRef
+}
+
 // Validate ensures the resource is valid. Compatible with the validating interface
 // used by webhooks
 func (p *DNSPolicy) Validate() error {
@@ -179,14 +188,14 @@ type DNSPolicyList struct {
 // By default, this health check will be applied to each unique DNS A Record for
 // the listeners assigned to the target gateway
 type HealthCheckSpec struct {
-	Endpoint                  string                `json:"endpoint,omitempty"`
-	Port                      *int                  `json:"port,omitempty"`
-	Protocol                  *HealthProtocol       `json:"protocol,omitempty"`
-	FailureThreshold          *int                  `json:"failureThreshold,omitempty"`
-	AdditionalHeadersRef      *AdditionalHeadersRef `json:"additionalHeadersRef,omitempty"`
-	ExpectedResponses         []int                 `json:"expectedResponses,omitempty"`
-	AllowInsecureCertificates bool                  `json:"allowInsecureCertificates,omitempty"`
-	Interval                  *metav1.Duration      `json:"interval,omitempty"`
+	Endpoint                  string                         `json:"endpoint,omitempty"`
+	Port                      *int                           `json:"port,omitempty"`
+	Protocol                  *v1alpha1.HealthProtocol       `json:"protocol,omitempty"`
+	FailureThreshold          *int                           `json:"failureThreshold,omitempty"`
+	AdditionalHeadersRef      *v1alpha1.AdditionalHeadersRef `json:"additionalHeadersRef,omitempty"`
+	ExpectedResponses         []int                          `json:"expectedResponses,omitempty"`
+	AllowInsecureCertificates bool                           `json:"allowInsecureCertificates,omitempty"`
+	Interval                  *metav1.Duration               `json:"interval,omitempty"`
 }
 
 func (s *HealthCheckSpec) Validate() error {
@@ -207,7 +216,7 @@ func (s *HealthCheckSpec) Default() {
 	}
 
 	if s.Protocol == nil {
-		protocol := HttpsProtocol
+		protocol := v1alpha1.HttpsProtocol
 		s.Protocol = &protocol
 	}
 }

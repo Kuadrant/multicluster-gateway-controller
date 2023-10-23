@@ -8,21 +8,22 @@ import (
 	gatewayapiv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha2"
 )
 
 // DNSPolicyBuilder wrapper for DNSPolicy builder helper
 type DNSPolicyBuilder struct {
-	*v1alpha1.DNSPolicy
+	*v1alpha2.DNSPolicy
 }
 
 func NewDNSPolicyBuilder(name, ns string) *DNSPolicyBuilder {
 	return &DNSPolicyBuilder{
-		&v1alpha1.DNSPolicy{
+		&v1alpha2.DNSPolicy{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      name,
 				Namespace: ns,
 			},
-			Spec: v1alpha1.DNSPolicySpec{},
+			Spec: v1alpha2.DNSPolicySpec{},
 		},
 	}
 }
@@ -32,17 +33,22 @@ func (t *DNSPolicyBuilder) WithTargetRef(targetRef gatewayapiv1alpha2.PolicyTarg
 	return t
 }
 
-func (t *DNSPolicyBuilder) WithHealthCheck(healthCheck v1alpha1.HealthCheckSpec) *DNSPolicyBuilder {
+func (t *DNSPolicyBuilder) WithProviderRef(providerRef v1alpha2.ProviderRef) *DNSPolicyBuilder {
+	t.Spec.ProviderRef = providerRef
+	return t
+}
+
+func (t *DNSPolicyBuilder) WithHealthCheck(healthCheck v1alpha2.HealthCheckSpec) *DNSPolicyBuilder {
 	t.Spec.HealthCheck = &healthCheck
 	return t
 }
 
-func (t *DNSPolicyBuilder) WithLoadBalancing(loadBalancing v1alpha1.LoadBalancingSpec) *DNSPolicyBuilder {
+func (t *DNSPolicyBuilder) WithLoadBalancing(loadBalancing v1alpha2.LoadBalancingSpec) *DNSPolicyBuilder {
 	t.Spec.LoadBalancing = &loadBalancing
 	return t
 }
 
-func (t *DNSPolicyBuilder) WithRoutingStrategy(strategy v1alpha1.RoutingStrategy) *DNSPolicyBuilder {
+func (t *DNSPolicyBuilder) WithRoutingStrategy(strategy v1alpha2.RoutingStrategy) *DNSPolicyBuilder {
 	t.Spec.RoutingStrategy = strategy
 	return t
 }
@@ -59,10 +65,33 @@ func (t *DNSPolicyBuilder) WithTargetGateway(gwName string) *DNSPolicyBuilder {
 	})
 }
 
+//ProviderRef
+
+func (t *DNSPolicyBuilder) WithProviderManagedZone(mzName string) *DNSPolicyBuilder {
+	return t.WithProviderRef(v1alpha2.ProviderRef{
+		Name: mzName,
+		Kind: v1alpha2.ProviderKindManagedZone,
+	})
+}
+
+func (t *DNSPolicyBuilder) WithProviderSecret(secretName string) *DNSPolicyBuilder {
+	return t.WithProviderRef(v1alpha2.ProviderRef{
+		Name: secretName,
+		Kind: v1alpha2.ProviderKindSecret,
+	})
+}
+
+func (t *DNSPolicyBuilder) WithProviderNone(name string) *DNSPolicyBuilder {
+	return t.WithProviderRef(v1alpha2.ProviderRef{
+		Name: name,
+		Kind: v1alpha2.ProviderKindNone,
+	})
+}
+
 //HealthCheck
 
 func (t *DNSPolicyBuilder) WithHealthCheckFor(endpoint string, port *int, protocol v1alpha1.HealthProtocol, failureThreshold *int) *DNSPolicyBuilder {
-	return t.WithHealthCheck(v1alpha1.HealthCheckSpec{
+	return t.WithHealthCheck(v1alpha2.HealthCheckSpec{
 		Endpoint:                  endpoint,
 		Port:                      port,
 		Protocol:                  &protocol,
@@ -76,55 +105,89 @@ func (t *DNSPolicyBuilder) WithHealthCheckFor(endpoint string, port *int, protoc
 
 //LoadBalancing
 
-func (t *DNSPolicyBuilder) WithLoadBalancingWeighted(lbWeighted v1alpha1.LoadBalancingWeighted) *DNSPolicyBuilder {
+func (t *DNSPolicyBuilder) WithLoadBalancingWeighted(lbWeighted v1alpha2.LoadBalancingWeighted) *DNSPolicyBuilder {
 	if t.Spec.LoadBalancing == nil {
-		t.Spec.LoadBalancing = &v1alpha1.LoadBalancingSpec{}
+		t.Spec.LoadBalancing = &v1alpha2.LoadBalancingSpec{}
 	}
 	t.Spec.LoadBalancing.Weighted = &lbWeighted
 	return t
 }
 
-func (t *DNSPolicyBuilder) WithLoadBalancingGeo(lbGeo v1alpha1.LoadBalancingGeo) *DNSPolicyBuilder {
+func (t *DNSPolicyBuilder) WithLoadBalancingGeo(lbGeo v1alpha2.LoadBalancingGeo) *DNSPolicyBuilder {
 	if t.Spec.LoadBalancing == nil {
-		t.Spec.LoadBalancing = &v1alpha1.LoadBalancingSpec{}
+		t.Spec.LoadBalancing = &v1alpha2.LoadBalancingSpec{}
 	}
 	t.Spec.LoadBalancing.Geo = &lbGeo
 	return t
 }
 
-func (t *DNSPolicyBuilder) WithLoadBalancingWeightedFor(defaultWeight v1alpha1.Weight, custom []*v1alpha1.CustomWeight) *DNSPolicyBuilder {
-	return t.WithLoadBalancingWeighted(v1alpha1.LoadBalancingWeighted{
+func (t *DNSPolicyBuilder) WithLoadBalancingWeightedFor(defaultWeight v1alpha2.Weight, custom []*v1alpha2.CustomWeight) *DNSPolicyBuilder {
+	return t.WithLoadBalancingWeighted(v1alpha2.LoadBalancingWeighted{
 		DefaultWeight: defaultWeight,
 		Custom:        custom,
 	})
 }
 
 func (t *DNSPolicyBuilder) WithLoadBalancingGeoFor(defaultGeo string) *DNSPolicyBuilder {
-	return t.WithLoadBalancingGeo(v1alpha1.LoadBalancingGeo{
+	return t.WithLoadBalancingGeo(v1alpha2.LoadBalancingGeo{
 		DefaultGeo: defaultGeo,
 	})
 }
 
 // ManagedZoneBuilder wrapper for ManagedZone builder helper
 type ManagedZoneBuilder struct {
-	*v1alpha1.ManagedZone
+	*v1alpha2.ManagedZone
 }
 
-func NewManagedZoneBuilder(name, ns, domainName string) *ManagedZoneBuilder {
+func NewManagedZoneBuilder(name, ns string) *ManagedZoneBuilder {
 	return &ManagedZoneBuilder{
-		&v1alpha1.ManagedZone{
+		&v1alpha2.ManagedZone{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      name,
 				Namespace: ns,
 			},
-			Spec: v1alpha1.ManagedZoneSpec{
-				ID:          "1234",
-				DomainName:  domainName,
-				Description: domainName,
-				SecretRef: &v1alpha1.SecretRef{
-					Name: "secretname",
-				},
-			},
+			Spec: v1alpha2.ManagedZoneSpec{},
 		},
 	}
+}
+
+func (t *ManagedZoneBuilder) WithID(id string) *ManagedZoneBuilder {
+	t.Spec.ID = &id
+	return t
+}
+
+func (t *ManagedZoneBuilder) WithDomainName(domainName string) *ManagedZoneBuilder {
+	t.Spec.DomainName = domainName
+	return t
+}
+
+func (t *ManagedZoneBuilder) WithDescription(description string) *ManagedZoneBuilder {
+	t.Spec.Description = &description
+	return t
+}
+
+func (t *ManagedZoneBuilder) WithProviderRef(providerRef v1alpha2.ProviderRef) *ManagedZoneBuilder {
+	t.Spec.ProviderRef = providerRef
+	return t
+}
+
+func (t *ManagedZoneBuilder) WithProviderManagedZone(mzName string) *ManagedZoneBuilder {
+	return t.WithProviderRef(v1alpha2.ProviderRef{
+		Name: mzName,
+		Kind: v1alpha2.ProviderKindManagedZone,
+	})
+}
+
+func (t *ManagedZoneBuilder) WithProviderSecret(secretName string) *ManagedZoneBuilder {
+	return t.WithProviderRef(v1alpha2.ProviderRef{
+		Name: secretName,
+		Kind: v1alpha2.ProviderKindSecret,
+	})
+}
+
+func (t *ManagedZoneBuilder) WithProviderNone(secretName string) *ManagedZoneBuilder {
+	return t.WithProviderRef(v1alpha2.ProviderRef{
+		Name: secretName,
+		Kind: v1alpha2.ProviderKindNone,
+	})
 }

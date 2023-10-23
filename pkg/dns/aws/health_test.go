@@ -12,7 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/route53/route53iface"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha2"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 )
 
@@ -21,10 +21,10 @@ func TestHealthCheckReconcile(t *testing.T) {
 		name string
 
 		spec                 dns.HealthCheckSpec
-		endpoint             *v1alpha1.Endpoint
+		endpoint             *v1alpha2.Endpoint
 		existingHealthChecks []*mockHealthCheck
 
-		assertion func(dns.HealthCheckResult, error, *v1alpha1.Endpoint, *mockRoute53API) error
+		assertion func(dns.HealthCheckResult, error, *v1alpha2.Endpoint, *mockRoute53API) error
 	}{
 		{
 			name: "New health check created",
@@ -32,7 +32,7 @@ func TestHealthCheckReconcile(t *testing.T) {
 			spec: dns.HealthCheckSpec{
 				Name: "test-health-check",
 			},
-			endpoint: &v1alpha1.Endpoint{},
+			endpoint: &v1alpha2.Endpoint{},
 			existingHealthChecks: []*mockHealthCheck{
 				{
 					HealthCheck: &route53.HealthCheck{
@@ -41,7 +41,7 @@ func TestHealthCheckReconcile(t *testing.T) {
 				},
 			},
 
-			assertion: func(hcr dns.HealthCheckResult, err error, e *v1alpha1.Endpoint, mra *mockRoute53API) error {
+			assertion: func(hcr dns.HealthCheckResult, err error, e *v1alpha2.Endpoint, mra *mockRoute53API) error {
 				if hcr.Result != dns.HealthCheckCreated {
 					return fmt.Errorf("unexpected result. Expected Created, but got %s", hcr.Result)
 				}
@@ -71,8 +71,8 @@ func TestHealthCheckReconcile(t *testing.T) {
 				Id:   "test-0",
 				Path: "/",
 			},
-			endpoint: &v1alpha1.Endpoint{
-				ProviderSpecific: v1alpha1.ProviderSpecific{
+			endpoint: &v1alpha2.Endpoint{
+				ProviderSpecific: v1alpha2.ProviderSpecific{
 					{
 						Name:  ProviderSpecificHealthCheckID,
 						Value: "test-0",
@@ -94,7 +94,7 @@ func TestHealthCheckReconcile(t *testing.T) {
 					},
 				},
 			},
-			assertion: func(hcr dns.HealthCheckResult, err error, e *v1alpha1.Endpoint, mra *mockRoute53API) error {
+			assertion: func(hcr dns.HealthCheckResult, err error, e *v1alpha2.Endpoint, mra *mockRoute53API) error {
 				if err != nil {
 					return fmt.Errorf("unexpected errror %v", err)
 				}
@@ -117,11 +117,11 @@ func TestHealthCheckReconcile(t *testing.T) {
 				Id:   "test-0",
 				Path: "/",
 			},
-			endpoint: &v1alpha1.Endpoint{
+			endpoint: &v1alpha2.Endpoint{
 				DNSName:       "test.example.com",
-				Targets:       v1alpha1.Targets{"0.0.0.0"},
+				Targets:       v1alpha2.Targets{"0.0.0.0"},
 				SetIdentifier: "0.0.0.0",
-				ProviderSpecific: v1alpha1.ProviderSpecific{
+				ProviderSpecific: v1alpha2.ProviderSpecific{
 					{
 						Name:  ProviderSpecificHealthCheckID,
 						Value: "test-0",
@@ -146,7 +146,7 @@ func TestHealthCheckReconcile(t *testing.T) {
 					},
 				},
 			},
-			assertion: func(hcr dns.HealthCheckResult, err error, e *v1alpha1.Endpoint, mra *mockRoute53API) error {
+			assertion: func(hcr dns.HealthCheckResult, err error, e *v1alpha2.Endpoint, mra *mockRoute53API) error {
 				if err != nil {
 					return fmt.Errorf("unexpected errror %v", err)
 				}
@@ -182,16 +182,16 @@ func TestHealthCheckDelete(t *testing.T) {
 	testCases := []struct {
 		name string
 
-		endpoint             *v1alpha1.Endpoint
+		endpoint             *v1alpha2.Endpoint
 		existingHealthChecks []*mockHealthCheck
 
-		assertion func(dns.HealthCheckResult, error, *v1alpha1.Endpoint, *mockRoute53API) error
+		assertion func(dns.HealthCheckResult, error, *v1alpha2.Endpoint, *mockRoute53API) error
 	}{
 		{
 			name: "Test case deleted",
 
-			endpoint: &v1alpha1.Endpoint{
-				ProviderSpecific: v1alpha1.ProviderSpecific{
+			endpoint: &v1alpha2.Endpoint{
+				ProviderSpecific: v1alpha2.ProviderSpecific{
 					{
 						Name:  ProviderSpecificHealthCheckID,
 						Value: "test-1",
@@ -211,7 +211,7 @@ func TestHealthCheckDelete(t *testing.T) {
 				},
 			},
 
-			assertion: func(hcr dns.HealthCheckResult, err error, e *v1alpha1.Endpoint, mra *mockRoute53API) error {
+			assertion: func(hcr dns.HealthCheckResult, err error, e *v1alpha2.Endpoint, mra *mockRoute53API) error {
 				if err != nil {
 					return fmt.Errorf("unexpected error %v", err)
 				}
@@ -233,8 +233,8 @@ func TestHealthCheckDelete(t *testing.T) {
 		{
 			name: "Test case not found",
 
-			endpoint: &v1alpha1.Endpoint{
-				ProviderSpecific: v1alpha1.ProviderSpecific{},
+			endpoint: &v1alpha2.Endpoint{
+				ProviderSpecific: v1alpha2.ProviderSpecific{},
 			},
 			existingHealthChecks: []*mockHealthCheck{
 				{
@@ -244,7 +244,7 @@ func TestHealthCheckDelete(t *testing.T) {
 				},
 			},
 
-			assertion: func(hcr dns.HealthCheckResult, err error, e *v1alpha1.Endpoint, mra *mockRoute53API) error {
+			assertion: func(hcr dns.HealthCheckResult, err error, e *v1alpha2.Endpoint, mra *mockRoute53API) error {
 				if err != nil {
 					return fmt.Errorf("unexpected error %v", err)
 				}

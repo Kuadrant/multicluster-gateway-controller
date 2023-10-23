@@ -28,6 +28,7 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	mgcv1alpha1 "github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	mgcv1alpha2 "github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha2"
 	. "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 )
 
@@ -250,25 +251,28 @@ var _ = Describe("Gateway single target cluster", func() {
 			})
 
 			When("a DNSPolicy is attached to the Gateway", func() {
-				var dnsPolicy *mgcv1alpha1.DNSPolicy
+				var dnsPolicy *mgcv1alpha2.DNSPolicy
 
 				BeforeEach(func(ctx SpecContext) {
 
 					By("creating a DNSPolicy in the hub")
-
-					dnsPolicy = &mgcv1alpha1.DNSPolicy{
+					dnsPolicy = &mgcv1alpha2.DNSPolicy{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      testID,
 							Namespace: tconfig.HubNamespace(),
 						},
-						Spec: mgcv1alpha1.DNSPolicySpec{
+						Spec: mgcv1alpha2.DNSPolicySpec{
 							TargetRef: gatewayapiv1alpha2.PolicyTargetReference{
 								Group:     "gateway.networking.k8s.io",
 								Kind:      "Gateway",
 								Name:      gatewayapiv1.ObjectName(testID),
 								Namespace: Pointer(gatewayapiv1.Namespace(tconfig.HubNamespace())),
 							},
-							RoutingStrategy: v1alpha1.LoadBalancedRoutingStrategy,
+							RoutingStrategy: mgcv1alpha2.LoadBalancedRoutingStrategy,
+							ProviderRef: mgcv1alpha2.ProviderRef{
+								Name: tconfig.DNSProviderSecretName(),
+								Kind: mgcv1alpha2.ProviderKindSecret,
+							},
 						},
 					}
 					err := tconfig.HubClient().Create(ctx, dnsPolicy)
@@ -304,7 +308,7 @@ var _ = Describe("Gateway single target cluster", func() {
 					By("waiting for the DNSRecord to be created and ready in the Hub")
 					{
 						Eventually(func(g Gomega, ctx context.Context) {
-							dnsrecord := &mgcv1alpha1.DNSRecord{ObjectMeta: metav1.ObjectMeta{
+							dnsrecord := &mgcv1alpha2.DNSRecord{ObjectMeta: metav1.ObjectMeta{
 								Name:      fmt.Sprintf("%s-%s", gw.Name, "https"),
 								Namespace: gw.Namespace,
 							}}

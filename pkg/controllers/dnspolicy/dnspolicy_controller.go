@@ -37,6 +37,7 @@ import (
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha2"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/events"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 )
@@ -73,7 +74,7 @@ func (r *DNSPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	log.Info("Reconciling DNSPolicy")
 	ctx = crlog.IntoContext(ctx, log)
 
-	previous := &v1alpha1.DNSPolicy{}
+	previous := &v1alpha2.DNSPolicy{}
 	if err := r.Client().Get(ctx, req.NamespacedName, previous); err != nil {
 		log.Info("error getting dns policy", "error", err)
 		return ctrl.Result{}, client.IgnoreNotFound(err)
@@ -134,7 +135,7 @@ func (r *DNSPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	return statusResult, statusErr
 }
 
-func (r *DNSPolicyReconciler) reconcileResources(ctx context.Context, dnsPolicy *v1alpha1.DNSPolicy, targetNetworkObject client.Object) error {
+func (r *DNSPolicyReconciler) reconcileResources(ctx context.Context, dnsPolicy *v1alpha2.DNSPolicy, targetNetworkObject client.Object) error {
 	gatewayCondition := conditions.BuildPolicyAffectedCondition(DNSPolicyAffected, dnsPolicy, targetNetworkObject, conditions.PolicyReasonAccepted, nil)
 
 	// validate
@@ -186,7 +187,7 @@ func (r *DNSPolicyReconciler) reconcileResources(ctx context.Context, dnsPolicy 
 	return nil
 }
 
-func (r *DNSPolicyReconciler) deleteResources(ctx context.Context, dnsPolicy *v1alpha1.DNSPolicy, targetNetworkObject client.Object) error {
+func (r *DNSPolicyReconciler) deleteResources(ctx context.Context, dnsPolicy *v1alpha2.DNSPolicy, targetNetworkObject client.Object) error {
 	// delete based on gateway diffs
 
 	if err := r.deleteDNSRecords(ctx, dnsPolicy); err != nil {
@@ -218,7 +219,7 @@ func (r *DNSPolicyReconciler) deleteResources(ctx context.Context, dnsPolicy *v1
 	return r.updateGatewayCondition(ctx, metav1.Condition{Type: string(DNSPolicyAffected)}, gatewayDiffObj)
 }
 
-func (r *DNSPolicyReconciler) reconcileStatus(ctx context.Context, dnsPolicy *v1alpha1.DNSPolicy, specErr error) (ctrl.Result, error) {
+func (r *DNSPolicyReconciler) reconcileStatus(ctx context.Context, dnsPolicy *v1alpha2.DNSPolicy, specErr error) (ctrl.Result, error) {
 	newStatus := r.calculateStatus(dnsPolicy, specErr)
 
 	if !equality.Semantic.DeepEqual(newStatus, dnsPolicy.Status) {
@@ -240,7 +241,7 @@ func (r *DNSPolicyReconciler) reconcileStatus(ctx context.Context, dnsPolicy *v1
 	return ctrl.Result{}, nil
 }
 
-func (r *DNSPolicyReconciler) calculateStatus(dnsPolicy *v1alpha1.DNSPolicy, specErr error) *v1alpha1.DNSPolicyStatus {
+func (r *DNSPolicyReconciler) calculateStatus(dnsPolicy *v1alpha2.DNSPolicy, specErr error) *v1alpha2.DNSPolicyStatus {
 	newStatus := dnsPolicy.Status.DeepCopy()
 	if specErr != nil {
 		newStatus.ObservedGeneration = dnsPolicy.Generation
@@ -303,7 +304,7 @@ func (r *DNSPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	probeEventMapper := events.NewProbeEventMapper(r.Logger(), DNSPolicyBackRefAnnotation, "dnspolicy")
 	r.dnsHelper = dnsHelper{Client: r.Client()}
 	ctrlr := ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.DNSPolicy{}).
+		For(&v1alpha2.DNSPolicy{}).
 		Watches(
 			&gatewayapiv1.Gateway{},
 			handler.EnqueueRequestsFromMapFunc(gatewayEventMapper.MapToPolicy),

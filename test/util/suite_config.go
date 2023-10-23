@@ -25,6 +25,7 @@ import (
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	mgcv1alpha1 "github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	mgcv1alpha2 "github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha2"
 )
 
 const (
@@ -119,6 +120,10 @@ func (cfg *SuiteConfig) Build() error {
 		return err
 	}
 	err = mgcv1alpha1.AddToScheme(scheme.Scheme)
+	if err != nil {
+		return err
+	}
+	err = mgcv1alpha2.AddToScheme(scheme.Scheme)
 	if err != nil {
 		return err
 	}

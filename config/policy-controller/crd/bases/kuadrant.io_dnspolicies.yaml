@@ -20,7 +20,7 @@ spec:
       jsonPath: .status.conditions[?(@.type=="Ready")].status
       name: Ready
       type: string
-    name: v1alpha1
+    name: v1alpha2
     schema:
       openAPIV3Schema:
         description: DNSPolicy is the Schema for the dnspolicies API
@@ -155,6 +155,20 @@ spec:
                         type: integer
                     type: object
                 type: object
+              providerRef:
+                properties:
+                  kind:
+                    enum:
+                    - None
+                    - Secret
+                    - ManagedZone
+                    type: string
+                  name:
+                    type: string
+                required:
+                - kind
+                - name
+                type: object
               routingStrategy:
                 default: loadbalanced
                 enum:
@@ -200,6 +214,7 @@ spec:
                 - name
                 type: object
             required:
+            - providerRef
             - routingStrategy
             - targetRef
             type: object

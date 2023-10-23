@@ -33,7 +33,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha2"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 )
 
@@ -135,6 +135,10 @@ type GoogleDNSProvider struct {
 	batchChangeSize int
 	// Interval between batch updates.
 	batchChangeInterval time.Duration
+	// only consider hosted zones ending with this zone id
+	zoneIDFilter dns.ZoneIDFilter
+	// only consider hosted zones managing domains ending in this suffix
+	domainFilter dns.DomainFilter
 	// A client for managing resource record sets
 	resourceRecordSetsClient resourceRecordSetsClientInterface
 	// A client for managing hosted zones
@@ -153,6 +157,11 @@ func NewProviderFromSecret(ctx context.Context, s *v1.Secret) (*GoogleDNSProvide
 		return nil, fmt.Errorf("GCP Provider credentials is empty")
 	}
 
+	pConfig, err := dns.ConfigFromJSON(s.Data["CONFIG"])
+	if err != nil {
+		return nil, err
+	}
+
 	dnsClient, err := dnsv1.NewService(ctx, option.WithCredentialsJSON(s.Data["GOOGLE"]))
 	if err != nil {
 		return nil, err
@@ -160,12 +169,17 @@ func NewProviderFromSecret(ctx context.Context, s *v1.Secret) (*GoogleDNSProvide
 
 	var project = string(s.Data["PROJECT_ID"])
 
+	zoneIDFilter := dns.NewZoneIDFilter(pConfig.ZoneIDFilter)
+	domainFilter := dns.NewDomainFilter(pConfig.DomainFilter)
+
 	provider := &GoogleDNSProvider{
 		logger:                   log.Log.WithName("google-dns").WithValues("project", project),
 		project:                  project,
 		dryRun:                   DryRun,
 		batchChangeSize:          GoogleBatchChangeSize,
 		batchChangeInterval:      GoogleBatchChangeInterval,
+		zoneIDFilter:             zoneIDFilter,
+		domainFilter:             domainFilter,
 		resourceRecordSetsClient: resourceRecordSetsService{dnsClient.ResourceRecordSets},
 		managedZonesClient:       managedZonesService{dnsClient.ManagedZones},
 		changesClient:            changesService{dnsClient.Changes},
@@ -177,15 +191,57 @@ func NewProviderFromSecret(ctx context.Context, s *v1.Secret) (*GoogleDNSProvide
 
 // ManagedZones
 
-func (g *GoogleDNSProvider) DeleteManagedZone(managedZone *v1alpha1.ManagedZone) error {
+func (p *GoogleDNSProvider) ListZones() (dns.ZoneList, error) {
+	var zoneList dns.ZoneList
+	zones, err := p.zones()
+	if err != nil {
+		return zoneList, err
+	}
+	for _, zone := range zones {
+		dnsName := removeTrailingDot(zone.DnsName)
+		zoneList.Items = append(zoneList.Items, &dns.Zone{
+			ID:      &zone.Name,
+			DNSName: &dnsName,
+		})
+	}
+	return zoneList, nil
+}
+
+// Zones returns the list of managed zones.
+func (p *GoogleDNSProvider) zones() (map[string]*dnsv1.ManagedZone, error) {
+	zones := make(map[string]*dnsv1.ManagedZone)
+
+	f := func(resp *dnsv1.ManagedZonesListResponse) error {
+		for _, zone := range resp.ManagedZones {
+			if !p.domainFilter.Match(zone.DnsName) && !(p.zoneIDFilter.Match(fmt.Sprintf("%v", zone.Id)) || p.zoneIDFilter.Match(fmt.Sprintf("%v", zone.Name))) {
+				continue
+			}
+			zones[zone.Name] = zone
+		}
+		return nil
+	}
+
+	err := p.managedZonesClient.List(p.project).Pages(p.ctx, f)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list managed zones: %w", err)
+	}
+
+	for _, zone := range zones {
+		log.Log.V(1).Info("Considering zone", "zone.Name", zone.Name, "zone.DnsName", zone.DnsName)
+	}
+
+	return zones, nil
+}
+
+func (g *GoogleDNSProvider) DeleteManagedZone(managedZone *v1alpha2.ManagedZone) error {
 	return g.managedZonesClient.Delete(g.project, managedZone.Status.ID).Do()
 }
 
-func (g *GoogleDNSProvider) EnsureManagedZone(managedZone *v1alpha1.ManagedZone) (dns.ManagedZoneOutput, error) {
+func (g *GoogleDNSProvider) EnsureManagedZone(managedZone *v1alpha2.ManagedZone) (dns.ManagedZoneOutput, error) {
 	var zoneID string
 
-	if managedZone.Spec.ID != "" {
-		zoneID = managedZone.Spec.ID
+	if managedZone.Spec.ID != nil {
+		zoneID = *managedZone.Spec.ID
 	} else {
 		zoneID = managedZone.Status.ID
 	}
@@ -198,12 +254,12 @@ func (g *GoogleDNSProvider) EnsureManagedZone(managedZone *v1alpha1.ManagedZone)
 	return g.createManagedZone(managedZone)
 }
 
-func (g *GoogleDNSProvider) createManagedZone(managedZone *v1alpha1.ManagedZone) (dns.ManagedZoneOutput, error) {
+func (g *GoogleDNSProvider) createManagedZone(managedZone *v1alpha2.ManagedZone) (dns.ManagedZoneOutput, error) {
 	zoneID := strings.Replace(managedZone.Spec.DomainName, ".", "-", -1)
 	zone := dnsv1.ManagedZone{
 		Name:        zoneID,
 		DnsName:     ensureTrailingDot(managedZone.Spec.DomainName),
-		Description: managedZone.Spec.Description,
+		Description: *managedZone.Spec.Description,
 	}
 	mz, err := g.managedZonesClient.Create(g.project, &zone).Do()
 	if err != nil {
@@ -242,12 +298,12 @@ func (g *GoogleDNSProvider) toManagedZoneOutput(mz *dnsv1.ManagedZone) (dns.Mana
 
 //DNSRecords
 
-func (g *GoogleDNSProvider) Ensure(record *v1alpha1.DNSRecord, managedZone *v1alpha1.ManagedZone) error {
-	return g.updateRecord(record, managedZone.Status.ID, upsertAction)
+func (g *GoogleDNSProvider) Ensure(record *v1alpha2.DNSRecord) error {
+	return g.updateRecord(record, upsertAction)
 }
 
-func (g *GoogleDNSProvider) Delete(record *v1alpha1.DNSRecord, managedZone *v1alpha1.ManagedZone) error {
-	return g.updateRecord(record, managedZone.Status.ID, deleteAction)
+func (g *GoogleDNSProvider) Delete(record *v1alpha2.DNSRecord) error {
+	return g.updateRecord(record, deleteAction)
 }
 
 func (g *GoogleDNSProvider) HealthCheckReconciler() dns.HealthCheckReconciler {
@@ -259,12 +315,15 @@ func (g *GoogleDNSProvider) ProviderSpecific() dns.ProviderSpecificLabels {
 	return dns.ProviderSpecificLabels{}
 }
 
-func (g *GoogleDNSProvider) updateRecord(dnsRecord *v1alpha1.DNSRecord, zoneID string, action action) error {
+func (g *GoogleDNSProvider) updateRecord(dnsRecord *v1alpha2.DNSRecord, action action) error {
 	// When updating records the Google DNS API expects you to delete any existing record and add the new one as part of
 	// the same change request. The record to be deleted must match exactly what currently exists in the provider or the
 	// change request will fail. To make sure we can always remove the records, we first get all records that exist in
 	// the zone and build up the deleting list from `dnsRecord.Status` but use the most recent version of it retrieved
 	// from the provider in the change request.
+
+	zoneID := *dnsRecord.Spec.ZoneID
+
 	currentRecords, err := g.getResourceRecordSets(g.ctx, zoneID)
 	if err != nil {
 		return err
@@ -417,12 +476,12 @@ func (g *GoogleDNSProvider) getResourceRecordSets(ctx context.Context, zoneID st
 }
 
 // toResourceRecordSets converts a list of endpoints into `ResourceRecordSet` resources.
-func toResourceRecordSets(allEndpoints []*v1alpha1.Endpoint) []*dnsv1.ResourceRecordSet {
+func toResourceRecordSets(allEndpoints []*v1alpha2.Endpoint) []*dnsv1.ResourceRecordSet {
 	var records []*dnsv1.ResourceRecordSet
 
 	// Google DNS requires a record to be created per `dnsName`, so the first thing we need to do is group all the
 	// endpoints with the same dnsName together.
-	endpointMap := make(map[string][]*v1alpha1.Endpoint)
+	endpointMap := make(map[string][]*v1alpha2.Endpoint)
 	for _, ep := range allEndpoints {
 		endpointMap[ep.DNSName] = append(endpointMap[ep.DNSName], ep)
 	}
@@ -453,7 +512,7 @@ func toResourceRecordSets(allEndpoints []*v1alpha1.Endpoint) []*dnsv1.ResourceRe
 		for _, ep := range endpoints {
 			targets := make([]string, len(ep.Targets))
 			copy(targets, ep.Targets)
-			if ep.RecordType == string(v1alpha1.CNAMERecordType) {
+			if ep.RecordType == string(v1alpha2.CNAMERecordType) {
 				targets[0] = ensureTrailingDot(targets[0])
 			}
 
@@ -504,4 +563,13 @@ func ensureTrailingDot(hostname string) string {
 	}
 
 	return strings.TrimSuffix(hostname, ".") + "."
+}
+
+// removeTrailingDot ensures that the hostname receives a trailing dot if it hasn't already.
+func removeTrailingDot(hostname string) string {
+	if net.ParseIP(hostname) != nil {
+		return hostname
+	}
+
+	return strings.TrimSuffix(hostname, ".")
 }

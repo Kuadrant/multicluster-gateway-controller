@@ -14,7 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha2"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 	testutil "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 )
@@ -22,11 +22,11 @@ import (
 var _ = Describe("DNSPolicy Single Cluster", func() {
 
 	var gatewayClass *gatewayapiv1.GatewayClass
-	var managedZone *v1alpha1.ManagedZone
+	var managedZone *v1alpha2.ManagedZone
 	var testNamespace string
 	var dnsPolicyBuilder *testutil.DNSPolicyBuilder
 	var gateway *gatewayapiv1.Gateway
-	var dnsPolicy *v1alpha1.DNSPolicy
+	var dnsPolicy *v1alpha2.DNSPolicy
 	var lbHash, recordName, wildcardRecordName string
 
 	BeforeEach(func() {
@@ -35,7 +35,12 @@ var _ = Describe("DNSPolicy Single Cluster", func() {
 		gatewayClass = testutil.NewTestGatewayClass("foo", "default", "kuadrant.io/bar")
 		Expect(k8sClient.Create(ctx, gatewayClass)).To(Succeed())
 
-		managedZone = testutil.NewManagedZoneBuilder("mz-example-com", testNamespace, "example.com").ManagedZone
+		managedZone = testutil.NewManagedZoneBuilder("mz-example-com", testNamespace).
+			WithID("1234").
+			WithDomainName("example.com").
+			WithDescription("example.com").
+			WithProviderSecret("secretname").
+			ManagedZone
 		Expect(k8sClient.Create(ctx, managedZone)).To(Succeed())
 
 		gateway = testutil.NewGatewayBuilder(TestGatewayName, gatewayClass.Name, testNamespace).
@@ -73,8 +78,9 @@ var _ = Describe("DNSPolicy Single Cluster", func() {
 			return k8sClient.Status().Update(ctx, gateway)
 		}, TestTimeoutMedium, TestRetryIntervalMedium).Should(Succeed())
 
-		dnsPolicyBuilder = testutil.NewDNSPolicyBuilder("test-dns-policy", testNamespace)
-		dnsPolicyBuilder.WithTargetGateway(TestGatewayName)
+		dnsPolicyBuilder = testutil.NewDNSPolicyBuilder("test-dns-policy", testNamespace).
+			WithProviderManagedZone(managedZone.Name).
+			WithTargetGateway(TestGatewayName)
 
 		lbHash = dns.ToBase36hash(fmt.Sprintf("%s-%s", gateway.Name, gateway.Namespace))
 		recordName = fmt.Sprintf("%s-%s", TestGatewayName, TestListenerNameOne)
@@ -104,14 +110,14 @@ var _ = Describe("DNSPolicy Single Cluster", func() {
 	Context("simple routing strategy", func() {
 
 		BeforeEach(func() {
-			dnsPolicyBuilder.WithRoutingStrategy(v1alpha1.SimpleRoutingStrategy)
+			dnsPolicyBuilder.WithRoutingStrategy(v1alpha2.SimpleRoutingStrategy)
 			dnsPolicy = dnsPolicyBuilder.DNSPolicy
 			Expect(k8sClient.Create(ctx, dnsPolicy)).To(Succeed())
 		})
 
 		It("should create dns records", func() {
 			Eventually(func(g Gomega, ctx context.Context) {
-				recordList := &v1alpha1.DNSRecordList{}
+				recordList := &v1alpha2.DNSRecordList{}
 				err := k8sClient.List(ctx, recordList, &client.ListOptions{Namespace: testNamespace})
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(recordList.Items).To(HaveLen(2))
@@ -120,14 +126,15 @@ var _ = Describe("DNSPolicy Single Cluster", func() {
 						MatchFields(IgnoreExtras, Fields{
 							"ObjectMeta": HaveField("Name", recordName),
 							"Spec": MatchFields(IgnoreExtras, Fields{
-								"ManagedZoneRef": HaveField("Name", "mz-example-com"),
+								"ZoneID":      Equal(managedZone.Spec.ID),
+								"ProviderRef": Equal(dnsPolicy.Spec.ProviderRef),
 								"Endpoints": ConsistOf(
 									PointTo(MatchFields(IgnoreExtras, Fields{
 										"DNSName":       Equal(TestHostOne),
 										"Targets":       ContainElements(TestIPAddressOne, TestIPAddressTwo),
 										"RecordType":    Equal("A"),
 										"SetIdentifier": Equal(""),
-										"RecordTTL":     Equal(v1alpha1.TTL(60)),
+										"RecordTTL":     Equal(v1alpha2.TTL(60)),
 									})),
 								),
 							}),
@@ -135,14 +142,15 @@ var _ = Describe("DNSPolicy Single Cluster", func() {
 						MatchFields(IgnoreExtras, Fields{
 							"ObjectMeta": HaveField("Name", wildcardRecordName),
 							"Spec": MatchFields(IgnoreExtras, Fields{
-								"ManagedZoneRef": HaveField("Name", "mz-example-com"),
+								"ZoneID":      Equal(managedZone.Spec.ID),
+								"ProviderRef": Equal(dnsPolicy.Spec.ProviderRef),
 								"Endpoints": ConsistOf(
 									PointTo(MatchFields(IgnoreExtras, Fields{
 										"DNSName":       Equal(TestHostWildcard),
 										"Targets":       ContainElements(TestIPAddressOne, TestIPAddressTwo),
 										"RecordType":    Equal("A"),
 										"SetIdentifier": Equal(""),
-										"RecordTTL":     Equal(v1alpha1.TTL(60)),
+										"RecordTTL":     Equal(v1alpha2.TTL(60)),
 									})),
 								),
 							}),
@@ -156,14 +164,14 @@ var _ = Describe("DNSPolicy Single Cluster", func() {
 	Context("loadbalanced routing strategy", func() {
 
 		BeforeEach(func() {
-			dnsPolicyBuilder.WithRoutingStrategy(v1alpha1.LoadBalancedRoutingStrategy)
+			dnsPolicyBuilder.WithRoutingStrategy(v1alpha2.LoadBalancedRoutingStrategy)
 			dnsPolicy = dnsPolicyBuilder.DNSPolicy
 			Expect(k8sClient.Create(ctx, dnsPolicy)).To(Succeed())
 		})
 
 		It("should create dns records", func() {
 			Eventually(func(g Gomega, ctx context.Context) {
-				recordList := &v1alpha1.DNSRecordList{}
+				recordList := &v1alpha2.DNSRecordList{}
 				err := k8sClient.List(ctx, recordList, &client.ListOptions{Namespace: testNamespace})
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(recordList.Items).To(HaveLen(2))
@@ -172,37 +180,38 @@ var _ = Describe("DNSPolicy Single Cluster", func() {
 						MatchFields(IgnoreExtras, Fields{
 							"ObjectMeta": HaveField("Name", recordName),
 							"Spec": MatchFields(IgnoreExtras, Fields{
-								"ManagedZoneRef": HaveField("Name", "mz-example-com"),
+								"ZoneID":      Equal(managedZone.Spec.ID),
+								"ProviderRef": Equal(dnsPolicy.Spec.ProviderRef),
 								"Endpoints": ConsistOf(
 									PointTo(MatchFields(IgnoreExtras, Fields{
 										"DNSName":       Equal("19sc9b.lb-" + lbHash + ".test.example.com"),
 										"Targets":       ConsistOf(TestIPAddressOne, TestIPAddressTwo),
 										"RecordType":    Equal("A"),
 										"SetIdentifier": Equal(""),
-										"RecordTTL":     Equal(v1alpha1.TTL(60)),
+										"RecordTTL":     Equal(v1alpha2.TTL(60)),
 									})),
 									PointTo(MatchFields(IgnoreExtras, Fields{
 										"DNSName":          Equal("default.lb-" + lbHash + ".test.example.com"),
 										"Targets":          ConsistOf("19sc9b.lb-" + lbHash + ".test.example.com"),
 										"RecordType":       Equal("CNAME"),
 										"SetIdentifier":    Equal("19sc9b.lb-" + lbHash + ".test.example.com"),
-										"RecordTTL":        Equal(v1alpha1.TTL(60)),
-										"ProviderSpecific": Equal(v1alpha1.ProviderSpecific{{Name: "weight", Value: "120"}}),
+										"RecordTTL":        Equal(v1alpha2.TTL(60)),
+										"ProviderSpecific": Equal(v1alpha2.ProviderSpecific{{Name: "weight", Value: "120"}}),
 									})),
 									PointTo(MatchFields(IgnoreExtras, Fields{
 										"DNSName":          Equal("lb-" + lbHash + ".test.example.com"),
 										"Targets":          ConsistOf("default.lb-" + lbHash + ".test.example.com"),
 										"RecordType":       Equal("CNAME"),
 										"SetIdentifier":    Equal("default"),
-										"RecordTTL":        Equal(v1alpha1.TTL(300)),
-										"ProviderSpecific": Equal(v1alpha1.ProviderSpecific{{Name: "geo-code", Value: "*"}}),
+										"RecordTTL":        Equal(v1alpha2.TTL(300)),
+										"ProviderSpecific": Equal(v1alpha2.ProviderSpecific{{Name: "geo-code", Value: "*"}}),
 									})),
 									PointTo(MatchFields(IgnoreExtras, Fields{
 										"DNSName":       Equal(TestHostOne),
 										"Targets":       ConsistOf("lb-" + lbHash + ".test.example.com"),
 										"RecordType":    Equal("CNAME"),
 										"SetIdentifier": Equal(""),
-										"RecordTTL":     Equal(v1alpha1.TTL(300)),
+										"RecordTTL":     Equal(v1alpha2.TTL(300)),
 									})),
 								),
 							}),
@@ -210,37 +219,38 @@ var _ = Describe("DNSPolicy Single Cluster", func() {
 						MatchFields(IgnoreExtras, Fields{
 							"ObjectMeta": HaveField("Name", wildcardRecordName),
 							"Spec": MatchFields(IgnoreExtras, Fields{
-								"ManagedZoneRef": HaveField("Name", "mz-example-com"),
+								"ZoneID":      Equal(managedZone.Spec.ID),
+								"ProviderRef": Equal(dnsPolicy.Spec.ProviderRef),
 								"Endpoints": ContainElements(
 									PointTo(MatchFields(IgnoreExtras, Fields{
 										"DNSName":       Equal("19sc9b.lb-" + lbHash + ".example.com"),
 										"Targets":       ConsistOf(TestIPAddressOne, TestIPAddressTwo),
 										"RecordType":    Equal("A"),
 										"SetIdentifier": Equal(""),
-										"RecordTTL":     Equal(v1alpha1.TTL(60)),
+										"RecordTTL":     Equal(v1alpha2.TTL(60)),
 									})),
 									PointTo(MatchFields(IgnoreExtras, Fields{
 										"DNSName":          Equal("default.lb-" + lbHash + ".example.com"),
 										"Targets":          ConsistOf("19sc9b.lb-" + lbHash + ".example.com"),
 										"RecordType":       Equal("CNAME"),
 										"SetIdentifier":    Equal("19sc9b.lb-" + lbHash + ".example.com"),
-										"RecordTTL":        Equal(v1alpha1.TTL(60)),
-										"ProviderSpecific": Equal(v1alpha1.ProviderSpecific{{Name: "weight", Value: "120"}}),
+										"RecordTTL":        Equal(v1alpha2.TTL(60)),
+										"ProviderSpecific": Equal(v1alpha2.ProviderSpecific{{Name: "weight", Value: "120"}}),
 									})),
 									PointTo(MatchFields(IgnoreExtras, Fields{
 										"DNSName":          Equal("lb-" + lbHash + ".example.com"),
 										"Targets":          ConsistOf("default.lb-" + lbHash + ".example.com"),
 										"RecordType":       Equal("CNAME"),
 										"SetIdentifier":    Equal("default"),
-										"RecordTTL":        Equal(v1alpha1.TTL(300)),
-										"ProviderSpecific": Equal(v1alpha1.ProviderSpecific{{Name: "geo-code", Value: "*"}}),
+										"RecordTTL":        Equal(v1alpha2.TTL(300)),
+										"ProviderSpecific": Equal(v1alpha2.ProviderSpecific{{Name: "geo-code", Value: "*"}}),
 									})),
 									PointTo(MatchFields(IgnoreExtras, Fields{
 										"DNSName":       Equal(TestHostWildcard),
 										"Targets":       ConsistOf("lb-" + lbHash + ".example.com"),
 										"RecordType":    Equal("CNAME"),
 										"SetIdentifier": Equal(""),
-										"RecordTTL":     Equal(v1alpha1.TTL(300)),
+										"RecordTTL":     Equal(v1alpha2.TTL(300)),
 									})),
 								),
 							}),

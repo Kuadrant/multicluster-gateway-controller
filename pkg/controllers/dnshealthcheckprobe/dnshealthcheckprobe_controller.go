@@ -18,6 +18,7 @@ import (
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha2"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/health"
 )
 
@@ -257,7 +258,7 @@ func (r *DNSHealthCheckProbeReconciler) newProbeNotifierFor(ctx context.Context,
 	), nil
 }
 
-func getDNSRecord(ctx context.Context, apiClient client.Client, obj metav1.Object) (*v1alpha1.DNSRecord, bool, error) {
+func getDNSRecord(ctx context.Context, apiClient client.Client, obj metav1.Object) (*v1alpha2.DNSRecord, bool, error) {
 	if obj.GetAnnotations() == nil {
 		return nil, false, nil
 	}
@@ -269,7 +270,7 @@ func getDNSRecord(ctx context.Context, apiClient client.Client, obj metav1.Objec
 		return nil, false, nil
 	}
 
-	dnsRecord := &v1alpha1.DNSRecord{}
+	dnsRecord := &v1alpha2.DNSRecord{}
 	if err := apiClient.Get(ctx, client.ObjectKey{
 		Name:      name,
 		Namespace: ns,

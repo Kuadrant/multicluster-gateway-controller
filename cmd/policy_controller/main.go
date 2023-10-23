@@ -38,6 +38,7 @@ import (
 	"github.com/kuadrant/kuadrant-operator/pkg/reconcilers"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha2"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnshealthcheckprobe"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnspolicy"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnsrecord"
@@ -55,6 +56,7 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme.Scheme))
 	utilruntime.Must(gatewayapiv1.AddToScheme(scheme.Scheme))
 	utilruntime.Must(v1alpha1.AddToScheme(scheme.Scheme))
+	utilruntime.Must(v1alpha2.AddToScheme(scheme.Scheme))
 	utilruntime.Must(certmanv1.AddToScheme(scheme.Scheme))
 	//this is need for now but will be removed soon
 	utilruntime.Must(clusterv1.AddToScheme(scheme.Scheme))

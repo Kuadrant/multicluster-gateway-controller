@@ -11,7 +11,7 @@ import (
 
 	"github.com/kuadrant/kuadrant-operator/pkg/common"
 
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha2"
 	testutil "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 )
 
@@ -27,13 +27,13 @@ func TestGetTargetRefValueFromPolicy(t *testing.T) {
 		{
 			name: "should use target namespace",
 			args: args{
-				policy: &v1alpha1.DNSPolicy{
+				policy: &v1alpha2.DNSPolicy{
 					TypeMeta: metav1.TypeMeta{},
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test-policy",
 						Namespace: "test-policy-ns",
 					},
-					Spec: v1alpha1.DNSPolicySpec{
+					Spec: v1alpha2.DNSPolicySpec{
 						TargetRef: gatewayapiv1alpha2.PolicyTargetReference{
 							Group: "gateway.networking.k8s.io",
 							Kind:  "Gateway",
@@ -47,13 +47,13 @@ func TestGetTargetRefValueFromPolicy(t *testing.T) {
 		{
 			name: "should use policy namespace when no target namespace set",
 			args: args{
-				policy: &v1alpha1.DNSPolicy{
+				policy: &v1alpha2.DNSPolicy{
 					TypeMeta: metav1.TypeMeta{},
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test-policy",
 						Namespace: "test-policy-ns",
 					},
-					Spec: v1alpha1.DNSPolicySpec{
+					Spec: v1alpha2.DNSPolicySpec{
 						TargetRef: gatewayapiv1alpha2.PolicyTargetReference{
 							Group:     "gateway.networking.k8s.io",
 							Kind:      "Gateway",

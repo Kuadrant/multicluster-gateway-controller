@@ -15,6 +15,7 @@ import (
 	"github.com/kuadrant/kuadrant-operator/pkg/reconcilers"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha2"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/utils"
@@ -38,7 +39,7 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 	type args struct {
 		ctx       context.Context
 		gw        common.GatewayWrapper
-		dnsPolicy *v1alpha1.DNSPolicy
+		dnsPolicy *v1alpha2.DNSPolicy
 	}
 	tests := []struct {
 		name   string
@@ -80,13 +81,13 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 						},
 					},
 				},
-				dnsPolicy: &v1alpha1.DNSPolicy{
+				dnsPolicy: &v1alpha2.DNSPolicy{
 					ObjectMeta: controllerruntime.ObjectMeta{
 						Name:      "testdnspolicy",
 						Namespace: "testnamespace",
 					},
-					Spec: v1alpha1.DNSPolicySpec{
-						HealthCheck: &v1alpha1.HealthCheckSpec{
+					Spec: v1alpha2.DNSPolicySpec{
+						HealthCheck: &v1alpha2.HealthCheckSpec{
 							Endpoint: "/",
 							Port:     testutil.Pointer(8443),
 							Protocol: testutil.Pointer(v1alpha1.HttpsProtocol),
@@ -171,13 +172,13 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 						},
 					},
 				},
-				dnsPolicy: &v1alpha1.DNSPolicy{
+				dnsPolicy: &v1alpha2.DNSPolicy{
 					ObjectMeta: controllerruntime.ObjectMeta{
 						Name:      "testdnspolicy",
 						Namespace: "testnamespace",
 					},
-					Spec: v1alpha1.DNSPolicySpec{
-						HealthCheck: &v1alpha1.HealthCheckSpec{},
+					Spec: v1alpha2.DNSPolicySpec{
+						HealthCheck: &v1alpha2.HealthCheckSpec{},
 					},
 				},
 			},
@@ -236,9 +237,9 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 						},
 					},
 				},
-				dnsPolicy: &v1alpha1.DNSPolicy{
-					Spec: v1alpha1.DNSPolicySpec{
-						HealthCheck: &v1alpha1.HealthCheckSpec{},
+				dnsPolicy: &v1alpha2.DNSPolicy{
+					Spec: v1alpha2.DNSPolicySpec{
+						HealthCheck: &v1alpha2.HealthCheckSpec{},
 					},
 				},
 			},
@@ -280,13 +281,13 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 						},
 					},
 				},
-				dnsPolicy: &v1alpha1.DNSPolicy{
+				dnsPolicy: &v1alpha2.DNSPolicy{
 					ObjectMeta: controllerruntime.ObjectMeta{
 						Name:      "testdnspolicy",
 						Namespace: "testnamespace",
 					},
-					Spec: v1alpha1.DNSPolicySpec{
-						HealthCheck: &v1alpha1.HealthCheckSpec{},
+					Spec: v1alpha2.DNSPolicySpec{
+						HealthCheck: &v1alpha2.HealthCheckSpec{},
 					},
 				},
 			},
@@ -338,9 +339,9 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 						},
 					},
 				},
-				dnsPolicy: &v1alpha1.DNSPolicy{
-					Spec: v1alpha1.DNSPolicySpec{
-						HealthCheck: &v1alpha1.HealthCheckSpec{},
+				dnsPolicy: &v1alpha2.DNSPolicy{
+					Spec: v1alpha2.DNSPolicySpec{
+						HealthCheck: &v1alpha2.HealthCheckSpec{},
 					},
 				},
 			},
@@ -368,9 +369,9 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 						},
 					},
 				},
-				dnsPolicy: &v1alpha1.DNSPolicy{
-					Spec: v1alpha1.DNSPolicySpec{
-						HealthCheck: &v1alpha1.HealthCheckSpec{},
+				dnsPolicy: &v1alpha2.DNSPolicy{
+					Spec: v1alpha2.DNSPolicySpec{
+						HealthCheck: &v1alpha2.HealthCheckSpec{},
 					},
 				},
 			},
@@ -391,9 +392,9 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 						Status: gatewayapiv1.GatewayStatus{},
 					},
 				},
-				dnsPolicy: &v1alpha1.DNSPolicy{
-					Spec: v1alpha1.DNSPolicySpec{
-						HealthCheck: &v1alpha1.HealthCheckSpec{},
+				dnsPolicy: &v1alpha2.DNSPolicy{
+					Spec: v1alpha2.DNSPolicySpec{
+						HealthCheck: &v1alpha2.HealthCheckSpec{},
 					},
 				},
 			},
@@ -403,7 +404,7 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 			name:   "no probes when no healthcheck spec defined",
 			fields: fields{},
 			args: args{
-				dnsPolicy: &v1alpha1.DNSPolicy{},
+				dnsPolicy: &v1alpha2.DNSPolicy{},
 			},
 			want: nil,
 		},

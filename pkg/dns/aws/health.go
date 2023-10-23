@@ -11,7 +11,7 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha2"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 )
 
@@ -39,7 +39,7 @@ func NewRoute53HealthCheckReconciler(client route53iface.Route53API) *Route53Hea
 	}
 }
 
-func (r *Route53HealthCheckReconciler) Reconcile(ctx context.Context, spec dns.HealthCheckSpec, endpoint *v1alpha1.Endpoint) (dns.HealthCheckResult, error) {
+func (r *Route53HealthCheckReconciler) Reconcile(ctx context.Context, spec dns.HealthCheckSpec, endpoint *v1alpha2.Endpoint) (dns.HealthCheckResult, error) {
 	healthCheck, exists, err := r.findHealthCheck(ctx, endpoint)
 	if err != nil {
 		return dns.HealthCheckResult{}, err
@@ -68,7 +68,7 @@ func (r *Route53HealthCheckReconciler) Reconcile(ctx context.Context, spec dns.H
 	return dns.NewHealthCheckResult(dns.HealthCheckCreated, fmt.Sprintf("Created health check with ID %s", *healthCheck.Id)), nil
 }
 
-func (r *Route53HealthCheckReconciler) Delete(ctx context.Context, endpoint *v1alpha1.Endpoint) (dns.HealthCheckResult, error) {
+func (r *Route53HealthCheckReconciler) Delete(ctx context.Context, endpoint *v1alpha2.Endpoint) (dns.HealthCheckResult, error) {
 	healthCheck, found, err := r.findHealthCheck(ctx, endpoint)
 	if err != nil {
 		return dns.HealthCheckResult{}, err
@@ -89,7 +89,7 @@ func (r *Route53HealthCheckReconciler) Delete(ctx context.Context, endpoint *v1a
 	return dns.NewHealthCheckResult(dns.HealthCheckDeleted, ""), nil
 }
 
-func (c *Route53HealthCheckReconciler) findHealthCheck(ctx context.Context, endpoint *v1alpha1.Endpoint) (*route53.HealthCheck, bool, error) {
+func (c *Route53HealthCheckReconciler) findHealthCheck(ctx context.Context, endpoint *v1alpha2.Endpoint) (*route53.HealthCheck, bool, error) {
 	id, hasId := getHealthCheckId(endpoint)
 	if !hasId {
 		return nil, false, nil
@@ -106,7 +106,7 @@ func (c *Route53HealthCheckReconciler) findHealthCheck(ctx context.Context, endp
 
 }
 
-func (c *Route53HealthCheckReconciler) createHealthCheck(ctx context.Context, spec dns.HealthCheckSpec, endpoint *v1alpha1.Endpoint) (*route53.HealthCheck, error) {
+func (c *Route53HealthCheckReconciler) createHealthCheck(ctx context.Context, spec dns.HealthCheckSpec, endpoint *v1alpha2.Endpoint) (*route53.HealthCheck, error) {
 	address, _ := endpoint.GetAddress()
 	host := endpoint.DNSName
 
@@ -150,7 +150,7 @@ func (c *Route53HealthCheckReconciler) createHealthCheck(ctx context.Context, sp
 	return output.HealthCheck, nil
 }
 
-func (r *Route53HealthCheckReconciler) updateHealthCheck(ctx context.Context, spec dns.HealthCheckSpec, endpoint *v1alpha1.Endpoint, healthCheck *route53.HealthCheck) (dns.HealthCheckReconciliationResult, error) {
+func (r *Route53HealthCheckReconciler) updateHealthCheck(ctx context.Context, spec dns.HealthCheckSpec, endpoint *v1alpha2.Endpoint, healthCheck *route53.HealthCheck) (dns.HealthCheckReconciliationResult, error) {
 	diff := healthCheckDiff(healthCheck, spec, endpoint)
 	if diff == nil {
 		return dns.HealthCheckNoop, nil
@@ -169,7 +169,7 @@ func (r *Route53HealthCheckReconciler) updateHealthCheck(ctx context.Context, sp
 // healthCheckDiff creates a `UpdateHealthCheckInput` object with the fields to
 // update on healthCheck based on the given spec.
 // If the health check matches the spec, returns `nil`
-func healthCheckDiff(healthCheck *route53.HealthCheck, spec dns.HealthCheckSpec, endpoint *v1alpha1.Endpoint) *route53.UpdateHealthCheckInput {
+func healthCheckDiff(healthCheck *route53.HealthCheck, spec dns.HealthCheckSpec, endpoint *v1alpha2.Endpoint) *route53.UpdateHealthCheckInput {
 	var result *route53.UpdateHealthCheckInput
 
 	// "Lazily" set the value for result only once and only when there is
@@ -253,6 +253,6 @@ func valuesEqualWithDefault[T comparable](ptr1, ptr2 *T, defaultValue T) bool {
 	return value1 == value2
 }
 
-func getHealthCheckId(endpoint *v1alpha1.Endpoint) (string, bool) {
+func getHealthCheckId(endpoint *v1alpha2.Endpoint) (string, bool) {
 	return endpoint.GetProviderSpecific(ProviderSpecificHealthCheckID)
 }
