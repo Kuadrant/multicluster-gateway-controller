@@ -15,7 +15,7 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	mgcgateway "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
@@ -25,11 +25,11 @@ import (
 
 var _ = Describe("DNSPolicy Health Checks", func() {
 
-	var gatewayClass *gatewayv1beta1.GatewayClass
+	var gatewayClass *gatewayapiv1.GatewayClass
 	var managedZone *v1alpha1.ManagedZone
 	var testNamespace string
 	var dnsPolicyBuilder *testutil.DNSPolicyBuilder
-	var gateway *gatewayv1beta1.Gateway
+	var gateway *gatewayapiv1.Gateway
 	var dnsPolicy *v1alpha1.DNSPolicy
 	var lbHash, recordName, wildcardRecordName string
 
@@ -64,7 +64,7 @@ var _ = Describe("DNSPolicy Health Checks", func() {
 			}); err != nil && !k8serrors.IsAlreadyExists(err) {
 				return err
 			}
-			gateway.Status.Addresses = []gatewayv1beta1.GatewayAddress{
+			gateway.Status.Addresses = []gatewayapiv1.GatewayStatusAddress{
 				{
 					Type:  testutil.Pointer(mgcgateway.MultiClusterIPAddressType),
 					Value: TestClusterNameOne + "/" + TestIPAddressOne,
@@ -74,28 +74,28 @@ var _ = Describe("DNSPolicy Health Checks", func() {
 					Value: TestClusterNameTwo + "/" + TestIPAddressTwo,
 				},
 			}
-			gateway.Status.Listeners = []gatewayv1beta1.ListenerStatus{
+			gateway.Status.Listeners = []gatewayapiv1.ListenerStatus{
 				{
 					Name:           TestClusterNameOne + "." + TestListenerNameOne,
-					SupportedKinds: []gatewayv1beta1.RouteGroupKind{},
+					SupportedKinds: []gatewayapiv1.RouteGroupKind{},
 					AttachedRoutes: 1,
 					Conditions:     []metav1.Condition{},
 				},
 				{
 					Name:           TestClusterNameTwo + "." + TestListenerNameOne,
-					SupportedKinds: []gatewayv1beta1.RouteGroupKind{},
+					SupportedKinds: []gatewayapiv1.RouteGroupKind{},
 					AttachedRoutes: 1,
 					Conditions:     []metav1.Condition{},
 				},
 				{
 					Name:           TestClusterNameOne + "." + TestListenerNameWildcard,
-					SupportedKinds: []gatewayv1beta1.RouteGroupKind{},
+					SupportedKinds: []gatewayapiv1.RouteGroupKind{},
 					AttachedRoutes: 1,
 					Conditions:     []metav1.Condition{},
 				},
 				{
 					Name:           TestClusterNameTwo + "." + TestListenerNameWildcard,
-					SupportedKinds: []gatewayv1beta1.RouteGroupKind{},
+					SupportedKinds: []gatewayapiv1.RouteGroupKind{},
 					AttachedRoutes: 1,
 					Conditions:     []metav1.Condition{},
 				},
@@ -520,12 +520,12 @@ var _ = Describe("DNSPolicy Health Checks", func() {
 						Expect(err).NotTo(HaveOccurred())
 						Expect(gateway.Spec.Listeners).NotTo(BeNil())
 						// add another listener, should result in 4 probes
-						typedHostname := gatewayv1beta1.Hostname(TestHostTwo)
-						otherListener := gatewayv1beta1.Listener{
-							Name:     gatewayv1beta1.SectionName(TestListenerNameTwo),
+						typedHostname := gatewayapiv1.Hostname(TestHostTwo)
+						otherListener := gatewayapiv1.Listener{
+							Name:     gatewayapiv1.SectionName(TestListenerNameTwo),
 							Hostname: &typedHostname,
-							Port:     gatewayv1beta1.PortNumber(80),
-							Protocol: gatewayv1beta1.HTTPProtocolType,
+							Port:     gatewayapiv1.PortNumber(80),
+							Protocol: gatewayapiv1.HTTPProtocolType,
 						}
 
 						patch := client.MergeFrom(gateway.DeepCopy())

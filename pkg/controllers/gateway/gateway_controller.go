@@ -44,7 +44,7 @@ import (
 	crlog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/gracePeriod"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/metadata"
@@ -54,28 +54,28 @@ import (
 )
 
 const (
-	GatewayClusterLabelSelectorAnnotation                            = "kuadrant.io/gateway-cluster-label-selector"
-	GatewayClustersAnnotation                                        = "kuadrant.io/gateway-clusters"
-	GatewayFinalizer                                                 = "kuadrant.io/gateway"
-	ManagedLabel                                                     = "kuadrant.io/managed"
-	MultiClusterIPAddressType             gatewayv1beta1.AddressType = "kuadrant.io/MultiClusterIPAddress"
-	MultiClusterHostnameAddressType       gatewayv1beta1.AddressType = "kuadrant.io/MultiClusterHostnameAddress"
+	GatewayClusterLabelSelectorAnnotation                          = "kuadrant.io/gateway-cluster-label-selector"
+	GatewayClustersAnnotation                                      = "kuadrant.io/gateway-clusters"
+	GatewayFinalizer                                               = "kuadrant.io/gateway"
+	ManagedLabel                                                   = "kuadrant.io/managed"
+	MultiClusterIPAddressType             gatewayapiv1.AddressType = "kuadrant.io/MultiClusterIPAddress"
+	MultiClusterHostnameAddressType       gatewayapiv1.AddressType = "kuadrant.io/MultiClusterHostnameAddress"
 )
 
 type GatewayPlacer interface {
 	//Place will use the placement logic to create the needed resources and ensure the objects are synced to the targeted clusters
 	// it will return the set of clusters it has targeted
-	Place(ctx context.Context, upstream *gatewayv1beta1.Gateway, downstream *gatewayv1beta1.Gateway, children ...metav1.Object) (sets.Set[string], error)
+	Place(ctx context.Context, upstream *gatewayapiv1.Gateway, downstream *gatewayapiv1.Gateway, children ...metav1.Object) (sets.Set[string], error)
 	// gets the clusters the gateway has actually been placed on
-	GetPlacedClusters(ctx context.Context, gateway *gatewayv1beta1.Gateway) (sets.Set[string], error)
+	GetPlacedClusters(ctx context.Context, gateway *gatewayapiv1.Gateway) (sets.Set[string], error)
 	//GetClusters returns the clusters decided on by the placement logic
-	GetClusters(ctx context.Context, gateway *gatewayv1beta1.Gateway) (sets.Set[string], error)
+	GetClusters(ctx context.Context, gateway *gatewayapiv1.Gateway) (sets.Set[string], error)
 	// ListenerTotalAttachedRoutes returns the total attached routes for a listener from the downstream gateways
-	ListenerTotalAttachedRoutes(ctx context.Context, gateway *gatewayv1beta1.Gateway, listenerName string, downstream string) (int, error)
+	ListenerTotalAttachedRoutes(ctx context.Context, gateway *gatewayapiv1.Gateway, listenerName string, downstream string) (int, error)
 	// GetAddresses will look at the downstream view of the gateway and return the LB addresses used for these gateways
-	GetAddresses(ctx context.Context, gateway *gatewayv1beta1.Gateway, downstream string) ([]gatewayv1beta1.GatewayAddress, error)
+	GetAddresses(ctx context.Context, gateway *gatewayapiv1.Gateway, downstream string) ([]gatewayapiv1.GatewayAddress, error)
 	// GetClusterGateway
-	GetClusterGateway(ctx context.Context, gateway *gatewayv1beta1.Gateway, clusterName string) (dns.ClusterGateway, error)
+	GetClusterGateway(ctx context.Context, gateway *gatewayapiv1.Gateway, clusterName string) (dns.ClusterGateway, error)
 }
 
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways,verbs=get;list;watch;create;update;patch;delete
@@ -98,13 +98,13 @@ type GatewayReconciler struct {
 	WatchedPolicies        map[schema.GroupVersionResource]cache.ResourceEventHandlerRegistration
 }
 
-func isDeleting(g *gatewayv1beta1.Gateway) bool {
+func isDeleting(g *gatewayapiv1.Gateway) bool {
 	return g.GetDeletionTimestamp() != nil && !g.GetDeletionTimestamp().IsZero()
 }
 
 func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := crlog.FromContext(ctx)
-	previous := &gatewayv1beta1.Gateway{}
+	previous := &gatewayapiv1.Gateway{}
 	err := r.Client.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: req.Name}, previous)
 	if err != nil {
 		if err := client.IgnoreNotFound(err); err != nil {
@@ -139,9 +139,9 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	params, err := getParams(ctx, r.Client, string(upstreamGateway.Spec.GatewayClassName))
 	if err != nil && IsInvalidParamsError(err) {
 		programmedCondition := metav1.Condition{
-			Type:               string(gatewayv1beta1.GatewayConditionProgrammed),
+			Type:               string(gatewayapiv1.GatewayConditionProgrammed),
 			Status:             metav1.ConditionFalse,
-			Reason:             string(gatewayv1beta1.GatewayReasonPending),
+			Reason:             string(gatewayapiv1.GatewayReasonPending),
 			Message:            fmt.Sprintf("Invalid parameters in gateway class: %s", err.Error()),
 			ObservedGeneration: previous.Generation,
 		}
@@ -161,7 +161,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 	//if we get to the point where we are going to reconcile the gateway in to the downstream then the upstream gateway is considered accepted
 	// checking not true covers "unknown" and false
-	if !meta.IsStatusConditionTrue(upstreamGateway.Status.Conditions, string(gatewayv1beta1.GatewayConditionAccepted)) {
+	if !meta.IsStatusConditionTrue(upstreamGateway.Status.Conditions, string(gatewayapiv1.GatewayConditionAccepted)) {
 		log.V(3).Info("gateway is accepted setting initial programmed and accepted status")
 		acceptedCondition := buildAcceptedCondition(upstreamGateway.Generation, metav1.ConditionTrue)
 		programmedCondition := buildProgrammedCondition(upstreamGateway.Generation, []string{}, metav1.ConditionUnknown, nil)
@@ -204,7 +204,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	var addressErr error
-	allAddresses := []gatewayv1beta1.GatewayAddress{}
+	allAddresses := []gatewayapiv1.GatewayStatusAddress{}
 	for _, cluster := range clusters {
 		log.V(3).Info("checking cluster for addresses", "cluster", cluster)
 		addresses, addressErr := r.Placement.GetAddresses(ctx, upstreamGateway, cluster)
@@ -214,15 +214,15 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 		for _, address := range addresses {
 			log.V(3).Info("checking address type for mapping", "address.Type", address.Type)
-			var addressType gatewayv1beta1.AddressType
-			if *address.Type == gatewayv1beta1.IPAddressType {
+			var addressType gatewayapiv1.AddressType
+			if *address.Type == gatewayapiv1.IPAddressType {
 				addressType = MultiClusterIPAddressType
-			} else if *address.Type == gatewayv1beta1.HostnameAddressType {
+			} else if *address.Type == gatewayapiv1.HostnameAddressType {
 				addressType = MultiClusterHostnameAddressType
 			} else {
-				continue // ignore address type gatewayv1beta1.NamedAddressType. Unsupported for multi cluster gateway
+				continue // ignore address type gatewayapiv1.NamedAddressType. Unsupported for multi cluster gateway
 			}
-			allAddresses = append(allAddresses, gatewayv1beta1.GatewayAddress{
+			allAddresses = append(allAddresses, gatewayapiv1.GatewayStatusAddress{
 				Type:  &addressType,
 				Value: fmt.Sprintf("%s/%s", cluster, address.Value),
 			})
@@ -234,7 +234,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	log.V(3).Info("allAddresses", "allAddresses", allAddresses)
 	upstreamGateway.Status.Addresses = allAddresses
 
-	allListenerStatuses := []gatewayv1beta1.ListenerStatus{}
+	allListenerStatuses := []gatewayapiv1.ListenerStatus{}
 	specListeners := upstreamGateway.Spec.Listeners
 	for _, listener := range specListeners {
 		for _, cluster := range clusters {
@@ -244,10 +244,10 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 				log.Info("AttachedRoutes unknown for listener. Ignoring", "listener", listener.Name, "cluster", cluster, "message", err)
 				continue
 			}
-			allListenerStatuses = append(allListenerStatuses, gatewayv1beta1.ListenerStatus{
-				Name:           gatewayv1beta1.SectionName(fmt.Sprintf("%s.%s", cluster, string(listener.Name))),
+			allListenerStatuses = append(allListenerStatuses, gatewayapiv1.ListenerStatus{
+				Name:           gatewayapiv1.SectionName(fmt.Sprintf("%s.%s", cluster, string(listener.Name))),
 				AttachedRoutes: int32(attachedRoutes),
-				SupportedKinds: []gatewayv1beta1.RouteGroupKind{},
+				SupportedKinds: []gatewayapiv1.RouteGroupKind{},
 				Conditions:     []metav1.Condition{},
 			})
 		}
@@ -272,12 +272,12 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 }
 
 // reconcileDownstreamGateway takes the upstream definition and transforms it as needed to apply it to the downstream spokes
-func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.Context, upstreamGateway *gatewayv1beta1.Gateway, params *Params) (bool, metav1.ConditionStatus, []string, error) {
+func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.Context, upstreamGateway *gatewayapiv1.Gateway, params *Params) (bool, metav1.ConditionStatus, []string, error) {
 	log := crlog.FromContext(ctx)
 	clusters := []string{}
 	downstream := upstreamGateway.DeepCopy()
 	downstreamNS := fmt.Sprintf("%s-%s", "kuadrant", downstream.Namespace)
-	downstream.Status = gatewayv1beta1.GatewayStatus{}
+	downstream.Status = gatewayapiv1.GatewayStatus{}
 
 	// reset this for the sync as we don't want control plane level UID, creation etc etc
 	downstream.ObjectMeta = metav1.ObjectMeta{
@@ -337,7 +337,7 @@ func (r *GatewayReconciler) reconcileDownstreamFromUpstreamGateway(ctx context.C
 	return false, metav1.ConditionUnknown, clusters, nil
 }
 
-func (r *GatewayReconciler) getTLSSecrets(ctx context.Context, upstreamGateway *gatewayv1beta1.Gateway, downstreamGateway *gatewayv1beta1.Gateway) ([]metav1.Object, error) {
+func (r *GatewayReconciler) getTLSSecrets(ctx context.Context, upstreamGateway *gatewayapiv1.Gateway, downstreamGateway *gatewayapiv1.Gateway) ([]metav1.Object, error) {
 	log := crlog.FromContext(ctx)
 	tlsSecrets := []metav1.Object{}
 	var listenerTLSErr error
@@ -372,14 +372,14 @@ func (r *GatewayReconciler) getTLSSecrets(ctx context.Context, upstreamGateway *
 	return tlsSecrets, listenerTLSErr
 }
 
-func (r *GatewayReconciler) reconcileParams(ctx context.Context, gateway *gatewayv1beta1.Gateway, params *Params) error {
+func (r *GatewayReconciler) reconcileParams(ctx context.Context, gateway *gatewayapiv1.Gateway, params *Params) error {
 	log := crlog.FromContext(ctx)
 
 	downstreamClass := params.GetDownstreamClass()
 
 	// Set the annotations to sync the class name from the parameters
 
-	gateway.Spec.GatewayClassName = gatewayv1beta1.ObjectName(downstreamClass)
+	gateway.Spec.GatewayClassName = gatewayapiv1.ObjectName(downstreamClass)
 
 	policiesToSync := slice.Map(params.PoliciesToSync, ParamsGroupVersionResource.ToGroupVersionResource)
 
@@ -440,18 +440,18 @@ func (r *GatewayReconciler) reconcileParams(ctx context.Context, gateway *gatewa
 }
 
 func buildProgrammedCondition(generation int64, placed []string, programmedStatus metav1.ConditionStatus, err error) metav1.Condition {
-	var reason = gatewayv1beta1.GatewayReasonProgrammed
+	var reason = gatewayapiv1.GatewayReasonProgrammed
 	message := "waiting for gateway to placed on clusters %v"
 	if programmedStatus == metav1.ConditionTrue {
 		message = fmt.Sprintf("gateway placed on clusters %v", placed)
 	}
 	if programmedStatus == metav1.ConditionFalse {
 		message = fmt.Sprintf("gateway failed to be placed on all clusters %v", placed)
-		reason = gatewayv1beta1.GatewayReasonInvalid
+		reason = gatewayapiv1.GatewayReasonInvalid
 	}
 	if programmedStatus == metav1.ConditionUnknown {
 		message = "current state of the gateway is unknown"
-		reason = gatewayv1beta1.GatewayReasonPending
+		reason = gatewayapiv1.GatewayReasonPending
 	}
 
 	if err != nil {
@@ -459,7 +459,7 @@ func buildProgrammedCondition(generation int64, placed []string, programmedStatu
 	}
 
 	cond := metav1.Condition{
-		Type:               string(gatewayv1beta1.GatewayConditionProgrammed),
+		Type:               string(gatewayapiv1.GatewayConditionProgrammed),
 		Status:             programmedStatus,
 		Reason:             string(reason),
 		Message:            message,
@@ -470,9 +470,9 @@ func buildProgrammedCondition(generation int64, placed []string, programmedStatu
 
 func buildAcceptedCondition(generation int64, acceptedStatus metav1.ConditionStatus) metav1.Condition {
 	cond := metav1.Condition{
-		Type:               string(gatewayv1beta1.GatewayConditionAccepted),
+		Type:               string(gatewayapiv1.GatewayConditionAccepted),
 		Status:             acceptedStatus,
-		Reason:             string(gatewayv1beta1.GatewayReasonAccepted),
+		Reason:             string(gatewayapiv1.GatewayReasonAccepted),
 		Message:            fmt.Sprintf("Handled by %s", ControllerName),
 		ObservedGeneration: generation,
 	}
@@ -485,19 +485,19 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager, ctx context.Conte
 
 	//TODO need to trigger gateway reconcile when gatewayclass params changes
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&gatewayv1beta1.Gateway{}).
+		For(&gatewayapiv1.Gateway{}).
 		Watches(&workv1.ManifestWork{}, handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, o client.Object) []reconcile.Request {
 			log.V(3).Info("enqueuing gateways based on manifest work change ", "work namespace", o.GetNamespace())
 			requests := []reconcile.Request{}
 			annotations := o.GetAnnotations()
 			if annotations == nil {
-				log.V(3).Info("no parent or anotations on manifest work ", "work ns", o.GetNamespace(), "name", o.GetName())
+				log.V(3).Info("no parent or annotations on manifest work ", "work ns", o.GetNamespace(), "name", o.GetName())
 				return requests
 			}
 			key := annotations["kuadrant.io/parent"]
 			ns, name, err := cache.SplitMetaNamespaceKey(key)
 			if err != nil {
-				log.Error(err, "failed to parse namespace and name from maifiest work")
+				log.Error(err, "failed to parse namespace and name from manifest work")
 				return requests
 			}
 			log.Info("requeuing gateway ", "namespace", ns, "name", name)
@@ -511,7 +511,7 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager, ctx context.Conte
 			// queue up gateways in this namespace
 			log.V(3).Info("enqueuing gateways based on placementdecision change ", " namespace", o.GetNamespace())
 			req := []reconcile.Request{}
-			l := &gatewayv1beta1.GatewayList{}
+			l := &gatewayapiv1.GatewayList{}
 			if err := mgr.GetClient().List(ctx, l, &client.ListOptions{Namespace: o.GetNamespace()}); err != nil {
 				log.Error(err, "failed to list gateways to requeue")
 				return req
@@ -525,7 +525,7 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager, ctx context.Conte
 		})).
 		Watches(&corev1.Secret{}, &ClusterEventHandler{client: r.Client}).
 		WithEventFilter(predicate.NewPredicateFuncs(func(object client.Object) bool {
-			gateway, ok := object.(*gatewayv1beta1.Gateway)
+			gateway, ok := object.(*gatewayapiv1.Gateway)
 			if ok {
 				shouldReconcile := slice.ContainsString(getSupportedClasses(), string(gateway.Spec.GatewayClassName))
 				log.V(3).Info(" should reconcile", "gateway", gateway.Name, "with class ", gateway.Spec.GatewayClassName, "should ", shouldReconcile)

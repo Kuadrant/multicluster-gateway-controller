@@ -12,8 +12,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayapiv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 )
@@ -35,39 +35,39 @@ func NewTestClusterIssuer(name string) *certmanv1.ClusterIssuer {
 	}
 }
 
-func NewTestGatewayClass(name, ns, controllerName string) *gatewayv1beta1.GatewayClass {
-	return &gatewayv1beta1.GatewayClass{
+func NewTestGatewayClass(name, ns, controllerName string) *gatewayapiv1.GatewayClass {
+	return &gatewayapiv1.GatewayClass{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: ns,
 		},
-		Spec: gatewayv1beta1.GatewayClassSpec{
-			ControllerName: gatewayv1beta1.GatewayController(controllerName),
+		Spec: gatewayapiv1.GatewayClassSpec{
+			ControllerName: gatewayapiv1.GatewayController(controllerName),
 		},
 	}
 }
 
 // GatewayBuilder wrapper for Gateway builder helper
 type GatewayBuilder struct {
-	*gatewayv1beta1.Gateway
+	*gatewayapiv1.Gateway
 }
 
 func NewGatewayBuilder(gwName, gwClassName, ns string) *GatewayBuilder {
 	return &GatewayBuilder{
-		&gatewayv1beta1.Gateway{
+		&gatewayapiv1.Gateway{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      gwName,
 				Namespace: ns,
 			},
-			Spec: gatewayv1beta1.GatewaySpec{
-				GatewayClassName: gatewayv1beta1.ObjectName(gwClassName),
-				Listeners:        []gatewayv1beta1.Listener{},
+			Spec: gatewayapiv1.GatewaySpec{
+				GatewayClassName: gatewayapiv1.ObjectName(gwClassName),
+				Listeners:        []gatewayapiv1.Listener{},
 			},
 		},
 	}
 }
 
-func (t *GatewayBuilder) WithListener(listener gatewayv1beta1.Listener) *GatewayBuilder {
+func (t *GatewayBuilder) WithListener(listener gatewayapiv1.Listener) *GatewayBuilder {
 	t.Spec.Listeners = append(t.Spec.Listeners, listener)
 	return t
 }
@@ -83,30 +83,30 @@ func (t *GatewayBuilder) WithLabels(labels map[string]string) *GatewayBuilder {
 }
 
 func (t *GatewayBuilder) WithHTTPListener(name, hostname string) *GatewayBuilder {
-	typedHostname := gatewayv1beta1.Hostname(hostname)
-	t.WithListener(gatewayv1beta1.Listener{
-		Name:     gatewayv1beta1.SectionName(name),
+	typedHostname := gatewayapiv1.Hostname(hostname)
+	t.WithListener(gatewayapiv1.Listener{
+		Name:     gatewayapiv1.SectionName(name),
 		Hostname: &typedHostname,
-		Port:     gatewayv1beta1.PortNumber(80),
-		Protocol: gatewayv1beta1.HTTPProtocolType,
+		Port:     gatewayapiv1.PortNumber(80),
+		Protocol: gatewayapiv1.HTTPProtocolType,
 	})
 	return t
 }
 
 func (t *GatewayBuilder) WithHTTPSListener(hostname, tlsSecretName string) *GatewayBuilder {
-	typedHostname := gatewayv1beta1.Hostname(hostname)
-	typedNamespace := gatewayv1beta1.Namespace(t.GetNamespace())
-	typedNamed := gatewayv1beta1.SectionName(strings.Replace(hostname, "*", "wildcard", 1))
-	t.WithListener(gatewayv1beta1.Listener{
+	typedHostname := gatewayapiv1.Hostname(hostname)
+	typedNamespace := gatewayapiv1.Namespace(t.GetNamespace())
+	typedNamed := gatewayapiv1.SectionName(strings.Replace(hostname, "*", "wildcard", 1))
+	t.WithListener(gatewayapiv1.Listener{
 		Name:     typedNamed,
 		Hostname: &typedHostname,
-		Port:     gatewayv1beta1.PortNumber(443),
-		Protocol: gatewayv1beta1.HTTPSProtocolType,
-		TLS: &gatewayv1beta1.GatewayTLSConfig{
-			Mode: Pointer(gatewayv1beta1.TLSModeTerminate),
-			CertificateRefs: []gatewayv1beta1.SecretObjectReference{
+		Port:     gatewayapiv1.PortNumber(443),
+		Protocol: gatewayapiv1.HTTPSProtocolType,
+		TLS: &gatewayapiv1.GatewayTLSConfig{
+			Mode: Pointer(gatewayapiv1.TLSModeTerminate),
+			CertificateRefs: []gatewayapiv1.SecretObjectReference{
 				{
-					Name:      gatewayv1beta1.ObjectName(tlsSecretName),
+					Name:      gatewayapiv1.ObjectName(tlsSecretName),
 					Namespace: Pointer(typedNamespace),
 				},
 			},
@@ -115,22 +115,22 @@ func (t *GatewayBuilder) WithHTTPSListener(hostname, tlsSecretName string) *Gate
 	return t
 }
 
-func AddListener(name string, hostname gatewayapiv1alpha2.Hostname, secretName gatewayv1beta1.ObjectName, gw *gatewayv1beta1.Gateway) {
+func AddListener(name string, hostname gatewayapiv1alpha2.Hostname, secretName gatewayapiv1.ObjectName, gw *gatewayapiv1.Gateway) {
 	listener := gatewayapiv1alpha2.Listener{
-		Name:     gatewayv1beta1.SectionName(name),
+		Name:     gatewayapiv1.SectionName(name),
 		Hostname: &hostname,
 		Port:     443,
-		Protocol: gatewayv1beta1.HTTPSProtocolType,
-		TLS: &gatewayv1beta1.GatewayTLSConfig{
-			CertificateRefs: []gatewayv1beta1.SecretObjectReference{
+		Protocol: gatewayapiv1.HTTPSProtocolType,
+		TLS: &gatewayapiv1.GatewayTLSConfig{
+			CertificateRefs: []gatewayapiv1.SecretObjectReference{
 				{
 					Name: secretName,
 				},
 			},
 		},
-		AllowedRoutes: &gatewayv1beta1.AllowedRoutes{
-			Namespaces: &gatewayv1beta1.RouteNamespaces{
-				From: Pointer(gatewayv1beta1.NamespacesFromAll),
+		AllowedRoutes: &gatewayapiv1.AllowedRoutes{
+			Namespaces: &gatewayapiv1.RouteNamespaces{
+				From: Pointer(gatewayapiv1.NamespacesFromAll),
 			},
 		},
 	}
@@ -160,11 +160,11 @@ func (t *TLSPolicyBuilder) Build() *v1alpha1.TLSPolicy {
 }
 
 func (t *TLSPolicyBuilder) WithTargetGateway(gwName string) *TLSPolicyBuilder {
-	typedNamespace := gatewayv1beta1.Namespace(t.GetNamespace())
+	typedNamespace := gatewayapiv1.Namespace(t.GetNamespace())
 	t.Spec.TargetRef = gatewayapiv1alpha2.PolicyTargetReference{
 		Group:     "gateway.networking.k8s.io",
 		Kind:      "Gateway",
-		Name:      gatewayv1beta1.ObjectName(gwName),
+		Name:      gatewayapiv1.ObjectName(gwName),
 		Namespace: &typedNamespace,
 	}
 	return t

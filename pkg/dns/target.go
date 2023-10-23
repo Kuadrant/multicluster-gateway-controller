@@ -9,7 +9,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 )
@@ -23,12 +23,12 @@ const (
 
 // MultiClusterGatewayTarget represents a Gateway that is placed on multiple clusters (ClusterGateway).
 type MultiClusterGatewayTarget struct {
-	Gateway               *gatewayv1beta1.Gateway
+	Gateway               *gatewayapiv1.Gateway
 	ClusterGatewayTargets []ClusterGatewayTarget
 	LoadBalancing         *v1alpha1.LoadBalancingSpec
 }
 
-func NewMultiClusterGatewayTarget(gateway *gatewayv1beta1.Gateway, clusterGateways []ClusterGateway, loadBalancing *v1alpha1.LoadBalancingSpec) (*MultiClusterGatewayTarget, error) {
+func NewMultiClusterGatewayTarget(gateway *gatewayapiv1.Gateway, clusterGateways []ClusterGateway, loadBalancing *v1alpha1.LoadBalancingSpec) (*MultiClusterGatewayTarget, error) {
 	mcg := &MultiClusterGatewayTarget{Gateway: gateway, LoadBalancing: loadBalancing}
 	err := mcg.setClusterGatewayTargets(clusterGateways)
 	return mcg, err
@@ -85,7 +85,7 @@ func (t *MultiClusterGatewayTarget) setClusterGatewayTargets(clusterGateways []C
 // ClusterGateway contains the addresses of a Gateway on a single cluster and the attributes of the target cluster.
 type ClusterGateway struct {
 	Cluster          metav1.Object
-	GatewayAddresses []gatewayv1beta1.GatewayAddress
+	GatewayAddresses []gatewayapiv1.GatewayAddress
 }
 
 type GeoCode string
@@ -98,7 +98,7 @@ func (gc GeoCode) IsWildcard() bool {
 	return gc == WildcardGeo
 }
 
-func NewClusterGateway(cluster metav1.Object, gatewayAddresses []gatewayv1beta1.GatewayAddress) *ClusterGateway {
+func NewClusterGateway(cluster metav1.Object, gatewayAddresses []gatewayapiv1.GatewayAddress) *ClusterGateway {
 	cgw := &ClusterGateway{
 		Cluster:          cluster,
 		GatewayAddresses: gatewayAddresses,
@@ -153,7 +153,7 @@ func (t *ClusterGatewayTarget) setGeo(defaultGeo GeoCode) {
 	t.Geo = &geoCode
 }
 
-func (t *MultiClusterGatewayTarget) RemoveUnhealthyGatewayAddresses(probes []*v1alpha1.DNSHealthCheckProbe, listener gatewayv1beta1.Listener) {
+func (t *MultiClusterGatewayTarget) RemoveUnhealthyGatewayAddresses(probes []*v1alpha1.DNSHealthCheckProbe, listener gatewayapiv1.Listener) {
 
 	//If we have no probes we can't determine health so return unmodified
 	if len(probes) == 0 {
@@ -187,7 +187,7 @@ func (t *MultiClusterGatewayTarget) RemoveUnhealthyGatewayAddresses(probes []*v1
 
 	// Remove all unhealthy addresses, we know by this point at least one of our addresses is healthy
 	for _, cgt := range t.ClusterGatewayTargets {
-		healthyAddresses := []gatewayv1beta1.GatewayAddress{}
+		healthyAddresses := []gatewayapiv1.GatewayAddress{}
 		for _, gwa := range cgt.GatewayAddresses {
 			if healthy, exists := gwAddressHealth[gwa.Value]; exists && healthy {
 				healthyAddresses = append(healthyAddresses, gwa)
@@ -197,7 +197,7 @@ func (t *MultiClusterGatewayTarget) RemoveUnhealthyGatewayAddresses(probes []*v1
 	}
 }
 
-func getProbeForGatewayAddress(probes []*v1alpha1.DNSHealthCheckProbe, gwa gatewayv1beta1.GatewayAddress, gatewayName, listenerName string) *v1alpha1.DNSHealthCheckProbe {
+func getProbeForGatewayAddress(probes []*v1alpha1.DNSHealthCheckProbe, gwa gatewayapiv1.GatewayAddress, gatewayName, listenerName string) *v1alpha1.DNSHealthCheckProbe {
 	for _, probe := range probes {
 		if dnsHealthCheckProbeName(gwa.Value, gatewayName, listenerName) == probe.Name {
 			return probe

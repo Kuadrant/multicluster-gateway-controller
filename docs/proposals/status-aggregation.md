@@ -69,7 +69,7 @@ First, here are 2 instances of a multi cluster Gateway in 2 separate spoke clust
 The yaml is shortened to highlight the status block.
 
 ```yaml
-apiVersion: gateway.networking.k8s.io/v1beta1
+apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
   name: gateway
@@ -87,7 +87,7 @@ status:
     conditions:
     name: web
 ---
-apiVersion: gateway.networking.k8s.io/v1beta1
+apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
   name: gateway
@@ -107,7 +107,7 @@ status:
 And here is the proposed status aggregation in the hub Gateway:
 
 ```yaml
-apiVersion: gateway.networking.k8s.io/v1beta1
+apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
   name: gateway

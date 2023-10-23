@@ -12,7 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/clusterSecret"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
@@ -63,21 +63,21 @@ func (eh *ClusterEventHandler) enqueueForObject(ctx context.Context, obj v1.Obje
 	}
 }
 
-func (eh *ClusterEventHandler) getGatewaysFor(ctx context.Context, secret *corev1.Secret) ([]gatewayv1beta1.Gateway, error) {
+func (eh *ClusterEventHandler) getGatewaysFor(ctx context.Context, secret *corev1.Secret) ([]gatewayapiv1.Gateway, error) {
 
-	gateways := &gatewayv1beta1.GatewayList{}
+	gateways := &gatewayapiv1.GatewayList{}
 	if err := eh.client.List(ctx, gateways, &client.ListOptions{Namespace: secret.Namespace}); err != nil {
 		return nil, err
 	}
 
-	return slice.Filter(gateways.Items, func(gateway gatewayv1beta1.Gateway) bool {
+	return slice.Filter(gateways.Items, func(gateway gatewayapiv1.Gateway) bool {
 		for _, l := range gateway.Spec.Listeners {
-			if l.Protocol != gatewayv1beta1.HTTPSProtocolType || l.TLS == nil {
+			if l.Protocol != gatewayapiv1.HTTPSProtocolType || l.TLS == nil {
 				continue
 			}
 
 			for _, ts := range l.TLS.CertificateRefs {
-				if ts.Name == gatewayv1beta1.ObjectName(secret.Name) && *ts.Namespace == gatewayv1beta1.Namespace(secret.Namespace) {
+				if ts.Name == gatewayapiv1.ObjectName(secret.Name) && *ts.Namespace == gatewayapiv1.Namespace(secret.Namespace) {
 					return true
 				}
 			}

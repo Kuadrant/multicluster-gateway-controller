@@ -22,8 +22,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayapiv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
-	gatewayapi "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
@@ -37,10 +37,10 @@ var _ = Describe("Gateway single target cluster", func() {
 	// it is used to name resources and/or namespaces so different
 	// tests can be run in parallel in the same cluster
 	var testID string
-	var hostname gatewayapi.Hostname
-	var otherHostname gatewayapi.Hostname
-	var wildcardHostname gatewayapi.Hostname
-	var gw *gatewayapi.Gateway
+	var hostname gatewayapiv1.Hostname
+	var otherHostname gatewayapiv1.Hostname
+	var wildcardHostname gatewayapiv1.Hostname
+	var gw *gatewayapiv1.Gateway
 	var placement *ocm_cluster_v1beta1.Placement
 	var tlsPolicy *v1alpha1.TLSPolicy
 
@@ -60,20 +60,20 @@ var _ = Describe("Gateway single target cluster", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		By("creating a Gateway in the hub")
-		hostname = gatewayapi.Hostname(strings.Join([]string{testID, tconfig.ManagedZone()}, "."))
-		gw = NewGatewayBuilder(testID, GatewayClassName, tconfig.HubNamespace()).WithListener(gatewayapi.Listener{
+		hostname = gatewayapiv1.Hostname(strings.Join([]string{testID, tconfig.ManagedZone()}, "."))
+		gw = NewGatewayBuilder(testID, GatewayClassName, tconfig.HubNamespace()).WithListener(gatewayapiv1.Listener{
 			Name:     "https",
 			Hostname: &hostname,
 			Port:     443,
-			Protocol: gatewayapi.HTTPSProtocolType,
-			TLS: &gatewayapi.GatewayTLSConfig{
-				CertificateRefs: []gatewayapi.SecretObjectReference{{
-					Name: gatewayapi.ObjectName(hostname),
+			Protocol: gatewayapiv1.HTTPSProtocolType,
+			TLS: &gatewayapiv1.GatewayTLSConfig{
+				CertificateRefs: []gatewayapiv1.SecretObjectReference{{
+					Name: gatewayapiv1.ObjectName(hostname),
 				}},
 			},
-			AllowedRoutes: &gatewayapi.AllowedRoutes{
-				Namespaces: &gatewayapi.RouteNamespaces{
-					From: Pointer(gatewayapi.NamespacesFromAll),
+			AllowedRoutes: &gatewayapiv1.AllowedRoutes{
+				Namespaces: &gatewayapiv1.RouteNamespaces{
+					From: Pointer(gatewayapiv1.NamespacesFromAll),
 				},
 			},
 		}).WithLabels(map[string]string{"gw": "t-e2e"}).Gateway
@@ -90,8 +90,8 @@ var _ = Describe("Gateway single target cluster", func() {
 				TargetRef: gatewayapiv1alpha2.PolicyTargetReference{
 					Group:     "gateway.networking.k8s.io",
 					Kind:      "Gateway",
-					Name:      gatewayapi.ObjectName(testID),
-					Namespace: Pointer(gatewayapi.Namespace(tconfig.HubNamespace())),
+					Name:      gatewayapiv1.ObjectName(testID),
+					Namespace: Pointer(gatewayapiv1.Namespace(tconfig.HubNamespace())),
 				},
 				CertificateSpec: mgcv1alpha1.CertificateSpec{
 					IssuerRef: certmanmetav1.ObjectReference{
@@ -154,9 +154,9 @@ var _ = Describe("Gateway single target cluster", func() {
 			Eventually(func(ctx SpecContext) error {
 				err := tconfig.HubClient().Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.HubNamespace()}, gw)
 				Expect(err).ToNot(HaveOccurred())
-				if !meta.IsStatusConditionPresentAndEqual(gw.Status.Conditions, string(gatewayapi.GatewayConditionProgrammed), "Unknown") {
-					cond := meta.FindStatusCondition(gw.Status.Conditions, string(gatewayapi.GatewayConditionProgrammed))
-					return fmt.Errorf("expected condition %s to be Unknown but got %v", string(gatewayapi.GatewayConditionProgrammed), cond)
+				if !meta.IsStatusConditionPresentAndEqual(gw.Status.Conditions, string(gatewayapiv1.GatewayConditionProgrammed), "Unknown") {
+					cond := meta.FindStatusCondition(gw.Status.Conditions, string(gatewayapiv1.GatewayConditionProgrammed))
+					return fmt.Errorf("expected condition %s to be Unknown but got %v", string(gatewayapiv1.GatewayConditionProgrammed), cond)
 				}
 				return nil
 			}).WithContext(ctx).WithTimeout(10 * time.Second).WithPolling(2 * time.Second).ShouldNot(HaveOccurred())
@@ -164,8 +164,8 @@ var _ = Describe("Gateway single target cluster", func() {
 			Eventually(func(ctx SpecContext) error {
 				err := tconfig.HubClient().Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.HubNamespace()}, gw)
 				Expect(err).ToNot(HaveOccurred())
-				if !meta.IsStatusConditionTrue(gw.Status.Conditions, string(gatewayapi.GatewayConditionAccepted)) {
-					return fmt.Errorf("expected condition %s to be true", string(gatewayapi.GatewayConditionAccepted))
+				if !meta.IsStatusConditionTrue(gw.Status.Conditions, string(gatewayapiv1.GatewayConditionAccepted)) {
+					return fmt.Errorf("expected condition %s to be true", string(gatewayapiv1.GatewayConditionAccepted))
 				}
 				return nil
 			}).WithContext(ctx).WithTimeout(10 * time.Second).WithPolling(2 * time.Second).ShouldNot(HaveOccurred())
@@ -184,40 +184,40 @@ var _ = Describe("Gateway single target cluster", func() {
 		})
 
 		It("the gateway is placed on the spoke cluster once the tls secrets exist", func(ctx SpecContext) {
-			istioGW := &gatewayapi.Gateway{}
+			istioGW := &gatewayapiv1.Gateway{}
 			Eventually(func(ctx SpecContext) error {
 				return tconfig.SpokeClient(0).Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.SpokeNamespace()}, istioGW)
 			}).WithContext(ctx).WithTimeout(120 * time.Second).WithPolling(10 * time.Second).ShouldNot(HaveOccurred())
 		})
 
 		When("an HTTPRoute is attached to the Gateway", func() {
-			var httproute *gatewayapi.HTTPRoute
+			var httproute *gatewayapiv1.HTTPRoute
 
 			BeforeEach(func(ctx SpecContext) {
 
 				By("attaching an HTTPRoute to the Gateway in the spoke cluster")
 
-				httproute = &gatewayapi.HTTPRoute{
+				httproute = &gatewayapiv1.HTTPRoute{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test",
 						Namespace: testID,
 					},
-					Spec: gatewayapi.HTTPRouteSpec{
-						CommonRouteSpec: gatewayapi.CommonRouteSpec{
-							ParentRefs: []gatewayapi.ParentReference{{
-								Namespace: Pointer(gatewayapi.Namespace(tconfig.SpokeNamespace())),
-								Name:      gatewayapi.ObjectName(testID),
-								Kind:      Pointer(gatewayapi.Kind("Gateway")),
+					Spec: gatewayapiv1.HTTPRouteSpec{
+						CommonRouteSpec: gatewayapiv1.CommonRouteSpec{
+							ParentRefs: []gatewayapiv1.ParentReference{{
+								Namespace: Pointer(gatewayapiv1.Namespace(tconfig.SpokeNamespace())),
+								Name:      gatewayapiv1.ObjectName(testID),
+								Kind:      Pointer(gatewayapiv1.Kind("Gateway")),
 							}},
 						},
-						Hostnames: []gatewayapi.Hostname{hostname},
-						Rules: []gatewayapi.HTTPRouteRule{{
-							BackendRefs: []gatewayapi.HTTPBackendRef{{
-								BackendRef: gatewayapi.BackendRef{
-									BackendObjectReference: gatewayapi.BackendObjectReference{
-										Kind: Pointer(gatewayapi.Kind("Service")),
+						Hostnames: []gatewayapiv1.Hostname{hostname},
+						Rules: []gatewayapiv1.HTTPRouteRule{{
+							BackendRefs: []gatewayapiv1.HTTPBackendRef{{
+								BackendRef: gatewayapiv1.BackendRef{
+									BackendObjectReference: gatewayapiv1.BackendObjectReference{
+										Kind: Pointer(gatewayapiv1.Kind("Service")),
 										Name: "test",
-										Port: Pointer(gatewayapi.PortNumber(8080)),
+										Port: Pointer(gatewayapiv1.PortNumber(8080)),
 									},
 								},
 							}},
@@ -250,8 +250,8 @@ var _ = Describe("Gateway single target cluster", func() {
 							TargetRef: gatewayapiv1alpha2.PolicyTargetReference{
 								Group:     "gateway.networking.k8s.io",
 								Kind:      "Gateway",
-								Name:      gatewayapi.ObjectName(testID),
-								Namespace: Pointer(gatewayapi.Namespace(tconfig.HubNamespace())),
+								Name:      gatewayapiv1.ObjectName(testID),
+								Namespace: Pointer(gatewayapiv1.Namespace(tconfig.HubNamespace())),
 							},
 							RoutingStrategy: v1alpha1.LoadBalancedRoutingStrategy,
 						},
@@ -355,20 +355,20 @@ var _ = Describe("Gateway single target cluster", func() {
 					}
 					By("adding wildcard listener to the gateway")
 					{
-						gw := &gatewayapi.Gateway{}
+						gw := &gatewayapiv1.Gateway{}
 						err = tconfig.HubClient().Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.HubNamespace()}, gw)
 						Expect(err).ToNot(HaveOccurred())
 
 						if gw.Spec.Listeners == nil {
-							gw.Spec.Listeners = []gatewayapi.Listener{}
+							gw.Spec.Listeners = []gatewayapiv1.Listener{}
 						}
-						wildcardHostname = gatewayapi.Hostname(strings.Join([]string{"*", tconfig.ManagedZone()}, "."))
-						secretName := gatewayapi.Hostname(strings.Join([]string{testID, tconfig.ManagedZone()}, "."))
-						AddListener("wildcard", wildcardHostname, gatewayapi.ObjectName(secretName), gw)
+						wildcardHostname = gatewayapiv1.Hostname(strings.Join([]string{"*", tconfig.ManagedZone()}, "."))
+						secretName := gatewayapiv1.Hostname(strings.Join([]string{testID, tconfig.ManagedZone()}, "."))
+						AddListener("wildcard", wildcardHostname, gatewayapiv1.ObjectName(secretName), gw)
 						err = tconfig.HubClient().Update(ctx, gw)
 						Expect(err).ToNot(HaveOccurred())
 						Eventually(func(g Gomega, ctx SpecContext) {
-							checkGateway := &gatewayapi.Gateway{}
+							checkGateway := &gatewayapiv1.Gateway{}
 							err = tconfig.HubClient().Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.HubNamespace()}, checkGateway)
 							g.Expect(err).ToNot(HaveOccurred())
 							g.Expect(len(checkGateway.Spec.Listeners)).To(Equal(2))
@@ -415,19 +415,19 @@ var _ = Describe("Gateway single target cluster", func() {
 					}
 					By("when adding/removing listeners, checking that tls secrets are added/removed")
 					{
-						gw := &gatewayapi.Gateway{}
+						gw := &gatewayapiv1.Gateway{}
 						err = tconfig.HubClient().Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.HubNamespace()}, gw)
 						Expect(err).ToNot(HaveOccurred())
 
 						if gw.Spec.Listeners == nil {
-							gw.Spec.Listeners = []gatewayapi.Listener{}
+							gw.Spec.Listeners = []gatewayapiv1.Listener{}
 						}
-						otherHostname = gatewayapi.Hostname(strings.Join([]string{"other", tconfig.ManagedZone()}, "."))
-						AddListener("other", otherHostname, gatewayapi.ObjectName(otherHostname), gw)
+						otherHostname = gatewayapiv1.Hostname(strings.Join([]string{"other", tconfig.ManagedZone()}, "."))
+						AddListener("other", otherHostname, gatewayapiv1.ObjectName(otherHostname), gw)
 						Eventually(func(g Gomega, ctx SpecContext) {
 							err = tconfig.HubClient().Update(ctx, gw)
 							Expect(err).ToNot(HaveOccurred())
-							checkGateway := &gatewayapi.Gateway{}
+							checkGateway := &gatewayapiv1.Gateway{}
 							err = tconfig.HubClient().Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.HubNamespace()}, checkGateway)
 							g.Expect(err).ToNot(HaveOccurred())
 							g.Expect(len(checkGateway.Spec.Listeners)).To(Equal(3))
@@ -444,7 +444,7 @@ var _ = Describe("Gateway single target cluster", func() {
 						Expect(err).ToNot(HaveOccurred())
 
 						if gw.Spec.Listeners == nil {
-							gw.Spec.Listeners = []gatewayapi.Listener{}
+							gw.Spec.Listeners = []gatewayapiv1.Listener{}
 						}
 
 						for i, listener := range gw.Spec.Listeners {
@@ -471,7 +471,7 @@ var _ = Describe("Gateway single target cluster", func() {
 						err := tconfig.HubClient().Delete(ctx, tlsPolicy,
 							client.PropagationPolicy(metav1.DeletePropagationForeground))
 						Expect(err).ToNot(HaveOccurred())
-						hostname = gatewayapi.Hostname(strings.Join([]string{testID, tconfig.ManagedZone()}, "."))
+						hostname = gatewayapiv1.Hostname(strings.Join([]string{testID, tconfig.ManagedZone()}, "."))
 						Eventually(func(g Gomega, ctx SpecContext) {
 							secret := &corev1.Secret{}
 							err = tconfig.HubClient().Get(ctx, client.ObjectKey{Name: string(hostname), Namespace: tconfig.HubNamespace()}, secret)

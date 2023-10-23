@@ -6,7 +6,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
@@ -26,8 +26,8 @@ func TestBuildPolicyCondition(t *testing.T) {
 		}
 	}
 
-	targetRef := func() *gatewayv1beta1.Gateway {
-		return &gatewayv1beta1.Gateway{
+	targetRef := func() *gatewayapiv1.Gateway {
+		return &gatewayapiv1.Gateway{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: int64(2),
 			},

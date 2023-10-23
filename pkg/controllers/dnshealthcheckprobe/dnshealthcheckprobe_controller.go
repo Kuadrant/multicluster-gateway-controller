@@ -14,7 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	gatewayapiv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
@@ -188,7 +188,7 @@ func getAdditionalHeaders(ctx context.Context, clt client.Client, probeObj *v1al
 	return additionalHeaders, nil
 }
 
-func (r *DNSHealthCheckProbeReconciler) getGatewayFor(ctx context.Context, probe *v1alpha1.DNSHealthCheckProbe) (*gatewayapiv1beta1.Gateway, bool, error) {
+func (r *DNSHealthCheckProbeReconciler) getGatewayFor(ctx context.Context, probe *v1alpha1.DNSHealthCheckProbe) (*gatewayapiv1.Gateway, bool, error) {
 	if probe.Labels == nil {
 		return nil, false, nil
 	}
@@ -205,7 +205,7 @@ func (r *DNSHealthCheckProbeReconciler) getGatewayFor(ctx context.Context, probe
 		Namespace: namespace,
 	}
 
-	gw := &gatewayapiv1beta1.Gateway{}
+	gw := &gatewayapiv1.Gateway{}
 	if err := r.Client.Get(ctx, objKey, gw); err != nil {
 		return nil, false, err
 	}
@@ -240,7 +240,7 @@ func (r *DNSHealthCheckProbeReconciler) newProbeNotifierFor(ctx context.Context,
 	}
 
 	// Find the listener in the Gateway that matches the DNSRecord
-	listener, ok := slice.Find(gateway.Spec.Listeners, func(listener gatewayapiv1beta1.Listener) bool {
+	listener, ok := slice.Find(gateway.Spec.Listeners, func(listener gatewayapiv1.Listener) bool {
 		dnsRecordName := fmt.Sprintf("%s-%s", gateway.Name, listener.Name)
 		return dnsRecord.Name == dnsRecordName
 	})

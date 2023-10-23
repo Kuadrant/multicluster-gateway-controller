@@ -18,7 +18,7 @@ This is done through the creation of ManagedZones and dns provider secrets conta
 
 If for example a Gateway is created with a listener with a hostname of `echo.apps.hcpapps.net`:
 ```yaml
-apiVersion: gateway.networking.k8s.io/v1beta1
+apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
   name: prod-web
@@ -98,7 +98,7 @@ spec:
 ```
 
 ### Target Reference
-`targetRef` field is taken from [policy attachment's target reference API](https://gateway-api.sigs.k8s.io/v1alpha2/references/policy-attachment/#target-reference-api). It can only target one resource at a time. Fields included inside:
+`targetRef` field is taken from [policy attachment's target reference API](https://gateway-api.sigs.k8s.io/geps/gep-713/#policy-targetref-api). It can only target one resource at a time. Fields included inside:
 - `Group` is the group of the target resource. Only valid option is `gateway.networking.k8s.io`.
 - `Kind` is kind of the target resource. Only valid options are `Gateway`.
 - `Name` is the name of the target resource.
@@ -180,7 +180,7 @@ metadata:
   name: echo.apps.hcpapps.net
   namespace: multi-cluster-gateways
   ownerReferences:
-    - apiVersion: gateway.networking.k8s.io/v1beta1
+    - apiVersion: gateway.networking.k8s.io/v1
       kind: Gateway
       name: echo-app
       uid: 0877f97c-f3a6-4f30-97f4-e0d7f25cc401

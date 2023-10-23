@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayapiv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
-	gatewayapiv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
 type UnstructuredPolicy struct {
@@ -20,16 +20,15 @@ func (p *UnstructuredPolicy) GetTargetRef() *gatewayapiv1alpha2.PolicyTargetRefe
 		return nil
 	}
 
-	var namespace *gatewayapiv1beta1.Namespace
+	var namespace *gatewayapiv1.Namespace
 	if targetRef["namespace"] != nil {
-		ns := gatewayapiv1beta1.Namespace(targetRef["namespace"].(string))
+		ns := gatewayapiv1.Namespace(targetRef["namespace"].(string))
 		namespace = &ns
 	}
-
 	return &gatewayapiv1alpha2.PolicyTargetReference{
-		Group:     gatewayapiv1beta1.Group(targetRef["group"].(string)),
-		Kind:      gatewayapiv1beta1.Kind(targetRef["kind"].(string)),
-		Name:      gatewayapiv1beta1.ObjectName(targetRef["name"].(string)),
+		Group:     gatewayapiv1.Group(targetRef["group"].(string)),
+		Kind:      gatewayapiv1.Kind(targetRef["kind"].(string)),
+		Name:      gatewayapiv1.ObjectName(targetRef["name"].(string)),
 		Namespace: namespace,
 	}
 }

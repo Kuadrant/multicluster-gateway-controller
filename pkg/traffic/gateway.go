@@ -7,31 +7,31 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/utils/strings/slices"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
 )
 
 type GatewayInterface interface {
 	Interface
-	GetListenerByHost(host string) *gatewayv1beta1.Listener
+	GetListenerByHost(host string) *gatewayapiv1.Listener
 }
 
-func NewGateway(g *gatewayv1beta1.Gateway) GatewayInterface {
+func NewGateway(g *gatewayapiv1.Gateway) GatewayInterface {
 	return &Gateway{Gateway: g}
 }
 
 type Gateway struct {
-	*gatewayv1beta1.Gateway
+	*gatewayapiv1.Gateway
 }
 
-func (a *Gateway) GetKind() string {
+func (g *Gateway) GetKind() string {
 	return "Gateway"
 }
 
-func (a *Gateway) GetHosts() []string {
+func (g *Gateway) GetHosts() []string {
 	var hosts []string
-	for _, listener := range a.Spec.Listeners {
+	for _, listener := range g.Spec.Listeners {
 		host := (*string)(listener.Hostname)
 		if host == nil {
 			continue
@@ -44,9 +44,9 @@ func (a *Gateway) GetHosts() []string {
 	return hosts
 }
 
-func (a *Gateway) HasTLS() bool {
+func (g *Gateway) HasTLS() bool {
 	hasTLS := false
-	for _, listener := range a.Spec.Listeners {
+	for _, listener := range g.Spec.Listeners {
 		if listener.TLS != nil {
 			hasTLS = true
 			break
@@ -55,22 +55,22 @@ func (a *Gateway) HasTLS() bool {
 	return hasTLS
 }
 
-func (a *Gateway) AddTLS(host string, secret *corev1.Secret) {
-	listeners := []gatewayv1beta1.Listener{}
+func (g *Gateway) AddTLS(host string, secret *corev1.Secret) {
+	listeners := []gatewayapiv1.Listener{}
 
-	gatewayNS := gatewayv1beta1.Namespace(a.Namespace)
-	secretKind := gatewayv1beta1.Kind(secret.Kind)
-	secretGroup := gatewayv1beta1.Group("")
-	modeTerminate := gatewayv1beta1.TLSModeTerminate
-	for _, listener := range a.Spec.Listeners {
+	gatewayNS := gatewayapiv1.Namespace(g.Namespace)
+	secretKind := gatewayapiv1.Kind(secret.Kind)
+	secretGroup := gatewayapiv1.Group("")
+	modeTerminate := gatewayapiv1.TLSModeTerminate
+	for _, listener := range g.Spec.Listeners {
 		if *(*string)(listener.Hostname) == host {
-			listener.TLS = &gatewayv1beta1.GatewayTLSConfig{
+			listener.TLS = &gatewayapiv1.GatewayTLSConfig{
 				Mode: &modeTerminate, // Ensure terminate mode as we're managing the cert
-				CertificateRefs: []gatewayv1beta1.SecretObjectReference{
+				CertificateRefs: []gatewayapiv1.SecretObjectReference{
 					{
 						Group:     &secretGroup,
 						Kind:      &secretKind,
-						Name:      gatewayv1beta1.ObjectName(secret.Name),
+						Name:      gatewayapiv1.ObjectName(secret.Name),
 						Namespace: &gatewayNS,
 					},
 				},
@@ -79,39 +79,39 @@ func (a *Gateway) AddTLS(host string, secret *corev1.Secret) {
 		listeners = append(listeners, listener)
 	}
 
-	a.Spec.Listeners = listeners
+	g.Spec.Listeners = listeners
 }
 
-func (a *Gateway) RemoveTLS(hosts []string) {
-	for _, listener := range a.Spec.Listeners {
+func (g *Gateway) RemoveTLS(hosts []string) {
+	for _, listener := range g.Spec.Listeners {
 		if slice.ContainsString(hosts, fmt.Sprint(listener.Hostname)) {
 			listener.TLS = nil
 		}
 	}
 }
 
-func (a *Gateway) GetSpec() interface{} {
-	return a.Spec
+func (g *Gateway) GetSpec() interface{} {
+	return g.Spec
 }
 
-func (a *Gateway) GetNamespaceName() types.NamespacedName {
+func (g *Gateway) GetNamespaceName() types.NamespacedName {
 	return types.NamespacedName{
-		Namespace: a.Namespace,
-		Name:      a.Name,
+		Namespace: g.Namespace,
+		Name:      g.Name,
 	}
 }
 
-func (a *Gateway) GetCacheKey() string {
-	key, _ := cache.MetaNamespaceKeyFunc(a)
+func (g *Gateway) GetCacheKey() string {
+	key, _ := cache.MetaNamespaceKeyFunc(g)
 	return key
 }
 
-func (a *Gateway) String() string {
-	return fmt.Sprintf("kind: %v, namespace/name: %v", a.GetKind(), a.GetNamespaceName())
+func (g *Gateway) String() string {
+	return fmt.Sprintf("kind: %v, namespace/name: %v", g.GetKind(), g.GetNamespaceName())
 }
 
-func (a *Gateway) GetListenerByHost(host string) *gatewayv1beta1.Listener {
-	for _, listener := range a.Spec.Listeners {
+func (g *Gateway) GetListenerByHost(host string) *gatewayapiv1.Listener {
+	for _, listener := range g.Spec.Listeners {
 		if *(*string)(listener.Hostname) == host {
 			return &listener
 		}
@@ -119,6 +119,6 @@ func (a *Gateway) GetListenerByHost(host string) *gatewayv1beta1.Listener {
 	return nil
 }
 
-func (a *Gateway) ExposesOwnController() bool {
+func (g *Gateway) ExposesOwnController() bool {
 	return false
 }

@@ -14,7 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
@@ -26,15 +26,15 @@ func testScheme(t *testing.T) *runtime.Scheme {
 	if err := v1alpha1.AddToScheme(scheme); err != nil {
 		t.Fatalf("falied to add work scheme %s ", err)
 	}
-	if err := gatewayv1beta1.AddToScheme(scheme); err != nil {
+	if err := gatewayapiv1.AddToScheme(scheme); err != nil {
 		t.Fatalf("falied to add work scheme %s ", err)
 	}
 	return scheme
 }
 
-func getTestListener(hostName string) gatewayv1beta1.Listener {
-	host := gatewayv1beta1.Hostname(hostName)
-	return gatewayv1beta1.Listener{
+func getTestListener(hostName string) gatewayapiv1.Listener {
+	host := gatewayapiv1.Hostname(hostName)
+	return gatewayapiv1.Listener{
 		Name:     "test",
 		Hostname: &host,
 	}
@@ -62,10 +62,10 @@ func Test_dnsHelper_createDNSRecordForListener(t *testing.T) {
 		testListenerName = "test"
 	)
 	type args struct {
-		gateway     *gatewayv1beta1.Gateway
+		gateway     *gatewayapiv1.Gateway
 		dnsPolicy   *v1alpha1.DNSPolicy
 		managedZone *v1alpha1.ManagedZone
-		listener    gatewayv1beta1.Listener
+		listener    gatewayapiv1.Listener
 	}
 	testCases := []struct {
 		name       string
@@ -77,7 +77,7 @@ func Test_dnsHelper_createDNSRecordForListener(t *testing.T) {
 		{
 			name: "DNS record gets created",
 			args: args{
-				gateway: &gatewayv1beta1.Gateway{
+				gateway: &gatewayapiv1.Gateway{
 					ObjectMeta: v1.ObjectMeta{
 						Name:      testGatewayName,
 						Namespace: "test",
@@ -133,7 +133,7 @@ func Test_dnsHelper_createDNSRecordForListener(t *testing.T) {
 		{
 			name: "DNS record already exists",
 			args: args{
-				gateway: &gatewayv1beta1.Gateway{
+				gateway: &gatewayapiv1.Gateway{
 					ObjectMeta: v1.ObjectMeta{
 						Name:      testGatewayName,
 						Namespace: "test",
@@ -181,7 +181,7 @@ func Test_dnsHelper_createDNSRecordForListener(t *testing.T) {
 		{
 			name: "DNS record for wildcard listener",
 			args: args{
-				gateway: &gatewayv1beta1.Gateway{
+				gateway: &gatewayapiv1.Gateway{
 					ObjectMeta: v1.ObjectMeta{
 						Name:      testGatewayName,
 						Namespace: "test",
@@ -407,7 +407,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 	testCases := []struct {
 		name      string
 		mcgTarget *dns.MultiClusterGatewayTarget
-		listener  gatewayv1beta1.Listener
+		listener  gatewayapiv1.Listener
 		dnsRecord *v1alpha1.DNSRecord
 		wantSpec  *v1alpha1.DNSRecordSpec
 		wantErr   bool
@@ -416,7 +416,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 			name:     "test wildcard listener weighted",
 			listener: getTestListener("*.example.com"),
 			mcgTarget: &dns.MultiClusterGatewayTarget{
-				Gateway: &gatewayv1beta1.Gateway{
+				Gateway: &gatewayapiv1.Gateway{
 					ObjectMeta: v1.ObjectMeta{Name: "testgw"},
 				},
 				ClusterGatewayTargets: []dns.ClusterGatewayTarget{
@@ -427,13 +427,13 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 									Name: "test-cluster-1",
 								},
 							},
-							GatewayAddresses: []gatewayv1beta1.GatewayAddress{
+							GatewayAddresses: []gatewayapiv1.GatewayAddress{
 								{
-									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+									Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
 									Value: "1.1.1.1",
 								},
 								{
-									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+									Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
 									Value: "2.2.2.2",
 								},
 							},
@@ -449,9 +449,9 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 									Name: "test-cluster-2",
 								},
 							},
-							GatewayAddresses: []gatewayv1beta1.GatewayAddress{
+							GatewayAddresses: []gatewayapiv1.GatewayAddress{
 								{
-									Type:  testutil.Pointer(gatewayv1beta1.HostnameAddressType),
+									Type:  testutil.Pointer(gatewayapiv1.HostnameAddressType),
 									Value: "mylb.example.com",
 								},
 							},
@@ -526,7 +526,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 			name:     "sets geo weighted endpoints wildcard",
 			listener: getTestListener("*.example.com"),
 			mcgTarget: &dns.MultiClusterGatewayTarget{
-				Gateway: &gatewayv1beta1.Gateway{
+				Gateway: &gatewayapiv1.Gateway{
 					ObjectMeta: v1.ObjectMeta{Name: "testgw"},
 				},
 				ClusterGatewayTargets: []dns.ClusterGatewayTarget{
@@ -538,13 +538,13 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 									Name: "test-cluster-1",
 								},
 							},
-							GatewayAddresses: []gatewayv1beta1.GatewayAddress{
+							GatewayAddresses: []gatewayapiv1.GatewayAddress{
 								{
-									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+									Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
 									Value: "1.1.1.1",
 								},
 								{
-									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+									Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
 									Value: "2.2.2.2",
 								},
 							},
@@ -560,9 +560,9 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 									Name: "test-cluster-2",
 								},
 							},
-							GatewayAddresses: []gatewayv1beta1.GatewayAddress{
+							GatewayAddresses: []gatewayapiv1.GatewayAddress{
 								{
-									Type:  testutil.Pointer(gatewayv1beta1.HostnameAddressType),
+									Type:  testutil.Pointer(gatewayapiv1.HostnameAddressType),
 									Value: "mylb.example.com",
 								},
 							},
@@ -668,7 +668,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 			name:     "sets weighted endpoints",
 			listener: getTestListener("test.example.com"),
 			mcgTarget: &dns.MultiClusterGatewayTarget{
-				Gateway: &gatewayv1beta1.Gateway{
+				Gateway: &gatewayapiv1.Gateway{
 					ObjectMeta: v1.ObjectMeta{
 						Name:      "testgw",
 						Namespace: "testns",
@@ -683,13 +683,13 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 									Name: "test-cluster-1",
 								},
 							},
-							GatewayAddresses: []gatewayv1beta1.GatewayAddress{
+							GatewayAddresses: []gatewayapiv1.GatewayAddress{
 								{
-									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+									Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
 									Value: "1.1.1.1",
 								},
 								{
-									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+									Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
 									Value: "2.2.2.2",
 								},
 							},
@@ -705,9 +705,9 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 									Name: "test-cluster-2",
 								},
 							},
-							GatewayAddresses: []gatewayv1beta1.GatewayAddress{
+							GatewayAddresses: []gatewayapiv1.GatewayAddress{
 								{
-									Type:  testutil.Pointer(gatewayv1beta1.HostnameAddressType),
+									Type:  testutil.Pointer(gatewayapiv1.HostnameAddressType),
 									Value: "mylb.example.com",
 								},
 							},
@@ -782,7 +782,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 			name:     "sets geo weighted endpoints",
 			listener: getTestListener("test.example.com"),
 			mcgTarget: &dns.MultiClusterGatewayTarget{
-				Gateway: &gatewayv1beta1.Gateway{
+				Gateway: &gatewayapiv1.Gateway{
 					ObjectMeta: v1.ObjectMeta{Name: "testgw"},
 				},
 				ClusterGatewayTargets: []dns.ClusterGatewayTarget{
@@ -794,13 +794,13 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 									Name: "test-cluster-1",
 								},
 							},
-							GatewayAddresses: []gatewayv1beta1.GatewayAddress{
+							GatewayAddresses: []gatewayapiv1.GatewayAddress{
 								{
-									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+									Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
 									Value: "1.1.1.1",
 								},
 								{
-									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+									Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
 									Value: "2.2.2.2",
 								},
 							},
@@ -816,9 +816,9 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 									Name: "test-cluster-2",
 								},
 							},
-							GatewayAddresses: []gatewayv1beta1.GatewayAddress{
+							GatewayAddresses: []gatewayapiv1.GatewayAddress{
 								{
-									Type:  testutil.Pointer(gatewayv1beta1.HostnameAddressType),
+									Type:  testutil.Pointer(gatewayapiv1.HostnameAddressType),
 									Value: "mylb.example.com",
 								},
 							},
@@ -924,7 +924,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 			name:     "sets no endpoints when no target addresses",
 			listener: getTestListener("test.example.com"),
 			mcgTarget: &dns.MultiClusterGatewayTarget{
-				Gateway: &gatewayv1beta1.Gateway{
+				Gateway: &gatewayapiv1.Gateway{
 					ObjectMeta: v1.ObjectMeta{Name: "testgw"},
 				},
 				ClusterGatewayTargets: []dns.ClusterGatewayTarget{
@@ -936,7 +936,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 									Name: "test-cluster-1",
 								},
 							},
-							GatewayAddresses: []gatewayv1beta1.GatewayAddress{},
+							GatewayAddresses: []gatewayapiv1.GatewayAddress{},
 						},
 						Geo:    testutil.Pointer(dns.GeoCode("NA")),
 						Weight: testutil.Pointer(120),
@@ -949,7 +949,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 									Name: "test-cluster-2",
 								},
 							},
-							GatewayAddresses: []gatewayv1beta1.GatewayAddress{},
+							GatewayAddresses: []gatewayapiv1.GatewayAddress{},
 						},
 						Geo:    testutil.Pointer(dns.GeoCode("IE")),
 						Weight: testutil.Pointer(120),
@@ -1008,10 +1008,10 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 func Test_dnsHelper_getDNSRecordForListener(t *testing.T) {
 	testCases := []struct {
 		name      string
-		Listener  gatewayv1beta1.Listener
+		Listener  gatewayapiv1.Listener
 		Assert    func(t *testing.T, err error)
 		DNSRecord *v1alpha1.DNSRecord
-		Gateway   *gatewayv1beta1.Gateway
+		Gateway   *gatewayapiv1.Gateway
 		DNSPolicy *v1alpha1.DNSPolicy
 	}{
 		{
@@ -1029,7 +1029,7 @@ func Test_dnsHelper_getDNSRecordForListener(t *testing.T) {
 					},
 				},
 			},
-			Gateway: &gatewayv1beta1.Gateway{
+			Gateway: &gatewayapiv1.Gateway{
 				ObjectMeta: v1.ObjectMeta{
 					UID:       types.UID("test"),
 					Name:      "gw",
@@ -1047,7 +1047,7 @@ func Test_dnsHelper_getDNSRecordForListener(t *testing.T) {
 					Namespace: "test",
 				},
 			},
-			Gateway: &gatewayv1beta1.Gateway{},
+			Gateway: &gatewayapiv1.Gateway{},
 			Assert:  testutil.AssertError("not found"),
 		},
 		{
@@ -1064,7 +1064,7 @@ func Test_dnsHelper_getDNSRecordForListener(t *testing.T) {
 					},
 				},
 			},
-			Gateway: &gatewayv1beta1.Gateway{
+			Gateway: &gatewayapiv1.Gateway{
 				ObjectMeta: v1.ObjectMeta{
 					UID:       types.UID("test"),
 					Name:      "other",
@@ -1088,7 +1088,7 @@ func Test_dnsHelper_getDNSRecordForListener(t *testing.T) {
 					},
 				},
 			},
-			Gateway: &gatewayv1beta1.Gateway{
+			Gateway: &gatewayapiv1.Gateway{
 				ObjectMeta: v1.ObjectMeta{
 					Name:      "tstgateway",
 					Namespace: "test",

@@ -8,7 +8,7 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	gatewayapiv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/kuadrant/kuadrant-operator/pkg/common"
 
@@ -56,7 +56,7 @@ func (m *ClusterEventMapper) mapToPolicyRequest(ctx context.Context, obj client.
 
 	clusterName := obj.GetName()
 
-	allGwList := &gatewayapiv1beta1.GatewayList{}
+	allGwList := &gatewayapiv1.GatewayList{}
 	err := m.Client.List(ctx, allGwList)
 	if err != nil {
 		logger.Info("mapToPolicyRequest:", "error", "failed to get gateways")

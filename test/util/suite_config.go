@@ -22,7 +22,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	gatewayapi "sigs.k8s.io/gateway-api/apis/v1beta1"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	mgcv1alpha1 "github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 )
@@ -91,7 +91,7 @@ func (cfg *SuiteConfig) Build() error {
 	if err != nil {
 		return err
 	}
-	err = gatewayapi.AddToScheme(scheme.Scheme)
+	err = gatewayapiv1.AddToScheme(scheme.Scheme)
 	if err != nil {
 		return err
 	}
@@ -259,9 +259,9 @@ func (cfg *SuiteConfig) InstallPrerequisites(ctx context.Context) error {
 
 	// ensure GatewayClass
 	{
-		gatewayclass := &gatewayapi.GatewayClass{
+		gatewayclass := &gatewayapiv1.GatewayClass{
 			ObjectMeta: metav1.ObjectMeta{Name: GatewayClassName},
-			Spec:       gatewayapi.GatewayClassSpec{ControllerName: "kuadrant.io/mgc-gw-controller"},
+			Spec:       gatewayapiv1.GatewayClassSpec{ControllerName: "kuadrant.io/mgc-gw-controller"},
 		}
 
 		created, err := cfg.Ensure(ctx, gatewayclass)

@@ -38,7 +38,7 @@ You are now ready to begin creating a gateway! :tada:
 
   ```bash
   kubectl --context kind-mgc-control-plane apply -f - <<EOF
-  apiVersion: gateway.networking.k8s.io/v1beta1
+  apiVersion: gateway.networking.k8s.io/v1
   kind: Gateway
   metadata:
     name: prod-web
@@ -156,7 +156,7 @@ So what about DNS how do we bring traffic to these gateways?
 
     ```bash
     kubectl --context kind-mgc-control-plane apply -f - <<EOF
-    apiVersion: gateway.networking.k8s.io/v1beta1
+    apiVersion: gateway.networking.k8s.io/v1
     kind: HTTPRoute
     metadata:
       name: my-route
@@ -291,7 +291,7 @@ So now we have a working gateway with DNS and TLS configured. Let place this gat
 4. Let's create the HTTPRoute in the second gateway cluster. Again, remembering to replace the hostname accordingly if you haven't already set a value for the `MGC_ZONE_ROOT_DOMAIN` variable as described in the [Getting Started Guide](https://docs.kuadrant.io/getting-started/):
     ```bash
     kubectl --context kind-mgc-workload-1 apply -f - <<EOF
-    apiVersion: gateway.networking.k8s.io/v1beta1
+    apiVersion: gateway.networking.k8s.io/v1
     kind: HTTPRoute
     metadata:
       name: my-route

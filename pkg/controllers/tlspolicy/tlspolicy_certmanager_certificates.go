@@ -13,7 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	crlog "sigs.k8s.io/controller-runtime/pkg/log"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/kuadrant/kuadrant-operator/pkg/reconcilers"
 
@@ -66,7 +66,7 @@ func (r *TLSPolicyReconciler) createOrUpdateGatewayCertificates(ctx context.Cont
 	return nil
 }
 
-func (r *TLSPolicyReconciler) deleteGatewayCertificates(ctx context.Context, gateway *gatewayv1beta1.Gateway, tlsPolicy *v1alpha1.TLSPolicy) error {
+func (r *TLSPolicyReconciler) deleteGatewayCertificates(ctx context.Context, gateway *gatewayapiv1.Gateway, tlsPolicy *v1alpha1.TLSPolicy) error {
 	return r.deleteCertificatesWithLabels(ctx, commonTLSCertificateLabels(client.ObjectKeyFromObject(gateway), client.ObjectKeyFromObject(tlsPolicy)), tlsPolicy.Namespace)
 }
 
@@ -89,7 +89,7 @@ func (r *TLSPolicyReconciler) deleteCertificatesWithLabels(ctx context.Context, 
 	return nil
 }
 
-func (r *TLSPolicyReconciler) deleteUnexpectedCertificates(ctx context.Context, expectedCertificates []*certmanv1.Certificate, gateway *gatewayv1beta1.Gateway, tlsPolicy *v1alpha1.TLSPolicy) error {
+func (r *TLSPolicyReconciler) deleteUnexpectedCertificates(ctx context.Context, expectedCertificates []*certmanv1.Certificate, gateway *gatewayapiv1.Gateway, tlsPolicy *v1alpha1.TLSPolicy) error {
 	// remove any certificates for this gateway and TLSPolicy that are no longer expected
 	existingCertificates := &certmanv1.CertificateList{}
 	dnsLabels := commonTLSCertificateLabels(client.ObjectKeyFromObject(gateway), client.ObjectKeyFromObject(tlsPolicy))
@@ -109,7 +109,7 @@ func (r *TLSPolicyReconciler) deleteUnexpectedCertificates(ctx context.Context, 
 	return nil
 }
 
-func (r *TLSPolicyReconciler) expectedCertificatesForGateway(ctx context.Context, gateway *gatewayv1beta1.Gateway, tlsPolicy *v1alpha1.TLSPolicy) []*certmanv1.Certificate {
+func (r *TLSPolicyReconciler) expectedCertificatesForGateway(ctx context.Context, gateway *gatewayapiv1.Gateway, tlsPolicy *v1alpha1.TLSPolicy) []*certmanv1.Certificate {
 	log := crlog.FromContext(ctx)
 
 	tlsHosts := make(map[corev1.ObjectReference][]string)
@@ -142,7 +142,7 @@ func (r *TLSPolicyReconciler) expectedCertificatesForGateway(ctx context.Context
 	return certs
 }
 
-func (r *TLSPolicyReconciler) buildCertManagerCertificate(gateway *gatewayv1beta1.Gateway, tlsPolicy *v1alpha1.TLSPolicy, secretRef corev1.ObjectReference, hosts []string) *certmanv1.Certificate {
+func (r *TLSPolicyReconciler) buildCertManagerCertificate(gateway *gatewayapiv1.Gateway, tlsPolicy *v1alpha1.TLSPolicy, secretRef corev1.ObjectReference, hosts []string) *certmanv1.Certificate {
 	tlsCertLabels := commonTLSCertificateLabels(client.ObjectKeyFromObject(gateway), client.ObjectKeyFromObject(tlsPolicy))
 
 	crt := &certmanv1.Certificate{

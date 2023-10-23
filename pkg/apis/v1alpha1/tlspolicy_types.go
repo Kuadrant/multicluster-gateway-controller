@@ -23,8 +23,8 @@ import (
 	certmanmetav1 "github.com/jetstack/cert-manager/pkg/apis/meta/v1"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayapiv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
 // TLSPolicySpec defines the desired state of TLSPolicy
@@ -123,8 +123,8 @@ type TLSPolicy struct {
 	Status TLSPolicyStatus `json:"status,omitempty"`
 }
 
-func (p *TLSPolicy) GetWrappedNamespace() gatewayv1beta1.Namespace {
-	return gatewayv1beta1.Namespace(p.Namespace)
+func (p *TLSPolicy) GetWrappedNamespace() gatewayapiv1.Namespace {
+	return gatewayapiv1.Namespace(p.Namespace)
 }
 
 func (p *TLSPolicy) GetRulesHostnames() []string {

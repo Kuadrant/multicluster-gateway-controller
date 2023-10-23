@@ -9,7 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 )
@@ -17,7 +17,7 @@ import (
 // https://cert-manager.io/docs/usage/gateway/#supported-annotations
 // Helper functions largely based on cert manager https://github.com/cert-manager/cert-manager/blob/master/pkg/controller/certificate-shim/sync.go
 
-func validateGatewayListenerBlock(path *field.Path, l gatewayv1beta1.Listener, ingLike metav1.Object) field.ErrorList {
+func validateGatewayListenerBlock(path *field.Path, l gatewayapiv1.Listener, ingLike metav1.Object) field.ErrorList {
 	var errs field.ErrorList
 
 	if l.Hostname == nil || *l.Hostname == "" {
@@ -56,9 +56,9 @@ func validateGatewayListenerBlock(path *field.Path, l gatewayv1beta1.Listener, i
 		errs = append(errs, field.Required(path.Child("tls").Child("mode"),
 			"the mode field is required"))
 	} else {
-		if *l.TLS.Mode != gatewayv1beta1.TLSModeTerminate {
+		if *l.TLS.Mode != gatewayapiv1.TLSModeTerminate {
 			errs = append(errs, field.NotSupported(path.Child("tls").Child("mode"),
-				*l.TLS.Mode, []string{string(gatewayv1beta1.TLSModeTerminate)}))
+				*l.TLS.Mode, []string{string(gatewayapiv1.TLSModeTerminate)}))
 		}
 	}
 

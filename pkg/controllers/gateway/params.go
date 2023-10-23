@@ -10,7 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
 type Params struct {
@@ -61,7 +61,7 @@ func IsInvalidParamsError(err error) (is bool) {
 	return
 }
 
-type ParamsResolver func(context.Context, client.Client, gatewayv1beta1.ParametersReference) (*Params, error)
+type ParamsResolver func(context.Context, client.Client, gatewayapiv1.ParametersReference) (*Params, error)
 
 var paramsResolvers = map[schema.GroupKind]ParamsResolver{
 	{Group: corev1.GroupName, Kind: "ConfigMap"}: fromNamespacedObject(fromConfigMap),
@@ -71,7 +71,7 @@ func fromNamespacedObject[T client.Object](getParams func(T) (*Params, error)) P
 	template := *new(T)
 	objectType := reflect.TypeOf(template).Elem()
 
-	return func(ctx context.Context, client client.Client, paramsRef gatewayv1beta1.ParametersReference) (*Params, error) {
+	return func(ctx context.Context, client client.Client, paramsRef gatewayapiv1.ParametersReference) (*Params, error) {
 		if paramsRef.Namespace == nil || *paramsRef.Namespace == "" {
 			return nil, &InvalidParamsError{"Namespace must be defined"}
 		}
@@ -106,7 +106,7 @@ func fromConfigMap(configMap *corev1.ConfigMap) (*Params, error) {
 
 func getParams(ctx context.Context, c client.Client, gatewayClassName string) (*Params, error) {
 
-	gatewayClass := &gatewayv1beta1.GatewayClass{}
+	gatewayClass := &gatewayapiv1.GatewayClass{}
 	err := c.Get(ctx, client.ObjectKey{Name: gatewayClassName}, gatewayClass)
 	if err != nil {
 		return nil, err

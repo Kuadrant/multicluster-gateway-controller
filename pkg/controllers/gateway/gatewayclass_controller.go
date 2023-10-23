@@ -28,7 +28,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
 )
@@ -55,7 +55,7 @@ type GatewayClassReconciler struct {
 func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := ctrllog.FromContext(ctx)
 
-	previous := &gatewayv1beta1.GatewayClass{}
+	previous := &gatewayapiv1.GatewayClass{}
 	err := r.Client.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: req.Name}, previous)
 	if err != nil {
 		if err := client.IgnoreNotFound(err); err != nil {
@@ -76,40 +76,40 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	_, err = getParams(ctx, r.Client, previous.Name)
 
 	if !slice.ContainsString(supportedClasses, previous.Name) {
-		gatewayclass.Status = gatewayv1beta1.GatewayClassStatus{
+		gatewayclass.Status = gatewayapiv1.GatewayClassStatus{
 			Conditions: []metav1.Condition{
 				{
 					LastTransitionTime: metav1.Now(),
 					Message:            fmt.Sprintf("Invalid Parameters - Unsupported class name %s. Must be one of [%v]", previous.Name, strings.Join(supportedClasses, ",")),
-					Reason:             string(gatewayv1beta1.GatewayClassReasonInvalidParameters),
+					Reason:             string(gatewayapiv1.GatewayClassReasonInvalidParameters),
 					Status:             metav1.ConditionFalse,
-					Type:               string(gatewayv1beta1.GatewayClassConditionStatusAccepted),
+					Type:               string(gatewayapiv1.GatewayClassConditionStatusAccepted),
 					ObservedGeneration: previous.Generation,
 				},
 			},
 		}
 	} else if IsInvalidParamsError(err) {
-		gatewayclass.Status = gatewayv1beta1.GatewayClassStatus{
+		gatewayclass.Status = gatewayapiv1.GatewayClassStatus{
 			Conditions: []metav1.Condition{
 				{
 					LastTransitionTime: metav1.Now(),
 					Message:            fmt.Sprintf("Invalid Parameters - %s", err.Error()),
-					Reason:             string(gatewayv1beta1.GatewayClassReasonInvalidParameters),
+					Reason:             string(gatewayapiv1.GatewayClassReasonInvalidParameters),
 					Status:             metav1.ConditionFalse,
-					Type:               string(gatewayv1beta1.GatewayClassConditionStatusAccepted),
+					Type:               string(gatewayapiv1.GatewayClassConditionStatusAccepted),
 					ObservedGeneration: previous.Generation,
 				},
 			},
 		}
 	} else {
-		gatewayclass.Status = gatewayv1beta1.GatewayClassStatus{
+		gatewayclass.Status = gatewayapiv1.GatewayClassStatus{
 			Conditions: []metav1.Condition{
 				{
 					LastTransitionTime: metav1.Now(),
 					Message:            fmt.Sprintf("Handled by %s", ControllerName),
-					Reason:             string(gatewayv1beta1.GatewayClassConditionStatusAccepted),
+					Reason:             string(gatewayapiv1.GatewayClassConditionStatusAccepted),
 					Status:             metav1.ConditionTrue,
-					Type:               string(gatewayv1beta1.GatewayClassConditionStatusAccepted),
+					Type:               string(gatewayapiv1.GatewayClassConditionStatusAccepted),
 					ObservedGeneration: previous.Generation,
 				},
 			},
@@ -125,8 +125,8 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	return ctrl.Result{}, nil
 }
 
-func gatewayClassIsAccepted(gatewayClass *gatewayv1beta1.GatewayClass) bool {
-	acceptedCondition := meta.FindStatusCondition(gatewayClass.Status.Conditions, string(gatewayv1beta1.GatewayConditionAccepted))
+func gatewayClassIsAccepted(gatewayClass *gatewayapiv1.GatewayClass) bool {
+	acceptedCondition := meta.FindStatusCondition(gatewayClass.Status.Conditions, string(gatewayapiv1.GatewayConditionAccepted))
 	return (acceptedCondition != nil && acceptedCondition.Status == metav1.ConditionTrue)
 }
 
@@ -134,9 +134,9 @@ func gatewayClassIsAccepted(gatewayClass *gatewayv1beta1.GatewayClass) bool {
 func (r *GatewayClassReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		// Uncomment the following line adding a pointer to an instance of the controlled resource as an argument
-		For(&gatewayv1beta1.GatewayClass{}).
+		For(&gatewayapiv1.GatewayClass{}).
 		WithEventFilter(predicate.NewPredicateFuncs(func(object client.Object) bool {
-			gatewayClass := object.(*gatewayv1beta1.GatewayClass)
+			gatewayClass := object.(*gatewayapiv1.GatewayClass)
 			return gatewayClass.Spec.ControllerName == ControllerName
 		})).
 		Complete(r)

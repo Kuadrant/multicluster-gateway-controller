@@ -15,7 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 	testutil "github.com/Kuadrant/multicluster-gateway-controller/test/util"
@@ -80,11 +80,11 @@ func NewTestOCMPlacer() *FakeOCMPlacer {
 	return NewFakeOCMPlacer(TestPlacedGatewayName, TestAttachedRouteName)
 }
 
-func (f FakeOCMPlacer) Place(ctx context.Context, upstream *gatewayv1beta1.Gateway, downstream *gatewayv1beta1.Gateway, children ...metav1.Object) (sets.Set[string], error) {
+func (f FakeOCMPlacer) Place(_ context.Context, _ *gatewayapiv1.Gateway, _ *gatewayapiv1.Gateway, _ ...metav1.Object) (sets.Set[string], error) {
 	return nil, nil
 }
 
-func (f FakeOCMPlacer) GetPlacedClusters(ctx context.Context, gateway *gatewayv1beta1.Gateway) (sets.Set[string], error) {
+func (f FakeOCMPlacer) GetPlacedClusters(_ context.Context, gateway *gatewayapiv1.Gateway) (sets.Set[string], error) {
 	clusters := sets.Set[string](sets.NewString())
 	for _, cluster := range f.placedClusters {
 		if gateway.Name == f.placedGatewayName {
@@ -94,11 +94,11 @@ func (f FakeOCMPlacer) GetPlacedClusters(ctx context.Context, gateway *gatewayv1
 	return clusters, nil
 }
 
-func (f FakeOCMPlacer) GetClusters(ctx context.Context, gateway *gatewayv1beta1.Gateway) (sets.Set[string], error) {
+func (f FakeOCMPlacer) GetClusters(ctx context.Context, gateway *gatewayapiv1.Gateway) (sets.Set[string], error) {
 	return f.GetPlacedClusters(ctx, gateway)
 }
 
-func (f FakeOCMPlacer) ListenerTotalAttachedRoutes(ctx context.Context, gateway *gatewayv1beta1.Gateway, listenerName string, downstream string) (int, error) {
+func (f FakeOCMPlacer) ListenerTotalAttachedRoutes(ctx context.Context, gateway *gatewayapiv1.Gateway, listenerName string, downstream string) (int, error) {
 	count := 0
 	for _, placedCluster := range f.placedClusters {
 		if gateway.Name == f.placedGatewayName && (listenerName == f.attachedRouteName || listenerName == TestWildCardListenerName) && downstream == placedCluster.name {
@@ -108,12 +108,12 @@ func (f FakeOCMPlacer) ListenerTotalAttachedRoutes(ctx context.Context, gateway 
 	return count, nil
 }
 
-func (f FakeOCMPlacer) GetAddresses(ctx context.Context, gateway *gatewayv1beta1.Gateway, downstream string) ([]gatewayv1beta1.GatewayAddress, error) {
-	gwAddresses := []gatewayv1beta1.GatewayAddress{}
-	t := gatewayv1beta1.IPAddressType
+func (f FakeOCMPlacer) GetAddresses(ctx context.Context, gateway *gatewayapiv1.Gateway, downstream string) ([]gatewayapiv1.GatewayAddress, error) {
+	gwAddresses := []gatewayapiv1.GatewayAddress{}
+	t := gatewayapiv1.IPAddressType
 	for _, cluster := range f.placedClusters {
 		if gateway.Name == f.placedGatewayName && downstream == cluster.name {
-			gwAddresses = append(gwAddresses, gatewayv1beta1.GatewayAddress{
+			gwAddresses = append(gwAddresses, gatewayapiv1.GatewayAddress{
 				Type:  &t,
 				Value: cluster.attachedRouteAddress,
 			})
@@ -122,7 +122,7 @@ func (f FakeOCMPlacer) GetAddresses(ctx context.Context, gateway *gatewayv1beta1
 	return gwAddresses, nil
 }
 
-func (f FakeOCMPlacer) GetClusterGateway(ctx context.Context, gateway *gatewayv1beta1.Gateway, clusterName string) (dns.ClusterGateway, error) {
+func (f FakeOCMPlacer) GetClusterGateway(ctx context.Context, gateway *gatewayapiv1.Gateway, clusterName string) (dns.ClusterGateway, error) {
 	gwAddresses, _ := f.GetAddresses(ctx, gateway, clusterName)
 	cgw := dns.ClusterGateway{
 		Cluster: &testutil.TestResource{
