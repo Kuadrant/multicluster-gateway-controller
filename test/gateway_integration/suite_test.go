@@ -13,16 +13,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package integration
+package gateway_integration
 
 import (
 	"context"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/go-logr/logr"
-	certman "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	ocmclusterv1 "open-cluster-management.io/api/cluster/v1"
@@ -38,16 +36,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
-	"github.com/kuadrant/kuadrant-operator/pkg/reconcilers"
-
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
-	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnshealthcheckprobe"
-	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnspolicy"
 	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
-	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/managedzone"
-	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/tlspolicy"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/health"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/placement"
 	//+kubebuilder:scaffold:imports
 )
@@ -103,8 +94,8 @@ var _ = BeforeSuite(func() {
 	err = gatewayv1beta1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
-	err = certman.AddToScheme(scheme.Scheme)
-	Expect(err).NotTo(HaveOccurred())
+	// err = certman.AddToScheme(scheme.Scheme)
+	// Expect(err).NotTo(HaveOccurred())
 
 	err = ocmworkv1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
@@ -127,48 +118,7 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).ToNot(HaveOccurred())
 
-	healthQueue := health.NewRequestQueue(1 * time.Second)
-	err = k8sManager.Add(healthQueue)
-	Expect(err).ToNot(HaveOccurred())
-
-	monitor := health.NewMonitor()
-	err = k8sManager.Add(monitor)
-	Expect(err).ToNot(HaveOccurred())
-
-	healthServer := &testHealthServer{
-		Port: 3333,
-	}
-	err = k8sManager.Add(healthServer)
-	Expect(err).ToNot(HaveOccurred())
-
 	plc := placement.NewOCMPlacer(k8sManager.GetClient())
-
-	dnsPolicyBaseReconciler := reconcilers.NewBaseReconciler(
-		k8sManager.GetClient(), k8sManager.GetScheme(), k8sManager.GetAPIReader(),
-		logger.WithName("dnspolicy"),
-		k8sManager.GetEventRecorderFor("DNSPolicy"),
-	)
-
-	err = (&DNSPolicyReconciler{
-		TargetRefReconciler: reconcilers.TargetRefReconciler{
-			BaseReconciler: dnsPolicyBaseReconciler,
-		},
-		DNSProvider: providerFactory,
-	}).SetupWithManager(k8sManager)
-	Expect(err).ToNot(HaveOccurred())
-
-	tlsPolicyBaseReconciler := reconcilers.NewBaseReconciler(
-		k8sManager.GetClient(), k8sManager.GetScheme(), k8sManager.GetAPIReader(),
-		logger.WithName("tlspolicy"),
-		k8sManager.GetEventRecorderFor("TLSPolicy"),
-	)
-
-	err = (&TLSPolicyReconciler{
-		TargetRefReconciler: reconcilers.TargetRefReconciler{
-			BaseReconciler: tlsPolicyBaseReconciler,
-		},
-	}).SetupWithManager(k8sManager)
-	Expect(err).ToNot(HaveOccurred())
 
 	err = (&GatewayClassReconciler{
 		Client: k8sManager.GetClient(),
@@ -181,20 +131,6 @@ var _ = BeforeSuite(func() {
 		Scheme:    k8sManager.GetScheme(),
 		Placement: plc,
 	}).SetupWithManager(k8sManager, ctx)
-	Expect(err).ToNot(HaveOccurred())
-
-	err = (&ManagedZoneReconciler{
-		Client:      k8sManager.GetClient(),
-		Scheme:      k8sManager.GetScheme(),
-		DNSProvider: providerFactory,
-	}).SetupWithManager(k8sManager)
-	Expect(err).ToNot(HaveOccurred())
-
-	err = (&DNSHealthCheckProbeReconciler{
-		Client:        k8sManager.GetClient(),
-		HealthMonitor: monitor,
-		Queue:         healthQueue,
-	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 
 	go func() {

@@ -77,7 +77,8 @@ test-unit: manifests generate fmt vet envtest ## Run unit tests.
 
 .PHONY: test-integration
 test-integration: ginkgo manifests generate fmt vet envtest ## Run integration tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" $(GINKGO) -tags=integration -v --focus "${FOCUS}" ./test/integration
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" $(GINKGO) -tags=integration -v --focus "${FOCUS}" ./test/policy_integration
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" $(GINKGO) -tags=integration -v --focus "${FOCUS}" ./test/gateway_integration
 
 .PHONY: test
 test: test-unit test-integration ## Run tests.
@@ -109,7 +110,7 @@ local-cleanup-mgc: ## Cleanup MGC from kind clusters
 	./hack/local-cleanup-mgc.sh
 
 .PHONY: build
-build: build-controller ## Build all binaries.
+build: build-gateway-controller build-policy-controller ## Build all binaries.
 
 ##@ Deployment
 ifndef ignore-not-found
