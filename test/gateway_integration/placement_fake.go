@@ -1,11 +1,9 @@
 //go:build integration
 
-package integration
+package gateway_integration
 
 import (
 	"context"
-	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/google/uuid"
@@ -170,34 +168,4 @@ func DeleteNamespace(namespace *string) {
 		}
 		return nil
 	}, 3*time.Minute, 2*time.Second).Should(BeNil())
-}
-
-type testHealthServer struct {
-	Port int
-}
-
-func (s *testHealthServer) Start(ctx context.Context) error {
-	mux := http.NewServeMux()
-
-	endpoint := func(expectedCode int) func(http.ResponseWriter, *http.Request) {
-		return func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(expectedCode)
-		}
-	}
-
-	mux.HandleFunc("/healthy", endpoint(200))
-	mux.HandleFunc("/unhealthy", endpoint(500))
-
-	errCh := make(chan error)
-
-	go func() {
-		errCh <- http.ListenAndServe(fmt.Sprintf(":%d", s.Port), mux)
-	}()
-
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case err := <-errCh:
-		return err
-	}
 }

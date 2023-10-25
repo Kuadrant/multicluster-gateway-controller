@@ -20,6 +20,10 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 )
 
+const (
+	singleCluster = "kudarant.io/single"
+)
+
 func (r *DNSPolicyReconciler) reconcileDNSRecords(ctx context.Context, dnsPolicy *v1alpha1.DNSPolicy, gwDiffObj *reconcilers.GatewayDiff) error {
 	log := crlog.FromContext(ctx)
 
@@ -76,7 +80,7 @@ func (r *DNSPolicyReconciler) reconcileGatewayDNSRecords(ctx context.Context, ga
 			}
 			log.V(3).Info("hostHasAttachedRoutes", "host", listener.Name, "hostHasAttachedRoutes", attached)
 
-			cg, err := r.buildClusterGateway(ctx, clusterName, clusterAddress)
+			cg, err := r.buildClusterGateway(ctx, clusterName, clusterAddress, gateway)
 			if err != nil {
 				return fmt.Errorf("get cluster gateway failed: %s", err)
 			}
@@ -147,19 +151,28 @@ func (r *DNSPolicyReconciler) deleteDNSRecordsWithLabels(ctx context.Context, lb
 	return nil
 }
 
-func (r *DNSPolicyReconciler) buildClusterGateway(ctx context.Context, downstreamClusterName string, clusterAddress []gatewayv1beta1.GatewayAddress) (dns.ClusterGateway, error) {
+func (r *DNSPolicyReconciler) buildClusterGateway(ctx context.Context, downstreamClusterName string, clusterAddress []gatewayv1beta1.GatewayAddress, targetGW *gatewayv1beta1.Gateway) (dns.ClusterGateway, error) {
 	var target dns.ClusterGateway
 	singleClusterAddresses := make([]gatewayv1beta1.GatewayAddress, len(clusterAddress))
 
-	mc := &clusterv1.ManagedCluster{}
-	if err := r.Client().Get(ctx, client.ObjectKey{Name: downstreamClusterName}, mc, &client.GetOptions{}); err != nil {
-		return target, err
+	var metaObj client.Object
+	if downstreamClusterName != singleCluster {
+		mc := &clusterv1.ManagedCluster{}
+		if err := r.Client().Get(ctx, client.ObjectKey{Name: downstreamClusterName}, mc, &client.GetOptions{}); err != nil {
+			return target, err
+		}
+		metaObj = mc
+	} else {
+		metaObj = targetGW
 	}
 
 	for i, addr := range clusterAddress {
-		addrType := gatewayv1beta1.IPAddressType
-		if *addr.Type == gateway.MultiClusterHostnameAddressType {
+		addrType := *addr.Type
+		if addrType == gateway.MultiClusterHostnameAddressType {
 			addrType = gatewayv1beta1.HostnameAddressType
+		}
+		if addrType == gateway.MultiClusterIPAddressType {
+			addrType = gatewayv1beta1.IPAddressType
 		}
 
 		singleClusterAddresses[i] = gatewayv1beta1.GatewayAddress{
@@ -167,8 +180,7 @@ func (r *DNSPolicyReconciler) buildClusterGateway(ctx context.Context, downstrea
 			Value: addr.Value,
 		}
 	}
-
-	target = *dns.NewClusterGateway(mc, singleClusterAddresses)
+	target = *dns.NewClusterGateway(metaObj, singleClusterAddresses)
 
 	return target, nil
 }
@@ -180,7 +192,7 @@ func getClusterGatewayAddresses(gw *gatewayv1beta1.Gateway) map[string][]gateway
 		var gatewayAddresses []gatewayv1beta1.GatewayAddress
 
 		//Default to Single Cluster (Normal Gateway Status)
-		cluster := "none"
+		cluster := singleCluster
 		addressValue := address.Value
 
 		//Check for Multi Cluster (MGC Gateway Status)

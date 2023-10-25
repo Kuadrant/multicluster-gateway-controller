@@ -50,7 +50,7 @@ deployOLM(){
   kubectl config use-context kind-${clusterName}
   kubectl config --kubeconfig=${TMP_DIR}/kubeconfig use-context kind-${clusterName}
   echo "Installing OLM in ${clusterName}"
-  ${OPERATOR_SDK_BIN} olm install --timeout 6m0s
+  ${OPERATOR_SDK_BIN} olm install --timeout 10m0s
 }
 
 
@@ -110,7 +110,7 @@ deployMetalLB () {
   echo "Deploying MetalLB to ${clusterName}"
   ${KUSTOMIZE_BIN} build ${METALLB_KUSTOMIZATION_DIR} | kubectl apply -f -
   echo "Waiting for deployments to be ready ..."
-  kubectl -n metallb-system wait --for=condition=ready pod --selector=app=metallb --timeout=300s
+  kubectl -n metallb-system wait --for=condition=ready pod --selector=app=metallb --timeout=600s
   configureMetalLB ${clusterName} ${metalLBSubnet}
 }
 

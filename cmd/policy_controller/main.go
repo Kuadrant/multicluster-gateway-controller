@@ -19,22 +19,13 @@ package main
 import (
 	"flag"
 	"os"
-	"time"
 
 	certmanv1 "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
-	clusterv1beta2 "open-cluster-management.io/api/cluster/v1beta1"
-	workv1 "open-cluster-management.io/api/work/v1"
 
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/kubernetes/scheme"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	_ "k8s.io/client-go/plugin/pkg/client/auth"
-	"k8s.io/client-go/tools/cache"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -44,17 +35,11 @@ import (
 	"github.com/kuadrant/kuadrant-operator/pkg/reconcilers"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnshealthcheckprobe"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnspolicy"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnsrecord"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/managedzone"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/tlspolicy"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/dnsprovider"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/health"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/placement"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/policysync"
-	//+kubebuilder:scaffold:imports
 )
 
 var (
@@ -63,28 +48,27 @@ var (
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme.Scheme))
-
+	utilruntime.Must(gatewayapi.AddToScheme(scheme.Scheme))
 	utilruntime.Must(v1alpha1.AddToScheme(scheme.Scheme))
 	utilruntime.Must(certmanv1.AddToScheme(scheme.Scheme))
-	utilruntime.Must(gatewayapi.AddToScheme(scheme.Scheme))
-	utilruntime.Must(clusterv1beta2.AddToScheme(scheme.Scheme))
-	utilruntime.Must(workv1.AddToScheme(scheme.Scheme))
+	//this is need for now but will be removed soon
 	utilruntime.Must(clusterv1.AddToScheme(scheme.Scheme))
-
-	//+kubebuilder:scaffold:scheme
 }
 
 func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
-	var certProvider string
+	var ocmHub bool
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
-	flag.StringVar(&certProvider, "cert-provider", "glbc-ca", "The name of the certificate provider to use")
+
+	flag.BoolVar(&ocmHub, "ocm-hub", true,
+		"tells the controller if it is in an ocm hub"+
+			"setting this to false will cause the controller to stop watching for managedcluster resources")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -100,28 +84,13 @@ func main() {
 		Port:                   9443,
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "fb80029c-controller.kuadrant.io",
+		LeaderElectionID:       "fb80029c-policy-controller.kuadrant.io",
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
 	}
-
-	placer := placement.NewOCMPlacer(mgr.GetClient())
 	provider := dnsprovider.NewProvider(mgr.GetClient())
-
-	healthMonitor := health.NewMonitor()
-	healthCheckQueue := health.NewRequestQueue(time.Second * 5)
-
-	if err := mgr.Add(healthMonitor); err != nil {
-		setupLog.Error(err, "unable to start health monitor")
-		os.Exit(1)
-	}
-
-	if err := mgr.Add(healthCheckQueue); err != nil {
-		setupLog.Error(err, "unable to start health check queue")
-		os.Exit(1)
-	}
 
 	if err = (&dnsrecord.DNSRecordReconciler{
 		Client:      mgr.GetClient(),
@@ -143,7 +112,7 @@ func main() {
 			BaseReconciler: dnsPolicyBaseReconciler,
 		},
 		DNSProvider: provider.DNSProviderFactory,
-	}).SetupWithManager(mgr); err != nil {
+	}).SetupWithManager(mgr, ocmHub); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DNSPolicy")
 		os.Exit(1)
 	}
@@ -173,49 +142,6 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "ManagedZone")
 		os.Exit(1)
 	}
-	if err = (&gateway.GatewayClassReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "GatewayClass")
-		os.Exit(1)
-	}
-
-	dynamicClient := dynamic.NewForConfigOrDie(mgr.GetConfig())
-	dynamicInformerFactory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(
-		dynamicClient,
-		0,
-		corev1.NamespaceAll,
-		nil,
-	)
-
-	policyInformersManager := policysync.NewPolicyInformersManager(dynamicInformerFactory)
-	if err := policyInformersManager.SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to start policy informers manager")
-		os.Exit(1)
-	}
-
-	if err = (&gateway.GatewayReconciler{
-		Client:                 mgr.GetClient(),
-		Scheme:                 mgr.GetScheme(),
-		Placement:              placer,
-		PolicyInformersManager: policyInformersManager,
-		DynamicClient:          dynamicClient,
-		WatchedPolicies:        map[schema.GroupVersionResource]cache.ResourceEventHandlerRegistration{},
-	}).SetupWithManager(mgr, ctx); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Gateway")
-		os.Exit(1)
-	}
-
-	if err = (&dnshealthcheckprobe.DNSHealthCheckProbeReconciler{
-		Client:        mgr.GetClient(),
-		HealthMonitor: healthMonitor,
-		Queue:         healthCheckQueue,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "DNSHealthCheckProbe")
-		os.Exit(1)
-	}
-	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")
@@ -231,4 +157,5 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
+
 }

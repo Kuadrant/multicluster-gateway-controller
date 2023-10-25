@@ -9,7 +9,7 @@
       "type": "go",
       "request": "launch",
       "mode": "auto",
-      "program": "./cmd/controller/main.go",
+      "program": "./cmd/gateway_controller/main.go",
       "args": [
         "--metrics-bind-address=:8080",
         "--health-probe-bind-address=:8081"

@@ -43,12 +43,16 @@ When deploying the multicluster gateway controller using the make targets, the f
 1. Build the controller image and load it into the control plane
     ```sh
    kubectl config use-context kind-mgc-control-plane 
-   make kind-load-controller
+   make kind-load-policy-controller
+
+   kubectl config use-context kind-mgc-control-plane 
+   make kind-load-gateway-controller   
     ```
 
-1. Deploy the controller to the control plane cluster
+1. Deploy the controller(s) to the control plane cluster
     ```sh
-    make deploy-controller
+    make deploy-policy-controller
+    make deploy-gateway-controller
     ```
 
 1. (Optional) View the logs of the deployed controller
@@ -68,7 +72,10 @@ When deploying the multicluster gateway controller using the make targets, the f
 1. Run the controller locally:
     ```sh
     kubectl config use-context kind-mgc-control-plane 
-    make build-controller install run-controller
+    make build-policy-controller install run-policy-controller
+
+    kubectl config use-context kind-mgc-control-plane 
+    make build-gateway-controller install run-gatewway-controller
     ```
 
 ## 3. Running the agent in the cluster:

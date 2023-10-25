@@ -31,7 +31,9 @@ namePrefix: mgc-
 resources:
 - ../crd
 - ../rbac
+- namespace.yaml
 - ../manager
 - ../add-on-manager
+- ../policy-controller
 patches:
 - path: manager_metrics_patch.yaml

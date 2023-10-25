@@ -13,7 +13,7 @@
 // limitations under the License.
 // */
 
-package integration
+package policy_integration
 
 import (
 	. "github.com/onsi/ginkgo/v2"
