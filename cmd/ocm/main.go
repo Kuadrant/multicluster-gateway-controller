@@ -37,7 +37,7 @@ func GetDefaultValues(cluster *clusterv1.ManagedCluster,
 	defaultIstioConfigMap := "istio"
 	defaultCatalog := "operatorhubio-catalog"
 	defaultCatalogNS := "olm"
-	defaultChannel := "alpha"
+	defaultChannel := "stable"
 
 	manifestConfig := struct {
 		IstioOperator          string
