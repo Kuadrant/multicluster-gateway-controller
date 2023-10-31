@@ -23,23 +23,21 @@ import (
 func (r *DNSPolicyReconciler) reconcileDNSRecords(ctx context.Context, dnsPolicy *v1alpha1.DNSPolicy, gwDiffObj *reconcilers.GatewayDiff) error {
 	log := crlog.FromContext(ctx)
 
+	log.V(3).Info("reconciling dns records")
 	for _, gw := range gwDiffObj.GatewaysWithInvalidPolicyRef {
 		log.V(1).Info("reconcileDNSRecords: gateway with invalid policy ref", "key", gw.Key())
-		err := r.deleteGatewayDNSRecords(ctx, gw.Gateway, dnsPolicy)
-		if err != nil {
-			return err
+		if err := r.deleteGatewayDNSRecords(ctx, gw.Gateway, dnsPolicy); err != nil {
+			return fmt.Errorf("error deleting dns records for gw %v: %w", gw.Gateway.Name, err)
 		}
 	}
 
 	// Reconcile DNSRecords for each gateway directly referred by the policy (existing and new)
 	for _, gw := range append(gwDiffObj.GatewaysWithValidPolicyRef, gwDiffObj.GatewaysMissingPolicyRef...) {
 		log.V(1).Info("reconcileDNSRecords: gateway with valid or missing policy ref", "key", gw.Key())
-		err := r.reconcileGatewayDNSRecords(ctx, gw.Gateway, dnsPolicy)
-		if err != nil {
-			return err
+		if err := r.reconcileGatewayDNSRecords(ctx, gw.Gateway, dnsPolicy); err != nil {
+			return fmt.Errorf("error reconciling dns records for gateway %v: %w", gw.Gateway.Name, err)
 		}
 	}
-
 	return nil
 }
 

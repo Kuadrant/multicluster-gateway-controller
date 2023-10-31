@@ -343,9 +343,9 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 				DNSProvider:         tt.fields.DNSProvider,
 				dnsHelper:           tt.fields.dnsHelper,
 			}
-			got := r.expectedProbesForGateway(tt.args.ctx, tt.args.gw, tt.args.dnsPolicy)
+			got := r.expectedHealthCheckProbesForGateway(tt.args.ctx, tt.args.gw, tt.args.dnsPolicy)
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("expectedProbesForGateway() got = %v, want %v", got, tt.want)
+				t.Errorf("expectedHealthCheckProbesForGateway() got = %v, want %v", got, tt.want)
 			}
 		})
 	}
