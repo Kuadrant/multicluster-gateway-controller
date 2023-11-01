@@ -4,6 +4,7 @@ package integration
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -285,6 +286,41 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 			}, time.Second*15, time.Second).Should(BeNil())
 		})
 
+		It("should not have any health check records created", func() {
+			// create a health check with the labels for the dnspolicy and the gateway name and namespace that would be expected in a valid target scenario
+			// this one should get deleted if the gateway is invalid policy ref
+			probe := &v1alpha1.DNSHealthCheckProbe{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      fmt.Sprintf("%s-%s-%s", TestAttachedRouteAddressTwo, TestPlacedGatewayName, TestAttachedRouteName),
+					Namespace: testNamespace,
+					Labels: map[string]string{
+						DNSPolicyBackRefAnnotation:                              "test-dns-policy",
+						fmt.Sprintf("%s-namespace", DNSPolicyBackRefAnnotation): testNamespace,
+						LabelGatewayNSRef:                                       testNamespace,
+						LabelGatewayReference:                                   "test-gateway",
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, probe)).To(BeNil())
+
+			Eventually(func() error { // probe should be present
+				getCreatedProbe := &v1alpha1.DNSHealthCheckProbe{}
+				err := k8sClient.Get(ctx, client.ObjectKey{Name: probe.Name, Namespace: probe.Namespace}, getCreatedProbe)
+				return err
+			}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
+
+			Eventually(func() bool { // probe should be removed
+				getDeletedProbe := &v1alpha1.DNSHealthCheckProbe{}
+				err := k8sClient.Get(ctx, client.ObjectKey{Name: probe.Name, Namespace: probe.Namespace}, getDeletedProbe)
+				if err != nil {
+					if k8serrors.IsNotFound(err) {
+						return true
+					}
+				}
+				return false
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
+		})
+
 	})
 
 	Context("gateway placed", func() {
@@ -340,7 +376,8 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			for _, record := range dnsRecordList.Items {
-				Expect(k8sClient.Delete(ctx, &record)).ToNot(HaveOccurred())
+				err := k8sClient.Delete(ctx, &record)
+				Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
 			}
 		})
 
@@ -673,6 +710,34 @@ var _ = Describe("DNSPolicy", Ordered, func() {
 					return nil
 				}, time.Second*5, time.Second).Should(BeNil())
 			})
+
+			It("should remove dns record reference on policy deletion even if gateway is removed", func() {
+				createdDNSRecord := &v1alpha1.DNSRecord{}
+				Eventually(func() error { // DNS record exists
+					if err := k8sClient.Get(ctx, client.ObjectKey{Name: dnsRecordName, Namespace: testNamespace}, createdDNSRecord); err != nil {
+						return err
+					}
+					return nil
+				}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
+
+				err := k8sClient.Delete(ctx, gateway)
+				Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
+
+				dnsPolicy = testBuildDNSPolicyWithHealthCheck("test-dns-policy", TestPlacedGatewayName, testNamespace, nil)
+				err = k8sClient.Delete(ctx, dnsPolicy)
+				Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
+
+				Eventually(func() error { // DNS record removed
+					if err := k8sClient.Get(ctx, client.ObjectKey{Name: dnsRecordName, Namespace: testNamespace}, createdDNSRecord); err != nil {
+						if k8serrors.IsNotFound(err) {
+							return nil
+						}
+						return err
+					}
+					return errors.New("found dnsrecord when it should be deleted")
+				}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
+			})
+
 		})
 
 		Context("geo dnspolicy", func() {

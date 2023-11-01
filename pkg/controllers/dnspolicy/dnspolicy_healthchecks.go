@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	crlog "sigs.k8s.io/controller-runtime/pkg/log"
+	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/kuadrant/kuadrant-operator/pkg/common"
 	"github.com/kuadrant/kuadrant-operator/pkg/reconcilers"
@@ -19,33 +20,33 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 )
 
-func (r *DNSPolicyReconciler) reconcileHealthChecks(ctx context.Context, dnsPolicy *v1alpha1.DNSPolicy, gwDiffObj *reconcilers.GatewayDiff) error {
+func (r *DNSPolicyReconciler) reconcileHealthCheckProbes(ctx context.Context, dnsPolicy *v1alpha1.DNSPolicy, gwDiffObj *reconcilers.GatewayDiff) error {
 	log := crlog.FromContext(ctx)
 
 	log.V(3).Info("reconciling health checks")
-	for _, gw := range append(gwDiffObj.GatewaysWithValidPolicyRef, gwDiffObj.GatewaysMissingPolicyRef...) {
-		log.V(3).Info("reconciling probes", "gateway", gw.Name)
-		expectedProbes := r.expectedProbesForGateway(ctx, gw, dnsPolicy)
-		if err := r.createOrUpdateProbes(ctx, expectedProbes); err != nil {
-			return fmt.Errorf("error creating and updating expected proves for gateway %v: %w", gw.Gateway.Name, err)
-		}
-		if err := r.deleteUnexpectedGatewayProbes(ctx, expectedProbes, gw, dnsPolicy); err != nil {
-			return fmt.Errorf("error removing unexpected probes for gateway %v: %w", gw.Gateway.Name, err)
-		}
-
-	}
-
 	for _, gw := range gwDiffObj.GatewaysWithInvalidPolicyRef {
-		log.V(3).Info("deleting probes", "gateway", gw.Gateway.Name)
-		if err := r.deleteUnexpectedGatewayProbes(ctx, []*v1alpha1.DNSHealthCheckProbe{}, gw, dnsPolicy); err != nil {
+		log.V(1).Info("reconcileHealthCheckProbes: gateway with invalid policy ref", "key", gw.Key())
+		if err := r.deleteGatewayHealthCheckProbes(ctx, gw.Gateway, dnsPolicy); err != nil {
 			return fmt.Errorf("error deleting probes for gw %v: %w", gw.Gateway.Name, err)
 		}
 	}
 
+	// Reconcile DNSHealthCheckProbes for each gateway directly referred by the policy (existing and new)
+	for _, gw := range append(gwDiffObj.GatewaysWithValidPolicyRef, gwDiffObj.GatewaysMissingPolicyRef...) {
+		log.V(3).Info("reconciling probes", "gateway", gw.Name)
+		expectedProbes := r.expectedHealthCheckProbesForGateway(ctx, gw, dnsPolicy)
+		if err := r.createOrUpdateHealthCheckProbes(ctx, expectedProbes); err != nil {
+			return fmt.Errorf("error creating or updating expected probes for gateway %v: %w", gw.Gateway.Name, err)
+		}
+		if err := r.deleteUnexpectedGatewayHealthCheckProbes(ctx, expectedProbes, gw.Gateway, dnsPolicy); err != nil {
+			return fmt.Errorf("error removing unexpected probes for gateway %v: %w", gw.Gateway.Name, err)
+		}
+
+	}
 	return nil
 }
 
-func (r *DNSPolicyReconciler) createOrUpdateProbes(ctx context.Context, expectedProbes []*v1alpha1.DNSHealthCheckProbe) error {
+func (r *DNSPolicyReconciler) createOrUpdateHealthCheckProbes(ctx context.Context, expectedProbes []*v1alpha1.DNSHealthCheckProbe) error {
 	//create or update all expected probes
 	for _, hcProbe := range expectedProbes {
 		p := &v1alpha1.DNSHealthCheckProbe{}
@@ -66,29 +67,49 @@ func (r *DNSPolicyReconciler) createOrUpdateProbes(ctx context.Context, expected
 	return nil
 }
 
-func (r *DNSPolicyReconciler) deleteUnexpectedGatewayProbes(ctx context.Context, expectedProbes []*v1alpha1.DNSHealthCheckProbe, gw common.GatewayWrapper, dnsPolicy *v1alpha1.DNSPolicy) error {
-	// remove any probes for this gateway and DNS Policy that are no longer expected
-	existingProbes := &v1alpha1.DNSHealthCheckProbeList{}
-	dnsLabels := commonDNSRecordLabels(client.ObjectKeyFromObject(gw), client.ObjectKeyFromObject(dnsPolicy))
-	listOptions := &client.ListOptions{LabelSelector: labels.SelectorFromSet(dnsLabels)}
-	if err := r.Client().List(ctx, existingProbes, listOptions); client.IgnoreNotFound(err) != nil {
+func (r *DNSPolicyReconciler) deleteGatewayHealthCheckProbes(ctx context.Context, gateway *gatewayv1beta1.Gateway, dnsPolicy *v1alpha1.DNSPolicy) error {
+	return r.deleteHealthCheckProbesWithLabels(ctx, commonDNSRecordLabels(client.ObjectKeyFromObject(gateway), client.ObjectKeyFromObject(dnsPolicy)), dnsPolicy.Namespace)
+}
+
+func (r *DNSPolicyReconciler) deleteHealthCheckProbes(ctx context.Context, dnsPolicy *v1alpha1.DNSPolicy) error {
+	return r.deleteHealthCheckProbesWithLabels(ctx, policyDNSRecordLabels(client.ObjectKeyFromObject(dnsPolicy)), dnsPolicy.Namespace)
+}
+
+func (r *DNSPolicyReconciler) deleteHealthCheckProbesWithLabels(ctx context.Context, lbls map[string]string, namespace string) error {
+	probes := &v1alpha1.DNSHealthCheckProbeList{}
+	listOptions := &client.ListOptions{LabelSelector: labels.SelectorFromSet(lbls), Namespace: namespace}
+	if err := r.Client().List(ctx, probes, listOptions); client.IgnoreNotFound(err) != nil {
 		return err
-	} else {
-		for _, p := range existingProbes.Items {
-			if !slice.Contains(expectedProbes, func(expectedProbe *v1alpha1.DNSHealthCheckProbe) bool {
-				return expectedProbe.Name == p.Name && expectedProbe.Namespace == p.Namespace
-			}) {
-				if err := r.Client().Delete(ctx, &p); err != nil {
-					return err
-				}
-			}
+	}
+	for _, p := range probes.Items {
+		if err := r.Client().Delete(ctx, &p); err != nil {
+			return err
 		}
 	}
-
 	return nil
 }
 
-func (r *DNSPolicyReconciler) expectedProbesForGateway(ctx context.Context, gw common.GatewayWrapper, dnsPolicy *v1alpha1.DNSPolicy) []*v1alpha1.DNSHealthCheckProbe {
+func (r *DNSPolicyReconciler) deleteUnexpectedGatewayHealthCheckProbes(ctx context.Context, expectedProbes []*v1alpha1.DNSHealthCheckProbe, gateway *gatewayv1beta1.Gateway, dnsPolicy *v1alpha1.DNSPolicy) error {
+	// remove any probes for this gateway and DNS Policy that are no longer expected
+	existingProbes := &v1alpha1.DNSHealthCheckProbeList{}
+	dnsLabels := commonDNSRecordLabels(client.ObjectKeyFromObject(gateway), client.ObjectKeyFromObject(dnsPolicy))
+	listOptions := &client.ListOptions{LabelSelector: labels.SelectorFromSet(dnsLabels)}
+	if err := r.Client().List(ctx, existingProbes, listOptions); client.IgnoreNotFound(err) != nil {
+		return err
+	}
+	for _, p := range existingProbes.Items {
+		if !slice.Contains(expectedProbes, func(expectedProbe *v1alpha1.DNSHealthCheckProbe) bool {
+			return expectedProbe.Name == p.Name && expectedProbe.Namespace == p.Namespace
+		}) {
+			if err := r.Client().Delete(ctx, &p); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (r *DNSPolicyReconciler) expectedHealthCheckProbesForGateway(ctx context.Context, gw common.GatewayWrapper, dnsPolicy *v1alpha1.DNSPolicy) []*v1alpha1.DNSHealthCheckProbe {
 	log := crlog.FromContext(ctx)
 	var healthChecks []*v1alpha1.DNSHealthCheckProbe
 	if dnsPolicy.Spec.HealthCheck == nil {
@@ -126,7 +147,7 @@ func (r *DNSPolicyReconciler) expectedProbesForGateway(ctx context.Context, gw c
 			} else {
 				protocol = string(*dnsPolicy.Spec.HealthCheck.Protocol)
 			}
-			log.V(1).Info("reconcileHealthChecks: adding health check for target", "target", address.Value)
+			log.V(1).Info("reconcileHealthCheckProbes: adding health check for target", "target", address.Value)
 			healthCheck := &v1alpha1.DNSHealthCheckProbe{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      dnsHealthCheckProbeName(matches[1], gw.Name, string(listener.Name)),

@@ -80,11 +80,27 @@ func findMatchingManagedZone(originalHost, host string, zones []v1alpha1.Managed
 }
 
 func commonDNSRecordLabels(gwKey, apKey client.ObjectKey) map[string]string {
+	common := map[string]string{}
+	for k, v := range policyDNSRecordLabels(apKey) {
+		common[k] = v
+	}
+	for k, v := range gatewayDNSRecordLabels(gwKey) {
+		common[k] = v
+	}
+	return common
+}
+
+func policyDNSRecordLabels(apKey client.ObjectKey) map[string]string {
 	return map[string]string{
 		DNSPolicyBackRefAnnotation:                              apKey.Name,
 		fmt.Sprintf("%s-namespace", DNSPolicyBackRefAnnotation): apKey.Namespace,
-		LabelGatewayNSRef:                                       gwKey.Namespace,
-		LabelGatewayReference:                                   gwKey.Name,
+	}
+}
+
+func gatewayDNSRecordLabels(gwKey client.ObjectKey) map[string]string {
+	return map[string]string{
+		LabelGatewayNSRef:     gwKey.Namespace,
+		LabelGatewayReference: gwKey.Name,
 	}
 }
 
@@ -282,13 +298,13 @@ func createOrUpdateEndpoint(dnsName string, targets v1alpha1.Targets, recordType
 }
 
 // removeDNSForDeletedListeners remove any DNSRecords that are associated with listeners that no longer exist in this gateway
-func (r *dnsHelper) removeDNSForDeletedListeners(ctx context.Context, upstreamGateway *gatewayv1beta1.Gateway) error {
+func (dh *dnsHelper) removeDNSForDeletedListeners(ctx context.Context, upstreamGateway *gatewayv1beta1.Gateway) error {
 	dnsList := &v1alpha1.DNSRecordList{}
 	//List all dns records that belong to this gateway
 	labelSelector := &client.MatchingLabels{
 		LabelGatewayReference: upstreamGateway.Name,
 	}
-	if err := r.List(ctx, dnsList, labelSelector, &client.ListOptions{Namespace: upstreamGateway.Namespace}); err != nil {
+	if err := dh.List(ctx, dnsList, labelSelector, &client.ListOptions{Namespace: upstreamGateway.Namespace}); err != nil {
 		return err
 	}
 
@@ -301,7 +317,7 @@ func (r *dnsHelper) removeDNSForDeletedListeners(ctx context.Context, upstreamGa
 			}
 		}
 		if !listenerExists {
-			if err := r.Delete(ctx, &dns, &client.DeleteOptions{}); client.IgnoreNotFound(err) != nil {
+			if err := dh.Delete(ctx, &dns, &client.DeleteOptions{}); client.IgnoreNotFound(err) != nil {
 				return err
 			}
 		}
@@ -310,9 +326,9 @@ func (r *dnsHelper) removeDNSForDeletedListeners(ctx context.Context, upstreamGa
 
 }
 
-func (r *dnsHelper) getManagedZoneForListener(ctx context.Context, ns string, listener gatewayv1beta1.Listener) (*v1alpha1.ManagedZone, error) {
+func (dh *dnsHelper) getManagedZoneForListener(ctx context.Context, ns string, listener gatewayv1beta1.Listener) (*v1alpha1.ManagedZone, error) {
 	var managedZones v1alpha1.ManagedZoneList
-	if err := r.List(ctx, &managedZones, client.InNamespace(ns)); err != nil {
+	if err := dh.List(ctx, &managedZones, client.InNamespace(ns)); err != nil {
 		log.FromContext(ctx).Error(err, "unable to list managed zones for gateway ", "in ns", ns)
 		return nil, err
 	}
@@ -325,21 +341,21 @@ func dnsRecordName(gatewayName, listenerName string) string {
 	return fmt.Sprintf("%s-%s", gatewayName, listenerName)
 }
 
-func (r *dnsHelper) createDNSRecordForListener(ctx context.Context, gateway *gatewayv1beta1.Gateway, dnsPolicy *v1alpha1.DNSPolicy, mz *v1alpha1.ManagedZone, listener gatewayv1beta1.Listener) (*v1alpha1.DNSRecord, error) {
+func (dh *dnsHelper) createDNSRecordForListener(ctx context.Context, gateway *gatewayv1beta1.Gateway, dnsPolicy *v1alpha1.DNSPolicy, mz *v1alpha1.ManagedZone, listener gatewayv1beta1.Listener) (*v1alpha1.DNSRecord, error) {
 
 	log := log.FromContext(ctx)
 	log.Info("creating dns for gateway listener", "listener", listener.Name)
-	dnsRecord := r.buildDNSRecordForListener(gateway, dnsPolicy, listener, mz)
-	if err := controllerutil.SetControllerReference(mz, dnsRecord, r.Scheme()); err != nil {
+	dnsRecord := dh.buildDNSRecordForListener(gateway, dnsPolicy, listener, mz)
+	if err := controllerutil.SetControllerReference(mz, dnsRecord, dh.Scheme()); err != nil {
 		return dnsRecord, err
 	}
 
-	err := r.Create(ctx, dnsRecord, &client.CreateOptions{})
+	err := dh.Create(ctx, dnsRecord, &client.CreateOptions{})
 	if err != nil && !k8serrors.IsAlreadyExists(err) {
 		return dnsRecord, err
 	}
 	if err != nil && k8serrors.IsAlreadyExists(err) {
-		err = r.Get(ctx, client.ObjectKeyFromObject(dnsRecord), dnsRecord)
+		err = dh.Get(ctx, client.ObjectKeyFromObject(dnsRecord), dnsRecord)
 		if err != nil {
 			return dnsRecord, err
 		}
@@ -347,7 +363,7 @@ func (r *dnsHelper) createDNSRecordForListener(ctx context.Context, gateway *gat
 	return dnsRecord, nil
 }
 
-func (r *dnsHelper) deleteDNSRecordForListener(ctx context.Context, owner metav1.Object, listener gatewayv1beta1.Listener) error {
+func (dh *dnsHelper) deleteDNSRecordForListener(ctx context.Context, owner metav1.Object, listener gatewayv1beta1.Listener) error {
 	recordName := dnsRecordName(owner.GetName(), string(listener.Name))
 	dnsRecord := v1alpha1.DNSRecord{
 		ObjectMeta: metav1.ObjectMeta{
@@ -355,7 +371,7 @@ func (r *dnsHelper) deleteDNSRecordForListener(ctx context.Context, owner metav1
 			Namespace: owner.GetNamespace(),
 		},
 	}
-	return r.Delete(ctx, &dnsRecord, &client.DeleteOptions{})
+	return dh.Delete(ctx, &dnsRecord, &client.DeleteOptions{})
 }
 
 func isWildCardListener(l gatewayv1beta1.Listener) bool {

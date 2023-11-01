@@ -196,7 +196,7 @@ func (r *TLSPolicyReconciler) deleteResources(ctx context.Context, tlsPolicy *v1
 		return err
 	}
 
-	if err := r.reconcileCertificates(ctx, tlsPolicy, gatewayDiffObj); err != nil {
+	if err := r.deleteCertificates(ctx, tlsPolicy); err != nil {
 		return err
 	}
 

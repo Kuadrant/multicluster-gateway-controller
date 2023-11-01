@@ -159,7 +159,7 @@ func (r *DNSPolicyReconciler) reconcileResources(ctx context.Context, dnsPolicy 
 		return errors.Join(fmt.Errorf("reconcile DNSRecords error %w", err), updateErr)
 	}
 
-	if err = r.reconcileHealthChecks(ctx, dnsPolicy, gatewayDiffObj); err != nil {
+	if err = r.reconcileHealthCheckProbes(ctx, dnsPolicy, gatewayDiffObj); err != nil {
 		gatewayCondition = conditions.BuildPolicyAffectedCondition(DNSPolicyAffected, dnsPolicy, targetNetworkObject, conditions.PolicyReasonInvalid, err)
 		updateErr := r.updateGatewayCondition(ctx, gatewayCondition, gatewayDiffObj)
 		return errors.Join(fmt.Errorf("reconcile HealthChecks error %w", err), updateErr)
@@ -195,13 +195,12 @@ func (r *DNSPolicyReconciler) deleteResources(ctx context.Context, dnsPolicy *v1
 	if err != nil {
 		return err
 	}
-
-	if err := r.reconcileDNSRecords(ctx, dnsPolicy, gatewayDiffObj); err != nil {
+	if err = r.deleteDNSRecords(ctx, dnsPolicy); err != nil {
 		log.V(3).Info("error reconciling DNS records from delete, returning", "error", err)
 		return err
 	}
 
-	if err := r.reconcileHealthChecks(ctx, dnsPolicy, gatewayDiffObj); err != nil {
+	if err := r.deleteHealthCheckProbes(ctx, dnsPolicy); err != nil {
 		return err
 	}
 
