@@ -3,8 +3,6 @@
 package testutil
 
 import (
-	"fmt"
-	"net/http"
 	"strings"
 	"testing"
 
@@ -135,18 +133,4 @@ func GetBasicScheme() *runtime.Scheme {
 	_ = v1beta1.AddToScheme(scheme)
 	_ = corev1.AddToScheme(scheme)
 	return scheme
-}
-
-func TestCertificate(dnsName string, resp *http.Response) error {
-	if resp.TLS == nil {
-		return fmt.Errorf("expected tls configuration to be present on http request")
-	}
-	for _, cert := range resp.TLS.PeerCertificates {
-		for _, name := range cert.DNSNames {
-			if name == dnsName {
-				return nil
-			}
-		}
-	}
-	return fmt.Errorf("wildcard hostname not found in the certificate via get request")
 }

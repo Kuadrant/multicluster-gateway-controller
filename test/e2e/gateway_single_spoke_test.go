@@ -11,13 +11,14 @@ import (
 	"strings"
 	"time"
 
-	cmmetav1 "github.com/jetstack/cert-manager/pkg/apis/meta/v1"
+	certmanv1 "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
+	certmanmetav1 "github.com/jetstack/cert-manager/pkg/apis/meta/v1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	. "github.com/onsi/gomega/gstruct"
 	ocm_cluster_v1beta1 "open-cluster-management.io/api/cluster/v1beta1"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -93,7 +94,7 @@ var _ = Describe("Gateway single target cluster", func() {
 					Namespace: Pointer(gatewayapi.Namespace(tconfig.HubNamespace())),
 				},
 				CertificateSpec: mgcv1alpha1.CertificateSpec{
-					IssuerRef: cmmetav1.ObjectReference{
+					IssuerRef: certmanmetav1.ObjectReference{
 						Name:  "glbc-ca",
 						Kind:  "ClusterIssuer",
 						Group: "cert-manager.io",
@@ -270,7 +271,14 @@ var _ = Describe("Gateway single target cluster", func() {
 					}
 					err = tconfig.HubClient().Delete(ctx, secret)
 					Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
-
+					cert := &certmanv1.Certificate{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      strings.Join([]string{testID, tconfig.ManagedZone()}, "."),
+							Namespace: tconfig.HubNamespace(),
+						},
+					}
+					err = tconfig.HubClient().Delete(ctx, cert)
+					Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
 				})
 
 				It("makes available a hostname that can be resolved and reachable through HTTPS", func(ctx SpecContext) {
@@ -336,15 +344,11 @@ var _ = Describe("Gateway single target cluster", func() {
 						http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 
 						var resp *http.Response
-						Eventually(func(ctx SpecContext) error {
+						Eventually(func(g Gomega, ctx SpecContext) {
 							httpClient := &http.Client{}
 							resp, err = httpClient.Get("https://" + string(hostname))
-							if err != nil {
-								GinkgoWriter.Printf("[debug] GET error: '%s'\n", err)
-								return err
-							}
-							return TestCertificate(string(hostname), resp)
-						}).WithTimeout(300 * time.Second).WithPolling(10 * time.Second).WithContext(ctx).ShouldNot(HaveOccurred())
+							g.Expect(err).ToNot(HaveOccurred())
+						}).WithTimeout(300 * time.Second).WithPolling(10 * time.Second).WithContext(ctx).Should(Succeed())
 
 						defer resp.Body.Close()
 						Expect(resp.StatusCode).To(Equal(http.StatusOK))
@@ -363,42 +367,53 @@ var _ = Describe("Gateway single target cluster", func() {
 						AddListener("wildcard", wildcardHostname, gatewayapi.ObjectName(secretName), gw)
 						err = tconfig.HubClient().Update(ctx, gw)
 						Expect(err).ToNot(HaveOccurred())
-						expectedListeners := 2
-						Eventually(func(ctx SpecContext) error {
+						Eventually(func(g Gomega, ctx SpecContext) {
 							checkGateway := &gatewayapi.Gateway{}
 							err = tconfig.HubClient().Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.HubNamespace()}, checkGateway)
-							Expect(err).ToNot(HaveOccurred())
-							if len(checkGateway.Spec.Listeners) == expectedListeners {
-								return nil
-							}
-							return fmt.Errorf("should be %d listeners in the gateway", expectedListeners)
-						}).WithContext(ctx).WithTimeout(100 * time.Second).WithPolling(2 * time.Second).ShouldNot(HaveOccurred())
+							g.Expect(err).ToNot(HaveOccurred())
+							g.Expect(len(checkGateway.Spec.Listeners)).To(Equal(2))
+						}).WithContext(ctx).WithTimeout(100 * time.Second).WithPolling(2 * time.Second).Should(Succeed())
 
 					}
 
-					By("checking tls secrets")
+					By("checking tls secrets for wildcard entry in annotation")
 					{
 						secretList := &corev1.SecretList{}
-						Eventually(func(ctx SpecContext) error {
+						Eventually(func(g Gomega, ctx SpecContext) {
 							err = tconfig.HubClient().List(ctx, secretList)
-							if err != nil {
-								return err
-							}
-							if len(secretList.Items) == 0 {
-								return fmt.Errorf("no secrets found")
-							}
-							for _, secret := range secretList.Items {
-								if secret.Name == string(hostname) {
-									if strings.Contains(secret.Annotations["cert-manager.io/alt-names"], string(hostname)) &&
-										strings.Contains(secret.Annotations["cert-manager.io/alt-names"], string(wildcardHostname)) {
-										return nil
-									}
-								}
-							}
-							return fmt.Errorf("dns names for secret not as expected")
-						}).WithContext(ctx).WithTimeout(180 * time.Second).WithPolling(2 * time.Second).ShouldNot(HaveOccurred())
+							g.Expect(err).ToNot(HaveOccurred())
+							g.Expect(secretList.Items).To(Not(BeEmpty()))
+							g.Expect(secretList.Items).To(
+								ContainElement(
+									MatchFields(IgnoreExtras, Fields{
+										"ObjectMeta": MatchFields(IgnoreExtras, Fields{
+											"Annotations": HaveKeyWithValue("cert-manager.io/alt-names", fmt.Sprintf("%s,%s", string(hostname), string(wildcardHostname))),
+										}),
+									})),
+							)
+						}).WithContext(ctx).WithTimeout(180 * time.Second).WithPolling(2 * time.Second).Should(Succeed())
 					}
-					By("adding/removing listeners tls secrets are added/removed")
+
+					By("checking tls certificate")
+					{
+						certList := &certmanv1.CertificateList{}
+						Eventually(func(g Gomega, ctx SpecContext) {
+							err = tconfig.HubClient().List(ctx, certList)
+							g.Expect(err).NotTo(HaveOccurred())
+							g.Expect(certList.Items).To(Not(BeEmpty()))
+							g.Expect(certList.Items).To(
+								ContainElement(
+									MatchFields(IgnoreExtras, Fields{
+										"ObjectMeta": MatchFields(IgnoreExtras, Fields{
+											"Labels": HaveKeyWithValue("gateway", testID),
+										}),
+										"Spec": MatchFields(IgnoreExtras, Fields{
+											"DNSNames": ConsistOf(string(hostname), string(wildcardHostname)),
+										}),
+									})))
+						}).WithContext(ctx).WithTimeout(180 * time.Second).WithPolling(2 * time.Second).Should(Succeed())
+					}
+					By("when adding/removing listeners, checking that tls secrets are added/removed")
 					{
 						gw := &gatewayapi.Gateway{}
 						err = tconfig.HubClient().Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.HubNamespace()}, gw)
@@ -409,35 +424,20 @@ var _ = Describe("Gateway single target cluster", func() {
 						}
 						otherHostname = gatewayapi.Hostname(strings.Join([]string{"other", tconfig.ManagedZone()}, "."))
 						AddListener("other", otherHostname, gatewayapi.ObjectName(otherHostname), gw)
-
-						expectedLiseners := 3
-						Eventually(func(ctx SpecContext) error {
+						Eventually(func(g Gomega, ctx SpecContext) {
 							err = tconfig.HubClient().Update(ctx, gw)
-							if err != nil {
-								return fmt.Errorf("failed to update gateway and add new listeners: %w", err)
-							}
+							Expect(err).ToNot(HaveOccurred())
 							checkGateway := &gatewayapi.Gateway{}
 							err = tconfig.HubClient().Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.HubNamespace()}, checkGateway)
-							if err != nil {
-								return fmt.Errorf("failed to get updated gateway after adding listeners: %w", err)
-							}
-							if len(checkGateway.Spec.Listeners) == expectedLiseners {
-								return nil
-							}
-							return fmt.Errorf("expected %d listeners in the ", expectedLiseners)
-						}).WithContext(ctx).WithTimeout(100 * time.Second).WithPolling(2 * time.Second).ShouldNot(HaveOccurred())
+							g.Expect(err).ToNot(HaveOccurred())
+							g.Expect(len(checkGateway.Spec.Listeners)).To(Equal(3))
+						}).WithContext(ctx).WithTimeout(100 * time.Second).WithPolling(2 * time.Second).Should(Succeed())
 
-						Eventually(func(ctx SpecContext) error {
+						Eventually(func(g Gomega, ctx SpecContext) {
 							secret := &corev1.Secret{}
 							err = tconfig.HubClient().Get(ctx, client.ObjectKey{Name: string(otherHostname), Namespace: tconfig.HubNamespace()}, secret)
-							if err != nil {
-								if errors.IsNotFound(err) {
-									return fmt.Errorf("secret %s not found", string(otherHostname))
-								}
-								return err
-							}
-							return nil
-						}).WithContext(ctx).WithTimeout(180 * time.Second).WithPolling(2 * time.Second).ShouldNot(HaveOccurred())
+							g.Expect(err).ToNot(HaveOccurred())
+						}).WithContext(ctx).WithTimeout(180 * time.Second).WithPolling(2 * time.Second).Should(Succeed())
 
 						// remove the listener
 						err = tconfig.HubClient().Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.HubNamespace()}, gw)
@@ -454,19 +454,13 @@ var _ = Describe("Gateway single target cluster", func() {
 						}
 						err = tconfig.HubClient().Update(ctx, gw)
 						Expect(err).ToNot(HaveOccurred())
-						Eventually(func(ctx SpecContext) error {
+						Eventually(func(g Gomega, ctx SpecContext) {
 							secret := &corev1.Secret{}
 							err = tconfig.HubClient().Get(ctx, client.ObjectKey{Name: string(otherHostname), Namespace: tconfig.HubNamespace()}, secret)
-							if err != nil {
-								if errors.IsNotFound(err) {
-									return nil
-								}
-								return err
-							}
-							return fmt.Errorf("secret %s found, should be removed", otherHostname)
-						}).WithContext(ctx).WithTimeout(180 * time.Second).WithPolling(2 * time.Second).ShouldNot(HaveOccurred())
+							g.Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
+						}).WithContext(ctx).WithTimeout(180 * time.Second).WithPolling(2 * time.Second).Should(Succeed())
 					}
-					By("deleting tls policy, tls secrets are removed")
+					By("when deleting tls policy, checking that tls secrets are removed")
 					{
 						tlsPolicy = &mgcv1alpha1.TLSPolicy{
 							ObjectMeta: metav1.ObjectMeta{
@@ -478,17 +472,11 @@ var _ = Describe("Gateway single target cluster", func() {
 							client.PropagationPolicy(metav1.DeletePropagationForeground))
 						Expect(err).ToNot(HaveOccurred())
 						hostname = gatewayapi.Hostname(strings.Join([]string{testID, tconfig.ManagedZone()}, "."))
-						Eventually(func(ctx SpecContext) error {
+						Eventually(func(g Gomega, ctx SpecContext) {
 							secret := &corev1.Secret{}
 							err = tconfig.HubClient().Get(ctx, client.ObjectKey{Name: string(hostname), Namespace: tconfig.HubNamespace()}, secret)
-							if err != nil {
-								if errors.IsNotFound(err) {
-									return nil
-								}
-								return err
-							}
-							return fmt.Errorf("secret %s found, should be removed", hostname)
-						}).WithContext(ctx).WithTimeout(180 * time.Second).WithPolling(2 * time.Second).ShouldNot(HaveOccurred())
+							g.Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
+						}).WithContext(ctx).WithTimeout(180 * time.Second).WithPolling(2 * time.Second).Should(Succeed())
 					}
 				})
 			})
