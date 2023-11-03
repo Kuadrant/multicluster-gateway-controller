@@ -2,17 +2,29 @@
 
 POLICY_CONTROLLER_IMG ?= policy-controller:$(TAG)
 LOG_LEVEL ?= 3
+OCM ?=true
 
 .PHONY: build-policy-controller
 build-policy-controller: manifests generate fmt vet ## Build controller binary.
 	go build -o bin/policy_controller ./cmd/policy_controller/main.go
+
+.PHONY: install
+install: manifests kustomize ## Install CRDs into the K8s cluster specified in ~/.kube/config.
+	$(KUSTOMIZE) build config/policy-controller/crd | kubectl apply -f -
+
+
+.PHONY: uninstall
+uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
+	$(KUSTOMIZE) build config/policy-controller/crd | kubectl delete --ignore-not-found=$(ignore-not-found) -f -	
+
 
 .PHONY: run-policy-controller
 run-policy-controller: manifests generate fmt vet  install
 	go run ./cmd/policy_controller/main.go \
 	    --metrics-bind-address=:8090 \
 	    --health-probe-bind-address=:8091 \
-	    --zap-log-level=$(LOG_LEVEL)
+	    --zap-log-level=$(LOG_LEVEL) \
+		--ocm-hub=$(OCM)
 
 .PHONY: docker-build-policy-controller
 docker-build-policy-controller: ## Build docker image with the controller.

@@ -141,7 +141,7 @@ deployCertManager() {
   kubectl delete validatingWebhookConfiguration mgc-cert-manager-webhook
   kubectl delete mutatingWebhookConfiguration mgc-cert-manager-webhook
   # Apply the default glbc-ca issuer
-  kubectl apply -n cert-manager -f ./config/default/issuer.yaml
+  kubectl apply -n cert-manager -f ./config/policy-controller/default/issuer.yaml
 }
 
 deployExternalDNS() {
@@ -258,7 +258,7 @@ initController() {
     kubectl config use-context kind-${clusterName}
     echo "Initialize local dev setup for the controller on ${clusterName}"
     # Add the mgc CRDs
-    ${KUSTOMIZE_BIN} build config/crd | kubectl apply -f -
+    ${KUSTOMIZE_BIN} build config/policy-controller/crd | kubectl apply -f -
     ${KUSTOMIZE_BIN} build config/local-setup/controller/ | kubectl apply -f -
     if [[ -f "controller-config.env" && -f "gcp-credentials.env" ]]; then
       ${KUSTOMIZE_BIN} --reorder none --load-restrictor LoadRestrictionsNone build config/local-setup/controller/gcp | kubectl apply -f -

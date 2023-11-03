@@ -14,7 +14,13 @@
 
 ```bash
 ./install.sh
-(export $(cat ./controller-config.env | xargs) && export $(cat ./aws-credentials.env | xargs) && make build-controller install run-controller)
+ && make build-gateway-controller run-gateway-controller)
+
+## separate window
+
+ make build-policy-controller install run-policy-controller)
+
+
 ```
 ## Preamble
 

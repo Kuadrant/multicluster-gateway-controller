@@ -1,20 +1,20 @@
-# permissions for end users to view managedzones.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
+  creationTimestamp: null
   labels:
-    app.kubernetes.io/name: clusterrole
-    app.kubernetes.io/instance: managedzone-viewer-role
     app.kubernetes.io/component: rbac
     app.kubernetes.io/created-by: multicluster-gateway-controller
-    app.kubernetes.io/part-of: multicluster-gateway-controller
+    app.kubernetes.io/instance: dnsrecord-viewer-role
     app.kubernetes.io/managed-by: kustomize
-  name: managedzone-viewer-role
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/part-of: multicluster-gateway-controller
+  name: mgc-kuadrant-dnsrecord-viewer-role
 rules:
 - apiGroups:
   - kuadrant.io
   resources:
-  - managedzones
+  - dnsrecords
   verbs:
   - get
   - list
@@ -22,6 +22,6 @@ rules:
 - apiGroups:
   - kuadrant.io
   resources:
-  - managedzones/status
+  - dnsrecords/status
   verbs:
   - get
