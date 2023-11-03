@@ -191,11 +191,7 @@ func (r *DNSPolicyReconciler) reconcileResources(ctx context.Context, dnsPolicy 
 func (r *DNSPolicyReconciler) deleteResources(ctx context.Context, dnsPolicy *v1alpha1.DNSPolicy, targetNetworkObject client.Object) error {
 	// delete based on gateway diffs
 
-	gatewayDiffObj, err := r.ComputeGatewayDiffs(ctx, dnsPolicy, targetNetworkObject, &DNSPolicyRefsConfig{})
-	if err != nil {
-		return err
-	}
-	if err = r.deleteDNSRecords(ctx, dnsPolicy); err != nil {
+	if err := r.deleteDNSRecords(ctx, dnsPolicy); err != nil {
 		log.V(3).Info("error reconciling DNS records from delete, returning", "error", err)
 		return err
 	}
@@ -211,7 +207,7 @@ func (r *DNSPolicyReconciler) deleteResources(ctx context.Context, dnsPolicy *v1
 		}
 	}
 
-	gatewayDiffObj, err = r.ComputeGatewayDiffs(ctx, dnsPolicy, targetNetworkObject, &DNSPolicyRefsConfig{})
+	gatewayDiffObj, err := r.ComputeGatewayDiffs(ctx, dnsPolicy, targetNetworkObject, &DNSPolicyRefsConfig{})
 	if err != nil {
 		return err
 	}

@@ -3,7 +3,6 @@ package tlspolicy
 import (
 	"context"
 	"fmt"
-	"reflect"
 
 	certmanv1 "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
 
@@ -189,22 +188,4 @@ func gatewayTLSCertificateLabels(gwKey client.ObjectKey) map[string]string {
 		"gateway-namespace": gwKey.Namespace,
 		"gateway":           gwKey.Name,
 	}
-}
-
-func alwaysUpdateCertificate(existingObj, desiredObj client.Object) (bool, error) {
-	existing, ok := existingObj.(*certmanv1.Certificate)
-	if !ok {
-		return false, fmt.Errorf("%T is not a *certmanv1.Certificate", existingObj)
-	}
-	desired, ok := desiredObj.(*certmanv1.Certificate)
-	if !ok {
-		return false, fmt.Errorf("%T is not an *certmanv1.Certificate", desiredObj)
-	}
-
-	if reflect.DeepEqual(existing.Spec, desired.Spec) {
-		return false, nil
-	}
-	existing.Spec = desired.Spec
-
-	return true, nil
 }
