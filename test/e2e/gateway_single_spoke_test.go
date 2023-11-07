@@ -60,7 +60,7 @@ var _ = Describe("Gateway single target cluster", func() {
 
 		By("creating a Gateway in the hub")
 		hostname = gatewayapi.Hostname(strings.Join([]string{testID, tconfig.ManagedZone()}, "."))
-		gw = NewTestGateway(testID, GatewayClassName, tconfig.HubNamespace()).WithListener(gatewayapi.Listener{
+		gw = NewGatewayBuilder(testID, GatewayClassName, tconfig.HubNamespace()).WithListener(gatewayapi.Listener{
 			Name:     "https",
 			Hostname: &hostname,
 			Port:     443,

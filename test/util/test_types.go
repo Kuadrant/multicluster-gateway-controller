@@ -18,25 +18,6 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 )
 
-type TestGateway struct {
-	*gatewayv1beta1.Gateway
-}
-
-func NewTestGateway(gwName, gwClassName, ns string) *TestGateway {
-	return &TestGateway{
-		&gatewayv1beta1.Gateway{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      gwName,
-				Namespace: ns,
-			},
-			Spec: gatewayv1beta1.GatewaySpec{
-				GatewayClassName: gatewayv1beta1.ObjectName(gwClassName),
-				Listeners:        []gatewayv1beta1.Listener{},
-			},
-		},
-	}
-}
-
 func NewTestIssuer(name, ns string) *certmanv1.Issuer {
 	return &certmanv1.Issuer{
 		ObjectMeta: metav1.ObjectMeta{
@@ -52,6 +33,86 @@ func NewTestClusterIssuer(name string) *certmanv1.ClusterIssuer {
 			Name: name,
 		},
 	}
+}
+
+func NewTestGatewayClass(name, ns, controllerName string) *gatewayv1beta1.GatewayClass {
+	return &gatewayv1beta1.GatewayClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: ns,
+		},
+		Spec: gatewayv1beta1.GatewayClassSpec{
+			ControllerName: gatewayv1beta1.GatewayController(controllerName),
+		},
+	}
+}
+
+// GatewayBuilder wrapper for Gateway builder helper
+type GatewayBuilder struct {
+	*gatewayv1beta1.Gateway
+}
+
+func NewGatewayBuilder(gwName, gwClassName, ns string) *GatewayBuilder {
+	return &GatewayBuilder{
+		&gatewayv1beta1.Gateway{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      gwName,
+				Namespace: ns,
+			},
+			Spec: gatewayv1beta1.GatewaySpec{
+				GatewayClassName: gatewayv1beta1.ObjectName(gwClassName),
+				Listeners:        []gatewayv1beta1.Listener{},
+			},
+		},
+	}
+}
+
+func (t *GatewayBuilder) WithListener(listener gatewayv1beta1.Listener) *GatewayBuilder {
+	t.Spec.Listeners = append(t.Spec.Listeners, listener)
+	return t
+}
+
+func (t *GatewayBuilder) WithLabels(labels map[string]string) *GatewayBuilder {
+	if t.Labels == nil {
+		t.Labels = map[string]string{}
+	}
+	for key, value := range labels {
+		t.Labels[key] = value
+	}
+	return t
+}
+
+func (t *GatewayBuilder) WithHTTPListener(name, hostname string) *GatewayBuilder {
+	typedHostname := gatewayv1beta1.Hostname(hostname)
+	t.WithListener(gatewayv1beta1.Listener{
+		Name:     gatewayv1beta1.SectionName(name),
+		Hostname: &typedHostname,
+		Port:     gatewayv1beta1.PortNumber(80),
+		Protocol: gatewayv1beta1.HTTPProtocolType,
+	})
+	return t
+}
+
+func (t *GatewayBuilder) WithHTTPSListener(hostname, tlsSecretName string) *GatewayBuilder {
+	typedHostname := gatewayv1beta1.Hostname(hostname)
+	typedNamespace := gatewayv1beta1.Namespace(t.GetNamespace())
+	typedNamed := gatewayv1beta1.SectionName(strings.Replace(hostname, "*", "wildcard", 1))
+	t.WithListener(gatewayv1beta1.Listener{
+		Name:     typedNamed,
+		Hostname: &typedHostname,
+		Port:     gatewayv1beta1.PortNumber(443),
+		Protocol: gatewayv1beta1.HTTPSProtocolType,
+		TLS: &gatewayv1beta1.GatewayTLSConfig{
+			Mode: Pointer(gatewayv1beta1.TLSModeTerminate),
+			CertificateRefs: []gatewayv1beta1.SecretObjectReference{
+				{
+					Name:      gatewayv1beta1.ObjectName(tlsSecretName),
+					Namespace: Pointer(typedNamespace),
+				},
+			},
+		},
+	})
+	return t
 }
 
 func AddListener(name string, hostname gatewayapiv1alpha2.Hostname, secretName gatewayv1beta1.ObjectName, gw *gatewayv1beta1.Gateway) {
@@ -77,60 +138,13 @@ func AddListener(name string, hostname gatewayapiv1alpha2.Hostname, secretName g
 
 }
 
-func (t *TestGateway) WithListener(listener gatewayv1beta1.Listener) *TestGateway {
-	t.Spec.Listeners = append(t.Spec.Listeners, listener)
-	return t
-}
-
-func (t *TestGateway) WithLabels(labels map[string]string) *TestGateway {
-	if t.Labels == nil {
-		t.Labels = map[string]string{}
-	}
-	for key, value := range labels {
-		t.Labels[key] = value
-	}
-	return t
-}
-
-func (t *TestGateway) WithHTTPListener(hostname string) *TestGateway {
-	typedHostname := gatewayv1beta1.Hostname(hostname)
-	t.WithListener(gatewayv1beta1.Listener{
-		Name:     gatewayv1beta1.SectionName(hostname),
-		Hostname: &typedHostname,
-		Port:     gatewayv1beta1.PortNumber(80),
-		Protocol: gatewayv1beta1.HTTPProtocolType,
-	})
-	return t
-}
-
-func (t *TestGateway) WithHTTPSListener(hostname, tlsSecretName string) *TestGateway {
-	typedHostname := gatewayv1beta1.Hostname(hostname)
-	typedNamespace := gatewayv1beta1.Namespace(t.GetNamespace())
-	typedNamed := gatewayv1beta1.SectionName(strings.Replace(hostname, "*", "wildcard", 1))
-	t.WithListener(gatewayv1beta1.Listener{
-		Name:     typedNamed,
-		Hostname: &typedHostname,
-		Port:     gatewayv1beta1.PortNumber(443),
-		Protocol: gatewayv1beta1.HTTPSProtocolType,
-		TLS: &gatewayv1beta1.GatewayTLSConfig{
-			Mode: Pointer(gatewayv1beta1.TLSModeTerminate),
-			CertificateRefs: []gatewayv1beta1.SecretObjectReference{
-				{
-					Name:      gatewayv1beta1.ObjectName(tlsSecretName),
-					Namespace: Pointer(typedNamespace),
-				},
-			},
-		},
-	})
-	return t
-}
-
-type TestTLSPolicy struct {
+// TLSPolicyBuilder wrapper for TLSPolicy builder helper
+type TLSPolicyBuilder struct {
 	*v1alpha1.TLSPolicy
 }
 
-func NewTestTLSPolicy(policyName, ns string) *TestTLSPolicy {
-	return &TestTLSPolicy{
+func NewTLSPolicyBuilder(policyName, ns string) *TLSPolicyBuilder {
+	return &TLSPolicyBuilder{
 		&v1alpha1.TLSPolicy{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      policyName,
@@ -141,7 +155,11 @@ func NewTestTLSPolicy(policyName, ns string) *TestTLSPolicy {
 	}
 }
 
-func (t *TestTLSPolicy) WithTargetGateway(gwName string) *TestTLSPolicy {
+func (t *TLSPolicyBuilder) Build() *v1alpha1.TLSPolicy {
+	return t.TLSPolicy
+}
+
+func (t *TLSPolicyBuilder) WithTargetGateway(gwName string) *TLSPolicyBuilder {
 	typedNamespace := gatewayv1beta1.Namespace(t.GetNamespace())
 	t.Spec.TargetRef = gatewayapiv1alpha2.PolicyTargetReference{
 		Group:     "gateway.networking.k8s.io",
@@ -152,12 +170,12 @@ func (t *TestTLSPolicy) WithTargetGateway(gwName string) *TestTLSPolicy {
 	return t
 }
 
-func (t *TestTLSPolicy) WithIssuerRef(issuerRef cmmeta.ObjectReference) *TestTLSPolicy {
+func (t *TLSPolicyBuilder) WithIssuerRef(issuerRef cmmeta.ObjectReference) *TLSPolicyBuilder {
 	t.Spec.IssuerRef = issuerRef
 	return t
 }
 
-func (t *TestTLSPolicy) WithIssuer(name, kind, group string) *TestTLSPolicy {
+func (t *TLSPolicyBuilder) WithIssuer(name, kind, group string) *TLSPolicyBuilder {
 	t.WithIssuerRef(cmmeta.ObjectReference{
 		Name:  name,
 		Kind:  kind,
