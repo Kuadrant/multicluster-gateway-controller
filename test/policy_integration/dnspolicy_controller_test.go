@@ -137,6 +137,55 @@ var _ = Describe("DNSPolicy", func() {
 			}, TestTimeoutMedium, time.Second).Should(Succeed())
 		})
 
+		It("should not process gateway with inconsistent addresses", func() {
+			// build invalid gateway
+			gateway = testutil.NewGatewayBuilder("test-gateway", gatewayClass.Name, testNamespace).
+				WithHTTPListener(TestListenerNameOne, TestHostOne).Gateway
+			Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
+
+			// ensure gateway exists
+			Eventually(func() error {
+				return k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway)
+			}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
+
+			// invalidate gateway by setting inconsistent addresses
+			Eventually(func() error {
+				gateway.Status.Addresses = []gatewayv1beta1.GatewayAddress{
+					{
+						Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+						Value: TestClusterNameOne + "/" + TestIPAddressOne,
+					},
+					{
+						Type:  testutil.Pointer(utils.MultiClusterIPAddressType),
+						Value: TestIPAddressTwo,
+					},
+				}
+				gateway.Status.Listeners = []gatewayv1beta1.ListenerStatus{
+					{
+						Name:           TestClusterNameOne + "." + TestListenerNameOne,
+						SupportedKinds: []gatewayv1beta1.RouteGroupKind{},
+						AttachedRoutes: 1,
+						Conditions:     []metav1.Condition{},
+					},
+					{
+						Name:           TestListenerNameOne,
+						SupportedKinds: []gatewayv1beta1.RouteGroupKind{},
+						AttachedRoutes: 1,
+						Conditions:     []metav1.Condition{},
+					},
+				}
+				return k8sClient.Status().Update(ctx, gateway)
+			}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
+
+			// expect no dns records
+			Consistently(func() []v1alpha1.DNSRecord {
+				dnsRecords := v1alpha1.DNSRecordList{}
+				err := k8sClient.List(ctx, &dnsRecords, client.InNamespace(dnsPolicy.GetNamespace()))
+				Expect(err).ToNot(HaveOccurred())
+				return dnsRecords.Items
+			}, time.Second*15, time.Second).Should(BeEmpty())
+		})
+
 	})
 
 	Context("valid target with no gateway status", func() {
@@ -228,11 +277,11 @@ var _ = Describe("DNSPolicy", func() {
 
 				gateway.Status.Addresses = []gatewayapiv1.GatewayStatusAddress{
 					{
-						Type:  testutil.Pointer(mgcgateway.MultiClusterIPAddressType),
+						Type:  testutil.Pointer(utils.MultiClusterIPAddressType),
 						Value: TestClusterNameOne + "/" + TestIPAddressOne,
 					},
 					{
-						Type:  testutil.Pointer(mgcgateway.MultiClusterIPAddressType),
+						Type:  testutil.Pointer(utils.MultiClusterIPAddressType),
 						Value: TestClusterNameTwo + "/" + TestIPAddressTwo,
 					},
 				}
