@@ -100,9 +100,7 @@ It is possible to also use a letsencrypt certificate, but for simplicity in this
 
 ### Place the gateway
 
-In the hub cluster there will be a single gateway definition but no actual gateway for handling traffic yet.
-
-This is because we haven't placed the gateway yet onto any of our ingress clusters (in this case the hub and ingress cluster are the same)
+In the hub cluster there will be a single gateway definition but no actual gateway for handling traffic yet. This is because we haven't placed the gateway yet onto any of our ingress clusters (in this case the hub and ingress cluster are the same).
 
 1. To place the gateway, we need to add a placement label to gateway resource to instruct the gateway controller where we want this gateway instantiated:
 
@@ -154,7 +152,7 @@ So what about DNS how do we bring traffic to these gateways?
     No resources found
     ```
 
-2. Let's create a simple echo app with a HTTPRoute in one of the gateway clusters. Remember to replace the hostnames. Again we are creating this in the single hub cluster for now:
+2. Let's create a simple echo app with a HTTPRoute in one of the gateway clusters. Remember to replace the hostname accordingly if you haven't already set a value for the `MGC_ZONE_ROOT_DOMAIN` variable as described in the [Getting Started Guide](https://docs.kuadrant.io/getting-started/). Again we are creating this in the single hub cluster for now:
 
     ```bash
     kubectl --context kind-mgc-control-plane apply -f - <<EOF
@@ -242,7 +240,7 @@ So what about DNS how do we bring traffic to these gateways?
     multi-cluster-gateways   prod-web-api         True
     ```
 
-3. You should also be able to see there is only 1 endpoint added which corresponds to address assigned to the gateway where the HTTPRoute was created:
+3. You should also be able to see there is only 1 endpoint added which corresponds to the address assigned to the gateway where the HTTPRoute was created:
 
     ```bash
     kubectl --context kind-mgc-control-plane get dnsrecord -n multi-cluster-gateways -o=yaml
@@ -290,7 +288,7 @@ So now we have a working gateway with DNS and TLS configured. Let place this gat
 
     So now we have second ingress cluster configured with the same Gateway. 
 
-4. Let's create the HTTPRoute in the second gateway cluster:
+4. Let's create the HTTPRoute in the second gateway cluster. Again, remembering to replace the hostname accordingly if you haven't already set a value for the `MGC_ZONE_ROOT_DOMAIN` variable as described in the [Getting Started Guide](https://docs.kuadrant.io/getting-started/):
     ```bash
     kubectl --context kind-mgc-workload-1 apply -f - <<EOF
     apiVersion: gateway.networking.k8s.io/v1beta1

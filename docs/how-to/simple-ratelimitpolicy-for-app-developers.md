@@ -16,9 +16,9 @@ We will rate limit the `POST /toys` endpoint to a maximum of 5rp10s ("5 requests
 
 #### Create the Deployment
 
-> **Note:** You can skip this step and proceed to [Create the HTTPRoute](#create-the-httproute) if you've already deployed the Toy Store API as part of [the AuthPolicy for App Developers guide](./simple-authpolicy-for-app-developers.md#-deploy-the-toy-store-api).
+> **Note:** You can skip this step and proceed to [Create the HTTPRoute](#create-the-httproute) if you've already deployed the Toy Store API as part of [the AuthPolicy for App Developers guide](https://docs.kuadrant.io/kuadrant-operator/doc/user-guides/auth-for-app-devs-and-platform-engineers/#2-deploy-the-toy-store-sample-application-persona-app-developer).
 
-Create the deployments for both clusters we've created previously (`kind-mgc-control-plane` & `kind-mgc-workload-1`):
+Create the deployments for both clusters we've created previously (`kind-mgc-control-plane` & `kind-mgc-workload-1`).
 
 ```bash
 for context in kind-mgc-control-plane kind-mgc-workload-1; do kubectl --context $context apply -f - <<EOF
@@ -109,7 +109,7 @@ curl -ik https://toystore.$MGC_ZONE_ROOT_DOMAIN/toys
 # HTTP/1.1 200 OK
 ```
 
-Given the two clusters, and our previously created `DNSPolicy`, traffic with load balance between these clusters round-robin style. Load balancing here will be determined in part by DNS TTLs, so it can take a minute or two for requests to flow to both services.
+Given the two clusters, and our previously created `DNSPolicy`, traffic will load balance between these clusters round-robin style. Load balancing here will be determined in part by DNS TTLs, so it can take a minute or two for requests to flow to both services.
 
 ### ② Enforce rate limiting on requests to the Toy Store API
 
@@ -166,5 +166,5 @@ while :; do curl --write-out '%{http_code}' --silent -k  --output /dev/null http
 
 Here are some good, follow-on guides that build on this walkthrough:
 
-* [Simple AuthPolicy for App Developers](./simple-authpolicy-for-app-developers.md)
-* [Deploying/Configuring Metrics.](../how-to/metrics-walkthrough.md)
+* [AuthPolicy for Application Developers and Platform Engineers](https://docs.kuadrant.io/kuadrant-operator/doc/user-guides/auth-for-app-devs-and-platform-engineers/)
+* [Deploying/Configuring Metrics.](./metrics-walkthrough.md)
