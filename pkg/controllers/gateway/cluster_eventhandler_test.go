@@ -3,6 +3,7 @@
 package gateway
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -170,7 +171,7 @@ func TestClusterEventHandler(t *testing.T) {
 				client: client,
 			}
 
-			clusterEventHandler.enqueueForObject(&testCase.secret, testQ)
+			clusterEventHandler.enqueueForObject(context.Background(), &testCase.secret, testQ)
 			testQ.MustHaveEnqueued(testCase.enqueuedGateways)
 		})
 	}

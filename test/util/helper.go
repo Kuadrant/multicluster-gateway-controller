@@ -115,6 +115,7 @@ func AssertError(expectedError string) func(t *testing.T, err error) {
 
 func GetValidTestClient(initLists ...client.ObjectList) client.WithWatch {
 	return fake.NewClientBuilder().
+		WithStatusSubresource(&v1beta1.Gateway{}, &v1beta1.GatewayClass{}).
 		WithScheme(GetValidTestScheme()).
 		WithLists(initLists...).
 		Build()

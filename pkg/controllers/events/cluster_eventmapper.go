@@ -39,11 +39,11 @@ func NewClusterEventMapper(logger logr.Logger, client client.Client, policyRefsC
 	}
 }
 
-func (m *ClusterEventMapper) MapToPolicy(obj client.Object) []reconcile.Request {
-	return m.mapToPolicyRequest(obj, m.PolicyKind, m.PolicyRefsConfig)
+func (m *ClusterEventMapper) MapToPolicy(ctx context.Context, obj client.Object) []reconcile.Request {
+	return m.mapToPolicyRequest(ctx, obj, m.PolicyKind, m.PolicyRefsConfig)
 }
 
-func (m *ClusterEventMapper) mapToPolicyRequest(obj client.Object, policyKind string, policyRefsConfig common.PolicyRefsConfig) []reconcile.Request {
+func (m *ClusterEventMapper) mapToPolicyRequest(ctx context.Context, obj client.Object, policyKind string, policyRefsConfig common.PolicyRefsConfig) []reconcile.Request {
 	logger := m.Logger.V(1).WithValues("object", client.ObjectKeyFromObject(obj))
 
 	if obj.GetDeletionTimestamp() != nil {
@@ -57,7 +57,7 @@ func (m *ClusterEventMapper) mapToPolicyRequest(obj client.Object, policyKind st
 	clusterName := obj.GetName()
 
 	allGwList := &gatewayapiv1beta1.GatewayList{}
-	err := m.Client.List(context.TODO(), allGwList)
+	err := m.Client.List(ctx, allGwList)
 	if err != nil {
 		logger.Info("mapToPolicyRequest:", "error", "failed to get gateways")
 		return []reconcile.Request{}
@@ -72,7 +72,7 @@ func (m *ClusterEventMapper) mapToPolicyRequest(obj client.Object, policyKind st
 		var clusters []string
 		if err := json.Unmarshal([]byte(val), &clusters); err == nil {
 			if slice.ContainsString(clusters, clusterName) {
-				requests = append(requests, m.GatewayEventMapper.mapToPolicyRequest(&gw, policyKind, policyRefsConfig)[:]...)
+				requests = append(requests, m.GatewayEventMapper.mapToPolicyRequest(ctx, &gw, policyKind, policyRefsConfig)[:]...)
 			}
 		}
 	}

@@ -44,7 +44,6 @@ import (
 	crlog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/gracePeriod"
@@ -501,7 +500,7 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager, ctx context.Conte
 	//TODO need to trigger gateway reconcile when gatewayclass params changes
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gatewayv1beta1.Gateway{}).
-		Watches(&source.Kind{Type: &workv1.ManifestWork{}}, handler.EnqueueRequestsFromMapFunc(func(o client.Object) []reconcile.Request {
+		Watches(&workv1.ManifestWork{}, handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, o client.Object) []reconcile.Request {
 			log.V(3).Info("enqueuing gateways based on manifest work change ", "work namespace", o.GetNamespace())
 			requests := []reconcile.Request{}
 			annotations := o.GetAnnotations()
@@ -521,7 +520,7 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager, ctx context.Conte
 			})
 			return requests
 		}), builder.OnlyMetadata).
-		Watches(&source.Kind{Type: &clusterv1beta2.PlacementDecision{}}, handler.EnqueueRequestsFromMapFunc(func(o client.Object) []reconcile.Request {
+		Watches(&clusterv1beta2.PlacementDecision{}, handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, o client.Object) []reconcile.Request {
 			// kinda want to get the old and new object here and only queue if the clusters have changed
 			// queue up gateways in this namespace
 			log.V(3).Info("enqueuing gateways based on placementdecision change ", " namespace", o.GetNamespace())
@@ -538,9 +537,7 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager, ctx context.Conte
 			}
 			return req
 		})).
-		Watches(&source.Kind{
-			Type: &corev1.Secret{},
-		}, &ClusterEventHandler{client: r.Client}).
+		Watches(&corev1.Secret{}, &ClusterEventHandler{client: r.Client}).
 		WithEventFilter(predicate.NewPredicateFuncs(func(object client.Object) bool {
 			gateway, ok := object.(*gatewayv1beta1.Gateway)
 			if ok {
