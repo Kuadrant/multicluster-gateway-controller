@@ -1,6 +1,7 @@
 package events
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/go-logr/logr"
@@ -20,7 +21,7 @@ type ProbeEventMapper struct {
 	PolicyRef  string
 }
 
-func (p *ProbeEventMapper) MapToPolicy(obj client.Object) []reconcile.Request {
+func (p *ProbeEventMapper) MapToPolicy(_ context.Context, obj client.Object) []reconcile.Request {
 	return p.mapToPolicyRequest(obj, p.PolicyRef, p.PolicyKind)
 }
 

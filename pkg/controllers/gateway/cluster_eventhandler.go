@@ -25,31 +25,31 @@ type ClusterEventHandler struct {
 var _ handler.EventHandler = &ClusterEventHandler{}
 
 // Create implements handler.EventHandler
-func (eh *ClusterEventHandler) Create(e event.CreateEvent, q workqueue.RateLimitingInterface) {
-	eh.enqueueForObject(e.Object, q)
+func (eh *ClusterEventHandler) Create(ctx context.Context, e event.CreateEvent, q workqueue.RateLimitingInterface) {
+	eh.enqueueForObject(ctx, e.Object, q)
 }
 
 // Delete implements handler.EventHandler
-func (eh *ClusterEventHandler) Delete(e event.DeleteEvent, q workqueue.RateLimitingInterface) {
-	eh.enqueueForObject(e.Object, q)
+func (eh *ClusterEventHandler) Delete(ctx context.Context, e event.DeleteEvent, q workqueue.RateLimitingInterface) {
+	eh.enqueueForObject(ctx, e.Object, q)
 }
 
 // Generic implements handler.EventHandler
-func (eh *ClusterEventHandler) Generic(e event.GenericEvent, q workqueue.RateLimitingInterface) {
-	eh.enqueueForObject(e.Object, q)
+func (eh *ClusterEventHandler) Generic(ctx context.Context, e event.GenericEvent, q workqueue.RateLimitingInterface) {
+	eh.enqueueForObject(ctx, e.Object, q)
 }
 
 // Update implements handler.EventHandler
-func (eh *ClusterEventHandler) Update(e event.UpdateEvent, q workqueue.RateLimitingInterface) {
-	eh.enqueueForObject(e.ObjectNew, q)
+func (eh *ClusterEventHandler) Update(ctx context.Context, e event.UpdateEvent, q workqueue.RateLimitingInterface) {
+	eh.enqueueForObject(ctx, e.ObjectNew, q)
 }
 
-func (eh *ClusterEventHandler) enqueueForObject(obj v1.Object, q workqueue.RateLimitingInterface) {
+func (eh *ClusterEventHandler) enqueueForObject(ctx context.Context, obj v1.Object, q workqueue.RateLimitingInterface) {
 	if !clusterSecret.IsClusterSecret(obj) {
 		return
 	}
 
-	gateways, err := eh.getGatewaysFor(obj.(*corev1.Secret))
+	gateways, err := eh.getGatewaysFor(ctx, obj.(*corev1.Secret))
 	if err != nil {
 		log.Log.Error(err, "failed to get gateways when enqueueing from cluster secret")
 		return
@@ -63,10 +63,10 @@ func (eh *ClusterEventHandler) enqueueForObject(obj v1.Object, q workqueue.RateL
 	}
 }
 
-func (eh *ClusterEventHandler) getGatewaysFor(secret *corev1.Secret) ([]gatewayv1beta1.Gateway, error) {
+func (eh *ClusterEventHandler) getGatewaysFor(ctx context.Context, secret *corev1.Secret) ([]gatewayv1beta1.Gateway, error) {
 
 	gateways := &gatewayv1beta1.GatewayList{}
-	if err := eh.client.List(context.TODO(), gateways, &client.ListOptions{Namespace: secret.Namespace}); err != nil {
+	if err := eh.client.List(ctx, gateways, &client.ListOptions{Namespace: secret.Namespace}); err != nil {
 		return nil, err
 	}
 

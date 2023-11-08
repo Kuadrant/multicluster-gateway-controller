@@ -25,7 +25,7 @@ type ResourceEventHandler struct {
 
 var _ cache.ResourceEventHandler = &ResourceEventHandler{}
 
-func (h *ResourceEventHandler) OnAdd(reqObj interface{}) {
+func (h *ResourceEventHandler) OnAdd(reqObj interface{}, _ bool) {
 	h.Log.Info("Got watch event for policy", "obj", reqObj)
 
 	ctx := context.Background()

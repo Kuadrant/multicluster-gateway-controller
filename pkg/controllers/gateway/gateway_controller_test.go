@@ -121,6 +121,7 @@ func TestGatewayReconciler_Reconcile(t *testing.T) {
 									Name:              testutil.DummyCRName,
 									Namespace:         testutil.Namespace,
 									DeletionTimestamp: testutil.GetTime(),
+									Finalizers:        []string{GatewayFinalizer},
 								},
 							},
 						},

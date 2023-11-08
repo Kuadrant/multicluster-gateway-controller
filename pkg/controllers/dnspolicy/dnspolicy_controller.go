@@ -34,7 +34,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	crlog "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 	gatewayapiv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/kuadrant/kuadrant-operator/pkg/reconcilers"
@@ -309,17 +308,17 @@ func (r *DNSPolicyReconciler) SetupWithManager(mgr ctrl.Manager, ocmHub bool) er
 	ctrlr := ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.DNSPolicy{}).
 		Watches(
-			&source.Kind{Type: &gatewayapiv1beta1.Gateway{}},
+			&gatewayapiv1beta1.Gateway{},
 			handler.EnqueueRequestsFromMapFunc(gatewayEventMapper.MapToPolicy),
 		).
 		Watches(
-			&source.Kind{Type: &v1alpha1.DNSHealthCheckProbe{}},
+			&v1alpha1.DNSHealthCheckProbe{},
 			handler.EnqueueRequestsFromMapFunc(probeEventMapper.MapToPolicy),
 		)
 	if ocmHub {
 		r.Logger().Info("ocm enabled turning on managed cluster watch")
 		ctrlr.Watches(
-			&source.Kind{Type: &clusterv1.ManagedCluster{}},
+			&clusterv1.ManagedCluster{},
 			handler.EnqueueRequestsFromMapFunc(clusterEventMapper.MapToPolicy),
 		)
 	}

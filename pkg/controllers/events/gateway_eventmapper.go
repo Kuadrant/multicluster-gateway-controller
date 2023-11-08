@@ -1,6 +1,7 @@
 package events
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/go-logr/logr"
@@ -27,11 +28,11 @@ func NewGatewayEventMapper(logger logr.Logger, policyRefsConfig common.PolicyRef
 	}
 }
 
-func (m *GatewayEventMapper) MapToPolicy(obj client.Object) []reconcile.Request {
-	return m.mapToPolicyRequest(obj, m.PolicyKind, m.PolicyRefsConfig)
+func (m *GatewayEventMapper) MapToPolicy(ctx context.Context, obj client.Object) []reconcile.Request {
+	return m.mapToPolicyRequest(ctx, obj, m.PolicyKind, m.PolicyRefsConfig)
 }
 
-func (m *GatewayEventMapper) mapToPolicyRequest(obj client.Object, policyKind string, policyRefsConfig common.PolicyRefsConfig) []reconcile.Request {
+func (m *GatewayEventMapper) mapToPolicyRequest(ctx context.Context, obj client.Object, policyKind string, policyRefsConfig common.PolicyRefsConfig) []reconcile.Request {
 	logger := m.Logger.V(1).WithValues("object", client.ObjectKeyFromObject(obj))
 
 	gateway, ok := obj.(*gatewayapiv1beta1.Gateway)
