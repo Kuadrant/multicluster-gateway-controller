@@ -8,7 +8,6 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/goombaio/namegenerator v0.0.0-20181006234301-989e774b106e
 	github.com/jetstack/cert-manager v1.7.1
-	github.com/kuadrant/authorino v0.10.0
 	github.com/kuadrant/kuadrant-operator v0.1.1-0.20230323151616-58593d01833a
 	github.com/martinlindhe/base36 v1.1.1
 	github.com/onsi/ginkgo/v2 v2.11.0
@@ -66,6 +65,7 @@ require (
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
+	github.com/kuadrant/authorino v0.10.0 // indirect
 	github.com/kuadrant/authorino-operator v0.4.1 // indirect
 	github.com/kuadrant/limitador-operator v0.4.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect

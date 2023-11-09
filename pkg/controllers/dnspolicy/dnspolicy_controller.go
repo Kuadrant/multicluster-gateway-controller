@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/kuadrant/authorino/pkg/log"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
 
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -194,7 +193,6 @@ func (r *DNSPolicyReconciler) deleteResources(ctx context.Context, dnsPolicy *v1
 	// delete based on gateway diffs
 
 	if err := r.deleteDNSRecords(ctx, dnsPolicy); err != nil {
-		log.V(3).Info("error reconciling DNS records from delete, returning", "error", err)
 		return err
 	}
 
