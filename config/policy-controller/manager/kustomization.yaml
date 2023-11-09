@@ -1,9 +1,8 @@
 
-
 resources:
 - manager.yaml
 
 images:
-- name: policy-controller
+- name: controller
   newName: quay.io/kuadrant/policy-controller
   newTag: main

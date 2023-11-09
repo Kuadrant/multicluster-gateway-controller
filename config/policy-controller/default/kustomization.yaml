@@ -1,5 +1,4 @@
 
-
 resources:
 - ../manager
 - ./issuer.yaml

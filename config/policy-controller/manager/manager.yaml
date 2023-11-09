@@ -8,21 +8,21 @@ metadata:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: policy-controller
+  name: controller-manager
   namespace: system
   labels:
-    control-plane: policy-controller
+    control-plane: controller-manager
 spec:
   selector:
     matchLabels:
-      control-plane: policy-controller
+      control-plane: controller-manager
   replicas: 1
   template:
     metadata:
       annotations:
         kubectl.kubernetes.io/default-container: manager
       labels:
-        control-plane: policy-controller
+        control-plane: controller-manager
     spec:
       securityContext:
         runAsNonRoot: true
@@ -31,9 +31,9 @@ spec:
         - /policy_controller
         args:
         - --leader-elect
-        image: policy-controller:latest
+        image: controller:latest
         imagePullPolicy: Always
-        name: policy-controller
+        name: manager
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:

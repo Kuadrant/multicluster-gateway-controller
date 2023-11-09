@@ -1,0 +1,8 @@
+
+namePrefix: mgc-policy-
+
+resources:
+  - ../../policy-controller/default
+
+patchesStrategicMerge:
+  - delete-kuadrant-system-ns-object.yaml
