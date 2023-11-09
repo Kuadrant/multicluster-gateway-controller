@@ -47,9 +47,17 @@ clean: ## Clean up temporary files.
 	-rm -rf ./tmp
 	-rm -rf ./config/**/charts
 
+.PHONY: gateway-manifests
+gateway-manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
+	$(CONTROLLER_GEN) rbac:roleName=manager-role paths="./pkg/controllers/gateway" output:rbac:artifacts:config=config/rbac
+
+.PHONY: policy-manifests
+policy-manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
+	$(CONTROLLER_GEN) rbac:roleName=policy-role paths="./pkg/controllers/dnshealthcheckprobe" paths="./pkg/controllers/dnspolicy" paths="./pkg/controllers/dnsrecord" paths="./pkg/controllers/managedzone" paths="./pkg/controllers/tlspolicy" output:rbac:dir=config/policy-controller/rbac
+	$(CONTROLLER_GEN) crd paths="./..." output:crd:artifacts:config=config/policy-controller/crd/bases
+
 .PHONY: manifests
-manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
-	$(CONTROLLER_GEN) rbac:roleName=manager-role crd paths="./..." output:crd:artifacts:config=config/crd/bases
+manifests: gateway-manifests policy-manifests
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
@@ -117,13 +125,6 @@ ifndef ignore-not-found
   ignore-not-found = false
 endif
 
-.PHONY: install
-install: manifests kustomize ## Install CRDs into the K8s cluster specified in ~/.kube/config.
-	$(KUSTOMIZE) build config/crd | kubectl apply -f -
-
-.PHONY: uninstall
-uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	$(KUSTOMIZE) build config/crd | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 .PHONY: deploy-sample-applicationset
 deploy-sample-applicationset:

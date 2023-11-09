@@ -4,7 +4,7 @@ metadata:
   annotations:
     alm-examples: '[]'
     capabilities: Basic Install
-    createdAt: "2023-10-27T14:36:31Z"
+    createdAt: "2023-11-09T08:49:14Z"
     operators.operatorframework.io/builder: operator-sdk-v1.28.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
   name: multicluster-gateway-controller.v0.0.0
@@ -207,28 +207,6 @@ spec:
           - update
           - watch
         - apiGroups:
-          - cert-manager.io
-          resources:
-          - clusterissuers
-          verbs:
-          - get
-          - list
-        - apiGroups:
-          - cert-manager.io
-          resources:
-          - issuers
-          verbs:
-          - get
-          - list
-        - apiGroups:
-          - cluster.open-cluster-management.io
-          resources:
-          - managedclusters
-          verbs:
-          - get
-          - list
-          - watch
-        - apiGroups:
           - cluster.open-cluster-management.io
           resources:
           - placementdecisions
@@ -302,6 +280,98 @@ spec:
           - list
           - watch
         - apiGroups:
+          - work.open-cluster-management.io
+          resources:
+          - manifestworks
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - authentication.k8s.io
+          resources:
+          - tokenreviews
+          verbs:
+          - create
+        - apiGroups:
+          - authorization.k8s.io
+          resources:
+          - subjectaccessreviews
+          verbs:
+          - create
+        serviceAccountName: mgc-controller-manager
+      - rules:
+        - apiGroups:
+          - ""
+          resources:
+          - secrets
+          verbs:
+          - get
+          - list
+          - watch
+        - apiGroups:
+          - cert-manager.io
+          resources:
+          - certificates
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - cert-manager.io
+          resources:
+          - clusterissuers
+          verbs:
+          - get
+          - list
+        - apiGroups:
+          - cert-manager.io
+          resources:
+          - issuers
+          verbs:
+          - get
+          - list
+        - apiGroups:
+          - cluster.open-cluster-management.io
+          resources:
+          - managedclusters
+          verbs:
+          - get
+          - list
+          - watch
+        - apiGroups:
+          - gateway.networking.k8s.io
+          resources:
+          - gateways
+          verbs:
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - gateway.networking.k8s.io
+          resources:
+          - gateways/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - gateway.networking.k8s.io
+          resources:
+          - gateways/status
+          verbs:
+          - get
+          - patch
+          - update
+        - apiGroups:
           - kuadrant.io
           resources:
           - dnshealthcheckprobes
@@ -334,7 +404,6 @@ spec:
           resources:
           - dnspolicies
           verbs:
-          - create
           - delete
           - get
           - list
@@ -412,7 +481,6 @@ spec:
           resources:
           - tlspolicies
           verbs:
-          - create
           - delete
           - get
           - list
@@ -433,31 +501,7 @@ spec:
           - get
           - patch
           - update
-        - apiGroups:
-          - work.open-cluster-management.io
-          resources:
-          - manifestworks
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - authentication.k8s.io
-          resources:
-          - tokenreviews
-          verbs:
-          - create
-        - apiGroups:
-          - authorization.k8s.io
-          resources:
-          - subjectaccessreviews
-          verbs:
-          - create
-        serviceAccountName: mgc-controller-manager
+        serviceAccountName: mgc-policy-controller
       deployments:
       - label:
           app.kubernetes.io/component: manager
@@ -572,14 +616,8 @@ spec:
               serviceAccountName: mgc-add-on-manager
               terminationGracePeriodSeconds: 10
       - label:
-          app.kubernetes.io/component: manager
-          app.kubernetes.io/created-by: policy-controller
-          app.kubernetes.io/instance: policy-controller
-          app.kubernetes.io/managed-by: kustomize
-          app.kubernetes.io/name: deployment
-          app.kubernetes.io/part-of: kuadrant
-          control-plane: controller-manager
-        name: mgc-policy-controller-manager
+          control-plane: policy-controller
+        name: mgc-policy-controller
         spec:
           replicas: 1
           selector:
@@ -627,7 +665,7 @@ spec:
                     - ALL
               securityContext:
                 runAsNonRoot: true
-              serviceAccountName: mgc-controller-manager
+              serviceAccountName: mgc-policy-controller
               terminationGracePeriodSeconds: 10
       permissions:
       - rules:
@@ -663,6 +701,39 @@ spec:
           - create
           - patch
         serviceAccountName: mgc-controller-manager
+      - rules:
+        - apiGroups:
+          - ""
+          resources:
+          - configmaps
+          verbs:
+          - get
+          - list
+          - watch
+          - create
+          - update
+          - patch
+          - delete
+        - apiGroups:
+          - coordination.k8s.io
+          resources:
+          - leases
+          verbs:
+          - get
+          - list
+          - watch
+          - create
+          - update
+          - patch
+          - delete
+        - apiGroups:
+          - ""
+          resources:
+          - events
+          verbs:
+          - create
+          - patch
+        serviceAccountName: mgc-policy-controller
     strategy: deployment
   installModes:
   - supported: false

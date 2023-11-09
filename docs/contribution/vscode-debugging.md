@@ -10,7 +10,7 @@ There is an included VSCode `launch.json`.
 Instead of starting the Gateway Controller via something like:
 
 ```bash
-make build-controller install run-controller
+make build-{policy | gateway}-controller install run-{policy | gateway}-controller
 ```
 
 You can now simply hit `F5` in VSCode. The controller will launch with the following config:

@@ -48,9 +48,7 @@ import (
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/gracePeriod"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/metadata"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/policy"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/policysync"
 )
@@ -484,18 +482,6 @@ func buildAcceptedCondition(generation int64, acceptedStatus metav1.ConditionSta
 // SetupWithManager sets up the controller with the Manager.
 func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager, ctx context.Context) error {
 	log := crlog.FromContext(ctx)
-
-	err := mgr.GetFieldIndexer().IndexField(
-		context.Background(),
-		&v1alpha1.DNSPolicy{},
-		policy.POLICY_TARGET_REF_KEY,
-		func(obj client.Object) []string {
-			return []string{policy.GetTargetRefValueFromPolicy(obj.(*v1alpha1.DNSPolicy))}
-		},
-	)
-	if err != nil {
-		return err
-	}
 
 	//TODO need to trigger gateway reconcile when gatewayclass params changes
 	return ctrl.NewControllerManagedBy(mgr).
