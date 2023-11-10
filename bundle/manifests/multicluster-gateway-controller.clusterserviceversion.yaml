@@ -4,7 +4,7 @@ metadata:
   annotations:
     alm-examples: '[]'
     capabilities: Basic Install
-    createdAt: "2023-11-10T09:41:24Z"
+    createdAt: "2023-11-10T17:08:34Z"
     operators.operatorframework.io/builder: operator-sdk-v1.28.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
   name: multicluster-gateway-controller.v0.0.0
@@ -332,6 +332,7 @@ spec:
           verbs:
           - get
           - list
+          - watch
         - apiGroups:
           - cert-manager.io
           resources:
@@ -339,6 +340,7 @@ spec:
           verbs:
           - get
           - list
+          - watch
         - apiGroups:
           - cluster.open-cluster-management.io
           resources:
@@ -504,6 +506,50 @@ spec:
         serviceAccountName: mgc-policy-controller
       deployments:
       - label:
+          control-plane: kuadrant-add-on-manager
+        name: mgc-add-on-manager
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              control-plane: kuadrant-add-on-manager
+          strategy: {}
+          template:
+            metadata:
+              annotations:
+                kubectl.kubernetes.io/default-container: controller
+              labels:
+                control-plane: kuadrant-add-on-manager
+            spec:
+              containers:
+              - args:
+                - --leader-elect
+                command:
+                - /add-on-manager
+                envFrom:
+                - configMapRef:
+                    name: controller-config
+                    optional: true
+                image: quay.io/kuadrant/addon-manager:main
+                imagePullPolicy: Always
+                name: controller
+                resources:
+                  limits:
+                    cpu: 500m
+                    memory: 128Mi
+                  requests:
+                    cpu: 10m
+                    memory: 64Mi
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  capabilities:
+                    drop:
+                    - ALL
+              securityContext:
+                runAsNonRoot: true
+              serviceAccountName: mgc-add-on-manager
+              terminationGracePeriodSeconds: 10
+      - label:
           app.kubernetes.io/component: manager
           app.kubernetes.io/created-by: multicluster-gateway-controller
           app.kubernetes.io/instance: controller-manager
@@ -564,56 +610,6 @@ spec:
               securityContext:
                 runAsNonRoot: true
               serviceAccountName: mgc-controller-manager
-              terminationGracePeriodSeconds: 10
-      - label:
-          app.kubernetes.io/component: add-on-manager
-          app.kubernetes.io/created-by: kuadrant-add-on-manager
-          app.kubernetes.io/instance: kuadrant-add-on-manager
-          app.kubernetes.io/managed-by: kustomize
-          app.kubernetes.io/name: deployment
-          app.kubernetes.io/part-of: kuadrant
-          control-plane: kuadrant-add-on-manager
-        name: mgc-kuadrant-add-on-manager
-        spec:
-          replicas: 1
-          selector:
-            matchLabels:
-              control-plane: kuadrant-add-on-manager
-          strategy: {}
-          template:
-            metadata:
-              annotations:
-                kubectl.kubernetes.io/default-container: controller
-              labels:
-                control-plane: kuadrant-add-on-manager
-            spec:
-              containers:
-              - args:
-                - --leader-elect
-                command:
-                - /add-on-manager
-                envFrom:
-                - configMapRef:
-                    name: controller-config
-                    optional: true
-                image: quay.io/kuadrant/addon-manager:main
-                imagePullPolicy: Always
-                name: controller
-                resources:
-                  limits:
-                    cpu: 500m
-                    memory: 128Mi
-                  requests:
-                    cpu: 10m
-                    memory: 64Mi
-                securityContext:
-                  allowPrivilegeEscalation: false
-                  capabilities:
-                    drop:
-                    - ALL
-              securityContext:
-                runAsNonRoot: true
-              serviceAccountName: mgc-add-on-manager
               terminationGracePeriodSeconds: 10
       - label:
           control-plane: policy-controller
