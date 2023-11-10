@@ -975,7 +975,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			f := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(testCase.dnsRecord).Build()
 			s := dnsHelper{Client: f}
-			if err := s.setEndpoints(context.TODO(), testCase.mcgTarget, testCase.dnsRecord, testCase.listener); (err != nil) != testCase.wantErr {
+			if err := s.setEndpoints(context.TODO(), testCase.mcgTarget, testCase.dnsRecord, testCase.listener, v1alpha1.LoadBalancedRoutingStrategy); (err != nil) != testCase.wantErr {
 				t.Errorf("SetEndpoints() error = %v, wantErr %v", err, testCase.wantErr)
 			}
 

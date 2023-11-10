@@ -23,6 +23,7 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/tlspolicy"
 	. "github.com/Kuadrant/multicluster-gateway-controller/test/util"
+	testutil "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 )
 
 var _ = Describe("TLSPolicy", Ordered, func() {
@@ -36,7 +37,7 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 		logger.WithName("tlspolicy_controller_test")
 		logf.SetLogger(logger)
 
-		gatewayClass = testBuildGatewayClass("kuadrant-multi-cluster-gateway-instance-per-cluster", "default")
+		gatewayClass = testutil.NewTestGatewayClass("foo", "default", "kuadrant.io/bar")
 		Expect(k8sClient.Create(ctx, gatewayClass)).To(BeNil())
 		Eventually(func() error { // gateway class exists
 			return k8sClient.Get(ctx, client.ObjectKey{Name: gatewayClass.Name}, gatewayClass)
@@ -85,9 +86,10 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 		gwClassName := "istio"
 
 		BeforeEach(func() {
-			tlsPolicy = NewTestTLSPolicy("test-tls-policy", testNamespace).
+			tlsPolicy = NewTLSPolicyBuilder("test-tls-policy", testNamespace).
 				WithTargetGateway("test-gateway").
-				WithIssuer("testissuer", certmanv1.IssuerKind, "cert-manager.io").TLSPolicy
+				WithIssuer("testissuer", certmanv1.IssuerKind, "cert-manager.io").
+				TLSPolicy
 			Expect(k8sClient.Create(ctx, tlsPolicy)).To(BeNil())
 			Eventually(func() error { //tls policy exists
 				return k8sClient.Get(ctx, client.ObjectKey{Name: tlsPolicy.Name, Namespace: tlsPolicy.Namespace}, tlsPolicy)
@@ -124,8 +126,8 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 		It("should have ready condition with status true", func() {
 			By("creating a valid Gateway")
 
-			gateway = NewTestGateway("test-gateway", gwClassName, testNamespace).
-				WithHTTPListener("test.example.com").Gateway
+			gateway = NewGatewayBuilder("test-gateway", gwClassName, testNamespace).
+				WithHTTPListener("test-listener", "test.example.com").Gateway
 			Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
 			Eventually(func() error { //gateway exists
 				return k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway)
@@ -162,7 +164,7 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 			manualSecretName := "manual-tls-secret"
 			manualListenerName := "manual-test.example.com"
 			BeforeEach(func() {
-				gateway = NewTestGateway("test-gateway", gwClassName, testNamespace).
+				gateway = NewGatewayBuilder("test-gateway", gwClassName, testNamespace).
 					WithHTTPSListener(manualListenerName, manualSecretName).
 					WithHTTPSListener("test2.example.com", "test2-tls-secret").
 					WithHTTPSListener("*.example.com", "wildcard-test-tls-secret").Gateway
@@ -199,13 +201,13 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 
 		Context("valid target, issuer and policy", func() {
 			BeforeEach(func() {
-				gateway = NewTestGateway("test-gateway", gwClassName, testNamespace).
-					WithHTTPListener("test.example.com").Gateway
+				gateway = NewGatewayBuilder("test-gateway", gwClassName, testNamespace).
+					WithHTTPListener("test-listener", "test.example.com").Gateway
 				Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
 				Eventually(func() error { //gateway exists
 					return k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway)
 				}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
-				tlsPolicy = NewTestTLSPolicy("test-tls-policy", testNamespace).
+				tlsPolicy = NewTLSPolicyBuilder("test-tls-policy", testNamespace).
 					WithTargetGateway(gateway.Name).
 					WithIssuer("testissuer", certmanv1.IssuerKind, "cert-manager.io").TLSPolicy
 				Expect(k8sClient.Create(ctx, tlsPolicy)).To(BeNil())
@@ -292,13 +294,13 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 			var clusterIssuer *certmanv1.ClusterIssuer
 
 			BeforeEach(func() {
-				gateway = NewTestGateway("test-gateway", gwClassName, testNamespace).
-					WithHTTPListener("test.example.com").Gateway
+				gateway = NewGatewayBuilder("test-gateway", gwClassName, testNamespace).
+					WithHTTPListener("test-listener", "test.example.com").Gateway
 				Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
 				Eventually(func() error { //gateway exists
 					return k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway)
 				}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
-				tlsPolicy = NewTestTLSPolicy("test-tls-policy", testNamespace).
+				tlsPolicy = NewTLSPolicyBuilder("test-tls-policy", testNamespace).
 					WithTargetGateway(gateway.Name).
 					WithIssuer("testclusterissuer", certmanv1.ClusterIssuerKind, "cert-manager.io").TLSPolicy
 				Expect(k8sClient.Create(ctx, tlsPolicy)).To(BeNil())
@@ -328,13 +330,13 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 		Context("with http listener", func() {
 
 			BeforeEach(func() {
-				gateway = NewTestGateway("test-gateway", gwClassName, testNamespace).
-					WithHTTPListener("test.example.com").Gateway
+				gateway = NewGatewayBuilder("test-gateway", gwClassName, testNamespace).
+					WithHTTPListener("test-listener", "test.example.com").Gateway
 				Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
 				Eventually(func() error { //gateway exists
 					return k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway)
 				}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
-				tlsPolicy = NewTestTLSPolicy("test-tls-policy", testNamespace).
+				tlsPolicy = NewTLSPolicyBuilder("test-tls-policy", testNamespace).
 					WithTargetGateway(gateway.Name).
 					WithIssuer("testissuer", certmanv1.IssuerKind, "cert-manager.io").TLSPolicy
 				Expect(k8sClient.Create(ctx, tlsPolicy)).To(BeNil())
@@ -376,13 +378,13 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 		Context("with https listener", func() {
 
 			BeforeEach(func() {
-				gateway = NewTestGateway("test-gateway", gwClassName, testNamespace).
+				gateway = NewGatewayBuilder("test-gateway", gwClassName, testNamespace).
 					WithHTTPSListener("test.example.com", "test-tls-secret").Gateway
 				Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
 				Eventually(func() error { //gateway exists
 					return k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway)
 				}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
-				tlsPolicy = NewTestTLSPolicy("test-tls-policy", testNamespace).
+				tlsPolicy = NewTLSPolicyBuilder("test-tls-policy", testNamespace).
 					WithTargetGateway(gateway.Name).
 					WithIssuer("testissuer", certmanv1.IssuerKind, "cert-manager.io").TLSPolicy
 				Expect(k8sClient.Create(ctx, tlsPolicy)).To(BeNil())
@@ -410,7 +412,7 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 
 		Context("with multiple https listener and some shared secrets", func() {
 			BeforeEach(func() {
-				gateway = NewTestGateway("test-gateway", gwClassName, testNamespace).
+				gateway = NewGatewayBuilder("test-gateway", gwClassName, testNamespace).
 					WithHTTPSListener("test1.example.com", "test-tls-secret").
 					WithHTTPSListener("test2.example.com", "test-tls-secret").
 					WithHTTPSListener("test3.example.com", "test2-tls-secret").Gateway
@@ -418,7 +420,7 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 				Eventually(func() error { //gateway exists
 					return k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway)
 				}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
-				tlsPolicy = NewTestTLSPolicy("test-tls-policy", testNamespace).
+				tlsPolicy = NewTLSPolicyBuilder("test-tls-policy", testNamespace).
 					WithTargetGateway(gateway.Name).
 					WithIssuer("testissuer", certmanv1.IssuerKind, "cert-manager.io").TLSPolicy
 				Expect(k8sClient.Create(ctx, tlsPolicy)).To(BeNil())
@@ -454,7 +456,7 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 
 		Context("with multiple https listener", func() {
 			BeforeEach(func() {
-				gateway = NewTestGateway("test-gateway", gwClassName, testNamespace).
+				gateway = NewGatewayBuilder("test-gateway", gwClassName, testNamespace).
 					WithHTTPSListener("test1.example.com", "test1-tls-secret").
 					WithHTTPSListener("test2.example.com", "test2-tls-secret").
 					WithHTTPSListener("test3.example.com", "test3-tls-secret").Gateway
@@ -462,7 +464,7 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 				Eventually(func() error { //gateway exists
 					return k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway)
 				}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
-				tlsPolicy = NewTestTLSPolicy("test-tls-policy", testNamespace).
+				tlsPolicy = NewTLSPolicyBuilder("test-tls-policy", testNamespace).
 					WithTargetGateway(gateway.Name).
 					WithIssuer("testissuer", certmanv1.IssuerKind, "cert-manager.io").TLSPolicy
 				Expect(k8sClient.Create(ctx, tlsPolicy)).To(BeNil())

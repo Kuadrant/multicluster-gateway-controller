@@ -10,24 +10,22 @@ import (
 )
 
 const (
-	TestTimeoutMedium            = time.Second * 10
-	TestTimeoutLong              = time.Second * 30
-	ConsistentlyTimeoutMedium    = time.Second * 60
-	TestRetryIntervalMedium      = time.Millisecond * 250
-	TestPlacedGatewayName        = "test-placed-gateway"
-	TestPlacedClusterControlName = "test-placed-control"
-	TestPlaceClusterWorkloadName = "test-placed-workload-1"
-	TestAttachedRouteName        = "test.example.com"
-	OtherAttachedRouteName       = "other.example.com"
-	TestWildCardListenerName     = "wildcard"
-	TestWildCardListenerHost     = "*.example.com"
-	TestAttachedRouteAddressOne  = "172.0.0.1"
-	TestAttachedRouteAddressTwo  = "172.0.0.2"
-	nsSpoke1Name                 = "test-spoke-cluster-1"
-	nsSpoke2Name                 = "test-spoke-cluster-2"
-	defaultNS                    = "default"
-	gatewayFinalizer             = "kuadrant.io/gateway"
-	providerCredential           = "secretname"
+	TestTimeoutMedium        = time.Second * 10
+	TestTimeoutLong          = time.Second * 30
+	TestRetryIntervalMedium  = time.Millisecond * 250
+	TestGatewayName          = "test-placed-gateway"
+	TestClusterNameOne       = "test-placed-control"
+	TestClusterNameTwo       = "test-placed-workload-1"
+	TestHostOne              = "test.example.com"
+	TestHostTwo              = "other.example.com"
+	TestHostWildcard         = "*.example.com"
+	TestListenerNameWildcard = "wildcard"
+	TestListenerNameOne      = "test-listener-1"
+	TestListenerNameTwo      = "test-listener-2"
+	TestIPAddressOne         = "172.0.0.1"
+	TestIPAddressTwo         = "172.0.0.2"
+	defaultNS                = "default"
+	providerCredential       = "secretname"
 )
 
 type testHealthServer struct {
