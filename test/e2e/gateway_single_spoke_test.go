@@ -409,13 +409,18 @@ var _ = Describe("Gateway single target cluster", func() {
 						}
 						otherHostname = gatewayapi.Hostname(strings.Join([]string{"other", tconfig.ManagedZone()}, "."))
 						AddListener("other", otherHostname, gatewayapi.ObjectName(otherHostname), gw)
-						err = tconfig.HubClient().Update(ctx, gw)
-						Expect(err).ToNot(HaveOccurred())
+
 						expectedLiseners := 3
 						Eventually(func(ctx SpecContext) error {
+							err = tconfig.HubClient().Update(ctx, gw)
+							if err != nil {
+								return fmt.Errorf("failed to update gateway and add new listeners: %w", err)
+							}
 							checkGateway := &gatewayapi.Gateway{}
 							err = tconfig.HubClient().Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.HubNamespace()}, checkGateway)
-							Expect(err).ToNot(HaveOccurred())
+							if err != nil {
+								return fmt.Errorf("failed to get updated gateway after adding listeners: %w", err)
+							}
 							if len(checkGateway.Spec.Listeners) == expectedLiseners {
 								return nil
 							}
