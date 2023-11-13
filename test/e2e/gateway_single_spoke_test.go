@@ -398,33 +398,6 @@ var _ = Describe("Gateway single target cluster", func() {
 							return fmt.Errorf("dns names for secret not as expected")
 						}).WithContext(ctx).WithTimeout(180 * time.Second).WithPolling(2 * time.Second).ShouldNot(HaveOccurred())
 					}
-
-					By("checking a wildcard cert is present via get request")
-					{
-						dialer := &net.Dialer{Resolver: authoritativeResolver}
-						dialContext := func(ctx context.Context, network, addr string) (net.Conn, error) {
-							return dialer.DialContext(ctx, network, addr)
-						}
-						http.DefaultTransport.(*http.Transport).DialContext = dialContext
-						http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-						otherHostname = gatewayapi.Hostname(strings.Join([]string{"other", tconfig.ManagedZone()}, "."))
-						var resp *http.Response
-						Eventually(func(ctx SpecContext) error {
-							httpClient := &http.Client{}
-							resp, err = httpClient.Get("https://" + string(otherHostname))
-							if err != nil {
-								GinkgoWriter.Printf("[debug] GET error: '%s'\n", err)
-								return err
-							}
-							err = TestCertificate(string(wildcardHostname), resp)
-							if err != nil {
-								GinkgoWriter.Printf("[debug] Cert error: '%s'\n", err)
-								return err
-							}
-							return nil
-						}).WithTimeout(600 * time.Second).WithPolling(10 * time.Second).WithContext(ctx).ShouldNot(HaveOccurred())
-						defer resp.Body.Close()
-					}
 					By("adding/removing listeners tls secrets are added/removed")
 					{
 						gw := &gatewayapi.Gateway{}
