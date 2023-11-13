@@ -41,8 +41,8 @@ docker-push-policy-controller: ## Push docker image with the controller.
 
 .PHONY: deploy-policy-controller
 deploy-policy-controller: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	cd config/policy-controller && $(KUSTOMIZE) edit set image policy-controller=${POLICY_CONTROLLER_IMG}
-	$(KUSTOMIZE) --load-restrictor LoadRestrictionsNone build config/deploy/local | kubectl apply -f -
+	cd config/policy-controller/default && $(KUSTOMIZE) edit set image policy-controller=${POLICY_CONTROLLER_IMG}
+	$(KUSTOMIZE) --load-restrictor LoadRestrictionsNone build config/policy-controller/default | kubectl apply -f -
 	@if [ "$(METRICS)" = "true" ]; then\
 		$(KUSTOMIZE) build config/prometheus | kubectl apply -f -;\
 	fi
