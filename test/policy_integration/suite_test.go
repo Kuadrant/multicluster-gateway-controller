@@ -71,7 +71,7 @@ func testClient() client.Client { return k8sClient }
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
 
-	RunSpecs(t, "Controller Suite")
+	RunSpecs(t, "Policy Controller Suite")
 }
 
 var _ = BeforeSuite(func() {

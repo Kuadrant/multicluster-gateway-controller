@@ -15,8 +15,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
@@ -33,10 +31,6 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 	var issuer *certmanv1.Issuer
 
 	BeforeAll(func() {
-		logger = zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true))
-		logger.WithName("tlspolicy_controller_test")
-		logf.SetLogger(logger)
-
 		gatewayClass = testutil.NewTestGatewayClass("foo", "default", "kuadrant.io/bar")
 		Expect(k8sClient.Create(ctx, gatewayClass)).To(BeNil())
 		Eventually(func() error { // gateway class exists
