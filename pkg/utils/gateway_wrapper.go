@@ -2,59 +2,109 @@ package utils
 
 import (
 	"fmt"
+	"strings"
 
-	"k8s.io/apimachinery/pkg/types"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
 const (
+	SingleClusterAddressValue = "kudarant.io/single"
+
 	MultiClusterIPAddressType       gatewayv1beta1.AddressType = "kuadrant.io/MultiClusterIPAddress"
 	MultiClusterHostnameAddressType gatewayv1beta1.AddressType = "kuadrant.io/MultiClusterHostnameAddress"
 )
 
 type GatewayWrapper struct {
 	*gatewayv1beta1.Gateway
-	isMultiCluster bool
 }
 
-func NewGatewayWrapper(g *gatewayv1beta1.Gateway) (*GatewayWrapper, error) {
-	gw := &GatewayWrapper{Gateway: g, isMultiCluster: false}
-
-	for i, address := range gw.Status.Addresses {
-		if i == 0 {
-			gw.isMultiCluster = isMultiClusterAddressType(*address.Type)
-			continue
-		}
-		if gw.isMultiCluster == isMultiClusterAddressType(*address.Type) {
-			continue
-		}
-		return nil, fmt.Errorf("gateway is invalid: inconsistent status addresses")
-
-	}
-	return gw, nil
+func NewGatewayWrapper(g *gatewayv1beta1.Gateway) *GatewayWrapper {
+	return &GatewayWrapper{Gateway: g}
 }
 
 func isMultiClusterAddressType(addressType gatewayv1beta1.AddressType) bool {
 	return addressType == MultiClusterIPAddressType || addressType == MultiClusterHostnameAddressType
 }
 
-func (a *GatewayWrapper) GetKind() string {
-	return "GatewayWrapper"
-}
-
-func (a *GatewayWrapper) IsMultiCluster() bool {
-	return a.isMultiCluster
-}
-
-func (a *GatewayWrapper) GetNamespaceName() types.NamespacedName {
-	return types.NamespacedName{
-		Namespace: a.Namespace,
-		Name:      a.Name,
+// IsMultiCluster reports a type of the first address in the Status block
+// returns false if no addresses present
+func (g *GatewayWrapper) IsMultiCluster() bool {
+	if len(g.Status.Addresses) > 0 {
+		return isMultiClusterAddressType(*g.Status.Addresses[0].Type)
 	}
+	return false
 }
 
-func (a *GatewayWrapper) String() string {
-	return fmt.Sprintf("kind: %v, namespace/name: %v", a.GetKind(), a.GetNamespaceName())
+// Validate ensures correctly configured underlying Gateway object
+// Returns nil if validation passed
+func (g *GatewayWrapper) Validate() error {
+
+	// Status.Addresses validation
+	// Compares all addresses against the first address to ensure the same type
+	for _, address := range g.Status.Addresses {
+		if g.IsMultiCluster() == isMultiClusterAddressType(*address.Type) {
+			continue
+		}
+		return fmt.Errorf("gateway is invalid: inconsistent status addresses")
+	}
+	return nil
+}
+
+// GetClusterGatewayAddresses constructs a map from Status.Addresses of underlying Gateway
+// with key being a cluster and value being an address in the cluster.
+// In case of a single-cluster Gateway the key is SingleClusterAddressValue
+func (g *GatewayWrapper) GetClusterGatewayAddresses() map[string][]gatewayv1beta1.GatewayAddress {
+	clusterAddrs := make(map[string][]gatewayv1beta1.GatewayAddress, len(g.Status.Addresses))
+
+	for _, address := range g.Status.Addresses {
+		//Default to Single Cluster (Normal Gateway Status)
+		cluster := SingleClusterAddressValue
+		addressValue := address.Value
+
+		//Check for Multi Cluster (MGC Gateway Status)
+		if g.IsMultiCluster() {
+			tmpCluster, tmpAddress, found := strings.Cut(address.Value, "/")
+			//If this fails something is wrong and the value hasn't been set correctly
+			if found {
+				cluster = tmpCluster
+				addressValue = tmpAddress
+			}
+		}
+
+		if _, ok := clusterAddrs[cluster]; !ok {
+			clusterAddrs[cluster] = []gatewayv1beta1.GatewayAddress{}
+		}
+
+		clusterAddrs[cluster] = append(clusterAddrs[cluster], gatewayv1beta1.GatewayAddress{
+			Type:  address.Type,
+			Value: addressValue,
+		})
+	}
+
+	return clusterAddrs
+}
+
+// ListenerTotalAttachedRoutes returns a count of attached routes from the Status.Listeners for a specified
+// combination of downstreamClusterName and specListener.Name
+func (g *GatewayWrapper) ListenerTotalAttachedRoutes(downstreamClusterName string, specListener gatewayv1beta1.Listener) int {
+	for _, statusListener := range g.Status.Listeners {
+		// for Multi Cluster (MGC Gateway Status)
+		if g.IsMultiCluster() {
+			clusterName, listenerName, found := strings.Cut(string(statusListener.Name), ".")
+			if !found {
+				return 0
+			}
+			if clusterName == downstreamClusterName && listenerName == string(specListener.Name) {
+				return int(statusListener.AttachedRoutes)
+			}
+		}
+		// Single Cluster (Normal Gateway Status)
+		if string(statusListener.Name) == string(specListener.Name) {
+			return int(statusListener.AttachedRoutes)
+		}
+	}
+
+	return 0
 }
 
 // AddressTypeToMultiCluster returns a multi cluster version of the address type
@@ -68,13 +118,12 @@ func AddressTypeToMultiCluster(address gatewayv1beta1.GatewayAddress) (gatewayv1
 	return "", false
 }
 
-// AddressTypeToSingleCluster returns a single cluster version of the address type
-// and a bool to indicate that provided address was of the multi cluster type
-func AddressTypeToSingleCluster(address gatewayv1beta1.GatewayAddress) (gatewayv1beta1.AddressType, bool) {
+// AddressTypeToSingleCluster converts provided multicluster address to single cluster version if applicable
+func AddressTypeToSingleCluster(address gatewayv1beta1.GatewayAddress) gatewayv1beta1.AddressType {
 	if *address.Type == MultiClusterIPAddressType {
-		return gatewayv1beta1.IPAddressType, true
+		return gatewayv1beta1.IPAddressType
 	} else if *address.Type == MultiClusterHostnameAddressType {
-		return gatewayv1beta1.HostnameAddressType, true
+		return gatewayv1beta1.HostnameAddressType
 	}
-	return "", false
+	return *address.Type
 }

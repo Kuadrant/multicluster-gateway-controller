@@ -3,7 +3,6 @@ package dnspolicy
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
 
@@ -18,10 +17,6 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/utils"
-)
-
-const (
-	singleCluster = "kudarant.io/single"
 )
 
 func (r *DNSPolicyReconciler) reconcileDNSRecords(ctx context.Context, dnsPolicy *v1alpha1.DNSPolicy, gwDiffObj *reconcilers.GatewayDiff) error {
@@ -48,7 +43,8 @@ func (r *DNSPolicyReconciler) reconcileDNSRecords(ctx context.Context, dnsPolicy
 func (r *DNSPolicyReconciler) reconcileGatewayDNSRecords(ctx context.Context, gw *gatewayapiv1.Gateway, dnsPolicy *v1alpha1.DNSPolicy) error {
 	log := crlog.FromContext(ctx)
 
-	gatewayWrapper, err := utils.NewGatewayWrapper(gw)
+	gatewayWrapper := utils.NewGatewayWrapper(gw)
+	err := gatewayWrapper.Validate()
 	if err != nil {
 		return err
 	}
@@ -58,7 +54,7 @@ func (r *DNSPolicyReconciler) reconcileGatewayDNSRecords(ctx context.Context, gw
 		return err
 	}
 
-	clusterGatewayAddresses := getClusterGatewayAddresses(gatewayWrapper)
+	clusterGatewayAddresses := gatewayWrapper.GetClusterGatewayAddresses()
 
 	log.V(3).Info("checking gateway for attached routes ", "gateway", gatewayWrapper.Name, "clusters", clusterGatewayAddresses)
 
@@ -77,7 +73,7 @@ func (r *DNSPolicyReconciler) reconcileGatewayDNSRecords(ctx context.Context, gw
 			// Only consider host for dns if there's at least 1 attached route to the listener for this host in *any* gateway
 
 			log.V(3).Info("checking downstream", "listener ", listener.Name)
-			attached := listenerTotalAttachedRoutes(gatewayWrapper, clusterName, listener)
+			attached := gatewayWrapper.ListenerTotalAttachedRoutes(clusterName, listener)
 
 			if attached == 0 {
 				log.V(1).Info("no attached routes for ", "listener", listener, "cluster ", clusterName)
@@ -161,7 +157,7 @@ func (r *DNSPolicyReconciler) buildClusterGateway(ctx context.Context, clusterNa
 	singleClusterAddresses := make([]gatewayapiv1.GatewayAddress, len(gatewayAddresses))
 
 	var metaObj client.Object
-	if clusterName != singleCluster {
+	if clusterName != utils.SingleClusterAddressValue {
 		mc := &clusterv1.ManagedCluster{}
 		if err := r.Client().Get(ctx, client.ObjectKey{Name: clusterName}, mc, &client.GetOptions{}); err != nil {
 			return target, err
@@ -172,11 +168,7 @@ func (r *DNSPolicyReconciler) buildClusterGateway(ctx context.Context, clusterNa
 	}
 
 	for i, addr := range gatewayAddresses {
-		addrType, multicluster := utils.AddressTypeToSingleCluster(addr)
-
-		if !multicluster {
-			addrType = *addr.Type
-		}
+		addrType := utils.AddressTypeToSingleCluster(addr)
 
 		singleClusterAddresses[i] = gatewayapiv1.GatewayAddress{
 			Type:  &addrType,
@@ -186,56 +178,4 @@ func (r *DNSPolicyReconciler) buildClusterGateway(ctx context.Context, clusterNa
 	target = *dns.NewClusterGateway(metaObj, singleClusterAddresses)
 
 	return target, nil
-}
-
-func getClusterGatewayAddresses(gw *utils.GatewayWrapper) map[string][]gatewayapiv1.GatewayAddress {
-	clusterAddrs := make(map[string][]gatewayapiv1.GatewayAddress, len(gw.Status.Addresses))
-
-	for _, address := range gw.Status.Addresses {
-		//Default to Single Cluster (Normal Gateway Status)
-		cluster := singleCluster
-		addressValue := address.Value
-
-		//Check for Multi Cluster (MGC Gateway Status)
-		if gw.IsMultiCluster() {
-			tmpCluster, tmpAddress, found := strings.Cut(address.Value, "/")
-			//If this fails something is wrong and the value hasn't been set correctly
-			if found {
-				cluster = tmpCluster
-				addressValue = tmpAddress
-			}
-		}
-
-		if _, ok := clusterAddrs[cluster]; !ok {
-			clusterAddrs[cluster] = []gatewayapiv1.GatewayAddress{}
-		}
-
-		clusterAddrs[cluster] = append(clusterAddrs[cluster], gatewayapiv1.GatewayAddress{
-			Type:  address.Type,
-			Value: addressValue,
-		})
-	}
-
-	return clusterAddrs
-}
-
-func listenerTotalAttachedRoutes(upstreamGateway *utils.GatewayWrapper, downstreamCluster string, specListener gatewayv1beta1.Listener) int {
-	for _, statusListener := range upstreamGateway.Status.Listeners {
-		// for Multi Cluster (MGC Gateway Status)
-		if upstreamGateway.IsMultiCluster() {
-			clusterName, listenerName, found := strings.Cut(string(statusListener.Name), ".")
-			if !found {
-				return 0
-			}
-			if clusterName == downstreamCluster && listenerName == string(specListener.Name) {
-				return int(statusListener.AttachedRoutes)
-			}
-		}
-		// Single Cluster (Normal Gateway Status)
-		if string(statusListener.Name) == string(specListener.Name) {
-			return int(statusListener.AttachedRoutes)
-		}
-	}
-
-	return 0
 }
