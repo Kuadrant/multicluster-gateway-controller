@@ -19,7 +19,7 @@ import (
 	testutil "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 )
 
-var _ = Describe("DNSPolicy Single Cluster", Ordered, func() {
+var _ = Describe("DNSPolicy Single Cluster", func() {
 
 	var gatewayClass *gatewayv1beta1.GatewayClass
 	var managedZone *v1alpha1.ManagedZone
@@ -29,36 +29,21 @@ var _ = Describe("DNSPolicy Single Cluster", Ordered, func() {
 	var dnsPolicy *v1alpha1.DNSPolicy
 	var lbHash, recordName, wildcardRecordName string
 
-	BeforeAll(func() {
-		gatewayClass = testutil.NewTestGatewayClass("foo", "default", "kuadrant.io/bar")
-		Expect(k8sClient.Create(ctx, gatewayClass)).To(BeNil())
-		Eventually(func() error { // gateway class exists
-			return k8sClient.Get(ctx, client.ObjectKey{Name: gatewayClass.Name}, gatewayClass)
-		}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
-	})
-
-	AfterAll(func() {
-		err := k8sClient.Delete(ctx, gatewayClass)
-		Expect(err).ToNot(HaveOccurred())
-	})
-
 	BeforeEach(func() {
 		CreateNamespace(&testNamespace)
 
+		gatewayClass = testutil.NewTestGatewayClass("foo", "default", "kuadrant.io/bar")
+		Expect(k8sClient.Create(ctx, gatewayClass)).To(Succeed())
+
 		managedZone = testutil.NewManagedZoneBuilder("mz-example-com", testNamespace, "example.com").ManagedZone
-		Expect(k8sClient.Create(ctx, managedZone)).To(BeNil())
-		Eventually(func() error { // managed zone exists
-			return k8sClient.Get(ctx, client.ObjectKey{Name: managedZone.Name, Namespace: managedZone.Namespace}, managedZone)
-		}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
+		Expect(k8sClient.Create(ctx, managedZone)).To(Succeed())
 
 		gateway = testutil.NewGatewayBuilder(TestGatewayName, gatewayClass.Name, testNamespace).
 			WithHTTPListener(TestListenerNameOne, TestHostOne).
 			WithHTTPListener(TestListenerNameWildcard, TestHostWildcard).
 			Gateway
-		Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
-		Eventually(func() error { //gateway exists
-			return k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway)
-		}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
+		Expect(k8sClient.Create(ctx, gateway)).To(Succeed())
+
 		//Set single cluster gateway status
 		Eventually(func() error {
 			gateway.Status.Addresses = []gatewayv1beta1.GatewayAddress{
@@ -86,7 +71,7 @@ var _ = Describe("DNSPolicy Single Cluster", Ordered, func() {
 				},
 			}
 			return k8sClient.Status().Update(ctx, gateway)
-		}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
+		}, TestTimeoutMedium, TestRetryIntervalMedium).Should(Succeed())
 
 		dnsPolicyBuilder = testutil.NewDNSPolicyBuilder("test-dns-policy", testNamespace)
 		dnsPolicyBuilder.WithTargetGateway(TestGatewayName)
@@ -96,15 +81,32 @@ var _ = Describe("DNSPolicy Single Cluster", Ordered, func() {
 		wildcardRecordName = fmt.Sprintf("%s-%s", TestGatewayName, TestListenerNameWildcard)
 	})
 
+	AfterEach(func() {
+		if gateway != nil {
+			err := k8sClient.Delete(ctx, gateway)
+			Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
+		}
+		if dnsPolicy != nil {
+			err := k8sClient.Delete(ctx, dnsPolicy)
+			Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
+
+		}
+		if managedZone != nil {
+			err := k8sClient.Delete(ctx, managedZone)
+			Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
+		}
+		if gatewayClass != nil {
+			err := k8sClient.Delete(ctx, gatewayClass)
+			Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
+		}
+	})
+
 	Context("simple routing strategy", func() {
 
 		BeforeEach(func() {
 			dnsPolicyBuilder.WithRoutingStrategy(v1alpha1.SimpleRoutingStrategy)
 			dnsPolicy = dnsPolicyBuilder.DNSPolicy
-			Expect(k8sClient.Create(ctx, dnsPolicy)).To(BeNil())
-			Eventually(func() error { //dns policy exists
-				return k8sClient.Get(ctx, client.ObjectKey{Name: dnsPolicy.Name, Namespace: dnsPolicy.Namespace}, dnsPolicy)
-			}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
+			Expect(k8sClient.Create(ctx, dnsPolicy)).To(Succeed())
 		})
 
 		It("should create dns records", func() {
@@ -156,10 +158,7 @@ var _ = Describe("DNSPolicy Single Cluster", Ordered, func() {
 		BeforeEach(func() {
 			dnsPolicyBuilder.WithRoutingStrategy(v1alpha1.LoadBalancedRoutingStrategy)
 			dnsPolicy = dnsPolicyBuilder.DNSPolicy
-			Expect(k8sClient.Create(ctx, dnsPolicy)).To(BeNil())
-			Eventually(func() error { //dns policy exists
-				return k8sClient.Get(ctx, client.ObjectKey{Name: dnsPolicy.Name, Namespace: dnsPolicy.Namespace}, dnsPolicy)
-			}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
+			Expect(k8sClient.Create(ctx, dnsPolicy)).To(Succeed())
 		})
 
 		It("should create dns records", func() {

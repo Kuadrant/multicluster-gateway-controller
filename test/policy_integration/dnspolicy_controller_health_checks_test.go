@@ -23,7 +23,7 @@ import (
 	testutil "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 )
 
-var _ = Describe("DNSPolicy Health Checks", Ordered, func() {
+var _ = Describe("DNSPolicy Health Checks", func() {
 
 	var gatewayClass *gatewayv1beta1.GatewayClass
 	var managedZone *v1alpha1.ManagedZone
@@ -33,36 +33,21 @@ var _ = Describe("DNSPolicy Health Checks", Ordered, func() {
 	var dnsPolicy *v1alpha1.DNSPolicy
 	var lbHash, recordName, wildcardRecordName string
 
-	BeforeAll(func() {
-		gatewayClass = testutil.NewTestGatewayClass("foo", "default", "kuadrant.io/bar")
-		Expect(k8sClient.Create(ctx, gatewayClass)).To(BeNil())
-		Eventually(func() error { // gateway class exists
-			return k8sClient.Get(ctx, client.ObjectKey{Name: gatewayClass.Name}, gatewayClass)
-		}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
-	})
-
-	AfterAll(func() {
-		err := k8sClient.Delete(ctx, gatewayClass)
-		Expect(err).ToNot(HaveOccurred())
-	})
-
 	BeforeEach(func() {
 		CreateNamespace(&testNamespace)
 
+		gatewayClass = testutil.NewTestGatewayClass("foo", "default", "kuadrant.io/bar")
+		Expect(k8sClient.Create(ctx, gatewayClass)).To(Succeed())
+
 		managedZone = testutil.NewManagedZoneBuilder("mz-example-com", testNamespace, "example.com").ManagedZone
-		Expect(k8sClient.Create(ctx, managedZone)).To(BeNil())
-		Eventually(func() error { // managed zone exists
-			return k8sClient.Get(ctx, client.ObjectKey{Name: managedZone.Name, Namespace: managedZone.Namespace}, managedZone)
-		}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
+		Expect(k8sClient.Create(ctx, managedZone)).To(Succeed())
 
 		gateway = testutil.NewGatewayBuilder(TestGatewayName, gatewayClass.Name, testNamespace).
 			WithHTTPListener(TestListenerNameOne, TestHostOne).
 			WithHTTPListener(TestListenerNameWildcard, TestHostWildcard).
 			Gateway
-		Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
-		Eventually(func() error { //gateway exists
-			return k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway)
-		}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
+		Expect(k8sClient.Create(ctx, gateway)).To(Succeed())
+
 		//Set multi cluster gateway status
 		Eventually(func() error {
 			if err := k8sClient.Create(ctx, &v1.ManagedCluster{
@@ -131,7 +116,6 @@ var _ = Describe("DNSPolicy Health Checks", Ordered, func() {
 			err := k8sClient.Delete(ctx, gateway)
 			Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
 		}
-
 		if dnsPolicy != nil {
 			err := k8sClient.Delete(ctx, dnsPolicy)
 			Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
@@ -139,6 +123,10 @@ var _ = Describe("DNSPolicy Health Checks", Ordered, func() {
 		}
 		if managedZone != nil {
 			err := k8sClient.Delete(ctx, managedZone)
+			Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
+		}
+		if gatewayClass != nil {
+			err := k8sClient.Delete(ctx, gatewayClass)
 			Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
 		}
 	})
@@ -327,8 +315,6 @@ var _ = Describe("DNSPolicy Health Checks", Ordered, func() {
 						}, TestTimeoutLong, TestRetryIntervalMedium).Should(BeNil())
 						Expect(createdDNSRecord.Spec.Endpoints).To(HaveLen(len(expectedEndpoints)))
 						Expect(createdDNSRecord.Spec.Endpoints).Should(ContainElements(expectedEndpoints))
-						Expect(expectedEndpoints).Should(ContainElements(createdDNSRecord.Spec.Endpoints))
-
 					})
 				})
 				Context("some unhealthy probes", func() {
@@ -449,7 +435,6 @@ var _ = Describe("DNSPolicy Health Checks", Ordered, func() {
 						}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
 						Expect(createdDNSRecord.Spec.Endpoints).To(HaveLen(len(expectedEndpoints)))
 						Expect(createdDNSRecord.Spec.Endpoints).Should(ContainElements(expectedEndpoints))
-						Expect(expectedEndpoints).Should(ContainElements(createdDNSRecord.Spec.Endpoints))
 					})
 				})
 				Context("some unhealthy endpoints for other listener", func() {
@@ -587,7 +572,6 @@ var _ = Describe("DNSPolicy Health Checks", Ordered, func() {
 						}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
 						Expect(createdDNSRecord.Spec.Endpoints).To(HaveLen(len(expectedEndpoints)))
 						Expect(createdDNSRecord.Spec.Endpoints).Should(ContainElements(expectedEndpoints))
-						Expect(expectedEndpoints).Should(ContainElements(createdDNSRecord.Spec.Endpoints))
 					})
 				})
 			})
