@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	certmanv1 "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
-	cmmeta "github.com/jetstack/cert-manager/pkg/apis/meta/v1"
+	certmanmetav1 "github.com/jetstack/cert-manager/pkg/apis/meta/v1"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -170,13 +170,13 @@ func (t *TLSPolicyBuilder) WithTargetGateway(gwName string) *TLSPolicyBuilder {
 	return t
 }
 
-func (t *TLSPolicyBuilder) WithIssuerRef(issuerRef cmmeta.ObjectReference) *TLSPolicyBuilder {
+func (t *TLSPolicyBuilder) WithIssuerRef(issuerRef certmanmetav1.ObjectReference) *TLSPolicyBuilder {
 	t.Spec.IssuerRef = issuerRef
 	return t
 }
 
 func (t *TLSPolicyBuilder) WithIssuer(name, kind, group string) *TLSPolicyBuilder {
-	t.WithIssuerRef(cmmeta.ObjectReference{
+	t.WithIssuerRef(certmanmetav1.ObjectReference{
 		Name:  name,
 		Kind:  kind,
 		Group: group,

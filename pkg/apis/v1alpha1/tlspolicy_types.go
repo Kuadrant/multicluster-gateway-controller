@@ -20,7 +20,7 @@ import (
 	"fmt"
 
 	certmanv1 "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
-	cmmeta "github.com/jetstack/cert-manager/pkg/apis/meta/v1"
+	certmanmetav1 "github.com/jetstack/cert-manager/pkg/apis/meta/v1"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gatewayapiv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
@@ -46,7 +46,7 @@ type CertificateSpec struct {
 	// If the `kind` field is set to `ClusterIssuer`, a ClusterIssuer with the
 	// provided name will be used.
 	// The `name` field in this stanza is required at all times.
-	IssuerRef cmmeta.ObjectReference `json:"issuerRef"`
+	IssuerRef certmanmetav1.ObjectReference `json:"issuerRef"`
 
 	// CommonName is a common name to be used on the Certificate.
 	// The CommonName should have a length of 64 characters or fewer to avoid
