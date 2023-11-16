@@ -14,7 +14,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/placement"
@@ -40,8 +40,8 @@ func TestGatewayReconciler_Reconcile(t *testing.T) {
 			name: "gateway reconciled and updated",
 			fields: fields{
 				Client: testutil.GetValidTestClient(
-					&gatewayv1beta1.GatewayList{
-						Items: []gatewayv1beta1.Gateway{
+					&gatewayapiv1.GatewayList{
+						Items: []gatewayapiv1.Gateway{
 							{
 								ObjectMeta: v1.ObjectMeta{
 									Name:       testutil.DummyCRName,
@@ -49,21 +49,21 @@ func TestGatewayReconciler_Reconcile(t *testing.T) {
 									Labels:     getTestGatewayLabels(),
 									Finalizers: []string{GatewayFinalizer},
 								},
-								Spec: gatewayv1beta1.GatewaySpec{
+								Spec: gatewayapiv1.GatewaySpec{
 									GatewayClassName: testutil.DummyCRName,
-									Listeners: []gatewayv1beta1.Listener{
+									Listeners: []gatewayapiv1.Listener{
 										{
 											Name:     testutil.ValidTestHostname,
-											Hostname: testutil.Pointer(gatewayv1beta1.Hostname(testutil.ValidTestHostname)),
-											Protocol: gatewayv1beta1.HTTPSProtocolType,
+											Hostname: testutil.Pointer(gatewayapiv1.Hostname(testutil.ValidTestHostname)),
+											Protocol: gatewayapiv1.HTTPSProtocolType,
 										},
 									},
 								},
 							},
 						},
 					},
-					&gatewayv1beta1.GatewayClassList{
-						Items: []gatewayv1beta1.GatewayClass{
+					&gatewayapiv1.GatewayClassList{
+						Items: []gatewayapiv1.GatewayClass{
 							{
 								ObjectMeta: v1.ObjectMeta{
 									Name: testutil.DummyCRName,
@@ -114,8 +114,8 @@ func TestGatewayReconciler_Reconcile(t *testing.T) {
 			name: "gateway is deleting",
 			fields: fields{
 				Client: testutil.GetValidTestClient(
-					&gatewayv1beta1.GatewayList{
-						Items: []gatewayv1beta1.Gateway{
+					&gatewayapiv1.GatewayList{
+						Items: []gatewayapiv1.Gateway{
 							{
 								ObjectMeta: v1.ObjectMeta{
 									Name:              testutil.DummyCRName,
@@ -138,15 +138,15 @@ func TestGatewayReconciler_Reconcile(t *testing.T) {
 			name: "missing gateway class",
 			fields: fields{
 				Client: testutil.GetValidTestClient(
-					&gatewayv1beta1.GatewayList{
-						Items: []gatewayv1beta1.Gateway{
+					&gatewayapiv1.GatewayList{
+						Items: []gatewayapiv1.Gateway{
 							{
 								ObjectMeta: v1.ObjectMeta{
 									Name:       testutil.DummyCRName,
 									Namespace:  testutil.Namespace,
 									Finalizers: []string{GatewayFinalizer},
 								},
-								Spec: gatewayv1beta1.GatewaySpec{
+								Spec: gatewayapiv1.GatewaySpec{
 									GatewayClassName: testutil.DummyCRName,
 								},
 							},
@@ -170,21 +170,21 @@ func TestGatewayReconciler_Reconcile(t *testing.T) {
 			name: "invalid params on class reference",
 			fields: fields{
 				Client: testutil.GetValidTestClient(
-					&gatewayv1beta1.GatewayList{
-						Items: []gatewayv1beta1.Gateway{
+					&gatewayapiv1.GatewayList{
+						Items: []gatewayapiv1.Gateway{
 							{
 								ObjectMeta: v1.ObjectMeta{
 									Name:       testutil.DummyCRName,
 									Namespace:  testutil.Namespace,
 									Finalizers: []string{GatewayFinalizer},
 								},
-								Spec: gatewayv1beta1.GatewaySpec{
+								Spec: gatewayapiv1.GatewaySpec{
 									GatewayClassName: testutil.DummyCRName,
 								},
-								Status: gatewayv1beta1.GatewayStatus{
+								Status: gatewayapiv1.GatewayStatus{
 									Conditions: []v1.Condition{
 										{
-											Type:   string(gatewayv1beta1.GatewayConditionProgrammed),
+											Type:   string(gatewayapiv1.GatewayConditionProgrammed),
 											Status: v1.ConditionTrue,
 										},
 									},
@@ -192,14 +192,14 @@ func TestGatewayReconciler_Reconcile(t *testing.T) {
 							},
 						},
 					},
-					&gatewayv1beta1.GatewayClassList{
-						Items: []gatewayv1beta1.GatewayClass{
+					&gatewayapiv1.GatewayClassList{
+						Items: []gatewayapiv1.GatewayClass{
 							{
 								ObjectMeta: v1.ObjectMeta{
 									Name: testutil.DummyCRName,
 								},
-								Spec: gatewayv1beta1.GatewayClassSpec{
-									ParametersRef: &gatewayv1beta1.ParametersReference{
+								Spec: gatewayapiv1.GatewayClassSpec{
+									ParametersRef: &gatewayapiv1.ParametersReference{
 										Group: "boop",
 										Kind:  "theCat",
 									},
@@ -235,7 +235,7 @@ func TestGatewayReconciler_reconcileDownstreamFromUpstreamGateway(t *testing.T) 
 		Scheme *runtime.Scheme
 	}
 	type args struct {
-		gateway *gatewayv1beta1.Gateway
+		gateway *gatewayapiv1.Gateway
 	}
 	type testCase struct {
 		name          string
@@ -260,7 +260,7 @@ func TestGatewayReconciler_reconcileDownstreamFromUpstreamGateway(t *testing.T) 
 			},
 
 			args: args{
-				gateway: &gatewayv1beta1.Gateway{
+				gateway: &gatewayapiv1.Gateway{
 					ObjectMeta: v1.ObjectMeta{
 						Labels:    getTestGatewayLabels(),
 						Namespace: testutil.Namespace,
@@ -284,17 +284,17 @@ func TestGatewayReconciler_reconcileDownstreamFromUpstreamGateway(t *testing.T) 
 				Scheme: testutil.GetValidTestScheme(),
 			},
 			args: args{
-				gateway: &gatewayv1beta1.Gateway{
+				gateway: &gatewayapiv1.Gateway{
 					ObjectMeta: v1.ObjectMeta{
 						Labels:    getTestGatewayLabels(),
 						Namespace: testutil.Namespace,
 					},
-					Spec: gatewayv1beta1.GatewaySpec{
-						Listeners: []gatewayv1beta1.Listener{
+					Spec: gatewayapiv1.GatewaySpec{
+						Listeners: []gatewayapiv1.Listener{
 							{
-								Name:     gatewayv1beta1.SectionName(testutil.ValidTestHostname),
-								Hostname: testutil.Pointer(gatewayv1beta1.Hostname(testutil.ValidTestHostname)),
-								Protocol: gatewayv1beta1.HTTPProtocolType,
+								Name:     gatewayapiv1.SectionName(testutil.ValidTestHostname),
+								Hostname: testutil.Pointer(gatewayapiv1.Hostname(testutil.ValidTestHostname)),
+								Protocol: gatewayapiv1.HTTPProtocolType,
 							},
 						},
 					},
@@ -336,8 +336,8 @@ func TestGatewayReconciler_getTLSSecrets(t *testing.T) {
 		Scheme *runtime.Scheme
 	}
 	type args struct {
-		upstreamGateway   *gatewayv1beta1.Gateway
-		downstreamGateway *gatewayv1beta1.Gateway
+		upstreamGateway   *gatewayapiv1.Gateway
+		downstreamGateway *gatewayapiv1.Gateway
 	}
 	type testCase struct {
 		name    string
@@ -354,26 +354,26 @@ func TestGatewayReconciler_getTLSSecrets(t *testing.T) {
 				Scheme: testutil.GetValidTestScheme(),
 			},
 			args: args{
-				upstreamGateway: &gatewayv1beta1.Gateway{
+				upstreamGateway: &gatewayapiv1.Gateway{
 					ObjectMeta: v1.ObjectMeta{
 						Namespace: testutil.Namespace,
 						Name:      testutil.DummyCRName,
 					},
-					Spec: gatewayv1beta1.GatewaySpec{
-						Listeners: []gatewayv1beta1.Listener{
+					Spec: gatewayapiv1.GatewaySpec{
+						Listeners: []gatewayapiv1.Listener{
 							{
 								Name:     testutil.ValidTestHostname,
-								Hostname: testutil.Pointer(gatewayv1beta1.Hostname(testutil.ValidTestHostname)),
+								Hostname: testutil.Pointer(gatewayapiv1.Hostname(testutil.ValidTestHostname)),
 								Port:     0,
-								Protocol: gatewayv1beta1.HTTPSProtocolType,
-								TLS: &gatewayv1beta1.GatewayTLSConfig{
-									Mode: testutil.Pointer(gatewayv1beta1.TLSModeTerminate),
-									CertificateRefs: []gatewayv1beta1.SecretObjectReference{
+								Protocol: gatewayapiv1.HTTPSProtocolType,
+								TLS: &gatewayapiv1.GatewayTLSConfig{
+									Mode: testutil.Pointer(gatewayapiv1.TLSModeTerminate),
+									CertificateRefs: []gatewayapiv1.SecretObjectReference{
 										{
-											Group:     testutil.Pointer(gatewayv1beta1.Group("")),
-											Kind:      testutil.Pointer(gatewayv1beta1.Kind("secret")),
+											Group:     testutil.Pointer(gatewayapiv1.Group("")),
+											Kind:      testutil.Pointer(gatewayapiv1.Kind("secret")),
 											Name:      testutil.TLSSecretName,
-											Namespace: testutil.Pointer(gatewayv1beta1.Namespace(testutil.Namespace)),
+											Namespace: testutil.Pointer(gatewayapiv1.Namespace(testutil.Namespace)),
 										},
 									},
 								},
@@ -381,17 +381,17 @@ func TestGatewayReconciler_getTLSSecrets(t *testing.T) {
 						},
 					},
 				},
-				downstreamGateway: &gatewayv1beta1.Gateway{
+				downstreamGateway: &gatewayapiv1.Gateway{
 					ObjectMeta: v1.ObjectMeta{
 						Namespace: testutil.Namespace + "-downstream",
 						Name:      testutil.DummyCRName,
 					},
-					Spec: gatewayv1beta1.GatewaySpec{
-						Listeners: []gatewayv1beta1.Listener{
+					Spec: gatewayapiv1.GatewaySpec{
+						Listeners: []gatewayapiv1.Listener{
 							{
 								Name:     testutil.ValidTestHostname,
-								Hostname: testutil.Pointer(gatewayv1beta1.Hostname(testutil.ValidTestHostname)),
-								Protocol: gatewayv1beta1.HTTPSProtocolType,
+								Hostname: testutil.Pointer(gatewayapiv1.Hostname(testutil.ValidTestHostname)),
+								Protocol: gatewayapiv1.HTTPSProtocolType,
 							},
 						},
 					},
@@ -407,26 +407,26 @@ func TestGatewayReconciler_getTLSSecrets(t *testing.T) {
 				Scheme: testutil.GetValidTestScheme(),
 			},
 			args: args{
-				upstreamGateway: &gatewayv1beta1.Gateway{
+				upstreamGateway: &gatewayapiv1.Gateway{
 					ObjectMeta: v1.ObjectMeta{
 						Namespace: testutil.Namespace,
 						Name:      testutil.DummyCRName,
 					},
-					Spec: gatewayv1beta1.GatewaySpec{
-						Listeners: []gatewayv1beta1.Listener{
+					Spec: gatewayapiv1.GatewaySpec{
+						Listeners: []gatewayapiv1.Listener{
 							{
 								Name:     testutil.ValidTestHostname,
-								Hostname: testutil.Pointer(gatewayv1beta1.Hostname(testutil.ValidTestHostname)),
+								Hostname: testutil.Pointer(gatewayapiv1.Hostname(testutil.ValidTestHostname)),
 								Port:     0,
-								Protocol: gatewayv1beta1.HTTPSProtocolType,
-								TLS: &gatewayv1beta1.GatewayTLSConfig{
-									Mode: testutil.Pointer(gatewayv1beta1.TLSModeTerminate),
-									CertificateRefs: []gatewayv1beta1.SecretObjectReference{
+								Protocol: gatewayapiv1.HTTPSProtocolType,
+								TLS: &gatewayapiv1.GatewayTLSConfig{
+									Mode: testutil.Pointer(gatewayapiv1.TLSModeTerminate),
+									CertificateRefs: []gatewayapiv1.SecretObjectReference{
 										{
-											Group:     testutil.Pointer(gatewayv1beta1.Group("")),
-											Kind:      testutil.Pointer(gatewayv1beta1.Kind("secret")),
+											Group:     testutil.Pointer(gatewayapiv1.Group("")),
+											Kind:      testutil.Pointer(gatewayapiv1.Kind("secret")),
 											Name:      testutil.TLSSecretName,
-											Namespace: testutil.Pointer(gatewayv1beta1.Namespace(testutil.Namespace)),
+											Namespace: testutil.Pointer(gatewayapiv1.Namespace(testutil.Namespace)),
 										},
 									},
 								},
@@ -434,17 +434,17 @@ func TestGatewayReconciler_getTLSSecrets(t *testing.T) {
 						},
 					},
 				},
-				downstreamGateway: &gatewayv1beta1.Gateway{
+				downstreamGateway: &gatewayapiv1.Gateway{
 					ObjectMeta: v1.ObjectMeta{
 						Namespace: testutil.Namespace + "-downstream",
 						Name:      testutil.DummyCRName,
 					},
-					Spec: gatewayv1beta1.GatewaySpec{
-						Listeners: []gatewayv1beta1.Listener{
+					Spec: gatewayapiv1.GatewaySpec{
+						Listeners: []gatewayapiv1.Listener{
 							{
 								Name:     testutil.ValidTestHostname,
-								Hostname: testutil.Pointer(gatewayv1beta1.Hostname(testutil.ValidTestHostname)),
-								Protocol: gatewayv1beta1.HTTPSProtocolType,
+								Hostname: testutil.Pointer(gatewayapiv1.Hostname(testutil.ValidTestHostname)),
+								Protocol: gatewayapiv1.HTTPSProtocolType,
 							},
 						},
 					},
@@ -460,14 +460,14 @@ func TestGatewayReconciler_getTLSSecrets(t *testing.T) {
 				Scheme: testutil.GetValidTestScheme(),
 			},
 			args: args{
-				upstreamGateway: &gatewayv1beta1.Gateway{},
-				downstreamGateway: &gatewayv1beta1.Gateway{
-					Spec: gatewayv1beta1.GatewaySpec{
-						Listeners: []gatewayv1beta1.Listener{
+				upstreamGateway: &gatewayapiv1.Gateway{},
+				downstreamGateway: &gatewayapiv1.Gateway{
+					Spec: gatewayapiv1.GatewaySpec{
+						Listeners: []gatewayapiv1.Listener{
 							{
 								Name:     testutil.ValidTestHostname,
-								Hostname: testutil.Pointer(gatewayv1beta1.Hostname(testutil.ValidTestHostname)),
-								Protocol: gatewayv1beta1.HTTPProtocolType,
+								Hostname: testutil.Pointer(gatewayapiv1.Hostname(testutil.ValidTestHostname)),
+								Protocol: gatewayapiv1.HTTPProtocolType,
 							},
 						},
 					},
@@ -498,7 +498,7 @@ func TestGatewayReconciler_getTLSSecrets(t *testing.T) {
 
 func Test_buildProgrammedStatus(t *testing.T) {
 	type args struct {
-		gatewayStatus    gatewayv1beta1.GatewayStatus
+		gatewayStatus    gatewayapiv1.GatewayStatus
 		generation       int64
 		clusters         []string
 		programmedStatus v1.ConditionStatus
@@ -511,43 +511,43 @@ func Test_buildProgrammedStatus(t *testing.T) {
 		{
 			name: "State has not changed",
 			args: args{
-				gatewayStatus: gatewayv1beta1.GatewayStatus{
+				gatewayStatus: gatewayapiv1.GatewayStatus{
 					Conditions: []v1.Condition{
-						testutil.BuildTestCondition(gatewayv1beta1.GatewayConditionAccepted, 1, ""),
-						testutil.BuildTestCondition(gatewayv1beta1.GatewayConditionProgrammed, 1, ""),
+						testutil.BuildTestCondition(gatewayapiv1.GatewayConditionAccepted, 1, ""),
+						testutil.BuildTestCondition(gatewayapiv1.GatewayConditionProgrammed, 1, ""),
 					},
 				},
 				generation:       1,
 				programmedStatus: v1.ConditionTrue,
 			},
 			want: []v1.Condition{
-				testutil.BuildTestCondition(gatewayv1beta1.GatewayConditionAccepted, 1, ""),
-				testutil.BuildTestCondition(gatewayv1beta1.GatewayConditionProgrammed, 1, "gateway placed on clusters"),
+				testutil.BuildTestCondition(gatewayapiv1.GatewayConditionAccepted, 1, ""),
+				testutil.BuildTestCondition(gatewayapiv1.GatewayConditionProgrammed, 1, "gateway placed on clusters"),
 			},
 		},
 		{
 			name: "Generation changed",
 			args: args{
-				gatewayStatus: gatewayv1beta1.GatewayStatus{
+				gatewayStatus: gatewayapiv1.GatewayStatus{
 					Conditions: []v1.Condition{
-						testutil.BuildTestCondition(gatewayv1beta1.GatewayConditionAccepted, 2, ""),
-						testutil.BuildTestCondition(gatewayv1beta1.GatewayConditionProgrammed, 2, ""),
+						testutil.BuildTestCondition(gatewayapiv1.GatewayConditionAccepted, 2, ""),
+						testutil.BuildTestCondition(gatewayapiv1.GatewayConditionProgrammed, 2, ""),
 					},
 				},
 				generation:       1,
 				programmedStatus: v1.ConditionTrue,
 			},
 			want: []v1.Condition{
-				testutil.BuildTestCondition(gatewayv1beta1.GatewayConditionAccepted, 2, ""),
-				testutil.BuildTestCondition(gatewayv1beta1.GatewayConditionProgrammed, 1, "gateway placed on clusters"),
+				testutil.BuildTestCondition(gatewayapiv1.GatewayConditionAccepted, 2, ""),
+				testutil.BuildTestCondition(gatewayapiv1.GatewayConditionProgrammed, 1, "gateway placed on clusters"),
 			},
 		},
 		{
 			name: "Placement failed",
 			args: args{
-				gatewayStatus: gatewayv1beta1.GatewayStatus{
+				gatewayStatus: gatewayapiv1.GatewayStatus{
 					Conditions: []v1.Condition{
-						testutil.BuildTestCondition(gatewayv1beta1.GatewayConditionProgrammed, 1, ""),
+						testutil.BuildTestCondition(gatewayapiv1.GatewayConditionProgrammed, 1, ""),
 					},
 				},
 				generation:       1,
@@ -555,10 +555,10 @@ func Test_buildProgrammedStatus(t *testing.T) {
 			},
 			want: []v1.Condition{
 				{
-					Type:               string(gatewayv1beta1.GatewayConditionProgrammed),
+					Type:               string(gatewayapiv1.GatewayConditionProgrammed),
 					Status:             v1.ConditionFalse,
 					ObservedGeneration: 1,
-					Reason:             string(gatewayv1beta1.GatewayReasonInvalid),
+					Reason:             string(gatewayapiv1.GatewayReasonInvalid),
 					Message:            "gateway failed to be placed on all clusters",
 				},
 			},
@@ -566,9 +566,9 @@ func Test_buildProgrammedStatus(t *testing.T) {
 		{
 			name: "Waiting for controller",
 			args: args{
-				gatewayStatus: gatewayv1beta1.GatewayStatus{
+				gatewayStatus: gatewayapiv1.GatewayStatus{
 					Conditions: []v1.Condition{
-						testutil.BuildTestCondition(gatewayv1beta1.GatewayConditionProgrammed, 1, ""),
+						testutil.BuildTestCondition(gatewayapiv1.GatewayConditionProgrammed, 1, ""),
 					},
 				},
 				generation:       1,
@@ -576,10 +576,10 @@ func Test_buildProgrammedStatus(t *testing.T) {
 			},
 			want: []v1.Condition{
 				{
-					Type:               string(gatewayv1beta1.GatewayConditionProgrammed),
+					Type:               string(gatewayapiv1.GatewayConditionProgrammed),
 					Status:             v1.ConditionUnknown,
 					ObservedGeneration: 1,
-					Reason:             string(gatewayv1beta1.GatewayReasonPending),
+					Reason:             string(gatewayapiv1.GatewayReasonPending),
 					Message:            "current state of the gateway is unknown",
 				},
 			},
@@ -595,7 +595,7 @@ func Test_buildProgrammedStatus(t *testing.T) {
 }
 
 // helper functions
-func verifyTLSSecretTestResultsAsExpected(got []v1.Object, want []v1.Object, gateway *gatewayv1beta1.Gateway) bool {
+func verifyTLSSecretTestResultsAsExpected(got []v1.Object, want []v1.Object, gateway *gatewayapiv1.Gateway) bool {
 	for _, wantSecret := range want {
 		match := false
 		for _, gotSecret := range got {
@@ -640,14 +640,14 @@ func getTestGatewayLabels() map[string]string {
 	}
 }
 
-func buildValidTestGatewaySpec() gatewayv1beta1.GatewaySpec {
-	return gatewayv1beta1.GatewaySpec{
+func buildValidTestGatewaySpec() gatewayapiv1.GatewaySpec {
+	return gatewayapiv1.GatewaySpec{
 		GatewayClassName: testutil.DummyCRName,
-		Listeners: []gatewayv1beta1.Listener{
+		Listeners: []gatewayapiv1.Listener{
 			{
-				Name:     gatewayv1beta1.SectionName(testutil.ValidTestHostname),
-				Hostname: testutil.Pointer(gatewayv1beta1.Hostname(testutil.ValidTestHostname)),
-				Protocol: gatewayv1beta1.HTTPSProtocolType,
+				Name:     gatewayapiv1.SectionName(testutil.ValidTestHostname),
+				Hostname: testutil.Pointer(gatewayapiv1.Hostname(testutil.ValidTestHostname)),
+				Protocol: gatewayapiv1.HTTPSProtocolType,
 			},
 		},
 	}

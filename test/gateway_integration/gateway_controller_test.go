@@ -32,7 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	. "github.com/Kuadrant/multicluster-gateway-controller/test/util"
@@ -41,14 +41,14 @@ import (
 
 var _ = Describe("GatewayClassController", func() {
 	Context("testing gatewayclass controller", func() {
-		var gatewayclass *gatewayv1beta1.GatewayClass
+		var gatewayclass *gatewayapiv1.GatewayClass
 		BeforeEach(func() {
-			gatewayclass = &gatewayv1beta1.GatewayClass{
+			gatewayclass = &gatewayapiv1.GatewayClass{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "kuadrant-multi-cluster-gateway-instance-per-cluster",
 					Namespace: "default",
 				},
-				Spec: gatewayv1beta1.GatewayClassSpec{
+				Spec: gatewayapiv1.GatewayClassSpec{
 					ControllerName: "kuadrant.io/mgc-gw-controller",
 				},
 			}
@@ -56,7 +56,7 @@ var _ = Describe("GatewayClassController", func() {
 
 		AfterEach(func() {
 			// Clean up GatewayClasses
-			gatewayclassList := &gatewayv1beta1.GatewayClassList{}
+			gatewayclassList := &gatewayapiv1.GatewayClassList{}
 			err := k8sClient.List(ctx, gatewayclassList, client.InNamespace("default"))
 			Expect(err).NotTo(HaveOccurred())
 			for _, gatewayclass := range gatewayclassList.Items {
@@ -67,7 +67,7 @@ var _ = Describe("GatewayClassController", func() {
 
 		It("should accept a gatewayclass for this controller", func() {
 			Expect(k8sClient.Create(ctx, gatewayclass)).To(BeNil())
-			createdGatewayclass := &gatewayv1beta1.GatewayClass{}
+			createdGatewayclass := &gatewayapiv1.GatewayClass{}
 			gatewayclassType := types.NamespacedName{Name: gatewayclass.Name, Namespace: gatewayclass.Namespace}
 
 			// Exists
@@ -88,15 +88,15 @@ var _ = Describe("GatewayClassController", func() {
 			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
 			condition = createdGatewayclass.Status.Conditions[0]
 			Expect(len(createdGatewayclass.Status.Conditions)).To(BeEquivalentTo(1))
-			Expect(condition.Type).To(BeEquivalentTo(gatewayv1beta1.GatewayClassConditionStatusAccepted))
-			Expect(condition.Reason).To(BeEquivalentTo(gatewayv1beta1.GatewayClassConditionStatusAccepted))
+			Expect(condition.Type).To(BeEquivalentTo(gatewayapiv1.GatewayClassConditionStatusAccepted))
+			Expect(condition.Reason).To(BeEquivalentTo(gatewayapiv1.GatewayClassConditionStatusAccepted))
 		})
 
 		It("should NOT accept a gatewayclass for a different controller", func() {
 			gatewayclass.Name = "some-other-gatewayclass"
 			gatewayclass.Spec.ControllerName = "example.com/some-other-controller"
 			Expect(k8sClient.Create(ctx, gatewayclass)).To(BeNil())
-			createdGatewayclass := &gatewayv1beta1.GatewayClass{}
+			createdGatewayclass := &gatewayapiv1.GatewayClass{}
 			gatewayclassType := types.NamespacedName{Name: gatewayclass.Name, Namespace: gatewayclass.Namespace}
 
 			// Exists
@@ -105,7 +105,7 @@ var _ = Describe("GatewayClassController", func() {
 			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeNil())
 
 			// Only 1
-			gatewayclassList := &gatewayv1beta1.GatewayClassList{}
+			gatewayclassList := &gatewayapiv1.GatewayClassList{}
 			err := k8sClient.List(ctx, gatewayclassList, client.InNamespace("default"))
 			Expect(err).NotTo(HaveOccurred())
 			Expect(len(gatewayclassList.Items)).To(BeEquivalentTo(1))
@@ -120,14 +120,14 @@ var _ = Describe("GatewayClassController", func() {
 					Fail("No errors expected")
 				}
 				condition = createdGatewayclass.Status.Conditions[0]
-				return condition.Type == string(gatewayv1beta1.GatewayClassConditionStatusAccepted) && condition.Status == metav1.ConditionUnknown
+				return condition.Type == string(gatewayapiv1.GatewayClassConditionStatusAccepted) && condition.Status == metav1.ConditionUnknown
 			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
 		})
 
 		It("should NOT accept a gatewayclass that is 'unsupported'", func() {
 			gatewayclass.Name = "test-class-name-1"
 			Expect(k8sClient.Create(ctx, gatewayclass)).To(BeNil())
-			createdGatewayclass := &gatewayv1beta1.GatewayClass{}
+			createdGatewayclass := &gatewayapiv1.GatewayClass{}
 			gatewayclassType := types.NamespacedName{Name: gatewayclass.Name, Namespace: gatewayclass.Namespace}
 
 			// Exists
@@ -145,9 +145,9 @@ var _ = Describe("GatewayClassController", func() {
 					Fail("No errors expected")
 				}
 				condition = createdGatewayclass.Status.Conditions[0]
-				return condition.Type == string(gatewayv1beta1.GatewayClassConditionStatusAccepted) && condition.Status == metav1.ConditionFalse
+				return condition.Type == string(gatewayapiv1.GatewayClassConditionStatusAccepted) && condition.Status == metav1.ConditionFalse
 			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(BeTrue())
-			Expect(condition.Reason).To(BeEquivalentTo(gatewayv1beta1.GatewayClassReasonInvalidParameters))
+			Expect(condition.Reason).To(BeEquivalentTo(gatewayapiv1.GatewayClassReasonInvalidParameters))
 			Expect(condition.Message).To(BeEquivalentTo("Invalid Parameters - Unsupported class name test-class-name-1. Must be one of [kuadrant-multi-cluster-gateway-instance-per-cluster]"))
 		})
 	})
@@ -155,27 +155,27 @@ var _ = Describe("GatewayClassController", func() {
 
 var _ = Describe("GatewayController", func() {
 	Context("testing gateway controller", func() {
-		var gateway *gatewayv1beta1.Gateway
-		var noLGateway *gatewayv1beta1.Gateway
-		var gatewayClass *gatewayv1beta1.GatewayClass
+		var gateway *gatewayapiv1.Gateway
+		var noLGateway *gatewayapiv1.Gateway
+		var gatewayClass *gatewayapiv1.GatewayClass
 		var managedZone *v1alpha1.ManagedZone
 		var manifest1 *ocmworkv1.ManifestWork
 		var manifest2 *ocmworkv1.ManifestWork
 		var nsSpoke1 *corev1.Namespace
 		var nsSpoke2 *corev1.Namespace
 		var placementDecision *ocmclusterv1beta1.PlacementDecision
-		var hostnametest gatewayv1beta1.Hostname
+		var hostnametest gatewayapiv1.Hostname
 		var stringified string
 
 		//Kicks off before the tests run, used to create resources we need in multiple tests,were created in a diff function that we are not testing but need the output, or things a user may have to do.
 		BeforeEach(func() {
 			// Before: Create GatewayClass for the gateway
-			gatewayClass = &gatewayv1beta1.GatewayClass{
+			gatewayClass = &gatewayapiv1.GatewayClass{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "kuadrant-multi-cluster-gateway-instance-per-cluster",
 					Namespace: defaultNS,
 				},
-				Spec: gatewayv1beta1.GatewayClassSpec{
+				Spec: gatewayapiv1.GatewayClassSpec{
 					ControllerName: "kuadrant.io/mctc-gw-controller",
 				},
 			}
@@ -229,8 +229,8 @@ var _ = Describe("GatewayController", func() {
 			}
 			Expect(k8sClient.Status().Update(ctx, placementDecision)).To(BeNil())
 			//Before: Stub Gateway for tests but not creating it here
-			hostname1 := gatewayv1beta1.Hostname("test1.example.com")
-			gateway = &gatewayv1beta1.Gateway{
+			hostname1 := gatewayapiv1.Hostname("test1.example.com")
+			gateway = &gatewayapiv1.Gateway{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-gw-1",
 					Namespace: defaultNS,
@@ -238,31 +238,31 @@ var _ = Describe("GatewayController", func() {
 						"cluster.open-cluster-management.io/placement": "GatewayControllerTest",
 					},
 				},
-				Spec: gatewayv1beta1.GatewaySpec{
+				Spec: gatewayapiv1.GatewaySpec{
 					GatewayClassName: "kuadrant-multi-cluster-gateway-instance-per-cluster",
-					Listeners: []gatewayv1beta1.Listener{
+					Listeners: []gatewayapiv1.Listener{
 						{
 							Name:     "default",
 							Port:     8443,
-							Protocol: gatewayv1beta1.HTTPSProtocolType,
+							Protocol: gatewayapiv1.HTTPSProtocolType,
 							Hostname: &hostname1,
 						},
 					},
 				},
 			}
 
-			noLGateway = &gatewayv1beta1.Gateway{
+			noLGateway = &gatewayapiv1.Gateway{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-gw-2",
 					Namespace: defaultNS,
 				},
-				Spec: gatewayv1beta1.GatewaySpec{
+				Spec: gatewayapiv1.GatewaySpec{
 					GatewayClassName: "kuadrant-multi-cluster-gateway-instance-per-cluster",
-					Listeners: []gatewayv1beta1.Listener{
+					Listeners: []gatewayapiv1.Listener{
 						{
 							Name:     "default",
 							Port:     8443,
-							Protocol: gatewayv1beta1.HTTPSProtocolType,
+							Protocol: gatewayapiv1.HTTPSProtocolType,
 							Hostname: &hostname1,
 						},
 					},
@@ -295,7 +295,7 @@ var _ = Describe("GatewayController", func() {
 		// Occurs after the test is complete
 		AfterEach(func() {
 			// Clean: Gateways
-			gatewayList := &gatewayv1beta1.GatewayList{}
+			gatewayList := &gatewayapiv1.GatewayList{}
 			err := k8sClient.List(ctx, gatewayList, client.InNamespace("default"))
 			Expect(err).NotTo(HaveOccurred())
 			for _, gateway := range gatewayList.Items {
@@ -304,7 +304,7 @@ var _ = Describe("GatewayController", func() {
 			}
 
 			// Clean: GatewayClasses
-			gatewayclassList := &gatewayv1beta1.GatewayClassList{}
+			gatewayclassList := &gatewayapiv1.GatewayClassList{}
 			err = k8sClient.List(ctx, gatewayclassList, client.InNamespace("default"))
 			Expect(err).NotTo(HaveOccurred())
 			for _, gatewayclass := range gatewayclassList.Items {
@@ -333,7 +333,7 @@ var _ = Describe("GatewayController", func() {
 		// This tests the full reconcile of a gateway from start to finish
 		It("should reconcile a gateway", func() {
 			Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
-			upstreamGateway := &gatewayv1beta1.Gateway{}
+			upstreamGateway := &gatewayapiv1.Gateway{}
 			upstreamGatewayType := types.NamespacedName{Name: gateway.Name, Namespace: gateway.Namespace}
 			manifest1 = &ocmworkv1.ManifestWork{}
 			manifest2 = &ocmworkv1.ManifestWork{}
@@ -368,7 +368,7 @@ var _ = Describe("GatewayController", func() {
 				}
 				// decoding the raw format in the manifest 1 into a readable variable that can be compared
 				rawBytes := manifest1.Spec.Workload.Manifests[0].Raw
-				gateway := &gatewayv1beta1.Gateway{}
+				gateway := &gatewayapiv1.Gateway{}
 				err := json.Unmarshal(rawBytes, gateway)
 				if err != nil {
 					log.Log.Error(err, "failed to unmarshal gateway")
@@ -390,7 +390,7 @@ var _ = Describe("GatewayController", func() {
 				}
 				// decoding the raw format in the manifest 1 into a readable variable that can be compared
 				rawBytes := manifest2.Spec.Workload.Manifests[0].Raw
-				gateway := &gatewayv1beta1.Gateway{}
+				gateway := &gatewayapiv1.Gateway{}
 				err := json.Unmarshal(rawBytes, gateway)
 				if err != nil {
 					return err
@@ -404,13 +404,13 @@ var _ = Describe("GatewayController", func() {
 			Expect(stringified).To(Equal("test1.example.com"))
 
 			//Mock: Make the manifestwork status in manifest 1 be "applied". OCM usually does it when the resources have been applied
-			ipAddressType := gatewayv1beta1.IPAddressType
-			hostnameAddressType := gatewayv1beta1.HostnameAddressType
+			ipAddressType := gatewayapiv1.IPAddressType
+			hostnameAddressType := gatewayapiv1.HostnameAddressType
 			ip1 := "172.18.0.1"
 			ip2 := "172.18.0.2"
 			ip3 := "172.18.1.1"
 			hostname4 := "test4.example.com"
-			m1AddressesJson, err := json.Marshal([]gatewayv1beta1.GatewayAddress{
+			m1AddressesJson, err := json.Marshal([]gatewayapiv1.GatewayAddress{
 				{
 					Type:  &ipAddressType,
 					Value: ip1,
@@ -475,7 +475,7 @@ var _ = Describe("GatewayController", func() {
 
 			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: manifest2.Namespace, Name: manifest2.Name}, manifest2)).To(BeNil())
 			//Mock: Make the manifestwork status in manifest 2 be "applied". OCM usually does it when the resources have been applied
-			m2AddressesJson, err := json.Marshal([]gatewayv1beta1.GatewayAddress{
+			m2AddressesJson, err := json.Marshal([]gatewayapiv1.GatewayAddress{
 				{
 					Type:  &ipAddressType,
 					Value: ip3,
@@ -545,7 +545,7 @@ var _ = Describe("GatewayController", func() {
 					// explicitly fail as we should be passed the point of any errors
 					return fmt.Errorf("No errors expected: %v", err)
 				}
-				programmedCondition = meta.FindStatusCondition(upstreamGateway.Status.Conditions, string(gatewayv1beta1.GatewayConditionProgrammed))
+				programmedCondition = meta.FindStatusCondition(upstreamGateway.Status.Conditions, string(gatewayapiv1.GatewayConditionProgrammed))
 				log.Log.Info("programmedCondition", "programmedCondition", programmedCondition)
 				Expect(programmedCondition).ToNot(BeNil())
 				if programmedCondition.Status != metav1.ConditionTrue {
@@ -585,7 +585,7 @@ var _ = Describe("GatewayController", func() {
 		It("shouldnt place a gateway", func() {
 
 			Expect(k8sClient.Create(ctx, noLGateway)).To(BeNil())
-			noLabelGateway := &gatewayv1beta1.Gateway{}
+			noLabelGateway := &gatewayapiv1.Gateway{}
 			noLabelUpstreamGatewayType := types.NamespacedName{Name: noLGateway.Name, Namespace: noLGateway.Namespace}
 
 			// Passes if it gets the gateway

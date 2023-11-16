@@ -11,7 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	crlog "sigs.k8s.io/controller-runtime/pkg/log"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/kuadrant/kuadrant-operator/pkg/reconcilers"
 
@@ -45,7 +45,7 @@ func (r *DNSPolicyReconciler) reconcileDNSRecords(ctx context.Context, dnsPolicy
 	return nil
 }
 
-func (r *DNSPolicyReconciler) reconcileGatewayDNSRecords(ctx context.Context, gateway *gatewayv1beta1.Gateway, dnsPolicy *v1alpha1.DNSPolicy) error {
+func (r *DNSPolicyReconciler) reconcileGatewayDNSRecords(ctx context.Context, gateway *gatewayapiv1.Gateway, dnsPolicy *v1alpha1.DNSPolicy) error {
 	log := crlog.FromContext(ctx)
 
 	if err := r.dnsHelper.removeDNSForDeletedListeners(ctx, gateway); err != nil {
@@ -125,7 +125,7 @@ func (r *DNSPolicyReconciler) reconcileGatewayDNSRecords(ctx context.Context, ga
 	return nil
 }
 
-func (r *DNSPolicyReconciler) deleteGatewayDNSRecords(ctx context.Context, gateway *gatewayv1beta1.Gateway, dnsPolicy *v1alpha1.DNSPolicy) error {
+func (r *DNSPolicyReconciler) deleteGatewayDNSRecords(ctx context.Context, gateway *gatewayapiv1.Gateway, dnsPolicy *v1alpha1.DNSPolicy) error {
 	return r.deleteDNSRecordsWithLabels(ctx, commonDNSRecordLabels(client.ObjectKeyFromObject(gateway), client.ObjectKeyFromObject(dnsPolicy)), dnsPolicy.Namespace)
 }
 
@@ -151,9 +151,9 @@ func (r *DNSPolicyReconciler) deleteDNSRecordsWithLabels(ctx context.Context, lb
 	return nil
 }
 
-func (r *DNSPolicyReconciler) buildClusterGateway(ctx context.Context, clusterName string, gatewayAddresses []gatewayv1beta1.GatewayAddress, targetGW *gatewayv1beta1.Gateway) (dns.ClusterGateway, error) {
+func (r *DNSPolicyReconciler) buildClusterGateway(ctx context.Context, clusterName string, gatewayAddresses []gatewayapiv1.GatewayAddress, targetGW *gatewayapiv1.Gateway) (dns.ClusterGateway, error) {
 	var target dns.ClusterGateway
-	singleClusterAddresses := make([]gatewayv1beta1.GatewayAddress, len(gatewayAddresses))
+	singleClusterAddresses := make([]gatewayapiv1.GatewayAddress, len(gatewayAddresses))
 
 	var metaObj client.Object
 	if clusterName != singleCluster {
@@ -169,13 +169,13 @@ func (r *DNSPolicyReconciler) buildClusterGateway(ctx context.Context, clusterNa
 	for i, addr := range gatewayAddresses {
 		addrType := *addr.Type
 		if addrType == gateway.MultiClusterHostnameAddressType {
-			addrType = gatewayv1beta1.HostnameAddressType
+			addrType = gatewayapiv1.HostnameAddressType
 		}
 		if addrType == gateway.MultiClusterIPAddressType {
-			addrType = gatewayv1beta1.IPAddressType
+			addrType = gatewayapiv1.IPAddressType
 		}
 
-		singleClusterAddresses[i] = gatewayv1beta1.GatewayAddress{
+		singleClusterAddresses[i] = gatewayapiv1.GatewayAddress{
 			Type:  &addrType,
 			Value: addr.Value,
 		}
@@ -185,8 +185,8 @@ func (r *DNSPolicyReconciler) buildClusterGateway(ctx context.Context, clusterNa
 	return target, nil
 }
 
-func getClusterGatewayAddresses(gw *gatewayv1beta1.Gateway) map[string][]gatewayv1beta1.GatewayAddress {
-	clusterAddrs := make(map[string][]gatewayv1beta1.GatewayAddress, len(gw.Status.Addresses))
+func getClusterGatewayAddresses(gw *gatewayapiv1.Gateway) map[string][]gatewayapiv1.GatewayAddress {
+	clusterAddrs := make(map[string][]gatewayapiv1.GatewayAddress, len(gw.Status.Addresses))
 
 	for _, address := range gw.Status.Addresses {
 		//Default to Single Cluster (Normal Gateway Status)
@@ -204,10 +204,10 @@ func getClusterGatewayAddresses(gw *gatewayv1beta1.Gateway) map[string][]gateway
 		}
 
 		if _, ok := clusterAddrs[cluster]; !ok {
-			clusterAddrs[cluster] = []gatewayv1beta1.GatewayAddress{}
+			clusterAddrs[cluster] = []gatewayapiv1.GatewayAddress{}
 		}
 
-		clusterAddrs[cluster] = append(clusterAddrs[cluster], gatewayv1beta1.GatewayAddress{
+		clusterAddrs[cluster] = append(clusterAddrs[cluster], gatewayapiv1.GatewayAddress{
 			Type:  address.Type,
 			Value: addressValue,
 		})
@@ -216,7 +216,7 @@ func getClusterGatewayAddresses(gw *gatewayv1beta1.Gateway) map[string][]gateway
 	return clusterAddrs
 }
 
-func listenerTotalAttachedRoutes(upstreamGateway *gatewayv1beta1.Gateway, downstreamCluster string, specListener gatewayv1beta1.Listener, addresses []gatewayv1beta1.GatewayAddress) int {
+func listenerTotalAttachedRoutes(upstreamGateway *gatewayapiv1.Gateway, downstreamCluster string, specListener gatewayapiv1.Listener, addresses []gatewayapiv1.GatewayAddress) int {
 	for _, statusListener := range upstreamGateway.Status.Listeners {
 		// assuming all adresses of the same type on the gateway
 		// for Multi Cluster (MGC Gateway Status)

@@ -21,8 +21,8 @@ import (
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayapiv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
 type RoutingStrategy string
@@ -123,8 +123,8 @@ type DNSPolicy struct {
 	Status DNSPolicyStatus `json:"status,omitempty"`
 }
 
-func (p *DNSPolicy) GetWrappedNamespace() gatewayv1beta1.Namespace {
-	return gatewayv1beta1.Namespace(p.Namespace)
+func (p *DNSPolicy) GetWrappedNamespace() gatewayapiv1.Namespace {
+	return gatewayapiv1.Namespace(p.Namespace)
 }
 
 func (p *DNSPolicy) GetRulesHostnames() []string {
@@ -139,7 +139,7 @@ func (p *DNSPolicy) GetTargetRef() gatewayapiv1alpha2.PolicyTargetReference {
 // Validate ensures the resource is valid. Compatible with the validating interface
 // used by webhooks
 func (p *DNSPolicy) Validate() error {
-	if p.Spec.TargetRef.Group != ("gateway.networking.k8s.io") {
+	if p.Spec.TargetRef.Group != "gateway.networking.k8s.io" {
 		return fmt.Errorf("invalid targetRef.Group %s. The only supported group is gateway.networking.k8s.io", p.Spec.TargetRef.Group)
 	}
 
@@ -176,7 +176,7 @@ type DNSPolicyList struct {
 }
 
 // HealthCheckSpec configures health checks in the DNS provider.
-// By default this health check will be applied to each unique DNS A Record for
+// By default, this health check will be applied to each unique DNS A Record for
 // the listeners assigned to the target gateway
 type HealthCheckSpec struct {
 	Endpoint                  string                `json:"endpoint,omitempty"`
@@ -230,26 +230,3 @@ func init() {
 }
 
 const DefaultWeight Weight = 120
-
-func NewDefaultDNSPolicy(gateway *gatewayv1beta1.Gateway) DNSPolicy {
-	gatewayTypedNamespace := gatewayv1beta1.Namespace(gateway.Namespace)
-	return DNSPolicy{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      gateway.Name,
-			Namespace: gateway.Namespace,
-		},
-		Spec: DNSPolicySpec{
-			TargetRef: gatewayapiv1alpha2.PolicyTargetReference{
-				Group:     gatewayv1beta1.Group(gatewayv1beta1.GroupVersion.Group),
-				Kind:      "Gateway",
-				Name:      gatewayv1beta1.ObjectName(gateway.Name),
-				Namespace: &gatewayTypedNamespace,
-			},
-			LoadBalancing: &LoadBalancingSpec{
-				Weighted: &LoadBalancingWeighted{
-					DefaultWeight: DefaultWeight,
-				},
-			},
-		},
-	}
-}

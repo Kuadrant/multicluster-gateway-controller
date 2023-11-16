@@ -9,8 +9,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	controllerruntime "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/gateway-api/apis/v1alpha2"
-	gatewayapiv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/kuadrant/kuadrant-operator/pkg/common"
 	"github.com/kuadrant/kuadrant-operator/pkg/reconcilers"
@@ -57,23 +56,23 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 			args: args{
 				ctx: nil,
 				gw: common.GatewayWrapper{
-					Gateway: &gatewayapiv1beta1.Gateway{
+					Gateway: &gatewayapiv1.Gateway{
 						ObjectMeta: controllerruntime.ObjectMeta{
 							Name:      "testgateway",
 							Namespace: "testnamespace",
 						},
-						Spec: v1alpha2.GatewaySpec{
-							Listeners: []v1alpha2.Listener{
+						Spec: gatewayapiv1.GatewaySpec{
+							Listeners: []gatewayapiv1.Listener{
 								{
 									Name:     "testlistener",
-									Hostname: (*gatewayapiv1beta1.Hostname)(testutil.Pointer(ValidTestHostname)),
+									Hostname: (*gatewayapiv1.Hostname)(testutil.Pointer(ValidTestHostname)),
 								},
 							},
 						},
-						Status: v1alpha2.GatewayStatus{
-							Addresses: []v1alpha2.GatewayAddress{
+						Status: gatewayapiv1.GatewayStatus{
+							Addresses: []gatewayapiv1.GatewayStatusAddress{
 								{
-									Type:  testutil.Pointer(gatewayapiv1beta1.IPAddressType),
+									Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
 									Value: "clusterName/172.31.200.0",
 								},
 							},
@@ -146,25 +145,25 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 			args: args{
 				ctx: nil,
 				gw: common.GatewayWrapper{
-					Gateway: &gatewayapiv1beta1.Gateway{
+					Gateway: &gatewayapiv1.Gateway{
 						ObjectMeta: controllerruntime.ObjectMeta{
 							Name:      "testgateway",
 							Namespace: "testnamespace",
 						},
-						Spec: v1alpha2.GatewaySpec{
-							Listeners: []v1alpha2.Listener{
+						Spec: gatewayapiv1.GatewaySpec{
+							Listeners: []gatewayapiv1.Listener{
 								{
 									Name:     "testlistener",
-									Hostname: (*gatewayapiv1beta1.Hostname)(testutil.Pointer(ValidTestHostname)),
+									Hostname: (*gatewayapiv1.Hostname)(testutil.Pointer(ValidTestHostname)),
 									Port:     443,
-									Protocol: gatewayapiv1beta1.ProtocolType(v1alpha1.HttpsProtocol),
+									Protocol: gatewayapiv1.ProtocolType(v1alpha1.HttpsProtocol),
 								},
 							},
 						},
-						Status: v1alpha2.GatewayStatus{
-							Addresses: []v1alpha2.GatewayAddress{
+						Status: gatewayapiv1.GatewayStatus{
+							Addresses: []gatewayapiv1.GatewayStatusAddress{
 								{
-									Type:  testutil.Pointer(gatewayapiv1beta1.IPAddressType),
+									Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
 									Value: "clusterName/172.31.200.0",
 								},
 							},
@@ -218,18 +217,18 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 			args: args{
 				ctx: nil,
 				gw: common.GatewayWrapper{
-					Gateway: &gatewayapiv1beta1.Gateway{
-						Spec: v1alpha2.GatewaySpec{
-							Listeners: []v1alpha2.Listener{
+					Gateway: &gatewayapiv1.Gateway{
+						Spec: gatewayapiv1.GatewaySpec{
+							Listeners: []gatewayapiv1.Listener{
 								{
-									Hostname: (*gatewayapiv1beta1.Hostname)(testutil.Pointer(ValidTestWildcard)),
+									Hostname: (*gatewayapiv1.Hostname)(testutil.Pointer(ValidTestWildcard)),
 								},
 							},
 						},
-						Status: v1alpha2.GatewayStatus{
-							Addresses: []v1alpha2.GatewayAddress{
+						Status: gatewayapiv1.GatewayStatus{
+							Addresses: []gatewayapiv1.GatewayStatusAddress{
 								{
-									Type:  testutil.Pointer(gatewayapiv1beta1.IPAddressType),
+									Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
 									Value: "clusterName/172.31.200.0",
 								},
 							},
@@ -255,11 +254,11 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 			args: args{
 				ctx: nil,
 				gw: common.GatewayWrapper{
-					Gateway: &gatewayapiv1beta1.Gateway{
-						Status: v1alpha2.GatewayStatus{
-							Addresses: []v1alpha2.GatewayAddress{
+					Gateway: &gatewayapiv1.Gateway{
+						Status: gatewayapiv1.GatewayStatus{
+							Addresses: []gatewayapiv1.GatewayStatusAddress{
 								{
-									Type:  testutil.Pointer(gatewayapiv1beta1.IPAddressType),
+									Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
 									Value: "clusterName:172.31.200.0",
 								},
 							},
@@ -285,11 +284,11 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 			args: args{
 				ctx: nil,
 				gw: common.GatewayWrapper{
-					Gateway: &gatewayapiv1beta1.Gateway{
-						Status: v1alpha2.GatewayStatus{
-							Addresses: []v1alpha2.GatewayAddress{
+					Gateway: &gatewayapiv1.Gateway{
+						Status: gatewayapiv1.GatewayStatus{
+							Addresses: []gatewayapiv1.GatewayStatusAddress{
 								{
-									Type:  testutil.Pointer(gatewayapiv1beta1.IPAddressType),
+									Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
 									Value: "clusterName/172.31.200.0",
 								},
 							},
@@ -315,8 +314,8 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 			args: args{
 				ctx: nil,
 				gw: common.GatewayWrapper{
-					Gateway: &gatewayapiv1beta1.Gateway{
-						Status: v1alpha2.GatewayStatus{},
+					Gateway: &gatewayapiv1.Gateway{
+						Status: gatewayapiv1.GatewayStatus{},
 					},
 				},
 				dnsPolicy: &v1alpha1.DNSPolicy{

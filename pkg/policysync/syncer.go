@@ -16,7 +16,7 @@ type FakeSyncer struct {
 
 var _ Syncer = &FakeSyncer{}
 
-func (*FakeSyncer) SyncPolicy(ctx context.Context, apiclient client.Client, policy Policy) error {
+func (*FakeSyncer) SyncPolicy(ctx context.Context, _ client.Client, policy Policy) error {
 	log := crlog.FromContext(ctx)
 
 	targetRef := policy.GetTargetRef()

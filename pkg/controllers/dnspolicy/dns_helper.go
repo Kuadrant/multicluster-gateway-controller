@@ -16,7 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/kuadrant/kuadrant-operator/pkg/common"
 
@@ -105,7 +105,7 @@ func gatewayDNSRecordLabels(gwKey client.ObjectKey) map[string]string {
 	}
 }
 
-func (dh *dnsHelper) buildDNSRecordForListener(gateway *gatewayv1beta1.Gateway, dnsPolicy *v1alpha1.DNSPolicy, targetListener gatewayv1beta1.Listener, managedZone *v1alpha1.ManagedZone) *v1alpha1.DNSRecord {
+func (dh *dnsHelper) buildDNSRecordForListener(gateway *gatewayapiv1.Gateway, dnsPolicy *v1alpha1.DNSPolicy, targetListener gatewayapiv1.Listener, managedZone *v1alpha1.ManagedZone) *v1alpha1.DNSRecord {
 
 	dnsRecord := &v1alpha1.DNSRecord{
 		ObjectMeta: metav1.ObjectMeta{
@@ -125,7 +125,7 @@ func (dh *dnsHelper) buildDNSRecordForListener(gateway *gatewayv1beta1.Gateway, 
 
 // getDNSRecordForListener returns a v1alpha1.DNSRecord, if one exists, for the given listener in the given v1alpha1.ManagedZone.
 // It needs a reference string to enforce DNS record serving a single traffic.Interface owner
-func (dh *dnsHelper) getDNSRecordForListener(ctx context.Context, listener gatewayv1beta1.Listener, owner metav1.Object) (*v1alpha1.DNSRecord, error) {
+func (dh *dnsHelper) getDNSRecordForListener(ctx context.Context, listener gatewayapiv1.Listener, owner metav1.Object) (*v1alpha1.DNSRecord, error) {
 	recordName := dnsRecordName(owner.GetName(), string(listener.Name))
 	dnsRecord := &v1alpha1.DNSRecord{}
 	if err := dh.Get(ctx, client.ObjectKey{Name: recordName, Namespace: owner.GetNamespace()}, dnsRecord); err != nil {
@@ -137,7 +137,7 @@ func (dh *dnsHelper) getDNSRecordForListener(ctx context.Context, listener gatew
 	return dnsRecord, nil
 }
 
-func withGatewayListener[T metav1.Object](gateway common.GatewayWrapper, listener gatewayv1beta1.Listener, obj T) T {
+func withGatewayListener[T metav1.Object](gateway common.GatewayWrapper, listener gatewayapiv1.Listener, obj T) T {
 	if obj.GetAnnotations() == nil {
 		obj.SetAnnotations(map[string]string{})
 	}
@@ -148,7 +148,7 @@ func withGatewayListener[T metav1.Object](gateway common.GatewayWrapper, listene
 	return obj
 }
 
-func (dh *dnsHelper) setEndpoints(ctx context.Context, mcgTarget *dns.MultiClusterGatewayTarget, dnsRecord *v1alpha1.DNSRecord, listener gatewayv1beta1.Listener, strategy v1alpha1.RoutingStrategy) error {
+func (dh *dnsHelper) setEndpoints(ctx context.Context, mcgTarget *dns.MultiClusterGatewayTarget, dnsRecord *v1alpha1.DNSRecord, listener gatewayapiv1.Listener, strategy v1alpha1.RoutingStrategy) error {
 	old := dnsRecord.DeepCopy()
 	gwListenerHost := string(*listener.Hostname)
 	var endpoints []*v1alpha1.Endpoint
@@ -193,7 +193,7 @@ func (dh *dnsHelper) getSimpleEndpoints(mcgTarget *dns.MultiClusterGatewayTarget
 
 	for _, cgwTarget := range mcgTarget.ClusterGatewayTargets {
 		for _, gwa := range cgwTarget.GatewayAddresses {
-			if *gwa.Type == gatewayv1beta1.IPAddressType {
+			if *gwa.Type == gatewayapiv1.IPAddressType {
 				ipValues = append(ipValues, gwa.Value)
 			} else {
 				hostValues = append(hostValues, gwa.Value)
@@ -276,7 +276,7 @@ func (dh *dnsHelper) getLoadBalancedEndpoints(mcgTarget *dns.MultiClusterGateway
 			var ipValues []string
 			var hostValues []string
 			for _, gwa := range cgwTarget.GatewayAddresses {
-				if *gwa.Type == gatewayv1beta1.IPAddressType {
+				if *gwa.Type == gatewayapiv1.IPAddressType {
 					ipValues = append(ipValues, gwa.Value)
 				} else {
 					hostValues = append(hostValues, gwa.Value)
@@ -349,7 +349,7 @@ func createOrUpdateEndpoint(dnsName string, targets v1alpha1.Targets, recordType
 }
 
 // removeDNSForDeletedListeners remove any DNSRecords that are associated with listeners that no longer exist in this gateway
-func (dh *dnsHelper) removeDNSForDeletedListeners(ctx context.Context, upstreamGateway *gatewayv1beta1.Gateway) error {
+func (dh *dnsHelper) removeDNSForDeletedListeners(ctx context.Context, upstreamGateway *gatewayapiv1.Gateway) error {
 	dnsList := &v1alpha1.DNSRecordList{}
 	//List all dns records that belong to this gateway
 	labelSelector := &client.MatchingLabels{
@@ -362,7 +362,7 @@ func (dh *dnsHelper) removeDNSForDeletedListeners(ctx context.Context, upstreamG
 	for _, dns := range dnsList.Items {
 		listenerExists := false
 		for _, listener := range upstreamGateway.Spec.Listeners {
-			if listener.Name == gatewayv1beta1.SectionName(dns.Labels[LabelListenerReference]) {
+			if listener.Name == gatewayapiv1.SectionName(dns.Labels[LabelListenerReference]) {
 				listenerExists = true
 				break
 			}
@@ -377,7 +377,7 @@ func (dh *dnsHelper) removeDNSForDeletedListeners(ctx context.Context, upstreamG
 
 }
 
-func (dh *dnsHelper) getManagedZoneForListener(ctx context.Context, ns string, listener gatewayv1beta1.Listener) (*v1alpha1.ManagedZone, error) {
+func (dh *dnsHelper) getManagedZoneForListener(ctx context.Context, ns string, listener gatewayapiv1.Listener) (*v1alpha1.ManagedZone, error) {
 	var managedZones v1alpha1.ManagedZoneList
 	if err := dh.List(ctx, &managedZones, client.InNamespace(ns)); err != nil {
 		log.FromContext(ctx).Error(err, "unable to list managed zones for gateway ", "in ns", ns)
@@ -392,7 +392,7 @@ func dnsRecordName(gatewayName, listenerName string) string {
 	return fmt.Sprintf("%s-%s", gatewayName, listenerName)
 }
 
-func (dh *dnsHelper) createDNSRecordForListener(ctx context.Context, gateway *gatewayv1beta1.Gateway, dnsPolicy *v1alpha1.DNSPolicy, mz *v1alpha1.ManagedZone, listener gatewayv1beta1.Listener) (*v1alpha1.DNSRecord, error) {
+func (dh *dnsHelper) createDNSRecordForListener(ctx context.Context, gateway *gatewayapiv1.Gateway, dnsPolicy *v1alpha1.DNSPolicy, mz *v1alpha1.ManagedZone, listener gatewayapiv1.Listener) (*v1alpha1.DNSRecord, error) {
 
 	log := log.FromContext(ctx)
 	log.Info("creating dns for gateway listener", "listener", listener.Name)
@@ -414,7 +414,7 @@ func (dh *dnsHelper) createDNSRecordForListener(ctx context.Context, gateway *ga
 	return dnsRecord, nil
 }
 
-func (dh *dnsHelper) deleteDNSRecordForListener(ctx context.Context, owner metav1.Object, listener gatewayv1beta1.Listener) error {
+func (dh *dnsHelper) deleteDNSRecordForListener(ctx context.Context, owner metav1.Object, listener gatewayapiv1.Listener) error {
 	recordName := dnsRecordName(owner.GetName(), string(listener.Name))
 	dnsRecord := v1alpha1.DNSRecord{
 		ObjectMeta: metav1.ObjectMeta{
@@ -429,7 +429,7 @@ func isWildCardHost(host string) bool {
 	return strings.HasPrefix(host, "*")
 }
 
-func (dh *dnsHelper) getDNSHealthCheckProbes(ctx context.Context, gateway *gatewayv1beta1.Gateway, dnsPolicy *v1alpha1.DNSPolicy) ([]*v1alpha1.DNSHealthCheckProbe, error) {
+func (dh *dnsHelper) getDNSHealthCheckProbes(ctx context.Context, gateway *gatewayapiv1.Gateway, dnsPolicy *v1alpha1.DNSPolicy) ([]*v1alpha1.DNSHealthCheckProbe, error) {
 	list := &v1alpha1.DNSHealthCheckProbeList{}
 	if err := dh.List(ctx, list, &client.ListOptions{
 		LabelSelector: labels.SelectorFromSet(commonDNSRecordLabels(client.ObjectKeyFromObject(gateway), client.ObjectKeyFromObject(dnsPolicy))),

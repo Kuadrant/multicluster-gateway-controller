@@ -35,7 +35,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
@@ -82,6 +82,14 @@ var _ = BeforeSuite(func() {
 		},
 		ErrorIfCRDPathMissing: true,
 	}
+	// Disable the CustomResourceValidationExpressions feature gate.
+	// Gateway API v1 CRDs include validation rules that, with this feature
+	// enabled, are estimated too costly, and therefore, the CRD fails
+	// to be registered. As a temporary solution, disable the feature.
+	// TODO:  Find a way to increase the runtime cost budget so that the
+	// feature can be re-enabled
+	testEnv.ControlPlane.APIServer = &envtest.APIServer{}
+	testEnv.ControlPlane.APIServer.Configure().Set("feature-gates", "CustomResourceValidationExpressions=false")
 
 	var err error
 	// cfg is defined in this file globally.
@@ -92,7 +100,10 @@ var _ = BeforeSuite(func() {
 	err = v1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
-	err = gatewayv1beta1.AddToScheme(scheme.Scheme)
+	err = gatewayapiv1.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = gatewayapiv1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	// err = certman.AddToScheme(scheme.Scheme)

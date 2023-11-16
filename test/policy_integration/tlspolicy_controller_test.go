@@ -15,7 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
@@ -27,7 +27,7 @@ import (
 var _ = Describe("TLSPolicy", Ordered, func() {
 
 	var testNamespace string
-	var gatewayClass *gatewayv1beta1.GatewayClass
+	var gatewayClass *gatewayapiv1.GatewayClass
 	var issuer *certmanv1.Issuer
 
 	BeforeAll(func() {
@@ -48,7 +48,7 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 	})
 
 	AfterEach(func() {
-		gatewayList := &gatewayv1beta1.GatewayList{}
+		gatewayList := &gatewayapiv1.GatewayList{}
 		Expect(k8sClient.List(ctx, gatewayList)).To(BeNil())
 		for _, gw := range gatewayList.Items {
 			err := k8sClient.Delete(ctx, &gw)
@@ -75,7 +75,7 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 	})
 
 	Context("invalid target", func() {
-		var gateway *gatewayv1beta1.Gateway
+		var gateway *gatewayapiv1.Gateway
 		var tlsPolicy *v1alpha1.TLSPolicy
 		gwClassName := "istio"
 
@@ -141,7 +141,7 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 	})
 
 	Context("istio gateway", func() {
-		var gateway *gatewayv1beta1.Gateway
+		var gateway *gatewayapiv1.Gateway
 		var tlsPolicy *v1alpha1.TLSPolicy
 		gwClassName := "istio"
 
@@ -173,7 +173,7 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 			})
 			It("should not be programmed", func() {
 				Consistently(func() error {
-					freshGW := &gatewayv1beta1.Gateway{}
+					freshGW := &gatewayapiv1.Gateway{}
 					err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, freshGW)
 					if err != nil {
 						return err
@@ -182,7 +182,7 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 						return nil
 					}
 					for _, condition := range freshGW.Status.Conditions {
-						if condition.Type == string(gatewayv1beta1.GatewayConditionProgrammed) {
+						if condition.Type == string(gatewayapiv1.GatewayConditionProgrammed) {
 							if strings.ToLower(string(condition.Status)) == "true" {
 								return fmt.Errorf("expected programmed status false, got true")
 							}
@@ -223,7 +223,7 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 			})
 
 			It("should set gateway back reference", func() {
-				existingGateway := &gatewayv1beta1.Gateway{}
+				existingGateway := &gatewayapiv1.Gateway{}
 				policyBackRefValue := testNamespace + "/" + tlsPolicy.Name
 				refs, _ := json.Marshal([]client.ObjectKey{{Name: tlsPolicy.Name, Namespace: testNamespace}})
 				policiesBackRefValue := string(refs)
@@ -349,11 +349,11 @@ var _ = Describe("TLSPolicy", Ordered, func() {
 			})
 
 			It("should create certificate when TLS is present", func() {
-				certNS := gatewayv1beta1.Namespace(testNamespace)
+				certNS := gatewayapiv1.Namespace(testNamespace)
 				patch := client.MergeFrom(gateway.DeepCopy())
-				gateway.Spec.Listeners[0].TLS = &gatewayv1beta1.GatewayTLSConfig{
-					Mode: Pointer(gatewayv1beta1.TLSModeTerminate),
-					CertificateRefs: []gatewayv1beta1.SecretObjectReference{
+				gateway.Spec.Listeners[0].TLS = &gatewayapiv1.GatewayTLSConfig{
+					Mode: Pointer(gatewayapiv1.TLSModeTerminate),
+					CertificateRefs: []gatewayapiv1.SecretObjectReference{
 						{
 							Name:      "test-tls-secret",
 							Namespace: &certNS,

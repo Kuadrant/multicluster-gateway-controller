@@ -27,7 +27,7 @@ To define a Gateway and have it managed by the multi-cluster gateway controller,
 
 ```bash
 kubectl --context kind-mgc-control-plane apply -f - <<EOF
-apiVersion: gateway.networking.k8s.io/v1beta1
+apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
   name: prod-web

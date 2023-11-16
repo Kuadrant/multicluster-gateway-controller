@@ -15,7 +15,7 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
@@ -26,11 +26,11 @@ import (
 
 var _ = Describe("DNSPolicy", func() {
 
-	var gatewayClass *gatewayv1beta1.GatewayClass
+	var gatewayClass *gatewayapiv1.GatewayClass
 	var managedZone *v1alpha1.ManagedZone
 	var testNamespace string
 	var dnsPolicyBuilder *testutil.DNSPolicyBuilder
-	var gateway *gatewayv1beta1.Gateway
+	var gateway *gatewayapiv1.Gateway
 	var dnsPolicy *v1alpha1.DNSPolicy
 	var recordName, wildcardRecordName string
 
@@ -184,7 +184,7 @@ var _ = Describe("DNSPolicy", func() {
 			policiesBackRefValue := string(refs)
 
 			Eventually(func(g Gomega) {
-				gw := &gatewayv1beta1.Gateway{}
+				gw := &gatewayapiv1.Gateway{}
 				err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: testNamespace}, gw)
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(gw.Annotations).To(HaveKeyWithValue(DNSPolicyBackRefAnnotation, policyBackRefValue))
@@ -226,7 +226,7 @@ var _ = Describe("DNSPolicy", func() {
 				err := k8sClient.Get(ctx, client.ObjectKeyFromObject(gateway), gateway)
 				Expect(err).ShouldNot(HaveOccurred())
 
-				gateway.Status.Addresses = []gatewayv1beta1.GatewayAddress{
+				gateway.Status.Addresses = []gatewayapiv1.GatewayStatusAddress{
 					{
 						Type:  testutil.Pointer(mgcgateway.MultiClusterIPAddressType),
 						Value: TestClusterNameOne + "/" + TestIPAddressOne,
@@ -236,28 +236,28 @@ var _ = Describe("DNSPolicy", func() {
 						Value: TestClusterNameTwo + "/" + TestIPAddressTwo,
 					},
 				}
-				gateway.Status.Listeners = []gatewayv1beta1.ListenerStatus{
+				gateway.Status.Listeners = []gatewayapiv1.ListenerStatus{
 					{
 						Name:           TestClusterNameOne + "." + TestListenerNameOne,
-						SupportedKinds: []gatewayv1beta1.RouteGroupKind{},
+						SupportedKinds: []gatewayapiv1.RouteGroupKind{},
 						AttachedRoutes: 1,
 						Conditions:     []metav1.Condition{},
 					},
 					{
 						Name:           TestClusterNameTwo + "." + TestListenerNameOne,
-						SupportedKinds: []gatewayv1beta1.RouteGroupKind{},
+						SupportedKinds: []gatewayapiv1.RouteGroupKind{},
 						AttachedRoutes: 1,
 						Conditions:     []metav1.Condition{},
 					},
 					{
 						Name:           TestClusterNameOne + "." + TestListenerNameWildcard,
-						SupportedKinds: []gatewayv1beta1.RouteGroupKind{},
+						SupportedKinds: []gatewayapiv1.RouteGroupKind{},
 						AttachedRoutes: 1,
 						Conditions:     []metav1.Condition{},
 					},
 					{
 						Name:           TestClusterNameTwo + "." + TestListenerNameWildcard,
-						SupportedKinds: []gatewayv1beta1.RouteGroupKind{},
+						SupportedKinds: []gatewayapiv1.RouteGroupKind{},
 						AttachedRoutes: 1,
 						Conditions:     []metav1.Condition{},
 					},
@@ -311,11 +311,11 @@ var _ = Describe("DNSPolicy", func() {
 			//get the gateway and remove the listeners
 
 			Eventually(func() error {
-				existingGateway := &gatewayv1beta1.Gateway{}
+				existingGateway := &gatewayapiv1.Gateway{}
 				if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(gateway), existingGateway); err != nil {
 					return err
 				}
-				newListeners := []gatewayv1beta1.Listener{}
+				newListeners := []gatewayapiv1.Listener{}
 				for _, existing := range existingGateway.Spec.Listeners {
 					if existing.Name == TestListenerNameWildcard {
 						newListeners = append(newListeners, existing)

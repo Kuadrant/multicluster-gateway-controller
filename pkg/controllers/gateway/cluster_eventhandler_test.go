@@ -14,7 +14,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/clusterSecret"
 	testutil "github.com/Kuadrant/multicluster-gateway-controller/test/util"
@@ -35,14 +35,14 @@ func TestClusterEventHandler(t *testing.T) {
 	cases := []struct {
 		name             string
 		scheme           *runtime.Scheme
-		gateways         []gatewayv1beta1.Gateway
+		gateways         []gatewayapiv1.Gateway
 		secret           corev1.Secret
-		enqueuedGateways []gatewayv1beta1.Gateway
+		enqueuedGateways []gatewayapiv1.Gateway
 	}{
 		{
 			name:   "Queued one",
 			scheme: testutil.GetValidTestScheme(),
-			gateways: []gatewayv1beta1.Gateway{
+			gateways: []gatewayapiv1.Gateway{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      testutil.GatewayClassName,
@@ -51,16 +51,16 @@ func TestClusterEventHandler(t *testing.T) {
 							GatewayClusterLabelSelectorAnnotation: "type=test",
 						},
 					},
-					Spec: gatewayv1beta1.GatewaySpec{
-						Listeners: []gatewayv1beta1.Listener{
+					Spec: gatewayapiv1.GatewaySpec{
+						Listeners: []gatewayapiv1.Listener{
 							{
-								Hostname: testutil.Pointer(gatewayv1beta1.Hostname(testutil.ValidTestHostname)),
-								Protocol: gatewayv1beta1.HTTPSProtocolType,
-								TLS: &gatewayv1beta1.GatewayTLSConfig{
-									CertificateRefs: []gatewayv1beta1.SecretObjectReference{
+								Hostname: testutil.Pointer(gatewayapiv1.Hostname(testutil.ValidTestHostname)),
+								Protocol: gatewayapiv1.HTTPSProtocolType,
+								TLS: &gatewayapiv1.GatewayTLSConfig{
+									CertificateRefs: []gatewayapiv1.SecretObjectReference{
 										{
-											Name:      gatewayv1beta1.ObjectName(testutil.ValidTestHostname),
-											Namespace: testutil.Pointer(gatewayv1beta1.Namespace(testutil.Namespace)),
+											Name:      gatewayapiv1.ObjectName(testutil.ValidTestHostname),
+											Namespace: testutil.Pointer(gatewayapiv1.Namespace(testutil.Namespace)),
 										},
 									},
 								},
@@ -91,7 +91,7 @@ func TestClusterEventHandler(t *testing.T) {
 					"config": []byte(tlsConfig),
 				},
 			},
-			enqueuedGateways: []gatewayv1beta1.Gateway{
+			enqueuedGateways: []gatewayapiv1.Gateway{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      testutil.GatewayClassName,
@@ -110,7 +110,7 @@ func TestClusterEventHandler(t *testing.T) {
 					Namespace: testutil.Namespace,
 				},
 			},
-			enqueuedGateways: make([]gatewayv1beta1.Gateway, 0),
+			enqueuedGateways: make([]gatewayapiv1.Gateway, 0),
 		},
 		{
 			name:     "Not enqueued. Error parsing cluster config",
@@ -135,7 +135,7 @@ func TestClusterEventHandler(t *testing.T) {
 				`),
 				},
 			},
-			enqueuedGateways: make([]gatewayv1beta1.Gateway, 0),
+			enqueuedGateways: make([]gatewayapiv1.Gateway, 0),
 		},
 		{
 			name:     "Not enqueued. Error listing gateways",
@@ -154,14 +154,14 @@ func TestClusterEventHandler(t *testing.T) {
 					"config": []byte(tlsConfig),
 				},
 			},
-			enqueuedGateways: make([]gatewayv1beta1.Gateway, 0),
+			enqueuedGateways: make([]gatewayapiv1.Gateway, 0),
 		},
 	}
 
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
 			client := fake.NewClientBuilder().WithScheme(testCase.scheme).WithLists(
-				&gatewayv1beta1.GatewayList{
+				&gatewayapiv1.GatewayList{
 					Items: testCase.gateways,
 				},
 			).Build()
@@ -195,7 +195,7 @@ func (q *TestQueue) Add(item interface{}) {
 	q.enqueuedRequests[req.NamespacedName] = true
 }
 
-func (q *TestQueue) MustHaveEnqueued(gateways []gatewayv1beta1.Gateway) {
+func (q *TestQueue) MustHaveEnqueued(gateways []gatewayapiv1.Gateway) {
 	enqueuedCopy := map[types.NamespacedName]bool{}
 	for obj := range q.enqueuedRequests {
 		enqueuedCopy[obj] = true
@@ -221,8 +221,8 @@ func (q *TestQueue) MustHaveEnqueued(gateways []gatewayv1beta1.Gateway) {
 	}
 }
 
-func testGateway() []gatewayv1beta1.Gateway {
-	return []gatewayv1beta1.Gateway{
+func testGateway() []gatewayapiv1.Gateway {
+	return []gatewayapiv1.Gateway{
 		{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      testutil.GatewayClassName,

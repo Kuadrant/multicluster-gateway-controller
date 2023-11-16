@@ -33,7 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	crlog "sigs.k8s.io/controller-runtime/pkg/log"
-	gatewayapiv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/kuadrant/kuadrant-operator/pkg/reconcilers"
 
@@ -202,7 +202,7 @@ func (r *DNSPolicyReconciler) deleteResources(ctx context.Context, dnsPolicy *v1
 
 	// remove direct back ref
 	if targetNetworkObject != nil {
-		if err := r.DeleteTargetBackReference(ctx, client.ObjectKeyFromObject(dnsPolicy), targetNetworkObject, DNSPolicyBackRefAnnotation); err != nil {
+		if err := r.DeleteTargetBackReference(ctx, targetNetworkObject, DNSPolicyBackRefAnnotation); err != nil {
 			return err
 		}
 	}
@@ -309,7 +309,7 @@ func (r *DNSPolicyReconciler) SetupWithManager(mgr ctrl.Manager, ocmHub bool) er
 	ctrlr := ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.DNSPolicy{}).
 		Watches(
-			&gatewayapiv1beta1.Gateway{},
+			&gatewayapiv1.Gateway{},
 			handler.EnqueueRequestsFromMapFunc(gatewayEventMapper.MapToPolicy),
 		).
 		Watches(

@@ -18,7 +18,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	"sigs.k8s.io/gateway-api/apis/v1beta1"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/placement"
 )
@@ -35,8 +35,8 @@ func init() {
 func TestGetAddresses(t *testing.T) {
 	address1 := "172.16.0.1"
 	address2 := "172.16.0.2"
-	ipAddressType := v1beta1.IPAddressType
-	singleAddressJson, err := json.Marshal([]v1beta1.GatewayAddress{
+	ipAddressType := gatewayapiv1.IPAddressType
+	singleAddressJson, err := json.Marshal([]gatewayapiv1.GatewayAddress{
 		{
 			Type:  &ipAddressType,
 			Value: address1,
@@ -46,7 +46,7 @@ func TestGetAddresses(t *testing.T) {
 		t.Fatal(err)
 	}
 	singleAddressJsonString := string(singleAddressJson)
-	multiAddressesJson, err := json.Marshal([]v1beta1.GatewayAddress{
+	multiAddressesJson, err := json.Marshal([]gatewayapiv1.GatewayAddress{
 		{
 			Type:  &ipAddressType,
 			Value: address1,
@@ -63,18 +63,18 @@ func TestGetAddresses(t *testing.T) {
 
 	testCases := []struct {
 		Name              string
-		Gateway           *v1beta1.Gateway
+		Gateway           *gatewayapiv1.Gateway
 		DownstreamCluster string
 		ManifestWork      func(downstream, name string) *workv1.ManifestWork
-		Assert            func(t *testing.T, err error, address []v1beta1.GatewayAddress)
+		Assert            func(t *testing.T, err error, address []gatewayapiv1.GatewayAddress)
 	}{
 		{
 			Name:              "test get addresses returns remote ip when status present",
 			DownstreamCluster: "test",
-			Gateway: &v1beta1.Gateway{
+			Gateway: &gatewayapiv1.Gateway{
 				TypeMeta: v1.TypeMeta{
 					Kind:       "Gateway",
-					APIVersion: "gateway.networking.k8s.io/v1beta1",
+					APIVersion: "gateway.networking.k8s.io/gatewayapiv1",
 				},
 				ObjectMeta: v1.ObjectMeta{
 					Name: "test",
@@ -108,7 +108,7 @@ func TestGetAddresses(t *testing.T) {
 					},
 				}
 			},
-			Assert: func(t *testing.T, err error, address []v1beta1.GatewayAddress) {
+			Assert: func(t *testing.T, err error, address []gatewayapiv1.GatewayAddress) {
 				if err != nil {
 					t.Fatalf("did not expect an error but got %s", err)
 				}
@@ -123,10 +123,10 @@ func TestGetAddresses(t *testing.T) {
 		{
 			Name:              "test get addresses returns multiple addresses",
 			DownstreamCluster: "test",
-			Gateway: &v1beta1.Gateway{
+			Gateway: &gatewayapiv1.Gateway{
 				TypeMeta: v1.TypeMeta{
 					Kind:       "Gateway",
-					APIVersion: "gateway.networking.k8s.io/v1beta1",
+					APIVersion: "gateway.networking.k8s.io/gatewayapiv1",
 				},
 				ObjectMeta: v1.ObjectMeta{
 					Name: "test",
@@ -160,7 +160,7 @@ func TestGetAddresses(t *testing.T) {
 					},
 				}
 			},
-			Assert: func(t *testing.T, err error, address []v1beta1.GatewayAddress) {
+			Assert: func(t *testing.T, err error, address []gatewayapiv1.GatewayAddress) {
 				if err != nil {
 					t.Fatalf("did not expect an error but got %s", err)
 				}
@@ -178,10 +178,10 @@ func TestGetAddresses(t *testing.T) {
 		{
 			Name:              "test get addresses returns none when no status present",
 			DownstreamCluster: "test",
-			Gateway: &v1beta1.Gateway{
+			Gateway: &gatewayapiv1.Gateway{
 				TypeMeta: v1.TypeMeta{
 					Kind:       "Gateway",
-					APIVersion: "gateway.networking.k8s.io/v1beta1",
+					APIVersion: "gateway.networking.k8s.io/gatewayapiv1",
 				},
 				ObjectMeta: v1.ObjectMeta{
 					Name: "test",
@@ -198,7 +198,7 @@ func TestGetAddresses(t *testing.T) {
 					},
 				}
 			},
-			Assert: func(t *testing.T, err error, address []v1beta1.GatewayAddress) {
+			Assert: func(t *testing.T, err error, address []gatewayapiv1.GatewayAddress) {
 				if err != nil {
 					t.Fatalf("expected no error but got one %s", err)
 				}
@@ -223,7 +223,7 @@ func TestGetAddresses(t *testing.T) {
 func TestListenerTotalAttachedRoutes(t *testing.T) {
 	testCases := []struct {
 		Name               string
-		Gateway            *v1beta1.Gateway
+		Gateway            *gatewayapiv1.Gateway
 		DownstreamCluster  string
 		AttachedRouteCount int64
 		ManifestWork       func(downstream, name string, routes int64) *workv1.ManifestWork
@@ -233,10 +233,10 @@ func TestListenerTotalAttachedRoutes(t *testing.T) {
 			Name:               "test total attached routes return correct number",
 			DownstreamCluster:  "test",
 			AttachedRouteCount: 1,
-			Gateway: &v1beta1.Gateway{
+			Gateway: &gatewayapiv1.Gateway{
 				TypeMeta: v1.TypeMeta{
 					Kind:       "Gateway",
-					APIVersion: "gateway.networking.k8s.io/v1beta1",
+					APIVersion: "gateway.networking.k8s.io/gatewayapiv1",
 				},
 				ObjectMeta: v1.ObjectMeta{
 					Name: "test",
@@ -285,10 +285,10 @@ func TestListenerTotalAttachedRoutes(t *testing.T) {
 			Name:               "test total attached routes return 0 and error when no status",
 			DownstreamCluster:  "test",
 			AttachedRouteCount: 0,
-			Gateway: &v1beta1.Gateway{
+			Gateway: &gatewayapiv1.Gateway{
 				TypeMeta: v1.TypeMeta{
 					Kind:       "Gateway",
-					APIVersion: "gateway.networking.k8s.io/v1beta1",
+					APIVersion: "gateway.networking.k8s.io/gatewayapiv1",
 				},
 				ObjectMeta: v1.ObjectMeta{
 					Name: "test",
@@ -334,7 +334,7 @@ func TestGetPlacedClusters(t *testing.T) {
 	testCases := []struct {
 		Name               string
 		ManifestWork       func(downstream, name string) *workv1.ManifestWork
-		Gateway            *v1beta1.Gateway
+		Gateway            *gatewayapiv1.Gateway
 		DownstreamClusters []string
 		Assert             func(t *testing.T, err error, cluster sets.Set[string], downstreams []string)
 	}{
@@ -359,10 +359,10 @@ func TestGetPlacedClusters(t *testing.T) {
 					},
 				}
 			},
-			Gateway: &v1beta1.Gateway{
+			Gateway: &gatewayapiv1.Gateway{
 				TypeMeta: v1.TypeMeta{
 					Kind:       "Gateway",
-					APIVersion: "gateway.networking.k8s.io/v1beta1",
+					APIVersion: "gateway.networking.k8s.io/gatewayapiv1",
 				},
 				ObjectMeta: v1.ObjectMeta{
 					Name: "test",
@@ -394,10 +394,10 @@ func TestGetPlacedClusters(t *testing.T) {
 					},
 				}
 			},
-			Gateway: &v1beta1.Gateway{
+			Gateway: &gatewayapiv1.Gateway{
 				TypeMeta: v1.TypeMeta{
 					Kind:       "Gateway",
-					APIVersion: "gateway.networking.k8s.io/v1beta1",
+					APIVersion: "gateway.networking.k8s.io/gatewayapiv1",
 				},
 				ObjectMeta: v1.ObjectMeta{
 					Name: "test",
@@ -429,10 +429,10 @@ func TestGetPlacedClusters(t *testing.T) {
 					},
 				}
 			},
-			Gateway: &v1beta1.Gateway{
+			Gateway: &gatewayapiv1.Gateway{
 				TypeMeta: v1.TypeMeta{
 					Kind:       "Gateway",
-					APIVersion: "gateway.networking.k8s.io/v1beta1",
+					APIVersion: "gateway.networking.k8s.io/gatewayapiv1",
 				},
 				ObjectMeta: v1.ObjectMeta{
 					Name: "test",
@@ -469,14 +469,14 @@ func TestGetClusters(t *testing.T) {
 	testCases := []struct {
 		Name              string
 		PlacementDecision func(clusters sets.Set[string]) *pd.PlacementDecision
-		Gateway           *v1beta1.Gateway
+		Gateway           *gatewayapiv1.Gateway
 		Clusters          sets.Set[string]
 		Assert            func(t *testing.T, err error, clusters, expected sets.Set[string])
 	}{
 		{
 			Name:     "test all targeted clusters returned",
 			Clusters: sets.Set[string](sets.NewString("c1", "c2")),
-			Gateway: &v1beta1.Gateway{
+			Gateway: &gatewayapiv1.Gateway{
 				ObjectMeta: v1.ObjectMeta{
 					Labels:    map[string]string{placement.OCMPlacementLabel: "test"},
 					Namespace: "test",
@@ -512,7 +512,7 @@ func TestGetClusters(t *testing.T) {
 		{
 			Name:     "test no clusters returned when no  matching placement decision",
 			Clusters: sets.Set[string](sets.NewString()),
-			Gateway: &v1beta1.Gateway{
+			Gateway: &gatewayapiv1.Gateway{
 				ObjectMeta: v1.ObjectMeta{
 					Labels:    map[string]string{placement.OCMPlacementLabel: "test"},
 					Namespace: "test",
@@ -620,8 +620,8 @@ func TestDeschedule(t *testing.T) {
 
 	testCases := []struct {
 		Name              string
-		Upstream          *v1beta1.Gateway
-		Downstream        *v1beta1.Gateway
+		Upstream          *gatewayapiv1.Gateway
+		Downstream        *gatewayapiv1.Gateway
 		TLSSecrets        []v1.Object
 		PlacementDecision func(clusters sets.Set[string]) *pd.PlacementDecision
 		ManifestWork      func(downstream, name string) *workv1.ManifestWork
@@ -633,7 +633,7 @@ func TestDeschedule(t *testing.T) {
 	}{
 		{
 			Name: "test gateway created in correct clusters",
-			Upstream: &v1beta1.Gateway{
+			Upstream: &gatewayapiv1.Gateway{
 				ObjectMeta: v1.ObjectMeta{
 					Labels:    map[string]string{placement.OCMPlacementLabel: "test"},
 					Namespace: "test",
@@ -641,17 +641,17 @@ func TestDeschedule(t *testing.T) {
 				},
 				TypeMeta: v1.TypeMeta{
 					Kind:       "Gateway",
-					APIVersion: "gateway.networking.k8s.io/v1beta1",
+					APIVersion: "gateway.networking.k8s.io/gatewayapiv1",
 				},
 			},
-			Downstream: &v1beta1.Gateway{
+			Downstream: &gatewayapiv1.Gateway{
 				ObjectMeta: v1.ObjectMeta{
 					Namespace: "test",
 					Name:      "test",
 				},
 				TypeMeta: v1.TypeMeta{
 					Kind:       "Gateway",
-					APIVersion: "gateway.networking.k8s.io/v1beta1",
+					APIVersion: "gateway.networking.k8s.io/gatewayapiv1",
 				},
 			},
 			Existing:          sets.Set[string](sets.NewString()),
@@ -692,7 +692,7 @@ func TestDeschedule(t *testing.T) {
 				t.Fatalf("did not expect an error listing manifests but got one %s", err)
 			}
 
-			// multiply by 2 as we expect and rbac and gatway manifest
+			// multiply by 2 as we expect and rbac and gateway manifest
 			if len(l.Items) != testCase.Clusters.Len()*2 {
 				t.Fatalf("expected there to be %v manifests but got %v", testCase.Clusters.Len()*2, len(l.Items))
 			}

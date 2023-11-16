@@ -4,8 +4,8 @@ package testutil
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayapiv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 )
@@ -50,11 +50,11 @@ func (t *DNSPolicyBuilder) WithRoutingStrategy(strategy v1alpha1.RoutingStrategy
 //TargetRef
 
 func (t *DNSPolicyBuilder) WithTargetGateway(gwName string) *DNSPolicyBuilder {
-	typedNamespace := gatewayv1beta1.Namespace(t.GetNamespace())
+	typedNamespace := gatewayapiv1.Namespace(t.GetNamespace())
 	return t.WithTargetRef(gatewayapiv1alpha2.PolicyTargetReference{
 		Group:     "gateway.networking.k8s.io",
 		Kind:      "Gateway",
-		Name:      gatewayv1beta1.ObjectName(gwName),
+		Name:      gatewayapiv1.ObjectName(gwName),
 		Namespace: &typedNamespace,
 	})
 }

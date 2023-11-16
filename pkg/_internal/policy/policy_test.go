@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayapiv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/kuadrant/kuadrant-operator/pkg/common"
 
@@ -28,7 +28,6 @@ func TestGetTargetRefValueFromPolicy(t *testing.T) {
 			name: "should use target namespace",
 			args: args{
 				policy: &v1alpha1.DNSPolicy{
-
 					TypeMeta: metav1.TypeMeta{},
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test-policy",
@@ -59,7 +58,7 @@ func TestGetTargetRefValueFromPolicy(t *testing.T) {
 							Group:     "gateway.networking.k8s.io",
 							Kind:      "Gateway",
 							Name:      "test-gateway",
-							Namespace: testutil.Pointer(gatewayv1beta1.Namespace("test-gateway-ns")),
+							Namespace: (*gatewayapiv1.Namespace)(testutil.Pointer("test-gateway-ns")),
 						},
 					},
 				},

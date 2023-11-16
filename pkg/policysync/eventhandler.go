@@ -10,7 +10,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
 type ResourceEventHandler struct {
@@ -18,7 +18,7 @@ type ResourceEventHandler struct {
 	GVR           schema.GroupVersionResource
 	Client        client.Client
 	DynamicClient dynamic.Interface
-	Gateway       *gatewayv1beta1.Gateway
+	Gateway       *gatewayapiv1.Gateway
 
 	Syncer Syncer
 }

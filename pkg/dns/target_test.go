@@ -9,8 +9,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/gateway-api/apis/v1alpha2"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	testutil "github.com/Kuadrant/multicluster-gateway-controller/test/util"
@@ -132,11 +131,11 @@ func TestNewClusterGatewayTarget(t *testing.T) {
 
 func TestNewMultiClusterGatewayTarget(t *testing.T) {
 	type args struct {
-		gateway         *gatewayv1beta1.Gateway
+		gateway         *gatewayapiv1.Gateway
 		clusterGateways []ClusterGateway
 		loadBalancing   *v1alpha1.LoadBalancingSpec
 	}
-	gateway := &gatewayv1beta1.Gateway{
+	gateway := &gatewayapiv1.Gateway{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      "testgw",
 			Namespace: "testns",
@@ -590,10 +589,10 @@ func TestClusterGatewayTarget_setWeight(t *testing.T) {
 	}
 }
 
-func buildGatewayAddress(value string) []gatewayv1beta1.GatewayAddress {
-	return []gatewayv1beta1.GatewayAddress{
+func buildGatewayAddress(value string) []gatewayapiv1.GatewayAddress {
+	return []gatewayapiv1.GatewayAddress{
 		{
-			Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+			Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
 			Value: value,
 		},
 	}
@@ -601,13 +600,13 @@ func buildGatewayAddress(value string) []gatewayv1beta1.GatewayAddress {
 
 func TestMultiClusterGatewayTarget_RemoveUnhealthyGatewayAddresses(t *testing.T) {
 	type fields struct {
-		Gateway               *gatewayv1beta1.Gateway
+		Gateway               *gatewayapiv1.Gateway
 		ClusterGatewayTargets []ClusterGatewayTarget
 		LoadBalancing         *v1alpha1.LoadBalancingSpec
 	}
 	type args struct {
 		probes   []*v1alpha1.DNSHealthCheckProbe
-		listener gatewayv1beta1.Listener
+		listener gatewayapiv1.Listener
 	}
 	tests := []struct {
 		name   string
@@ -621,20 +620,20 @@ func TestMultiClusterGatewayTarget_RemoveUnhealthyGatewayAddresses(t *testing.T)
 				ClusterGatewayTargets: []ClusterGatewayTarget{
 					{
 						ClusterGateway: &ClusterGateway{
-							GatewayAddresses: []v1alpha2.GatewayAddress{
+							GatewayAddresses: []gatewayapiv1.GatewayAddress{
 								{
-									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+									Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
 									Value: "1.1.1.1",
 								},
 								{
-									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+									Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
 									Value: "2.2.2.2",
 								},
 							},
 						},
 					},
 				},
-				Gateway: &gatewayv1beta1.Gateway{
+				Gateway: &gatewayapiv1.Gateway{
 					ObjectMeta: v1.ObjectMeta{Name: "testgw"},
 				},
 			},
@@ -667,18 +666,18 @@ func TestMultiClusterGatewayTarget_RemoveUnhealthyGatewayAddresses(t *testing.T)
 						},
 					},
 				},
-				listener: gatewayv1beta1.Listener{Name: "test"},
+				listener: gatewayapiv1.Listener{Name: "test"},
 			},
 			want: []ClusterGatewayTarget{
 				{
 					ClusterGateway: &ClusterGateway{
-						GatewayAddresses: []v1alpha2.GatewayAddress{
+						GatewayAddresses: []gatewayapiv1.GatewayAddress{
 							{
-								Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+								Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
 								Value: "1.1.1.1",
 							},
 							{
-								Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+								Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
 								Value: "2.2.2.2",
 							},
 						},
@@ -692,20 +691,20 @@ func TestMultiClusterGatewayTarget_RemoveUnhealthyGatewayAddresses(t *testing.T)
 				ClusterGatewayTargets: []ClusterGatewayTarget{
 					{
 						ClusterGateway: &ClusterGateway{
-							GatewayAddresses: []v1alpha2.GatewayAddress{
+							GatewayAddresses: []gatewayapiv1.GatewayAddress{
 								{
-									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+									Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
 									Value: "1.1.1.1",
 								},
 								{
-									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+									Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
 									Value: "2.2.2.2",
 								},
 							},
 						},
 					},
 				},
-				Gateway: &gatewayv1beta1.Gateway{
+				Gateway: &gatewayapiv1.Gateway{
 					ObjectMeta: v1.ObjectMeta{Name: "testgw"},
 				},
 			},
@@ -738,14 +737,14 @@ func TestMultiClusterGatewayTarget_RemoveUnhealthyGatewayAddresses(t *testing.T)
 						},
 					},
 				},
-				listener: gatewayv1beta1.Listener{Name: "test"},
+				listener: gatewayapiv1.Listener{Name: "test"},
 			},
 			want: []ClusterGatewayTarget{
 				{
 					ClusterGateway: &ClusterGateway{
-						GatewayAddresses: []v1alpha2.GatewayAddress{
+						GatewayAddresses: []gatewayapiv1.GatewayAddress{
 							{
-								Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+								Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
 								Value: "2.2.2.2",
 							},
 						},
@@ -759,20 +758,20 @@ func TestMultiClusterGatewayTarget_RemoveUnhealthyGatewayAddresses(t *testing.T)
 				ClusterGatewayTargets: []ClusterGatewayTarget{
 					{
 						ClusterGateway: &ClusterGateway{
-							GatewayAddresses: []v1alpha2.GatewayAddress{
+							GatewayAddresses: []gatewayapiv1.GatewayAddress{
 								{
-									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+									Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
 									Value: "1.1.1.1",
 								},
 								{
-									Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+									Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
 									Value: "2.2.2.2",
 								},
 							},
 						},
 					},
 				},
-				Gateway: &gatewayv1beta1.Gateway{
+				Gateway: &gatewayapiv1.Gateway{
 					ObjectMeta: v1.ObjectMeta{Name: "testgw"},
 				},
 			},
@@ -805,18 +804,18 @@ func TestMultiClusterGatewayTarget_RemoveUnhealthyGatewayAddresses(t *testing.T)
 						},
 					},
 				},
-				listener: gatewayv1beta1.Listener{Name: "test"},
+				listener: gatewayapiv1.Listener{Name: "test"},
 			},
 			want: []ClusterGatewayTarget{
 				{
 					ClusterGateway: &ClusterGateway{
-						GatewayAddresses: []v1alpha2.GatewayAddress{
+						GatewayAddresses: []gatewayapiv1.GatewayAddress{
 							{
-								Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+								Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
 								Value: "1.1.1.1",
 							},
 							{
-								Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+								Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
 								Value: "2.2.2.2",
 							},
 						},

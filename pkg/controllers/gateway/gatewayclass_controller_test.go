@@ -11,7 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/test/util"
 )
@@ -33,16 +33,16 @@ func TestGatewayClassReconciler_Reconcile(t *testing.T) {
 			name: "Gateway class already accepted",
 			fields: fields{
 				Client: testutil.GetValidTestClient(
-					&gatewayv1beta1.GatewayClassList{
-						Items: []gatewayv1beta1.GatewayClass{
+					&gatewayapiv1.GatewayClassList{
+						Items: []gatewayapiv1.GatewayClass{
 							{
 								ObjectMeta: v1.ObjectMeta{
 									Name: testutil.DummyCRName,
 								},
-								Status: gatewayv1beta1.GatewayClassStatus{
+								Status: gatewayapiv1.GatewayClassStatus{
 									Conditions: []v1.Condition{
 										{
-											Type:   string(gatewayv1beta1.GatewayConditionAccepted),
+											Type:   string(gatewayapiv1.GatewayConditionAccepted),
 											Status: v1.ConditionTrue,
 										},
 									},
@@ -61,18 +61,18 @@ func TestGatewayClassReconciler_Reconcile(t *testing.T) {
 			name: "Gateway class being accepted",
 			fields: fields{
 				Client: testutil.GetValidTestClient(
-					&gatewayv1beta1.GatewayClassList{
-						Items: []gatewayv1beta1.GatewayClass{
+					&gatewayapiv1.GatewayClassList{
+						Items: []gatewayapiv1.GatewayClass{
 							{
 								ObjectMeta: v1.ObjectMeta{
 									Name: getSupportedClasses()[0],
 								},
-								Spec: gatewayv1beta1.GatewayClassSpec{
-									ParametersRef: &gatewayv1beta1.ParametersReference{
+								Spec: gatewayapiv1.GatewayClassSpec{
+									ParametersRef: &gatewayapiv1.ParametersReference{
 										Group:     "",
 										Kind:      "ConfigMap",
 										Name:      "test-params",
-										Namespace: testutil.Pointer(gatewayv1beta1.Namespace(testutil.Namespace)),
+										Namespace: testutil.Pointer(gatewayapiv1.Namespace(testutil.Namespace)),
 									},
 								},
 							},
@@ -106,8 +106,8 @@ func TestGatewayClassReconciler_Reconcile(t *testing.T) {
 			name: "Unsupported class name",
 			fields: fields{
 				Client: testutil.GetValidTestClient(
-					&gatewayv1beta1.GatewayClassList{
-						Items: []gatewayv1beta1.GatewayClass{
+					&gatewayapiv1.GatewayClassList{
+						Items: []gatewayapiv1.GatewayClass{
 							{
 								ObjectMeta: v1.ObjectMeta{
 									Name: testutil.DummyCRName,
@@ -126,18 +126,18 @@ func TestGatewayClassReconciler_Reconcile(t *testing.T) {
 			name: "Invalid Parameters in config map",
 			fields: fields{
 				Client: testutil.GetValidTestClient(
-					&gatewayv1beta1.GatewayClassList{
-						Items: []gatewayv1beta1.GatewayClass{
+					&gatewayapiv1.GatewayClassList{
+						Items: []gatewayapiv1.GatewayClass{
 							{
 								ObjectMeta: v1.ObjectMeta{
 									Name: getSupportedClasses()[0],
 								},
-								Spec: gatewayv1beta1.GatewayClassSpec{
-									ParametersRef: &gatewayv1beta1.ParametersReference{
+								Spec: gatewayapiv1.GatewayClassSpec{
+									ParametersRef: &gatewayapiv1.ParametersReference{
 										Group:     "",
 										Kind:      "ConfigMap",
 										Name:      "test-params",
-										Namespace: testutil.Pointer(gatewayv1beta1.Namespace("boop-namespace")),
+										Namespace: testutil.Pointer(gatewayapiv1.Namespace("boop-namespace")),
 									},
 								},
 							},
@@ -171,8 +171,8 @@ func TestGatewayClassReconciler_Reconcile(t *testing.T) {
 			name: "Gateway class not found",
 			fields: fields{
 				Client: testutil.GetValidTestClient(
-					&gatewayv1beta1.GatewayClassList{
-						Items: []gatewayv1beta1.GatewayClass{
+					&gatewayapiv1.GatewayClassList{
+						Items: []gatewayapiv1.GatewayClass{
 							{
 								ObjectMeta: v1.ObjectMeta{
 									Name: getSupportedClasses()[0],
@@ -217,7 +217,7 @@ func verifyGatewayClassAcceptance(name string, want bool) func(c client.Client, 
 		if err != nil {
 			t.Fatalf("unexpected error: %s", err)
 		}
-		class := &gatewayv1beta1.GatewayClass{}
+		class := &gatewayapiv1.GatewayClass{}
 		err = c.Get(context.TODO(), client.ObjectKey{Name: name}, class)
 		if err != nil {
 			t.Fatalf("error getting gateway class from client: %s", err)

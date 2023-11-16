@@ -23,7 +23,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/gracePeriod"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
@@ -47,9 +47,9 @@ func NewOCMPlacer(c client.Client) *ocmPlacer {
 	}
 }
 
-func (op *ocmPlacer) GetAddresses(ctx context.Context, gateway *gatewayv1beta1.Gateway, downstream string) ([]gatewayv1beta1.GatewayAddress, error) {
+func (op *ocmPlacer) GetAddresses(ctx context.Context, gateway *gatewayapiv1.Gateway, downstream string) ([]gatewayapiv1.GatewayAddress, error) {
 	workname := WorkName(gateway)
-	addresses := []gatewayv1beta1.GatewayAddress{}
+	addresses := []gatewayapiv1.GatewayAddress{}
 	rootMeta, _ := k8smeta.Accessor(gateway)
 	mw := &workv1.ManifestWork{
 		ObjectMeta: metav1.ObjectMeta{
@@ -74,7 +74,7 @@ func (op *ocmPlacer) GetAddresses(ctx context.Context, gateway *gatewayv1beta1.G
 	return addresses, err
 }
 
-func (op *ocmPlacer) ListenerTotalAttachedRoutes(ctx context.Context, gateway *gatewayv1beta1.Gateway, listenerName string, downstream string) (int, error) {
+func (op *ocmPlacer) ListenerTotalAttachedRoutes(ctx context.Context, gateway *gatewayapiv1.Gateway, listenerName string, downstream string) (int, error) {
 	workname := WorkName(gateway)
 	rootMeta, _ := k8smeta.Accessor(gateway)
 	mw := &workv1.ManifestWork{
@@ -107,7 +107,7 @@ func WorkName(rootObj runtime.Object) string {
 }
 
 // Place ensures the gateway is placed onto the chosen clusters by creating the required manifestwork resources
-func (op *ocmPlacer) Place(ctx context.Context, upStreamGateway *gatewayv1beta1.Gateway, downStreamGateway *gatewayv1beta1.Gateway, children ...metav1.Object) (sets.Set[string], error) {
+func (op *ocmPlacer) Place(ctx context.Context, upStreamGateway *gatewayapiv1.Gateway, downStreamGateway *gatewayapiv1.Gateway, children ...metav1.Object) (sets.Set[string], error) {
 	//PoC currently each object is put into its own manifestwork. This shouldn't be needed but would require finding the manifest work and replacing the existing object
 	log := log.Log
 	log.V(3).Info("placement: placing ", "gateway", upStreamGateway.Name, "gateway ns", upStreamGateway.Namespace)
@@ -214,7 +214,7 @@ func (op *ocmPlacer) Place(ctx context.Context, upStreamGateway *gatewayv1beta1.
 }
 
 // GetPlacedClusters will return the list of clusters this gateway has been successfully placed on
-func (op *ocmPlacer) GetPlacedClusters(ctx context.Context, gateway *gatewayv1beta1.Gateway) (sets.Set[string], error) {
+func (op *ocmPlacer) GetPlacedClusters(ctx context.Context, gateway *gatewayapiv1.Gateway) (sets.Set[string], error) {
 	existing := &workv1.ManifestWorkList{}
 	listOptions := client.MatchingLabels{
 		WorkManifestLabel: WorkName(gateway),
@@ -236,7 +236,7 @@ func (op *ocmPlacer) GetPlacedClusters(ctx context.Context, gateway *gatewayv1be
 }
 
 // GetClusters will return the set of clusters this gateway is targeted to be placed on. It does not check the placement has happened
-func (op *ocmPlacer) GetClusters(ctx context.Context, gateway *gatewayv1beta1.Gateway) (sets.Set[string], error) {
+func (op *ocmPlacer) GetClusters(ctx context.Context, gateway *gatewayapiv1.Gateway) (sets.Set[string], error) {
 	rootMeta, _ := k8smeta.Accessor(gateway)
 	labels := rootMeta.GetLabels()
 	selectedPlacement := labels[OCMPlacementLabel]
@@ -266,7 +266,7 @@ func (op *ocmPlacer) GetClusters(ctx context.Context, gateway *gatewayv1beta1.Ga
 	return targetClusters, nil
 }
 
-func (op *ocmPlacer) GetClusterGateway(ctx context.Context, gateway *gatewayv1beta1.Gateway, clusterName string) (dns.ClusterGateway, error) {
+func (op *ocmPlacer) GetClusterGateway(ctx context.Context, gateway *gatewayapiv1.Gateway, clusterName string) (dns.ClusterGateway, error) {
 	var target dns.ClusterGateway
 	workname := WorkName(gateway)
 	mw := &workv1.ManifestWork{
@@ -292,7 +292,7 @@ func (op *ocmPlacer) GetClusterGateway(ctx context.Context, gateway *gatewayv1be
 	return target, nil
 }
 
-func (op *ocmPlacer) createUpdateClusterManifests(ctx context.Context, manifestName string, upstream *gatewayv1beta1.Gateway, downstream *gatewayv1beta1.Gateway, cluster string, obj ...metav1.Object) error {
+func (op *ocmPlacer) createUpdateClusterManifests(ctx context.Context, manifestName string, upstream *gatewayapiv1.Gateway, downstream *gatewayapiv1.Gateway, cluster string, obj ...metav1.Object) error {
 	log := log.Log
 	// set up gateway manifest
 	key, err := cache.MetaNamespaceKeyFunc(upstream)

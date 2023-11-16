@@ -15,7 +15,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	"sigs.k8s.io/gateway-api/apis/v1beta1"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 )
@@ -46,13 +46,13 @@ func BuildValidTestRequest(name, ns string) ctrl.Request {
 	}
 }
 
-func BuildTestCondition(conditionType v1beta1.GatewayConditionType, generation int64, message string) v1.Condition {
+func BuildTestCondition(conditionType gatewayapiv1.GatewayConditionType, generation int64, message string) v1.Condition {
 	return v1.Condition{
 		Type:               string(conditionType),
 		Status:             v1.ConditionTrue,
 		ObservedGeneration: generation,
 		Message:            message,
-		Reason:             string(v1beta1.GatewayReasonProgrammed),
+		Reason:             string(gatewayapiv1.GatewayReasonProgrammed),
 	}
 }
 
@@ -113,7 +113,7 @@ func AssertError(expectedError string) func(t *testing.T, err error) {
 
 func GetValidTestClient(initLists ...client.ObjectList) client.WithWatch {
 	return fake.NewClientBuilder().
-		WithStatusSubresource(&v1beta1.Gateway{}, &v1beta1.GatewayClass{}).
+		WithStatusSubresource(&gatewayapiv1.Gateway{}, &gatewayapiv1.GatewayClass{}).
 		WithScheme(GetValidTestScheme()).
 		WithLists(initLists...).
 		Build()
@@ -121,7 +121,7 @@ func GetValidTestClient(initLists ...client.ObjectList) client.WithWatch {
 
 func GetValidTestScheme() *runtime.Scheme {
 	scheme := runtime.NewScheme()
-	_ = v1beta1.AddToScheme(scheme)
+	_ = gatewayapiv1.AddToScheme(scheme)
 	_ = corev1.AddToScheme(scheme)
 	_ = v1alpha1.AddToScheme(scheme)
 	_ = certman.AddToScheme(scheme)
@@ -130,7 +130,7 @@ func GetValidTestScheme() *runtime.Scheme {
 
 func GetBasicScheme() *runtime.Scheme {
 	scheme := runtime.NewScheme()
-	_ = v1beta1.AddToScheme(scheme)
+	_ = gatewayapiv1.AddToScheme(scheme)
 	_ = corev1.AddToScheme(scheme)
 	return scheme
 }

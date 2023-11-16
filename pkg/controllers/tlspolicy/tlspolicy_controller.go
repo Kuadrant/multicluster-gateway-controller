@@ -34,8 +34,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	crlog "sigs.k8s.io/controller-runtime/pkg/log"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayapiv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
-	gatewayapiv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/kuadrant/kuadrant-operator/pkg/common"
 	"github.com/kuadrant/kuadrant-operator/pkg/reconcilers"
@@ -91,8 +91,8 @@ func (r *TLSPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	markedForDeletion := tlsPolicy.GetDeletionTimestamp() != nil
 
-	targetNetworkObject, err := r.FetchValidTargetRef(ctx, tlsPolicy.GetTargetRef(), tlsPolicy.Namespace)
-	log.V(3).Info("TLSPolicyReconciler targetNetworkObject", "targetNetworkObject", targetNetworkObject)
+	targetReferenceObject, err := r.FetchValidTargetRef(ctx, tlsPolicy.GetTargetRef(), tlsPolicy.Namespace)
+	log.V(3).Info("TLSPolicyReconciler targetReferenceObject", "targetReferenceObject", targetReferenceObject)
 	if err != nil {
 		if !markedForDeletion {
 			if apierrors.IsNotFound(err) {
@@ -106,13 +106,13 @@ func (r *TLSPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			}
 			return ctrl.Result{}, err
 		}
-		targetNetworkObject = nil // we need the object set to nil when there's an error, otherwise deleting the resources (when marked for deletion) will panic
+		targetReferenceObject = nil // we need the object set to nil when there's an error, otherwise deleting the resources (when marked for deletion) will panic
 	}
 
 	if markedForDeletion {
 		log.V(3).Info("cleaning up tls policy")
 		if controllerutil.ContainsFinalizer(tlsPolicy, TLSPolicyFinalizer) {
-			if err := r.deleteResources(ctx, tlsPolicy, targetNetworkObject); err != nil {
+			if err := r.deleteResources(ctx, tlsPolicy, targetReferenceObject); err != nil {
 				return ctrl.Result{}, err
 			}
 			if err := r.RemoveFinalizer(ctx, tlsPolicy, TLSPolicyFinalizer); err != nil {
@@ -129,7 +129,7 @@ func (r *TLSPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 	}
 
-	specErr := r.reconcileResources(ctx, tlsPolicy, targetNetworkObject)
+	specErr := r.reconcileResources(ctx, tlsPolicy, targetReferenceObject)
 
 	statusResult, statusErr := r.reconcileStatus(ctx, tlsPolicy, specErr)
 
@@ -203,7 +203,7 @@ func (r *TLSPolicyReconciler) deleteResources(ctx context.Context, tlsPolicy *v1
 
 	// remove direct back ref
 	if targetNetworkObject != nil {
-		if err := r.DeleteTargetBackReference(ctx, client.ObjectKeyFromObject(tlsPolicy), targetNetworkObject, TLSPolicyBackRefAnnotation); err != nil {
+		if err := r.DeleteTargetBackReference(ctx, targetNetworkObject, TLSPolicyBackRefAnnotation); err != nil {
 			return err
 		}
 	}
@@ -249,12 +249,12 @@ func (r *TLSPolicyReconciler) calculateStatus(tlsPolicy *v1alpha1.TLSPolicy, spe
 	return newStatus
 }
 
-func (r *TLSPolicyReconciler) readyCondition(targetNetworkObjectectKind string, specErr error) *metav1.Condition {
+func (r *TLSPolicyReconciler) readyCondition(targetNetworkObjectKind string, specErr error) *metav1.Condition {
 	cond := &metav1.Condition{
 		Type:    string(conditions.ConditionTypeReady),
 		Status:  metav1.ConditionTrue,
-		Reason:  fmt.Sprintf("%sTLSEnabled", targetNetworkObjectectKind),
-		Message: fmt.Sprintf("%s is TLS Enabled", targetNetworkObjectectKind),
+		Reason:  fmt.Sprintf("%sTLSEnabled", targetNetworkObjectKind),
+		Message: fmt.Sprintf("%s is TLS Enabled", targetNetworkObjectKind),
 	}
 
 	if specErr != nil {
@@ -303,7 +303,7 @@ func (r *TLSPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.TLSPolicy{}).
 		Watches(
-			&gatewayapiv1beta1.Gateway{},
+			&gatewayapiv1.Gateway{},
 			handler.EnqueueRequestsFromMapFunc(gatewayEventMapper.MapToPolicy),
 		).
 		Complete(r)
@@ -322,7 +322,6 @@ func (r *TLSPolicyReconciler) FetchValidTargetRef(ctx context.Context, targetRef
 	}
 
 	objKey := client.ObjectKey{Name: string(targetRef.Name), Namespace: tmpNS}
-
 	if common.IsTargetRefHTTPRoute(targetRef) {
 		return r.FetchValidHTTPRoute(ctx, objKey)
 	} else if common.IsTargetRefGateway(targetRef) {
@@ -332,10 +331,10 @@ func (r *TLSPolicyReconciler) FetchValidTargetRef(ctx context.Context, targetRef
 	return nil, fmt.Errorf("FetchValidTargetRef: targetRef (%v) to unknown network resource", targetRef)
 }
 
-func (r *TLSPolicyReconciler) FetchValidGateway(ctx context.Context, key client.ObjectKey) (*gatewayapiv1beta1.Gateway, error) {
+func (r *TLSPolicyReconciler) FetchValidGateway(ctx context.Context, key client.ObjectKey) (*gatewayapiv1.Gateway, error) {
 	logger, _ := logr.FromContext(ctx)
 
-	gw := &gatewayapiv1beta1.Gateway{}
+	gw := &gatewayapiv1.Gateway{}
 	err := r.Client().Get(ctx, key, gw)
 	logger.V(1).Info("FetchValidGateway", "gateway", key, "err", err)
 	if err != nil {

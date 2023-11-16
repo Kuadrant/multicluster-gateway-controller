@@ -13,7 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	testutil "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 )
@@ -21,22 +21,22 @@ import (
 func TestGetParams(t *testing.T) {
 	cases := []struct {
 		name         string
-		gatewayClass *gatewayv1beta1.GatewayClass
+		gatewayClass *gatewayapiv1.GatewayClass
 		paramsObj    client.Object
 		assertParams func(*Params, error) error
 	}{
 		{
 			name: "ConfigMap found",
-			gatewayClass: &gatewayv1beta1.GatewayClass{
+			gatewayClass: &gatewayapiv1.GatewayClass{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test",
 				},
-				Spec: gatewayv1beta1.GatewayClassSpec{
-					ParametersRef: &gatewayv1beta1.ParametersReference{
+				Spec: gatewayapiv1.GatewayClassSpec{
+					ParametersRef: &gatewayapiv1.ParametersReference{
 						Group:     "",
 						Kind:      "ConfigMap",
 						Name:      testutil.DummyCRName,
-						Namespace: testutil.Pointer(gatewayv1beta1.Namespace(testutil.Namespace)),
+						Namespace: testutil.Pointer(gatewayapiv1.Namespace(testutil.Namespace)),
 					},
 				},
 			},
@@ -58,8 +58,8 @@ func TestGetParams(t *testing.T) {
 		},
 		{
 			name: "ConfigMap found. Uses default params on missing ref",
-			gatewayClass: &gatewayv1beta1.GatewayClass{
-				Spec: gatewayv1beta1.GatewayClassSpec{
+			gatewayClass: &gatewayapiv1.GatewayClass{
+				Spec: gatewayapiv1.GatewayClassSpec{
 					ParametersRef: nil,
 				},
 			},
@@ -81,13 +81,13 @@ func TestGetParams(t *testing.T) {
 		},
 		{
 			name: "Misconfigured ConfigMap",
-			gatewayClass: &gatewayv1beta1.GatewayClass{
-				Spec: gatewayv1beta1.GatewayClassSpec{
-					ParametersRef: &gatewayv1beta1.ParametersReference{
+			gatewayClass: &gatewayapiv1.GatewayClass{
+				Spec: gatewayapiv1.GatewayClassSpec{
+					ParametersRef: &gatewayapiv1.ParametersReference{
 						Group:     "",
 						Kind:      "ConfigMap",
 						Name:      testutil.DummyCRName,
-						Namespace: testutil.Pointer(gatewayv1beta1.Namespace(testutil.Namespace)),
+						Namespace: testutil.Pointer(gatewayapiv1.Namespace(testutil.Namespace)),
 					},
 				},
 			},
@@ -104,13 +104,13 @@ func TestGetParams(t *testing.T) {
 		},
 		{
 			name: "Corrupted data field ConfigMap",
-			gatewayClass: &gatewayv1beta1.GatewayClass{
-				Spec: gatewayv1beta1.GatewayClassSpec{
-					ParametersRef: &gatewayv1beta1.ParametersReference{
+			gatewayClass: &gatewayapiv1.GatewayClass{
+				Spec: gatewayapiv1.GatewayClassSpec{
+					ParametersRef: &gatewayapiv1.ParametersReference{
 						Group:     "",
 						Kind:      "ConfigMap",
 						Name:      testutil.DummyCRName,
-						Namespace: testutil.Pointer(gatewayv1beta1.Namespace(testutil.Namespace)),
+						Namespace: testutil.Pointer(gatewayapiv1.Namespace(testutil.Namespace)),
 					},
 				},
 			},
@@ -127,9 +127,9 @@ func TestGetParams(t *testing.T) {
 		},
 		{
 			name: "Missing namespace",
-			gatewayClass: &gatewayv1beta1.GatewayClass{
-				Spec: gatewayv1beta1.GatewayClassSpec{
-					ParametersRef: &gatewayv1beta1.ParametersReference{
+			gatewayClass: &gatewayapiv1.GatewayClass{
+				Spec: gatewayapiv1.GatewayClassSpec{
+					ParametersRef: &gatewayapiv1.ParametersReference{
 						Group: "",
 						Kind:  "ConfigMap",
 						Name:  testutil.DummyCRName,
@@ -150,16 +150,16 @@ func TestGetParams(t *testing.T) {
 		{
 			name: "ConfigMap not found",
 
-			gatewayClass: &gatewayv1beta1.GatewayClass{
+			gatewayClass: &gatewayapiv1.GatewayClass{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test",
 				},
-				Spec: gatewayv1beta1.GatewayClassSpec{
-					ParametersRef: &gatewayv1beta1.ParametersReference{
+				Spec: gatewayapiv1.GatewayClassSpec{
+					ParametersRef: &gatewayapiv1.ParametersReference{
 						Group:     "",
 						Kind:      "ConfigMap",
 						Name:      "test-params-no-exist",
-						Namespace: testutil.Pointer(gatewayv1beta1.Namespace(testutil.Namespace)),
+						Namespace: testutil.Pointer(gatewayapiv1.Namespace(testutil.Namespace)),
 					},
 				},
 			},
@@ -174,16 +174,16 @@ func TestGetParams(t *testing.T) {
 		{
 			name: "Unsupported GroupKind",
 
-			gatewayClass: &gatewayv1beta1.GatewayClass{
+			gatewayClass: &gatewayapiv1.GatewayClass{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test",
 				},
-				Spec: gatewayv1beta1.GatewayClassSpec{
-					ParametersRef: &gatewayv1beta1.ParametersReference{
+				Spec: gatewayapiv1.GatewayClassSpec{
+					ParametersRef: &gatewayapiv1.ParametersReference{
 						Group:     "foo",
 						Kind:      "Unsupported",
 						Name:      testutil.DummyCRName,
-						Namespace: testutil.Pointer(gatewayv1beta1.Namespace(testutil.Namespace)),
+						Namespace: testutil.Pointer(gatewayapiv1.Namespace(testutil.Namespace)),
 					},
 				},
 			},
@@ -198,7 +198,7 @@ func TestGetParams(t *testing.T) {
 	}
 
 	scheme := runtime.NewScheme()
-	if err := gatewayv1beta1.AddToScheme(scheme); err != nil {
+	if err := gatewayapiv1.AddToScheme(scheme); err != nil {
 		t.Fatalf("unexpected error building scheme: %v", err)
 	}
 	if err := corev1.AddToScheme(scheme); err != nil {

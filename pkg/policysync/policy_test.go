@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayapiv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
-	gatewayapiv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 )
@@ -14,9 +14,9 @@ func TestReflectPolicy(t *testing.T) {
 	policy := &v1alpha1.DNSPolicy{
 		Spec: v1alpha1.DNSPolicySpec{
 			TargetRef: gatewayapiv1alpha2.PolicyTargetReference{
-				Group: gatewayapiv1beta1.Group("test.io"),
-				Kind:  gatewayapiv1beta1.Kind("Test"),
-				Name:  gatewayapiv1beta1.ObjectName("test"),
+				Group: gatewayapiv1.Group("test.io"),
+				Kind:  gatewayapiv1.Kind("Test"),
+				Name:  gatewayapiv1.ObjectName("test"),
 			},
 		},
 	}
@@ -41,10 +41,10 @@ func TestReflectPolicy(t *testing.T) {
 	}
 
 	reflectPolicy.UpdateTargetRef(func(targetRef *gatewayapiv1alpha2.PolicyTargetReference) {
-		namespace := gatewayapiv1beta1.Namespace("default")
+		namespace := gatewayapiv1.Namespace("default")
 		name := "changed-name"
 
-		targetRef.Name = gatewayapiv1beta1.ObjectName(name)
+		targetRef.Name = gatewayapiv1.ObjectName(name)
 		targetRef.Namespace = &namespace
 	})
 
@@ -89,10 +89,10 @@ func TestUnstructuredPolicy(t *testing.T) {
 	}
 
 	unstructuredPolicy.UpdateTargetRef(func(targetRef *gatewayapiv1alpha2.PolicyTargetReference) {
-		namespace := gatewayapiv1beta1.Namespace("default")
+		namespace := gatewayapiv1.Namespace("default")
 		name := "changed-name"
 
-		targetRef.Name = gatewayapiv1beta1.ObjectName(name)
+		targetRef.Name = gatewayapiv1.ObjectName(name)
 		targetRef.Namespace = &namespace
 	})
 
@@ -100,7 +100,6 @@ func TestUnstructuredPolicy(t *testing.T) {
 	if actualName != "changed-name" {
 		t.Errorf("expected targetRef.Name to be changed-name, got %s", actualName)
 	}
-
 	actualNamespace := policy.Object["spec"].(map[string]interface{})["targetRef"].(map[string]interface{})["namespace"].(*string)
 	if *actualNamespace != "default" {
 		t.Errorf("expected targetRef.Namespace to be default, got %s", *actualNamespace)
