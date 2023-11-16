@@ -4,25 +4,25 @@ import (
 	"fmt"
 	"strings"
 
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
 const (
 	SingleClusterAddressValue = "kudarant.io/single"
 
-	MultiClusterIPAddressType       gatewayv1beta1.AddressType = "kuadrant.io/MultiClusterIPAddress"
-	MultiClusterHostnameAddressType gatewayv1beta1.AddressType = "kuadrant.io/MultiClusterHostnameAddress"
+	MultiClusterIPAddressType       gatewayapiv1.AddressType = "kuadrant.io/MultiClusterIPAddress"
+	MultiClusterHostnameAddressType gatewayapiv1.AddressType = "kuadrant.io/MultiClusterHostnameAddress"
 )
 
 type GatewayWrapper struct {
-	*gatewayv1beta1.Gateway
+	*gatewayapiv1.Gateway
 }
 
-func NewGatewayWrapper(g *gatewayv1beta1.Gateway) *GatewayWrapper {
+func NewGatewayWrapper(g *gatewayapiv1.Gateway) *GatewayWrapper {
 	return &GatewayWrapper{Gateway: g}
 }
 
-func isMultiClusterAddressType(addressType gatewayv1beta1.AddressType) bool {
+func isMultiClusterAddressType(addressType gatewayapiv1.AddressType) bool {
 	return addressType == MultiClusterIPAddressType || addressType == MultiClusterHostnameAddressType
 }
 
@@ -53,8 +53,8 @@ func (g *GatewayWrapper) Validate() error {
 // GetClusterGatewayAddresses constructs a map from Status.Addresses of underlying Gateway
 // with key being a cluster and value being an address in the cluster.
 // In case of a single-cluster Gateway the key is SingleClusterAddressValue
-func (g *GatewayWrapper) GetClusterGatewayAddresses() map[string][]gatewayv1beta1.GatewayAddress {
-	clusterAddrs := make(map[string][]gatewayv1beta1.GatewayAddress, len(g.Status.Addresses))
+func (g *GatewayWrapper) GetClusterGatewayAddresses() map[string][]gatewayapiv1.GatewayAddress {
+	clusterAddrs := make(map[string][]gatewayapiv1.GatewayAddress, len(g.Status.Addresses))
 
 	for _, address := range g.Status.Addresses {
 		//Default to Single Cluster (Normal Gateway Status)
@@ -72,10 +72,10 @@ func (g *GatewayWrapper) GetClusterGatewayAddresses() map[string][]gatewayv1beta
 		}
 
 		if _, ok := clusterAddrs[cluster]; !ok {
-			clusterAddrs[cluster] = []gatewayv1beta1.GatewayAddress{}
+			clusterAddrs[cluster] = []gatewayapiv1.GatewayAddress{}
 		}
 
-		clusterAddrs[cluster] = append(clusterAddrs[cluster], gatewayv1beta1.GatewayAddress{
+		clusterAddrs[cluster] = append(clusterAddrs[cluster], gatewayapiv1.GatewayAddress{
 			Type:  address.Type,
 			Value: addressValue,
 		})
@@ -86,7 +86,7 @@ func (g *GatewayWrapper) GetClusterGatewayAddresses() map[string][]gatewayv1beta
 
 // ListenerTotalAttachedRoutes returns a count of attached routes from the Status.Listeners for a specified
 // combination of downstreamClusterName and specListener.Name
-func (g *GatewayWrapper) ListenerTotalAttachedRoutes(downstreamClusterName string, specListener gatewayv1beta1.Listener) int {
+func (g *GatewayWrapper) ListenerTotalAttachedRoutes(downstreamClusterName string, specListener gatewayapiv1.Listener) int {
 	for _, statusListener := range g.Status.Listeners {
 		// for Multi Cluster (MGC Gateway Status)
 		if g.IsMultiCluster() {
@@ -108,22 +108,23 @@ func (g *GatewayWrapper) ListenerTotalAttachedRoutes(downstreamClusterName strin
 }
 
 // AddressTypeToMultiCluster returns a multi cluster version of the address type
-// and a bool to indicate that provided address has supported type
-func AddressTypeToMultiCluster(address gatewayv1beta1.GatewayAddress) (gatewayv1beta1.AddressType, bool) {
-	if *address.Type == gatewayv1beta1.IPAddressType {
+// and a bool to indicate that provided address type was converted. If not - original type is returned
+func AddressTypeToMultiCluster(address gatewayapiv1.GatewayAddress) (gatewayapiv1.AddressType, bool) {
+	if *address.Type == gatewayapiv1.IPAddressType {
 		return MultiClusterIPAddressType, true
-	} else if *address.Type == gatewayv1beta1.HostnameAddressType {
+	} else if *address.Type == gatewayapiv1.HostnameAddressType {
 		return MultiClusterHostnameAddressType, true
 	}
-	return "", false
+	return *address.Type, false
 }
 
-// AddressTypeToSingleCluster converts provided multicluster address to single cluster version if applicable
-func AddressTypeToSingleCluster(address gatewayv1beta1.GatewayAddress) gatewayv1beta1.AddressType {
+// AddressTypeToSingleCluster converts provided multicluster address to single cluster version
+// the bool indicates a successful conversion
+func AddressTypeToSingleCluster(address gatewayapiv1.GatewayAddress) (gatewayapiv1.AddressType, bool) {
 	if *address.Type == MultiClusterIPAddressType {
-		return gatewayv1beta1.IPAddressType
+		return gatewayapiv1.IPAddressType, true
 	} else if *address.Type == MultiClusterHostnameAddressType {
-		return gatewayv1beta1.HostnameAddressType
+		return gatewayapiv1.HostnameAddressType, true
 	}
-	return *address.Type
+	return *address.Type, false
 }

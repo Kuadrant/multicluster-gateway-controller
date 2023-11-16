@@ -44,8 +44,7 @@ func (r *DNSPolicyReconciler) reconcileGatewayDNSRecords(ctx context.Context, gw
 	log := crlog.FromContext(ctx)
 
 	gatewayWrapper := utils.NewGatewayWrapper(gw)
-	err := gatewayWrapper.Validate()
-	if err != nil {
+	if err := gatewayWrapper.Validate(); err != nil {
 		return err
 	}
 
@@ -168,7 +167,7 @@ func (r *DNSPolicyReconciler) buildClusterGateway(ctx context.Context, clusterNa
 	}
 
 	for i, addr := range gatewayAddresses {
-		addrType := utils.AddressTypeToSingleCluster(addr)
+		addrType, _ := utils.AddressTypeToSingleCluster(addr)
 
 		singleClusterAddresses[i] = gatewayapiv1.GatewayAddress{
 			Type:  &addrType,

@@ -141,18 +141,15 @@ var _ = Describe("DNSPolicy", func() {
 			// build invalid gateway
 			gateway = testutil.NewGatewayBuilder("test-gateway", gatewayClass.Name, testNamespace).
 				WithHTTPListener(TestListenerNameOne, TestHostOne).Gateway
-			Expect(k8sClient.Create(ctx, gateway)).To(BeNil())
+			Expect(k8sClient.Create(ctx, gateway)).To(Succeed())
 
-			// ensure gateway exists
-			Eventually(func() error {
-				return k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway)
-			}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
-
-			// invalidate gateway by setting inconsistent addresses
-			Eventually(func() error {
-				gateway.Status.Addresses = []gatewayv1beta1.GatewayAddress{
+			// ensure Gateway exists and invalidate it by setting inconsistent addresses
+			Eventually(func(g Gomega) {
+				err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway)
+				g.Expect(err).ToNot(HaveOccurred())
+				gateway.Status.Addresses = []gatewayapiv1.GatewayStatusAddress{
 					{
-						Type:  testutil.Pointer(gatewayv1beta1.IPAddressType),
+						Type:  testutil.Pointer(gatewayapiv1.HostnameAddressType),
 						Value: TestClusterNameOne + "/" + TestIPAddressOne,
 					},
 					{
@@ -160,22 +157,23 @@ var _ = Describe("DNSPolicy", func() {
 						Value: TestIPAddressTwo,
 					},
 				}
-				gateway.Status.Listeners = []gatewayv1beta1.ListenerStatus{
+				gateway.Status.Listeners = []gatewayapiv1.ListenerStatus{
 					{
 						Name:           TestClusterNameOne + "." + TestListenerNameOne,
-						SupportedKinds: []gatewayv1beta1.RouteGroupKind{},
+						SupportedKinds: []gatewayapiv1.RouteGroupKind{},
 						AttachedRoutes: 1,
 						Conditions:     []metav1.Condition{},
 					},
 					{
 						Name:           TestListenerNameOne,
-						SupportedKinds: []gatewayv1beta1.RouteGroupKind{},
+						SupportedKinds: []gatewayapiv1.RouteGroupKind{},
 						AttachedRoutes: 1,
 						Conditions:     []metav1.Condition{},
 					},
 				}
-				return k8sClient.Status().Update(ctx, gateway)
-			}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
+				err = k8sClient.Status().Update(ctx, gateway)
+				g.Expect(err).ToNot(HaveOccurred())
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(Succeed())
 
 			// expect no dns records
 			Consistently(func() []v1alpha1.DNSRecord {
@@ -184,6 +182,18 @@ var _ = Describe("DNSPolicy", func() {
 				Expect(err).ToNot(HaveOccurred())
 				return dnsRecords.Items
 			}, time.Second*15, time.Second).Should(BeEmpty())
+			Eventually(func(g Gomega) {
+				err := k8sClient.Get(ctx, client.ObjectKeyFromObject(dnsPolicy), dnsPolicy)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(dnsPolicy.Status.Conditions).To(
+					ContainElement(MatchFields(IgnoreExtras, Fields{
+						"Type":    Equal(string(conditions.ConditionTypeReady)),
+						"Status":  Equal(metav1.ConditionFalse),
+						"Reason":  Equal("ReconciliationError"),
+						"Message": ContainSubstring("ateway is invalid: inconsistent status addresses"),
+					})),
+				)
+			}, TestTimeoutMedium, time.Second).Should(Succeed())
 		})
 
 	})
