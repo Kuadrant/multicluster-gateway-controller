@@ -23,7 +23,7 @@ This walkthrough will show you how to install and setup the Kuadrant Operator in
 To install the Kuadrant Service Protection components into a spoke `ManagedCluster`, target your OCM Hub cluster with `kubectl` and run:
 
 ```bash
-kubectl apply -k "github.com/kuadrant/multicluster-gateway-controller.git/config/service-protection-install-guide?ref=main" -n namespace-of-your-managed-spoke-cluster-on-the-hub
+kubectl apply -k "github.com/kuadrant/multicluster-gateway-controller.git/config/service-protection-install-guide?ref=v0.1" -n namespace-of-your-managed-spoke-cluster-on-the-hub
 ```
 
 The above command will install the `ManagedClusterAddOn` resource needed to install the Kuadrant addon into the namespace representing a spoke cluster, and install the Kuadrant data-plane components into the `open-cluster-management-agent-addon` namespace. 
