@@ -51,15 +51,14 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/policysync"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/utils"
 )
 
 const (
-	GatewayClusterLabelSelectorAnnotation                          = "kuadrant.io/gateway-cluster-label-selector"
-	GatewayClustersAnnotation                                      = "kuadrant.io/gateway-clusters"
-	GatewayFinalizer                                               = "kuadrant.io/gateway"
-	ManagedLabel                                                   = "kuadrant.io/managed"
-	MultiClusterIPAddressType             gatewayapiv1.AddressType = "kuadrant.io/MultiClusterIPAddress"
-	MultiClusterHostnameAddressType       gatewayapiv1.AddressType = "kuadrant.io/MultiClusterHostnameAddress"
+	GatewayClusterLabelSelectorAnnotation = "kuadrant.io/gateway-cluster-label-selector"
+	GatewayClustersAnnotation             = "kuadrant.io/gateway-clusters"
+	GatewayFinalizer                      = "kuadrant.io/gateway"
+	ManagedLabel                          = "kuadrant.io/managed"
 )
 
 type GatewayPlacer interface {
@@ -214,12 +213,8 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 		for _, address := range addresses {
 			log.V(3).Info("checking address type for mapping", "address.Type", address.Type)
-			var addressType gatewayapiv1.AddressType
-			if *address.Type == gatewayapiv1.IPAddressType {
-				addressType = MultiClusterIPAddressType
-			} else if *address.Type == gatewayapiv1.HostnameAddressType {
-				addressType = MultiClusterHostnameAddressType
-			} else {
+			addressType, supported := utils.AddressTypeToMultiCluster(address)
+			if !supported {
 				continue // ignore address type gatewayapiv1.NamedAddressType. Unsupported for multi cluster gateway
 			}
 			allAddresses = append(allAddresses, gatewayapiv1.GatewayStatusAddress{

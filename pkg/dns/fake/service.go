@@ -11,7 +11,6 @@ import (
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/traffic"
 	. "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 )
 
@@ -24,14 +23,6 @@ func NewTestHostService(client client.Client) *FakeHostService {
 }
 
 func (h *FakeHostService) SetEndpoints(_ context.Context, _ *MultiClusterGatewayTarget, _ *v1alpha1.DNSRecord) error {
-	return nil
-}
-
-func (h *FakeHostService) GetDNSRecordsFor(_ context.Context, _ traffic.Interface) ([]*v1alpha1.DNSRecord, error) {
-	return nil, nil
-}
-
-func (h *FakeHostService) CleanupDNSRecords(_ context.Context, _ traffic.Interface) error {
 	return nil
 }
 
@@ -58,14 +49,4 @@ func (h *FakeHostService) GetDNSRecord(ctx context.Context, subDomain string, ma
 		return nil, err
 	}
 	return record, nil
-}
-
-func (h *FakeHostService) AddEndpoints(_ context.Context, gateway traffic.Interface, _ *v1alpha1.DNSRecord) error {
-	hosts := gateway.GetHosts()
-	for _, host := range hosts {
-		if host == FailEndpointsHostname {
-			return fmt.Errorf(FailEndpointsHostname)
-		}
-	}
-	return nil
 }

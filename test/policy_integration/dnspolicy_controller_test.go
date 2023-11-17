@@ -20,7 +20,7 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnspolicy"
-	mgcgateway "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/utils"
 	testutil "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 )
 
@@ -137,6 +137,65 @@ var _ = Describe("DNSPolicy", func() {
 			}, TestTimeoutMedium, time.Second).Should(Succeed())
 		})
 
+		It("should not process gateway with inconsistent addresses", func() {
+			// build invalid gateway
+			gateway = testutil.NewGatewayBuilder("test-gateway", gatewayClass.Name, testNamespace).
+				WithHTTPListener(TestListenerNameOne, TestHostOne).Gateway
+			Expect(k8sClient.Create(ctx, gateway)).To(Succeed())
+
+			// ensure Gateway exists and invalidate it by setting inconsistent addresses
+			Eventually(func(g Gomega) {
+				err := k8sClient.Get(ctx, client.ObjectKey{Name: gateway.Name, Namespace: gateway.Namespace}, gateway)
+				g.Expect(err).ToNot(HaveOccurred())
+				gateway.Status.Addresses = []gatewayapiv1.GatewayStatusAddress{
+					{
+						Type:  testutil.Pointer(gatewayapiv1.HostnameAddressType),
+						Value: TestClusterNameOne + "/" + TestIPAddressOne,
+					},
+					{
+						Type:  testutil.Pointer(utils.MultiClusterIPAddressType),
+						Value: TestIPAddressTwo,
+					},
+				}
+				gateway.Status.Listeners = []gatewayapiv1.ListenerStatus{
+					{
+						Name:           TestClusterNameOne + "." + TestListenerNameOne,
+						SupportedKinds: []gatewayapiv1.RouteGroupKind{},
+						AttachedRoutes: 1,
+						Conditions:     []metav1.Condition{},
+					},
+					{
+						Name:           TestListenerNameOne,
+						SupportedKinds: []gatewayapiv1.RouteGroupKind{},
+						AttachedRoutes: 1,
+						Conditions:     []metav1.Condition{},
+					},
+				}
+				err = k8sClient.Status().Update(ctx, gateway)
+				g.Expect(err).ToNot(HaveOccurred())
+			}, TestTimeoutMedium, TestRetryIntervalMedium).Should(Succeed())
+
+			// expect no dns records
+			Consistently(func() []v1alpha1.DNSRecord {
+				dnsRecords := v1alpha1.DNSRecordList{}
+				err := k8sClient.List(ctx, &dnsRecords, client.InNamespace(dnsPolicy.GetNamespace()))
+				Expect(err).ToNot(HaveOccurred())
+				return dnsRecords.Items
+			}, time.Second*15, time.Second).Should(BeEmpty())
+			Eventually(func(g Gomega) {
+				err := k8sClient.Get(ctx, client.ObjectKeyFromObject(dnsPolicy), dnsPolicy)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(dnsPolicy.Status.Conditions).To(
+					ContainElement(MatchFields(IgnoreExtras, Fields{
+						"Type":    Equal(string(conditions.ConditionTypeReady)),
+						"Status":  Equal(metav1.ConditionFalse),
+						"Reason":  Equal("ReconciliationError"),
+						"Message": ContainSubstring("gateway is invalid: inconsistent status addresses"),
+					})),
+				)
+			}, TestTimeoutMedium, time.Second).Should(Succeed())
+		})
+
 	})
 
 	Context("valid target with no gateway status", func() {
@@ -228,11 +287,11 @@ var _ = Describe("DNSPolicy", func() {
 
 				gateway.Status.Addresses = []gatewayapiv1.GatewayStatusAddress{
 					{
-						Type:  testutil.Pointer(mgcgateway.MultiClusterIPAddressType),
+						Type:  testutil.Pointer(utils.MultiClusterIPAddressType),
 						Value: TestClusterNameOne + "/" + TestIPAddressOne,
 					},
 					{
-						Type:  testutil.Pointer(mgcgateway.MultiClusterIPAddressType),
+						Type:  testutil.Pointer(utils.MultiClusterIPAddressType),
 						Value: TestClusterNameTwo + "/" + TestIPAddressTwo,
 					},
 				}

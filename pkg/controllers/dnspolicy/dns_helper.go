@@ -124,7 +124,6 @@ func (dh *dnsHelper) buildDNSRecordForListener(gateway *gatewayapiv1.Gateway, dn
 }
 
 // getDNSRecordForListener returns a v1alpha1.DNSRecord, if one exists, for the given listener in the given v1alpha1.ManagedZone.
-// It needs a reference string to enforce DNS record serving a single traffic.Interface owner
 func (dh *dnsHelper) getDNSRecordForListener(ctx context.Context, listener gatewayapiv1.Listener, owner metav1.Object) (*v1alpha1.DNSRecord, error) {
 	recordName := dnsRecordName(owner.GetName(), string(listener.Name))
 	dnsRecord := &v1alpha1.DNSRecord{}

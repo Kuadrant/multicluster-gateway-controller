@@ -17,8 +17,8 @@ import (
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
-	mgcgateway "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/utils"
 	testutil "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 )
 
@@ -65,11 +65,11 @@ var _ = Describe("DNSPolicy Multi Cluster", func() {
 			}
 			gateway.Status.Addresses = []gatewayapiv1.GatewayStatusAddress{
 				{
-					Type:  testutil.Pointer(mgcgateway.MultiClusterIPAddressType),
+					Type:  testutil.Pointer(utils.MultiClusterIPAddressType),
 					Value: TestClusterNameOne + "/" + TestIPAddressOne,
 				},
 				{
-					Type:  testutil.Pointer(mgcgateway.MultiClusterIPAddressType),
+					Type:  testutil.Pointer(utils.MultiClusterIPAddressType),
 					Value: TestClusterNameTwo + "/" + TestIPAddressTwo,
 				},
 			}
