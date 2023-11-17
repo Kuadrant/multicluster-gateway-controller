@@ -156,7 +156,7 @@ func (r *DNSPolicyReconciler) buildClusterGateway(ctx context.Context, clusterNa
 	singleClusterAddresses := make([]gatewayapiv1.GatewayAddress, len(gatewayAddresses))
 
 	var metaObj client.Object
-	if clusterName != utils.SingleClusterAddressValue {
+	if clusterName != utils.SingleClusterNameValue {
 		mc := &clusterv1.ManagedCluster{}
 		if err := r.Client().Get(ctx, client.ObjectKey{Name: clusterName}, mc, &client.GetOptions{}); err != nil {
 			return target, err

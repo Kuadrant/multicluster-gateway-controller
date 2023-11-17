@@ -107,7 +107,7 @@ func TestGatewayWrapper_GetClusterGatewayAddresses(t *testing.T) {
 				},
 			},
 			want: map[string][]gatewayapiv1.GatewayAddress{
-				SingleClusterAddressValue: {
+				SingleClusterNameValue: {
 					{
 						Type:  testutil.Pointer(v1beta1.IPAddressType),
 						Value: "1.1.1.1",
@@ -192,7 +192,7 @@ func TestGatewayWrapper_ListenerTotalAttachedRoutes(t *testing.T) {
 					},
 				},
 			},
-			downstreamClusterName: SingleClusterAddressValue,
+			downstreamClusterName: SingleClusterNameValue,
 			want:                  1,
 		},
 		{

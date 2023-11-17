@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	SingleClusterAddressValue = "kudarant.io/single"
+	SingleClusterNameValue = "kudarant.io/single"
 
 	MultiClusterIPAddressType       gatewayapiv1.AddressType = "kuadrant.io/MultiClusterIPAddress"
 	MultiClusterHostnameAddressType gatewayapiv1.AddressType = "kuadrant.io/MultiClusterHostnameAddress"
@@ -52,13 +52,13 @@ func (g *GatewayWrapper) Validate() error {
 
 // GetClusterGatewayAddresses constructs a map from Status.Addresses of underlying Gateway
 // with key being a cluster and value being an address in the cluster.
-// In case of a single-cluster Gateway the key is SingleClusterAddressValue
+// In case of a single-cluster Gateway the key is SingleClusterNameValue
 func (g *GatewayWrapper) GetClusterGatewayAddresses() map[string][]gatewayapiv1.GatewayAddress {
 	clusterAddrs := make(map[string][]gatewayapiv1.GatewayAddress, len(g.Status.Addresses))
 
 	for _, address := range g.Status.Addresses {
 		//Default to Single Cluster (Normal Gateway Status)
-		cluster := SingleClusterAddressValue
+		cluster := SingleClusterNameValue
 		addressValue := address.Value
 
 		//Check for Multi Cluster (MGC Gateway Status)

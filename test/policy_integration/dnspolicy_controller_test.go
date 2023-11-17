@@ -190,7 +190,7 @@ var _ = Describe("DNSPolicy", func() {
 						"Type":    Equal(string(conditions.ConditionTypeReady)),
 						"Status":  Equal(metav1.ConditionFalse),
 						"Reason":  Equal("ReconciliationError"),
-						"Message": ContainSubstring("ateway is invalid: inconsistent status addresses"),
+						"Message": ContainSubstring("gateway is invalid: inconsistent status addresses"),
 					})),
 				)
 			}, TestTimeoutMedium, time.Second).Should(Succeed())
