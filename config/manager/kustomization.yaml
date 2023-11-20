@@ -3,4 +3,4 @@ resources:
 images:
   - name: controller
     newName: quay.io/kuadrant/multicluster-gateway-controller
-    newTag: release-0.2-er1
+    newTag: release-0.2
