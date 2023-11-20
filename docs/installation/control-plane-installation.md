@@ -37,7 +37,7 @@ All OCM spoke clusters must be configured with the `RawFeedbackJsonString` featu
 First, run the following command in the context of your hub cluster to install the Gateway API CRDs:
 
 ```bash
-kubectl apply -k "github.com/kubernetes-sigs/gateway-api/config/crd?ref=v0.6.2"
+kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.0.0/standard-install.yaml
 ```
 
 We can then add a `wait` to verify the CRDs have been established:
@@ -54,7 +54,7 @@ customresourcedefinition.apiextensions.k8s.io/httproutes.gateway.networking.k8s.
 Then run the following command to install the MGC:
 
 ```bash
-kubectl apply -k "github.com/kuadrant/multicluster-gateway-controller.git/config/mgc-install-guide?ref=main"
+kubectl apply -k "github.com/kuadrant/multicluster-gateway-controller.git/config/mgc-install-guide?ref=release-0.2"
 ```
 
 In addition to the MGC, this will also install the Kuadrant add-on manager and a `GatewayClass` from which MGC-managed `Gateways` can be instantiated.
@@ -182,7 +182,7 @@ mgc-dev-mz   ef.hcpapps.net   /hostedzone/Z06419551EM30QQYMZN7F   2             
 To create a `CertIssuer`, [cert-manager](https://cert-manager.io/) first needs to be installed on your hub cluster. If this has not previously been installed on the cluster you can run the command below to do so:
 
 ```bash
-kustomize --load-restrictor LoadRestrictionsNone build "github.com/kuadrant/multicluster-gateway-controller.git/config/mgc-install-guide/cert-manager?ref=main" --enable-helm | kubectl apply -f -
+kustomize --load-restrictor LoadRestrictionsNone build "github.com/kuadrant/multicluster-gateway-controller.git/config/mgc-install-guide/cert-manager?ref=release-0.2" --enable-helm | kubectl apply -f -
 ```
 
 We will now create a `ClusterIssuer` to be used with `cert-manager`. For simplicity, we will create a self-signed cert issuer here, but [other issuers can also be configured](https://cert-manager.io/docs/configuration/).
