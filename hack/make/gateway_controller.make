@@ -27,9 +27,12 @@ kind-load-gateway-controller: docker-build-gateway-controller
 docker-push-gateway-controller: ## Push docker image with the controller.
 	docker push ${CONTROLLER_IMG}
 
-.PHONY: deploy-gateway-controller
-deploy-gateway-controller: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+.PHONY: update-gateway-controller-image
+update-gateway-controller-image: kustomize ## Update gateway controller image to CONTROLLER_IMG.
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${CONTROLLER_IMG}
+
+.PHONY: deploy-gateway-controller
+deploy-gateway-controller: manifests kustomize update-gateway-controller-image update-policy-controller-image ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) --load-restrictor LoadRestrictionsNone build config/deploy/local | kubectl apply -f -
 	@if [ "$(METRICS)" = "true" ]; then\
 		$(KUSTOMIZE) build config/prometheus | kubectl apply -f -;\
