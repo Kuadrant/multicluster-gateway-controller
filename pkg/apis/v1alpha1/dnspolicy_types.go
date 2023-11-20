@@ -45,7 +45,7 @@ type DNSPolicySpec struct {
 	// +optional
 	LoadBalancing *LoadBalancingSpec `json:"loadBalancing"`
 
-	// +required
+	// +optional
 	// +kubebuilder:validation:Enum=simple;loadbalanced
 	// +kubebuilder:default=loadbalanced
 	RoutingStrategy RoutingStrategy `json:"routingStrategy"`
