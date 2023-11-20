@@ -1,11 +1,9 @@
 resources:
-- manager.yaml
-- cluster-management-addon.yaml
-
-
+  - manager.yaml
+  - cluster-management-addon.yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 images:
-- name: addon-manager
-  newName: quay.io/kuadrant/addon-manager
-  newTag: main
+  - name: addon-manager
+    newName: quay.io/kuadrant/addon-manager
+    newTag: release-0.2
