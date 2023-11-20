@@ -201,7 +201,6 @@ spec:
                 - name
                 type: object
             required:
-            - routingStrategy
             - targetRef
             type: object
           status:
