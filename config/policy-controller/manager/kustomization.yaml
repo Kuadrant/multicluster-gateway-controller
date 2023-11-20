@@ -1,7 +1,12 @@
 resources:
-- manager.yaml
-
+  - manager.yaml
 images:
+<<<<<<< HEAD
 - name: policy-controller
   newName: quay.io/kuadrant/policy-controller
   newTag: main
+=======
+  - name: policy-controller
+    newName: quay.io/kuadrant/policy-controller
+    newTag: release-0.2-er1
+>>>>>>> 96901e6 (release-0.2-er1 image updates)
