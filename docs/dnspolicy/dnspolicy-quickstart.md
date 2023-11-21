@@ -10,7 +10,7 @@ This document describes how to enable DNS by creating a basic DNSPolicy
 
 ## Pre-requisites
 
-* A [ManagedZone](managed-zone.md) has been created
+* A [ManagedZone](../managed-zone.md) has been created
 * A Gateway has been created
 * A HTTPRoute has been created and attached to the Gateway (Note: It's not a
 requirement to create the HTTPRoute beforehand, but DNS records will only

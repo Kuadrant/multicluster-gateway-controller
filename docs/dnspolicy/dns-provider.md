@@ -67,7 +67,7 @@ Now that we have the credential created we have a DNS provider ready to go and c
 
 Once a `Secret` like the one shown above is created, in order for it to be used, it needs to be associated with a `ManagedZone`. 
 
-See [ManagedZone](managed-zone.md)
+See [ManagedZone](../managed-zone.md)
 
 
 ## Geolocation
