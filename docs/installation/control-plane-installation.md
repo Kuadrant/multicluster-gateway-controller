@@ -5,6 +5,7 @@ This guide will show you how to install and configure the Multi-Cluster Gateway 
 ## Prerequisites
 
 - A **hub cluster** running the OCM control plane (v0.11.0 or greater)
+- Addons enabled `clusteradm install hub-addon --names application-manager`
 - Any number of additional **spoke clusters** that have been configured as OCM [ManagedClusters](https://open-cluster-management.io/concepts/managedcluster/)
 - [Kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl) (>= v1.14.0)
 - Either a pre-existing [cert-manager](https://cert-manager.io/)(>=v1.12.2) installation or the [Kustomize](https://kubectl.docs.kubernetes.io/installation/kustomize/) and [Helm](https://helm.sh/docs/intro/quickstart/#install-helm) CLIs
