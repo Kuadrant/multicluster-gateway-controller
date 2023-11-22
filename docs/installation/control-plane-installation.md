@@ -13,39 +13,43 @@ This guide will show you how to install and configure the Multi-Cluster Gateway 
 
 ## Configure OCM with RawFeedbackJsonString Feature Gate
 
-All OCM spoke clusters must be configured with the `RawFeedbackJsonString` feature gate enabled. This can be done in two ways:
+All OCM spoke clusters must be configured with the `RawFeedbackJsonString` feature gate enabled:
 
-1. When running the `clusteradm join` command that joins the spoke cluster to the hub:
-
-    Get the `join` flags and token by running
-
-    ```bash
-    join=$(clusteradm get token --context kind-test-control-plane | grep -o 'join.*--cluster-name')
-    ```
-    
-    ```bash
-    clusteradm $join --feature-gates=RawFeedbackJsonString=true
-    ```
-
-2. By patching each spoke cluster's `klusterlet` in an existing OCM install:
+1. By patching each spoke cluster's `klusterlet` in an existing OCM install:
 
     ```bash
     kubectl patch klusterlet klusterlet --type merge --patch '{"spec": {"workConfiguration": {"featureGates": [{"feature": "RawFeedbackJsonString", "mode": "Enable"}]}}}' --context <EACH_SPOKE_CLUSTER>
     ```
+
+## Setup for hub commands
+Many of the commands in this document should be run in the context of your hub cluster.
+By configure HUB_CLUSTER which will be used in the commands:
+
+```bash
+export HUB_CLUSTER=<hub-cluster-name>
+```
+
+## Install Cert-Manager
+[Cert-manager](https://cert-manager.io/) first needs to be installed on your hub cluster. If this has not previously been installed on the cluster you can run the command below to do so:
+
+```bash
+kustomize --load-restrictor LoadRestrictionsNone build "github.com/kuadrant/multicluster-gateway-controller.git/config/mgc-install-guide/cert-manager?ref=release-0.2" --enable-helm | kubectl apply -f - --context $HUB_CLUSTER
+```
 
 ## Installing MGC
 
 First, run the following command in the context of your hub cluster to install the Gateway API CRDs:
 
 ```bash
-kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.0.0/standard-install.yaml"
+kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.0.0/standard-install.yaml --context $HUB_CLUSTER
 ```
 
 We can then add a `wait` to verify the CRDs have been established:
 
 ```bash
-kubectl wait --timeout=5m crd/gatewayclasses.gateway.networking.k8s.io crd/gateways.gateway.networking.k8s.io crd/httproutes.gateway.networking.k8s.io --for=condition=Established
+kubectl wait --timeout=5m crd/gatewayclasses.gateway.networking.k8s.io crd/gateways.gateway.networking.k8s.io crd/httproutes.gateway.networking.k8s.io --for=condition=Established --context $HUB_CLUSTER
 ```
+
 ```
 customresourcedefinition.apiextensions.k8s.io/gatewayclasses.gateway.networking.k8s.io condition met
 customresourcedefinition.apiextensions.k8s.io/gateways.gateway.networking.k8s.io condition met
@@ -55,7 +59,7 @@ customresourcedefinition.apiextensions.k8s.io/httproutes.gateway.networking.k8s.
 Then run the following command to install the MGC:
 
 ```bash
-kubectl apply -k "github.com/kuadrant/multicluster-gateway-controller.git/config/mgc-install-guide?ref=release-0.2"
+kubectl apply -k "github.com/kuadrant/multicluster-gateway-controller.git/config/mgc-install-guide?ref=release-0.2" --context $HUB_CLUSTER
 ```
 
 In addition to the MGC, this will also install the Kuadrant add-on manager and a `GatewayClass` from which MGC-managed `Gateways` can be instantiated.
@@ -63,7 +67,7 @@ In addition to the MGC, this will also install the Kuadrant add-on manager and a
 After the configuration has been applied, you can verify that the MGC and add-on manager have been installed and are running:
 
 ```bash
-kubectl wait --timeout=5m -n multicluster-gateway-controller-system deployment/mgc-controller-manager deployment/mgc-add-on-manager deployment/mgc-policy-controller --for=condition=Available
+kubectl wait --timeout=5m -n multicluster-gateway-controller-system deployment/mgc-controller-manager deployment/mgc-add-on-manager deployment/mgc-policy-controller --for=condition=Available --context $HUB_CLUSTER
 ```
 ```
 deployment.apps/mgc-controller-manager condition met
@@ -74,7 +78,7 @@ deployment/mgc-policy-controller condition met
 We can also verify that the `GatewayClass` has been accepted by the MGC:
 
 ```bash
-kubectl wait --timeout=5m gatewayclass/kuadrant-multi-cluster-gateway-instance-per-cluster --for=condition=Accepted
+kubectl wait --timeout=5m gatewayclass/kuadrant-multi-cluster-gateway-instance-per-cluster --for=condition=Accepted --context $HUB_CLUSTER
 ```
 ```
 gatewayclass.gateway.networking.k8s.io/kuadrant-multi-cluster-gateway-instance-per-cluster condition met
@@ -92,7 +96,7 @@ Next, create a secret containing either the AWS or GCP credentials. We'll also c
 
 #### AWS:
 ```bash
-cat <<EOF | kubectl apply -f -
+cat <<EOF | kubectl apply -f - --context $HUB_CLUSTER
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -112,7 +116,7 @@ EOF
 ```
 #### GCP
 ```bash
-cat <<EOF | kubectl apply -f -
+cat <<EOF | kubectl apply -f - --context $HUB_CLUSTER
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -135,7 +139,7 @@ A `ManagedZone` can then be created:
 #### AWS:
 
 ```bash
-cat <<EOF | kubectl apply -f -
+cat <<EOF | kubectl apply -f - --context $HUB_CLUSTER
 apiVersion: kuadrant.io/v1alpha1
 kind: ManagedZone
 metadata:
@@ -153,7 +157,7 @@ EOF
 #### GCP
 
 ```bash
-cat <<EOF | kubectl apply -f -
+cat <<EOF | kubectl apply -f - --context $HUB_CLUSTER
 apiVersion: kuadrant.io/v1alpha1
 kind: ManagedZone
 metadata:
@@ -172,7 +176,7 @@ EOF
 You can now verify that the `ManagedZone` has been created and is in a ready state:
 
 ```bash
-kubectl get managedzone -n multi-cluster-gateways
+kubectl get managedzone -n multi-cluster-gateways --context $HUB_CLUSTER
 ```
 ```
 NAME         DOMAIN NAME      ID                                  RECORD COUNT   NAMESERVERS                                                                                         READY
@@ -181,16 +185,10 @@ mgc-dev-mz   ef.hcpapps.net   /hostedzone/Z06419551EM30QQYMZN7F   2             
 
 ## Creating a Cert Issuer
 
-To create a `CertIssuer`, [cert-manager](https://cert-manager.io/) first needs to be installed on your hub cluster. If this has not previously been installed on the cluster you can run the command below to do so:
-
-```bash
-kustomize --load-restrictor LoadRestrictionsNone build "github.com/kuadrant/multicluster-gateway-controller.git/config/mgc-install-guide/cert-manager?ref=main" --enable-helm | kubectl apply -f -
-```
-
 We will now create a `ClusterIssuer` to be used with `cert-manager`. For simplicity, we will create a self-signed cert issuer here, but [other issuers can also be configured](https://cert-manager.io/docs/configuration/).
 
 ```bash
-cat <<EOF | kubectl apply -f -
+cat <<EOF | kubectl apply -f - --context $HUB_CLUSTER
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
@@ -204,7 +202,7 @@ EOF
 Verify that the `clusterIssuer` is ready:
 
 ```bash
-kubectl wait --timeout=5m -n cert-manager clusterissuer/mgc-ca --for=condition=Ready
+kubectl wait --timeout=5m -n cert-manager clusterissuer/mgc-ca --for=condition=Ready --context $HUB_CLUSTER
 ```
 ```
 clusterissuer.cert-manager.io/mgc-ca condition met
