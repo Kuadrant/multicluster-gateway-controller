@@ -13,7 +13,8 @@ type ConditionType string
 type ConditionReason string
 
 const (
-	ConditionTypeReady ConditionType = "Ready"
+	ConditionTypeReady    ConditionType = "Ready"
+	ConditionTypeEnforced ConditionType = "Enforced"
 
 	//common policy reasons for policy affected conditions
 

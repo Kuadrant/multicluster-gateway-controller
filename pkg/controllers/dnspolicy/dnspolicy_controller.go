@@ -38,6 +38,7 @@ import (
 	"github.com/kuadrant/kuadrant-operator/pkg/reconcilers"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/events"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
@@ -222,7 +223,13 @@ func (r *DNSPolicyReconciler) deleteResources(ctx context.Context, dnsPolicy *v1
 }
 
 func (r *DNSPolicyReconciler) reconcileStatus(ctx context.Context, dnsPolicy *v1alpha1.DNSPolicy, specErr error) (ctrl.Result, error) {
-	newStatus := r.calculateStatus(dnsPolicy, specErr)
+	newStatus, err := r.calculateStatus(ctx, dnsPolicy, specErr)
+	// TODO: Ensure whether the best approach is to fail the reconciliation
+	// in case of an error here, or attempt to set the status with the
+	// error
+	if err != nil {
+		return ctrl.Result{}, err
+	}
 
 	if !equality.Semantic.DeepEqual(newStatus, dnsPolicy.Status) {
 		dnsPolicy.Status = *newStatus
@@ -243,14 +250,27 @@ func (r *DNSPolicyReconciler) reconcileStatus(ctx context.Context, dnsPolicy *v1
 	return ctrl.Result{}, nil
 }
 
-func (r *DNSPolicyReconciler) calculateStatus(dnsPolicy *v1alpha1.DNSPolicy, specErr error) *v1alpha1.DNSPolicyStatus {
+func (r *DNSPolicyReconciler) calculateStatus(ctx context.Context, dnsPolicy *v1alpha1.DNSPolicy, specErr error) (*v1alpha1.DNSPolicyStatus, error) {
 	newStatus := dnsPolicy.Status.DeepCopy()
 	if specErr != nil {
 		newStatus.ObservedGeneration = dnsPolicy.Generation
 	}
 	readyCond := r.readyCondition(string(dnsPolicy.Spec.TargetRef.Kind), specErr)
 	meta.SetStatusCondition(&newStatus.Conditions, *readyCond)
-	return newStatus
+
+	// Only calculate the Enforced status confition if Ready is True
+	if !meta.IsStatusConditionTrue(newStatus.Conditions, string(conditions.ConditionTypeReady)) {
+		return newStatus, nil
+	}
+
+	enforcedCond, err := r.enforcedCondition(ctx, dnsPolicy)
+	if err != nil {
+		return nil, err
+	}
+
+	meta.SetStatusCondition(&newStatus.Conditions, *enforcedCond)
+
+	return newStatus, nil
 }
 
 func (r *DNSPolicyReconciler) readyCondition(targetNetworkObjectectKind string, specErr error) *metav1.Condition {
@@ -272,6 +292,47 @@ func (r *DNSPolicyReconciler) readyCondition(targetNetworkObjectectKind string, 
 	}
 
 	return cond
+}
+
+func (r *DNSPolicyReconciler) enforcedCondition(ctx context.Context, dnsPolicy *v1alpha1.DNSPolicy) (*metav1.Condition, error) {
+	dnsRecords, err := r.dnsHelper.getDNSRecordsForDNSPolicy(ctx, dnsPolicy)
+	if err != nil {
+		return nil, err
+	}
+
+	// If no records have been created at all, set the Enforced condition to
+	// unknown
+	if len(dnsRecords) == 0 {
+		return &metav1.Condition{
+			Type:    string(conditions.ConditionTypeEnforced),
+			Status:  metav1.ConditionFalse,
+			Message: "No DNSRecords created",
+			Reason:  "Unknown",
+		}, nil
+	}
+
+	notReadyRecords := slice.Filter(dnsRecords, slice.Not((v1alpha1.DNSRecord).IsReady))
+	allRecordsReady := len(notReadyRecords) == 0
+
+	if allRecordsReady {
+		return &metav1.Condition{
+			Type:    string(conditions.ConditionTypeEnforced),
+			Status:  metav1.ConditionTrue,
+			Message: "All DNSRecords ready",
+			Reason:  "Enforced",
+		}, nil
+	}
+
+	notReadyRecordNames := slice.Map(notReadyRecords, func(dnsRecord v1alpha1.DNSRecord) string {
+		return fmt.Sprintf("%s/%s", dnsRecord.Namespace, dnsRecord.Namespace)
+	})
+
+	return &metav1.Condition{
+		Type:    string(conditions.ConditionTypeEnforced),
+		Status:  metav1.ConditionFalse,
+		Message: fmt.Sprintf("DNSRecords %v not Ready", notReadyRecordNames),
+		Reason:  "Unknown",
+	}, nil
 }
 
 func (r *DNSPolicyReconciler) updateGatewayCondition(ctx context.Context, condition metav1.Condition, gatewayDiff *reconcilers.GatewayDiff) error {
@@ -304,7 +365,8 @@ func (r *DNSPolicyReconciler) updateGatewayCondition(ctx context.Context, condit
 func (r *DNSPolicyReconciler) SetupWithManager(mgr ctrl.Manager, ocmHub bool) error {
 	gatewayEventMapper := events.NewGatewayEventMapper(r.Logger(), &DNSPolicyRefsConfig{}, "dnspolicy")
 	clusterEventMapper := events.NewClusterEventMapper(r.Logger(), r.Client(), &DNSPolicyRefsConfig{}, "dnspolicy")
-	probeEventMapper := events.NewProbeEventMapper(r.Logger(), DNSPolicyBackRefAnnotation, "dnspolicy")
+	probeEventMapper := events.NewPolicyRefEventMapper(r.Logger(), DNSPolicyBackRefAnnotation, "dnspolicy")
+	dnsRecordEventMapper := events.NewPolicyRefEventMapper(r.Logger(), DNSPolicyBackRefAnnotation, "dnspolicy")
 	r.dnsHelper = dnsHelper{Client: r.Client()}
 	ctrlr := ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.DNSPolicy{}).
@@ -315,6 +377,10 @@ func (r *DNSPolicyReconciler) SetupWithManager(mgr ctrl.Manager, ocmHub bool) er
 		Watches(
 			&v1alpha1.DNSHealthCheckProbe{},
 			handler.EnqueueRequestsFromMapFunc(probeEventMapper.MapToPolicy),
+		).
+		Watches(
+			&v1alpha1.DNSRecord{},
+			handler.EnqueueRequestsFromMapFunc(dnsRecordEventMapper.MapToPolicy),
 		)
 	if ocmHub {
 		r.Logger().Info("ocm enabled turning on managed cluster watch")

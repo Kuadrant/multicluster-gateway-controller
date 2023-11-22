@@ -21,6 +21,10 @@ spec:
       jsonPath: .status.conditions[?(@.type=="Ready")].status
       name: Ready
       type: string
+    - description: DNSPolicy enforced.
+      jsonPath: .status.conditions[?(@.type=="Enforced")].status
+      name: Enforced
+      type: string
     name: v1alpha1
     schema:
       openAPIV3Schema:

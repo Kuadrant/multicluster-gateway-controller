@@ -19,7 +19,10 @@ package v1alpha1
 import (
 	"fmt"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
 )
 
 // SetID returns an id that should be unique across a set of endpoints
@@ -239,6 +242,10 @@ func (endpoint *Endpoint) DeleteProviderSpecific(name string) bool {
 
 	endpoint.ProviderSpecific = providerSpecific
 	return deleted
+}
+
+func (dnsRecord DNSRecord) IsReady() bool {
+	return meta.IsStatusConditionTrue(dnsRecord.Status.Conditions, string(conditions.ConditionTypeReady))
 }
 
 func init() {

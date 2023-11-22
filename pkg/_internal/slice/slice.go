@@ -33,6 +33,16 @@ func Contains[T any](slice []T, predicate func(T) bool) bool {
 	return ok
 }
 
+func All[T any](slice []T, predicate func(T) bool) bool {
+	for _, elem := range slice {
+		if !predicate(elem) {
+			return false
+		}
+	}
+
+	return true
+}
+
 // Find checks if an element in slice satisfies the given predicate, and returns
 // it. If no element is found returns false
 func Find[T any](slice []T, predicate func(T) bool) (element T, ok bool) {

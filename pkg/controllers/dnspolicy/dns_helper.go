@@ -20,6 +20,7 @@ import (
 
 	"github.com/kuadrant/kuadrant-operator/pkg/common"
 
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/policy"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
@@ -134,6 +135,14 @@ func (dh *dnsHelper) getDNSRecordForListener(ctx context.Context, listener gatew
 		return nil, err
 	}
 	return dnsRecord, nil
+}
+
+func (dh *dnsHelper) getDNSRecordsForDNSPolicy(ctx context.Context, dnsPolicy *v1alpha1.DNSPolicy) ([]v1alpha1.DNSRecord, error) {
+	dnsRecordList := &v1alpha1.DNSRecordList{}
+	if err := policy.GetRelatedObjects(ctx, dh.Client, dnsPolicy, dnsRecordList, DNSPolicyBackRefAnnotation); err != nil {
+		return nil, err
+	}
+	return dnsRecordList.Items, nil
 }
 
 func withGatewayListener[T metav1.Object](gateway common.GatewayWrapper, listener gatewayapiv1.Listener, obj T) T {

@@ -113,6 +113,7 @@ type DNSPolicyStatus struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 //+kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type==\"Ready\")].status",description="DNSPolicy ready."
+//+kubebuilder:printcolumn:name="Enforced",type="string",JSONPath=".status.conditions[?(@.type==\"Enforced\")].status",description="DNSPolicy enforced."
 
 // DNSPolicy is the Schema for the dnspolicies API
 type DNSPolicy struct {
