@@ -37,7 +37,7 @@ All OCM spoke clusters must be configured with the `RawFeedbackJsonString` featu
 First, run the following command in the context of your hub cluster to install the Gateway API CRDs:
 
 ```bash
-kubectl apply -k "github.com/kubernetes-sigs/gateway-api/config/crd?ref=v0.6.2"
+kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.0.0/standard-install.yaml"
 ```
 
 We can then add a `wait` to verify the CRDs have been established:
