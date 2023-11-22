@@ -4,4 +4,5 @@ resources:
 
 
 patchesStrategicMerge:
-  - delete-cluster-issuer.yaml  
+  - delete-cluster-issuer.yaml
+  

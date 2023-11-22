@@ -38,7 +38,7 @@ All OCM spoke clusters must be configured with the `RawFeedbackJsonString` featu
 First, run the following command in the context of your hub cluster to install the Gateway API CRDs:
 
 ```bash
-kubectl apply -k "github.com/kubernetes-sigs/gateway-api/config/crd?ref=v0.6.2"
+kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.0.0/standard-install.yaml"
 ```
 
 We can then add a `wait` to verify the CRDs have been established:
@@ -55,7 +55,7 @@ customresourcedefinition.apiextensions.k8s.io/httproutes.gateway.networking.k8s.
 Then run the following command to install the MGC:
 
 ```bash
-kubectl apply -k "github.com/kuadrant/multicluster-gateway-controller.git/config/mgc-install-guide?ref=main"
+kubectl apply -k "github.com/kuadrant/multicluster-gateway-controller.git/config/mgc-install-guide?ref=release-0.2"
 ```
 
 In addition to the MGC, this will also install the Kuadrant add-on manager and a `GatewayClass` from which MGC-managed `Gateways` can be instantiated.
@@ -63,11 +63,12 @@ In addition to the MGC, this will also install the Kuadrant add-on manager and a
 After the configuration has been applied, you can verify that the MGC and add-on manager have been installed and are running:
 
 ```bash
-kubectl wait --timeout=5m -n multicluster-gateway-controller-system deployment/mgc-controller-manager deployment/mgc-add-on-manager --for=condition=Available
+kubectl wait --timeout=5m -n multicluster-gateway-controller-system deployment/mgc-controller-manager deployment/mgc-add-on-manager deployment/mgc-policy-controller --for=condition=Available
 ```
 ```
 deployment.apps/mgc-controller-manager condition met
 deployment.apps/mgc-add-on-manager condition met
+deployment/mgc-policy-controller condition met
 ```
 
 We can also verify that the `GatewayClass` has been accepted by the MGC:

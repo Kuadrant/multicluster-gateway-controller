@@ -13,9 +13,9 @@ This walkthrough will show you how to install and setup the Kuadrant Operator in
 * OLM will need to be installed into the ManagedCluster where you want to run the Kuadrant Service Protection components
   * See https://olm.operatorframework.io/docs/getting-started/
 * Kuadrant uses Istio as a Gateway API provider - this will need to be installed into the data plane clusters
-  * We recommend installing Istio 1.17.0, including Gateway API v0.6.2
+  * We recommend installing Istio 1.17.0, including Gateway API v1
   * ```bash
-    kubectl apply -k "github.com/kubernetes-sigs/gateway-api/config/crd?ref=v0.6.2"
+    kubectl apply -f "https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.0.0/standard-install.yaml"
     ```
   * See also: [https://istio.io/v1.17/blog/2022/getting-started-gtwapi/]
 
