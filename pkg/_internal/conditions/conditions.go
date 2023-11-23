@@ -14,15 +14,15 @@ type ConditionReason string
 
 const (
 	ConditionTypeReady    ConditionType = "Ready"
+	ConditionTypeAccepted ConditionType = "Accepted"
 	ConditionTypeEnforced ConditionType = "Enforced"
 
 	//common policy reasons for policy affected conditions
 
-	PolicyReasonAccepted   ConditionReason = "Accepted"
-	PolicyReasonInvalid    ConditionReason = "Invalid"
-	PolicyReasonUnknown    ConditionReason = "Unknown"
-	PolicyReasonConflicted ConditionReason = "Conflicted"
-
+	PolicyReasonAccepted       ConditionReason = "Accepted"
+	PolicyReasonInvalid        ConditionReason = "Invalid"
+	PolicyReasonUnknown        ConditionReason = "Unknown"
+	PolicyReasonConflicted     ConditionReason = "Conflicted"
 	PolicyReasonTargetNotFound ConditionReason = "TargetNotFound"
 )
 

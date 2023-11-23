@@ -76,13 +76,13 @@ var _ = Describe("DNSPolicy", func() {
 			Expect(k8sClient.Create(ctx, dnsPolicy)).To(Succeed())
 		})
 
-		It("should have ready condition with status false and correct reason", func() {
+		It("should have accepted condition with status false and correct reason", func() {
 			Eventually(func(g Gomega) {
 				err := k8sClient.Get(ctx, client.ObjectKeyFromObject(dnsPolicy), dnsPolicy)
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(dnsPolicy.Status.Conditions).To(
 					ContainElement(MatchFields(IgnoreExtras, Fields{
-						"Type":   Equal(string(conditions.ConditionTypeReady)),
+						"Type":   Equal(string(conditions.ConditionTypeAccepted)),
 						"Status": Equal(metav1.ConditionFalse),
 						"Reason": Equal(string(conditions.PolicyReasonTargetNotFound)),
 					})),
@@ -90,7 +90,7 @@ var _ = Describe("DNSPolicy", func() {
 			}, TestTimeoutMedium, time.Second).Should(Succeed())
 		})
 
-		It("should have ready condition with status true", func() {
+		It("should have accepted condition with status true", func() {
 			By("creating a valid Gateway")
 
 			gateway = testutil.NewGatewayBuilder("test-gateway", gatewayClass.Name, testNamespace).
@@ -102,7 +102,7 @@ var _ = Describe("DNSPolicy", func() {
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(dnsPolicy.Status.Conditions).To(
 					ContainElement(MatchFields(IgnoreExtras, Fields{
-						"Type":   Equal(string(conditions.ConditionTypeReady)),
+						"Type":   Equal(string(conditions.ConditionTypeAccepted)),
 						"Status": Equal(metav1.ConditionTrue),
 						"Reason": Equal("GatewayDNSEnabled"),
 					})),
@@ -187,7 +187,7 @@ var _ = Describe("DNSPolicy", func() {
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(dnsPolicy.Status.Conditions).To(
 					ContainElement(MatchFields(IgnoreExtras, Fields{
-						"Type":    Equal(string(conditions.ConditionTypeReady)),
+						"Type":    Equal(string(conditions.ConditionTypeAccepted)),
 						"Status":  Equal(metav1.ConditionFalse),
 						"Reason":  Equal("ReconciliationError"),
 						"Message": ContainSubstring("gateway is invalid: inconsistent status addresses"),
@@ -223,13 +223,13 @@ var _ = Describe("DNSPolicy", func() {
 			}, time.Second*15, time.Second).Should(BeEmpty())
 		})
 
-		It("should have ready status", func() {
+		It("should have accepted status", func() {
 			Eventually(func(g Gomega) {
 				err := k8sClient.Get(ctx, client.ObjectKeyFromObject(dnsPolicy), dnsPolicy)
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(dnsPolicy.Status.Conditions).To(
 					ContainElement(MatchFields(IgnoreExtras, Fields{
-						"Type":   Equal(string(conditions.ConditionTypeReady)),
+						"Type":   Equal(string(conditions.ConditionTypeAccepted)),
 						"Status": Equal(metav1.ConditionTrue),
 						"Reason": Equal("GatewayDNSEnabled"),
 					})),

@@ -23,6 +23,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayapiv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
 )
 
 type RoutingStrategy string
@@ -231,3 +233,30 @@ func init() {
 }
 
 const DefaultWeight Weight = 120
+
+func (p *DNSPolicy) BuildPolicyAcceptedCondition(statusErr error) *metav1.Condition {
+
+	condition := &metav1.Condition{
+		Type:    string(conditions.ConditionTypeAccepted),
+		Status:  metav1.ConditionTrue,
+		Reason:  string(conditions.ConditionTypeAccepted),
+		Message: "KuadrantPolicy has been accepted",
+	}
+
+	if statusErr == nil {
+		return condition
+	}
+
+	if statusErr == conditions.ErrTargetNotFound {
+		condition.Status = metav1.ConditionFalse
+		condition.Reason = string(conditions.PolicyReasonTargetNotFound)
+		condition.Message = fmt.Sprintf("KuadrantPolicy target %s was not found", p.Spec.TargetRef.Name)
+		return condition
+	}
+
+	condition.Status = metav1.ConditionUnknown
+	condition.Reason = string(conditions.PolicyReasonUnknown)
+	condition.Message = fmt.Sprintf("KuadrantPolicy status unknown due to error %s", statusErr)
+
+	return condition
+}

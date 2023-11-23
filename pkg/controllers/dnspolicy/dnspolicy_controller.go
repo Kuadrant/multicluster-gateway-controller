@@ -86,38 +86,6 @@ func (r *DNSPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	dnsPolicy := previous.DeepCopy()
 	log.V(3).Info("DNSPolicyReconciler Reconcile", "dnsPolicy", dnsPolicy)
 
-	markedForDeletion := dnsPolicy.GetDeletionTimestamp() != nil
-
-	targetNetworkObject, err := r.FetchValidTargetRef(ctx, dnsPolicy.GetTargetRef(), dnsPolicy.Namespace)
-	if err != nil {
-		if !markedForDeletion {
-			if apierrors.IsNotFound(err) {
-				log.V(3).Info("Network object not found. Cleaning up")
-				delResErr := r.deleteResources(ctx, dnsPolicy, nil)
-				if delResErr == nil {
-					delResErr = err
-				}
-				return r.reconcileStatus(ctx, dnsPolicy, fmt.Errorf("%w : %w", conditions.ErrTargetNotFound, delResErr))
-			}
-			return ctrl.Result{}, err
-		}
-		targetNetworkObject = nil // we need the object set to nil when there's an error, otherwise deleting the resources (when marked for deletion) will panic
-	}
-
-	if markedForDeletion {
-		log.V(3).Info("cleaning up dns policy")
-		if controllerutil.ContainsFinalizer(dnsPolicy, DNSPolicyFinalizer) {
-			if err := r.deleteResources(ctx, dnsPolicy, targetNetworkObject); err != nil {
-				return ctrl.Result{}, err
-			}
-			if err := r.RemoveFinalizer(ctx, dnsPolicy, DNSPolicyFinalizer); err != nil {
-				return ctrl.Result{}, err
-			}
-		}
-
-		return ctrl.Result{}, nil
-	}
-
 	// add finalizer to the dnsPolicy
 	if !controllerutil.ContainsFinalizer(dnsPolicy, DNSPolicyFinalizer) {
 		if err := r.AddFinalizer(ctx, dnsPolicy, DNSPolicyFinalizer); client.IgnoreNotFound(err) != nil {
@@ -127,20 +95,65 @@ func (r *DNSPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 	}
 
-	specErr := r.reconcileResources(ctx, dnsPolicy, targetNetworkObject)
+	markedForDeletion := dnsPolicy.GetDeletionTimestamp() != nil
 
-	statusResult, statusErr := r.reconcileStatus(ctx, dnsPolicy, specErr)
+	targetNetworkObject, err := r.FetchValidTargetRef(ctx, dnsPolicy.GetTargetRef(), dnsPolicy.Namespace)
 
-	if specErr != nil {
-		return ctrl.Result{}, specErr
+	if err != nil {
+		targetNetworkObject = nil
+	}
+	if markedForDeletion {
+		log.V(3).Info("cleaning up dns policy")
+		if controllerutil.ContainsFinalizer(dnsPolicy, DNSPolicyFinalizer) {
+			if err = r.deleteResources(ctx, dnsPolicy, targetNetworkObject); err != nil {
+				return ctrl.Result{}, err
+			}
+			if err = r.RemoveFinalizer(ctx, dnsPolicy, DNSPolicyFinalizer); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+
+		return ctrl.Result{}, nil
 	}
 
+	validateErr, acceptErr := r.validate(ctx, dnsPolicy)
+
+	statusResult, statusErr := r.reconcileStatus(ctx, dnsPolicy, acceptErr)
+
+	if validateErr != nil || targetNetworkObject == nil {
+		return ctrl.Result{Requeue: true}, validateErr
+	}
+	if statusErr != nil {
+		return statusResult, statusErr
+	}
+
+	enforceErr := r.enforce(ctx, dnsPolicy, targetNetworkObject)
+
+	statusResult, statusErr = r.reconcileStatus(ctx, dnsPolicy, enforceErr)
+
+	if enforceErr != nil {
+		return ctrl.Result{Requeue: true}, enforceErr
+	}
 	return statusResult, statusErr
 }
 
-func (r *DNSPolicyReconciler) reconcileResources(ctx context.Context, dnsPolicy *v1alpha1.DNSPolicy, targetNetworkObject client.Object) error {
-	gatewayCondition := conditions.BuildPolicyAffectedCondition(DNSPolicyAffected, dnsPolicy, targetNetworkObject, conditions.PolicyReasonAccepted, nil)
+func (r *DNSPolicyReconciler) validate(ctx context.Context, dnsPolicy *v1alpha1.DNSPolicy) (error, error) {
+	_, targetErr := r.FetchValidTargetRef(ctx, dnsPolicy.GetTargetRef(), dnsPolicy.Namespace)
 
+	if targetErr != nil {
+		if !apierrors.IsNotFound(targetErr) {
+			return nil, targetErr
+		}
+		r.Logger().V(3).Info("Network object not found. Cleaning up")
+		err := r.deleteResources(ctx, dnsPolicy, nil)
+		return err, conditions.ErrTargetNotFound
+	}
+	return nil, nil
+
+}
+
+func (r *DNSPolicyReconciler) enforce(ctx context.Context, dnsPolicy *v1alpha1.DNSPolicy, targetNetworkObject client.Object) error {
+	gatewayCondition := conditions.BuildPolicyAffectedCondition(DNSPolicyAffected, dnsPolicy, targetNetworkObject, conditions.PolicyReasonAccepted, nil)
 	// validate
 	err := dnsPolicy.Validate()
 	if err != nil {
@@ -201,11 +214,13 @@ func (r *DNSPolicyReconciler) deleteResources(ctx context.Context, dnsPolicy *v1
 		return err
 	}
 
+	// if the target ref object is nil don't try to delete any refs or update gateway references
+	if targetNetworkObject == nil {
+		return nil
+	}
 	// remove direct back ref
-	if targetNetworkObject != nil {
-		if err := r.DeleteTargetBackReference(ctx, targetNetworkObject, DNSPolicyBackRefAnnotation); err != nil {
-			return err
-		}
+	if err := r.DeleteTargetBackReference(ctx, targetNetworkObject, DNSPolicyBackRefAnnotation); err != nil {
+		return err
 	}
 
 	gatewayDiffObj, err := r.ComputeGatewayDiffs(ctx, dnsPolicy, targetNetworkObject, &DNSPolicyRefsConfig{})
@@ -214,7 +229,7 @@ func (r *DNSPolicyReconciler) deleteResources(ctx context.Context, dnsPolicy *v1
 	}
 
 	// update annotation of policies affecting the gateway
-	if err := r.ReconcileGatewayPolicyReferences(ctx, dnsPolicy, gatewayDiffObj); err != nil {
+	if err = r.ReconcileGatewayPolicyReferences(ctx, dnsPolicy, gatewayDiffObj); err != nil {
 		return err
 	}
 
@@ -222,8 +237,8 @@ func (r *DNSPolicyReconciler) deleteResources(ctx context.Context, dnsPolicy *v1
 	return r.updateGatewayCondition(ctx, metav1.Condition{Type: string(DNSPolicyAffected)}, gatewayDiffObj)
 }
 
-func (r *DNSPolicyReconciler) reconcileStatus(ctx context.Context, dnsPolicy *v1alpha1.DNSPolicy, specErr error) (ctrl.Result, error) {
-	newStatus, err := r.calculateStatus(ctx, dnsPolicy, specErr)
+func (r *DNSPolicyReconciler) reconcileStatus(ctx context.Context, dnsPolicy *v1alpha1.DNSPolicy, statusErr error) (ctrl.Result, error) {
+	newStatus, err := r.calculateStatus(ctx, dnsPolicy, statusErr)
 	// TODO: Ensure whether the best approach is to fail the reconciliation
 	// in case of an error here, or attempt to set the status with the
 	// error
@@ -242,24 +257,21 @@ func (r *DNSPolicyReconciler) reconcileStatus(ctx context.Context, dnsPolicy *v1
 			return ctrl.Result{}, updateErr
 		}
 	}
-
-	if errors.Is(specErr, conditions.ErrTargetNotFound) {
-		return ctrl.Result{Requeue: true}, nil
-	}
-
 	return ctrl.Result{}, nil
 }
 
-func (r *DNSPolicyReconciler) calculateStatus(ctx context.Context, dnsPolicy *v1alpha1.DNSPolicy, specErr error) (*v1alpha1.DNSPolicyStatus, error) {
+func (r *DNSPolicyReconciler) calculateStatus(ctx context.Context, dnsPolicy *v1alpha1.DNSPolicy, statusErr error) (*v1alpha1.DNSPolicyStatus, error) {
 	newStatus := dnsPolicy.Status.DeepCopy()
-	if specErr != nil {
+	if statusErr != nil {
 		newStatus.ObservedGeneration = dnsPolicy.Generation
+		newStatus.Conditions = []metav1.Condition{}
 	}
-	readyCond := r.readyCondition(string(dnsPolicy.Spec.TargetRef.Kind), specErr)
-	meta.SetStatusCondition(&newStatus.Conditions, *readyCond)
 
-	// Only calculate the Enforced status confition if Ready is True
-	if !meta.IsStatusConditionTrue(newStatus.Conditions, string(conditions.ConditionTypeReady)) {
+	acceptedCondition := dnsPolicy.BuildPolicyAcceptedCondition(statusErr)
+	meta.SetStatusCondition(&newStatus.Conditions, *acceptedCondition)
+
+	// Only calculate the Enforced status condition if Ready is True
+	if !meta.IsStatusConditionTrue(newStatus.Conditions, string(conditions.ConditionTypeAccepted)) {
 		return newStatus, nil
 	}
 
@@ -271,27 +283,6 @@ func (r *DNSPolicyReconciler) calculateStatus(ctx context.Context, dnsPolicy *v1
 	meta.SetStatusCondition(&newStatus.Conditions, *enforcedCond)
 
 	return newStatus, nil
-}
-
-func (r *DNSPolicyReconciler) readyCondition(targetNetworkObjectectKind string, specErr error) *metav1.Condition {
-	cond := &metav1.Condition{
-		Type:    string(conditions.ConditionTypeReady),
-		Status:  metav1.ConditionTrue,
-		Reason:  fmt.Sprintf("%sDNSEnabled", targetNetworkObjectectKind),
-		Message: fmt.Sprintf("%s is DNS Enabled", targetNetworkObjectectKind),
-	}
-
-	if specErr != nil {
-		cond.Status = metav1.ConditionFalse
-		cond.Message = specErr.Error()
-		cond.Reason = "ReconciliationError"
-
-		if errors.Is(specErr, conditions.ErrTargetNotFound) {
-			cond.Reason = string(conditions.PolicyReasonTargetNotFound)
-		}
-	}
-
-	return cond
 }
 
 func (r *DNSPolicyReconciler) enforcedCondition(ctx context.Context, dnsPolicy *v1alpha1.DNSPolicy) (*metav1.Condition, error) {
@@ -311,7 +302,7 @@ func (r *DNSPolicyReconciler) enforcedCondition(ctx context.Context, dnsPolicy *
 		}, nil
 	}
 
-	notReadyRecords := slice.Filter(dnsRecords, slice.Not((v1alpha1.DNSRecord).IsReady))
+	notReadyRecords := slice.Filter(dnsRecords, slice.Not(v1alpha1.DNSRecord.IsReady))
 	allRecordsReady := len(notReadyRecords) == 0
 
 	if allRecordsReady {
