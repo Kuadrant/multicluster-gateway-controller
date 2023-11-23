@@ -1,0 +1,8 @@
+---
+$patch: delete
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+group: cert-manager.io
+metadata:
+  name: mgc-glbc-ca
+  namespace: multicluster-gateway-controller-system
