@@ -340,6 +340,15 @@ var _ = Describe("DNSPolicy", func() {
 						"Reason": Equal("GatewayDNSEnabled"),
 					})),
 				)
+
+				g.Expect(dnsPolicy.Status.Conditions).To(
+					ContainElement(MatchFields(IgnoreExtras, Fields{
+						"Type":   Equal(string(conditions.ConditionTypeEnforced)),
+						"Status": Equal(metav1.ConditionTrue),
+						"Reason": Equal("Enforced"),
+					})),
+				)
+
 				err = k8sClient.Get(ctx, client.ObjectKeyFromObject(gateway), gateway)
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(gateway.Status.Conditions).To(

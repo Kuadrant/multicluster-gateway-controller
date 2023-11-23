@@ -44,6 +44,7 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnshealthcheckprobe"
 	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnspolicy"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnsrecord"
 	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/managedzone"
 	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/tlspolicy"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
@@ -187,6 +188,15 @@ var _ = BeforeSuite(func() {
 		Client:        k8sManager.GetClient(),
 		HealthMonitor: monitor,
 		Queue:         healthQueue,
+	}).SetupWithManager(k8sManager)
+	Expect(err).ToNot(HaveOccurred())
+
+	err = (&dnsrecord.DNSRecordReconciler{
+		Client: k8sManager.GetClient(),
+		Scheme: k8sManager.GetScheme(),
+		DNSProvider: func(ctx context.Context, managedZone *v1alpha1.ManagedZone) (dns.Provider, error) {
+			return &dns.FakeProvider{}, nil
+		},
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 
