@@ -25,11 +25,6 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
 )
 
-// SetID returns an id that should be unique across a set of endpoints
-func (e *Endpoint) SetID() string {
-	return e.DNSName + e.SetIdentifier
-}
-
 // ProviderSpecificProperty holds the name and value of a configuration which is specific to individual DNS providers
 type ProviderSpecificProperty struct {
 	Name  string `json:"name,omitempty"`
@@ -69,10 +64,15 @@ type Endpoint struct {
 	ProviderSpecific ProviderSpecific `json:"providerSpecific,omitempty"`
 }
 
+// SetID returns an id that should be unique across a set of endpoints
+func (endpoint *Endpoint) SetID() string {
+	return endpoint.DNSName + endpoint.SetIdentifier
+}
+
 // WithSetIdentifier applies the given set identifier to the endpoint.
-func (e *Endpoint) WithSetIdentifier(setIdentifier string) *Endpoint {
-	e.SetIdentifier = setIdentifier
-	return e
+func (endpoint *Endpoint) WithSetIdentifier(setIdentifier string) *Endpoint {
+	endpoint.SetIdentifier = setIdentifier
+	return endpoint
 }
 
 // WithProviderSpecific attaches a key/value pair to the Endpoint and returns the Endpoint.
@@ -80,18 +80,18 @@ func (e *Endpoint) WithSetIdentifier(setIdentifier string) *Endpoint {
 // The assumption is that most of the time this will be provider specific metadata that doesn't
 // warrant its own field on the Endpoint object itself. It differs from Labels in the fact that it's
 // not persisted in the Registry but only kept in memory during a single record synchronization.
-func (e *Endpoint) WithProviderSpecific(key, value string) *Endpoint {
-	if e.ProviderSpecific == nil {
-		e.ProviderSpecific = ProviderSpecific{}
+func (endpoint *Endpoint) WithProviderSpecific(key, value string) *Endpoint {
+	if endpoint.ProviderSpecific == nil {
+		endpoint.ProviderSpecific = ProviderSpecific{}
 	}
 
-	e.ProviderSpecific = append(e.ProviderSpecific, ProviderSpecificProperty{Name: key, Value: value})
-	return e
+	endpoint.ProviderSpecific = append(endpoint.ProviderSpecific, ProviderSpecificProperty{Name: key, Value: value})
+	return endpoint
 }
 
 // GetProviderSpecificProperty returns a ProviderSpecificProperty if the property exists.
-func (e *Endpoint) GetProviderSpecificProperty(key string) (ProviderSpecificProperty, bool) {
-	for _, providerSpecific := range e.ProviderSpecific {
+func (endpoint *Endpoint) GetProviderSpecificProperty(key string) (ProviderSpecificProperty, bool) {
+	for _, providerSpecific := range endpoint.ProviderSpecific {
 		if providerSpecific.Name == key {
 			return providerSpecific, true
 		}
@@ -99,8 +99,63 @@ func (e *Endpoint) GetProviderSpecificProperty(key string) (ProviderSpecificProp
 	return ProviderSpecificProperty{}, false
 }
 
-func (e *Endpoint) String() string {
-	return fmt.Sprintf("%s %d IN %s %s %s %s", e.DNSName, e.RecordTTL, e.RecordType, e.SetIdentifier, e.Targets, e.ProviderSpecific)
+func (endpoint *Endpoint) String() string {
+	return fmt.Sprintf("%s %d IN %s %s %s %s", endpoint.DNSName, endpoint.RecordTTL, endpoint.RecordType, endpoint.SetIdentifier, endpoint.Targets, endpoint.ProviderSpecific)
+}
+
+func (endpoint *Endpoint) GetAddress() (string, bool) {
+	if endpoint.SetIdentifier == "" || len(endpoint.Targets) == 0 {
+		return "", false
+	}
+
+	return string(endpoint.Targets[0]), true
+}
+
+func (endpoint *Endpoint) SetProviderSpecific(name, value string) {
+	if endpoint.ProviderSpecific == nil {
+		endpoint.ProviderSpecific = ProviderSpecific{}
+	}
+
+	for i, pair := range endpoint.ProviderSpecific {
+		if pair.Name == name {
+			endpoint.ProviderSpecific[i].Value = value
+			return
+		}
+	}
+
+	endpoint.ProviderSpecific = append(endpoint.ProviderSpecific, ProviderSpecificProperty{
+		Name:  name,
+		Value: value,
+	})
+}
+
+func (endpoint *Endpoint) GetProviderSpecific(name string) (string, bool) {
+	for _, property := range endpoint.ProviderSpecific {
+		if property.Name == name {
+			return property.Value, true
+		}
+	}
+
+	return "", false
+}
+
+func (endpoint *Endpoint) DeleteProviderSpecific(name string) bool {
+	if endpoint.ProviderSpecific == nil {
+		return false
+	}
+
+	deleted := false
+	providerSpecific := make(ProviderSpecific, 0, len(endpoint.ProviderSpecific))
+	for _, pair := range endpoint.ProviderSpecific {
+		if pair.Name == name {
+			deleted = true
+		} else {
+			providerSpecific = append(providerSpecific, pair)
+		}
+	}
+
+	endpoint.ProviderSpecific = providerSpecific
+	return deleted
 }
 
 // DNSRecordSpec defines the desired state of DNSRecord
@@ -187,61 +242,6 @@ type Target struct {
 	Cluster    string
 	TargetType string
 	Value      string
-}
-
-func (endpoint *Endpoint) GetAddress() (string, bool) {
-	if endpoint.SetIdentifier == "" || len(endpoint.Targets) == 0 {
-		return "", false
-	}
-
-	return string(endpoint.Targets[0]), true
-}
-
-func (endpoint *Endpoint) SetProviderSpecific(name, value string) {
-	if endpoint.ProviderSpecific == nil {
-		endpoint.ProviderSpecific = ProviderSpecific{}
-	}
-
-	for i, pair := range endpoint.ProviderSpecific {
-		if pair.Name == name {
-			endpoint.ProviderSpecific[i].Value = value
-			return
-		}
-	}
-
-	endpoint.ProviderSpecific = append(endpoint.ProviderSpecific, ProviderSpecificProperty{
-		Name:  name,
-		Value: value,
-	})
-}
-
-func (endpoint *Endpoint) GetProviderSpecific(name string) (string, bool) {
-	for _, property := range endpoint.ProviderSpecific {
-		if property.Name == name {
-			return property.Value, true
-		}
-	}
-
-	return "", false
-}
-
-func (endpoint *Endpoint) DeleteProviderSpecific(name string) bool {
-	if endpoint.ProviderSpecific == nil {
-		return false
-	}
-
-	deleted := false
-	providerSpecific := make(ProviderSpecific, 0, len(endpoint.ProviderSpecific))
-	for _, pair := range endpoint.ProviderSpecific {
-		if pair.Name == name {
-			deleted = true
-		} else {
-			providerSpecific = append(providerSpecific, pair)
-		}
-	}
-
-	endpoint.ProviderSpecific = providerSpecific
-	return deleted
 }
 
 func (dnsRecord DNSRecord) IsReady() bool {
