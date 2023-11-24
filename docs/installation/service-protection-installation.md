@@ -47,7 +47,7 @@ In OpenShift environments, OLM comes pre-installed. However, it is configured to
 To align the Kuadrant add-on with the OpenShift default CatalogSource, you can patch the add-on's CatalogSource configuration. Run the following command (note it needs to be run for each managed cluster where the add-on is installed): 
 
 ```bash
-kubectl annotate managedclusteraddon kuadrant-addon "addon.open-cluster-management.io/values"='{"CatalogSource":"openshift-marketplace/community-operators"}' -n managed-cluster-ns
+kubectl annotate managedclusteraddon kuadrant-addon "addon.open-cluster-management.io/values"='{"CatalogSource":"community-operators", "CatalogSourceNS":"openshift-marketplace"}' -n managed-cluster-ns
 ```
 
 ### Existing Istio installations and changing the default Istio Operator name
