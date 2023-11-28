@@ -7,19 +7,20 @@ This walkthrough will show you how to install and setup the Kuadrant Operator in
 * Access to an Open Cluster Management (>= v0.11.0) Managed Cluster, which has already been bootstrapped and registered with a hub cluster
   * We have [a guide](./control-plane-installation.md) which covers this in detail
   * Also see:
-    * [https://open-cluster-management.io/getting-started/quick-start/]
-    * [https://open-cluster-management.io/concepts/managedcluster/]
+    * [https://open-cluster-management.io/getting-started/quick-start/](https://open-cluster-management.io/getting-started/quick-start/)
+    * [https://open-cluster-management.io/concepts/managedcluster/](https://open-cluster-management.io/concepts/managedcluster/)
 - [Kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl) (>= v1.14.0)
 * OLM will need to be installed into the ManagedCluster where you want to run the Kuadrant Service Protection components
   * See: 
-    * https://sdk.operatorframework.io/docs/installation/
-    * https://olm.operatorframework.io/docs/getting-started/
+    * [https://sdk.operatorframework.io/docs/installation/](https://sdk.operatorframework.io/docs/installation/)
+    * [https://olm.operatorframework.io/docs/getting-started/](https://olm.operatorframework.io/docs/getting-started/)
 * Kuadrant uses Istio as a Gateway API provider - this will need to be installed into the data plane clusters
   * We recommend installing Istio 1.20.0, including Gateway API v1
-  * ```
-    kubectl apply -f "https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.0.0/standard-install.yaml"
-    ```
-  * See also: [https://preliminary.istio.io/latest/docs/tasks/traffic-management/ingress/gateway-api/]
+    * See:
+      * [https://preliminary.istio.io/latest/docs/tasks/traffic-management/ingress/gateway-api/](https://preliminary.istio.io/latest/docs/tasks/traffic-management/ingress/gateway-api/)
+    * ```
+      kubectl apply -f "https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.0.0/standard-install.yaml"
+      ```
 
 ## Install the Kuadrant OCM Add-On
 To install the Kuadrant Service Protection components into a spoke `ManagedCluster`, target your OCM Hub cluster with `kubectl` and run:
@@ -63,7 +64,7 @@ This will propogate down and update the Kuadrant Operator, used by the Kuadrant 
 
 ## Verify the Kuadrant addon installation
 
-To verify the Kuadrant OCM addon has installed currently, run:
+To verify the Kuadrant OCM addon has installed currently, run the following in your spoke cluster:
 
 ```bash
 kubectl wait --timeout=5m -n kuadrant-system kuadrant/kuadrant-sample --for=condition=Ready
