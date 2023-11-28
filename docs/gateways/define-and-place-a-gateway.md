@@ -69,20 +69,22 @@ For more information on ManagedClusterSets and placements please see the OCM off
 
 
 
-Finally in order to have the Gateway instances deployed to your spoke clusters that can start receiving traffic, you need to 
-* Add the second cluster to the clusterset
-* Label the hub gateway with a placement label.
+Finally in order to have the Gateway instances deployed to your spoke clusters that can start receiving traffic, you need to place the gateway.
 
-1. Add the second cluster to the clusterset, by running the following:
-
-    ```bash
-    kubectl --context kind-mgc-control-plane label managedcluster kind-mgc-workload-1 ingress-cluster=true
-    ```
 1. To place the gateway, we need to add a placement label to gateway resource to instruct the gateway controller where we want this gateway instantiated.
 
     ```bash
     kubectl --context kind-mgc-control-plane label gateway prod-web "cluster.open-cluster-management.io/placement"="http-gateway-placement" -n multi-cluster-gateways
     ```
+
+1. To have the gateway deployed to 2 clusters, you can add a second cluster to the clusterset by running the following:
+
+    ```bash
+    kubectl --context kind-mgc-control-plane label managedcluster kind-mgc-workload-1 ingress-cluster=true
+    ```
+
+As the placement specifies `numberOfClusters` as 2 your gateway will automatically be instantiated on the second cluster.
+
 
 2. To find a configured gateway and instantiated gateway on the hub cluster. Run the following  
 
