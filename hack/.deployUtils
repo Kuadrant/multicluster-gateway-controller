@@ -450,11 +450,12 @@ deployQuickStartWorkload() {
     wait_for "kubectl -n istio-system wait --for=condition=Available deployments --all" "istio-system deployments" "300s" "20"
 }
 
-configureControlCluster() {
-    clusterName=${1}
+configureClusterAsIngress() {
+    hubCluster=${1}
+    spokeCluster=${2}
     # Ensure the current context points to the control plane cluster
-    kubectl config use-context kind-${clusterName}
-    kubectl label managedcluster kind-mgc-control-plane ingress-cluster=true
+    kubectl config use-context kind-${hubCluster}
+    kubectl label managedcluster kind-${spokeCluster} ingress-cluster=true
 }
 
 deployPrometheus() {

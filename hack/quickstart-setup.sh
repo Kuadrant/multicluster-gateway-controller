@@ -70,9 +70,6 @@ requiredENV
 if [[ -z "${LOG_LEVEL}" ]]; then
   LOG_LEVEL=1
 fi
-if [[ -z "${OCM_SINGLE}" ]]; then
-  OCM_SINGLE=true
-fi
 if [[ -z "${MGC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
   MGC_WORKLOAD_CLUSTERS_COUNT=1
 fi
@@ -93,7 +90,6 @@ deployQuickStartControl ${KIND_CLUSTER_CONTROL_PLANE}
 configureController ${KIND_CLUSTER_CONTROL_PLANE}
 # Deploy MetalLb
 configureMetalLB ${KIND_CLUSTER_CONTROL_PLANE} ${metalLBSubnetStart}
-configureControlCluster ${KIND_CLUSTER_CONTROL_PLANE}
 
 
 # Apply Cluster Configurations to Workload clusters
@@ -104,6 +100,7 @@ if [[ -n "${MGC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
     deployOLM ${KIND_CLUSTER_WORKLOAD}-${i}
     deployOCMSpoke ${KIND_CLUSTER_WORKLOAD}-${i}
     configureManagedAddon ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_WORKLOAD}-${i}
+    configureClusterAsIngress ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_WORKLOAD}-${i}
   done
 fi
 

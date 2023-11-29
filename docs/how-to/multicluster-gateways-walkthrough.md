@@ -140,6 +140,7 @@ The listener is configured to use this TLS secret also. So now our gateway has b
 
 So what about DNS how do we bring traffic to these gateways?
 
+## Introducing the first workload cluster
 
 ### Create and attach a HTTPRoute
 
@@ -155,7 +156,7 @@ So what about DNS how do we bring traffic to these gateways?
 2. Let's create a simple echo app with a HTTPRoute in one of the gateway clusters. Remember to replace the hostname accordingly if you haven't already set a value for the `MGC_ZONE_ROOT_DOMAIN` variable as described in the [Getting Started Guide](https://docs.kuadrant.io/getting-started/). Again we are creating this in the single hub cluster for now:
 
     ```bash
-    kubectl --context kind-mgc-control-plane apply -f - <<EOF
+    kubectl --context kind-mgc-workload-1 apply -f - <<EOF
     apiVersion: gateway.networking.k8s.io/v1
     kind: HTTPRoute
     metadata:
@@ -259,26 +260,20 @@ So what about DNS how do we bring traffic to these gateways?
     # Request served by echo-XXX-XXX
     ```
 
-## Introducing the second cluster
+## Introducing the second workload cluster
 
-So now we have a working gateway with DNS and TLS configured. Let place this gateway on a second cluster and bring traffic to that gateway also.
+So now we have a working gateway with DNS and TLS configured. Let place this gateway on a second workload cluster and bring traffic to that gateway also.
 
-1. First add the second cluster to the clusterset, by running the following:
-
-    ```bash
-    kubectl --context kind-mgc-control-plane label managedcluster kind-mgc-workload-1 ingress-cluster=true
-    ```
-
-2. This has added our workload-1 cluster to the ingress clusterset. Next we need to modify our placement to update our `numberOfClusters` to 2. To patch, run:
+1. This has added our workload-1 cluster to the ingress clusterset. Next we need to modify our placement to update our `numberOfClusters` to 2. To patch, run:
 
     ```bash
     kubectl --context kind-mgc-control-plane patch placement http-gateway -n multi-cluster-gateways --type='json' -p='[{"op": "replace", "path": "/spec/numberOfClusters", "value": 2}]'
     ```
 
-3. Run the following to see the gateway on the workload-1 cluster:
+2. Run the following to see the gateway on the workload-1 cluster:
 
     ```bash
-    kubectl --context kind-mgc-workload-1 get gateways -A
+    kubectl --context kind-mgc-workload-2 get gateways -A
     ```
     You'll see the following
     ```
@@ -290,7 +285,7 @@ So now we have a working gateway with DNS and TLS configured. Let place this gat
 
 4. Let's create the HTTPRoute in the second gateway cluster. Again, remembering to replace the hostname accordingly if you haven't already set a value for the `MGC_ZONE_ROOT_DOMAIN` variable as described in the [Getting Started Guide](https://docs.kuadrant.io/getting-started/):
     ```bash
-    kubectl --context kind-mgc-workload-1 apply -f - <<EOF
+    kubectl --context kind-mgc-workload-2 apply -f - <<EOF
     apiVersion: gateway.networking.k8s.io/v1
     kind: HTTPRoute
     metadata:
