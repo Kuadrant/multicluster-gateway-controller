@@ -70,6 +70,11 @@ spec:
 EOF
 ```
 
+#### dnsProviderSecretRef
+
+This is a reference to secret containing the credentials and other configuration for accessing your dns provider
+[dnsProvider](/docs/dnspolicy/dns-provider.md)
+
 **Note:** as an `id` was specified, the Managed Gateway Controller will not re-create this zone, nor will it delete it if this `ManagedZone` is deleted.
 
 ### Current limitations
