@@ -433,9 +433,6 @@ deployQuickStartControl() {
     kubectl -n metallb-system wait --for=condition=ready pod --selector=app=metallb --timeout=300s
     echo "Waiting for cert-manager deployments to be ready"
     kubectl -n cert-manager wait --timeout=300s --for=condition=Available deployments --all
-    echo "Waiting for istio-operator deployments to be ready"
-    kubectl -n istio-operator wait --timeout=300s --for=condition=Available deployments --all
-    wait_for "kubectl -n istio-system wait --for=condition=Available deployments --all" "istio-system deployments" "300s" "20" 
 }
 
 deployQuickStartWorkload() {

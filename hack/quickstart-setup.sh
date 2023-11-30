@@ -71,7 +71,7 @@ if [[ -z "${LOG_LEVEL}" ]]; then
   LOG_LEVEL=1
 fi
 if [[ -z "${MGC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
-  MGC_WORKLOAD_CLUSTERS_COUNT=1
+  MGC_WORKLOAD_CLUSTERS_COUNT=2
 fi
 
 # Make temporary directory for kubeconfig
