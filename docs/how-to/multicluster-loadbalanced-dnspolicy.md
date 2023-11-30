@@ -1,7 +1,4 @@
-# DNS Policy
-
-The DNSPolicy is a [GatewayAPI](https://gateway-api.sigs.k8s.io/) policy that uses `Direct Policy Attachment` as defined in the [policy attachment mechanism](https://gateway-api.sigs.k8s.io/v1alpha2/references/policy-attachment/) standard.
-This policy is used to provide dns management for gateway listeners by managing the lifecycle of dns records in external dns providers such as AWS Route53 and Google DNS.
+# Multicluster LoadBalanced DNSPolicy
 
 ## Terms
 
@@ -115,7 +112,7 @@ The health check section is optional, the following fields are available:
 - `port`: The port to connect to
 - `protocol`: The protocol to use for this connection
 
-For more information about DNS Health Checks, see [this guide](./dns-health-checks.md).
+For more information about DNS Health Checks, see [this guide](../dnspolicy/dns-health-checks.md).
 
 #### Checking status of health checks
 To list all health checks:

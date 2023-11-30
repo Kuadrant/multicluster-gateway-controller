@@ -53,4 +53,4 @@ be available through the defined hosts.
 ## Advanced DNS configuration
 
 The DNSPolicy supports other optional configuration options like geographic and
-weighted load balancing and health checks. For more detailed information about these options, see [DNSPolicy reference](dns-policy.md)
+weighted load balancing and health checks. For more detailed information about these options, see [DNSPolicy](./dnspolicy.md)
