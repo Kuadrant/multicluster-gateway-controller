@@ -144,7 +144,7 @@ In the hub cluster there will be a single gateway definition but no actual gatew
 
 ## Introducing the workload clusters
 
-So now we have a working gateway with DNS and TLS configured. Let place this gateway on the workload clusters and bring traffic to those gateways also.
+So now we have a working gateway with DNS and TLS configured. Let's place this gateway on the workload clusters and bring traffic to those gateways also.
 
 1. We need to modify our placement to update our `numberOfClusters` to 2. To patch, run:
 
