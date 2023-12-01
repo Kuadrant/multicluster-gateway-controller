@@ -18,10 +18,10 @@ We will rate limit the `POST /toys` endpoint to a maximum of 5rp10s ("5 requests
 
 > **Note:** You can skip this step and proceed to [Create the HTTPRoute](#create-the-httproute) if you've already deployed the Toy Store API as part of the [AuthPolicy for Application Developers and Platform Engineers](https://docs.kuadrant.io/kuadrant-operator/doc/user-guides/auth-for-app-devs-and-platform-engineers/#2-deploy-the-toy-store-sample-application-persona-app-developer) guide.
 
-Create the deployments for both clusters we've created previously (`kind-mgc-control-plane` & `kind-mgc-workload-1`).
+Create the deployments for both clusters we've created previously (`kind-mgc-workload-1` & `kind-mgc-workload-2`).
 
 ```bash
-for context in kind-mgc-control-plane kind-mgc-workload-1; do kubectl --context $context apply -f - <<EOF
+for context in kind-mgc-workload-1 kind-mgc-workload-2; do kubectl --context $context apply -f - <<EOF
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -70,7 +70,7 @@ Create a HTTPRoute to route traffic to the services via the Gateways:
 ![](https://i.imgur.com/rdN8lo3.png)
 
 ```sh
-for context in kind-mgc-control-plane kind-mgc-workload-1; do kubectl --context $context apply -f - <<EOF
+for context in kind-mgc-workload-1 kind-mgc-workload-2; do kubectl --context $context apply -f - <<EOF
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -119,7 +119,7 @@ Create a Kuadrant `RateLimitPolicy` to configure rate limiting:
 ![](https://i.imgur.com/2A9sXXs.png)
 
 ```sh
-for context in kind-mgc-control-plane kind-mgc-workload-1; do kubectl --context $context apply -f - <<EOF
+for context in kind-mgc-workload-1 kind-mgc-workload-2; do kubectl --context $context apply -f - <<EOF
 apiVersion: kuadrant.io/v1beta2
 kind: RateLimitPolicy
 metadata:
