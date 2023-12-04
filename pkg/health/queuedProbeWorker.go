@@ -50,6 +50,7 @@ func (q *QueuedProbeWorker) EnqueueCheck(req HealthRequest) {
 	q.mux.Lock()
 	defer q.mux.Unlock()
 
+	q.logger.V(3).Info("enqueueing health check", "request", req)
 	q.requests = append(q.requests, req)
 }
 
@@ -90,6 +91,7 @@ func (q *QueuedProbeWorker) dequeue(ctx context.Context) (HealthRequest, bool) {
 
 func (q *QueuedProbeWorker) Start(ctx context.Context) error {
 	q.logger = log.FromContext(ctx)
+	q.logger.V(3).Info("Starting health check queue")
 	defer q.logger.Info("Stopping health check queue")
 
 	for {
@@ -100,6 +102,7 @@ func (q *QueuedProbeWorker) Start(ctx context.Context) error {
 			}
 			return nil
 		case <-time.After(q.Throttle):
+			q.logger.V(3).Info("dequeing health check")
 			req, ok := q.dequeue(ctx)
 			if !ok {
 				return nil
