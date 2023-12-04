@@ -19,6 +19,7 @@ package main
 import (
 	"flag"
 	"os"
+	"time"
 
 	certmanv1 "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
@@ -37,11 +38,13 @@ import (
 	"github.com/kuadrant/kuadrant-operator/pkg/reconcilers"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnshealthcheckprobe"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnspolicy"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnsrecord"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/managedzone"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/tlspolicy"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/dnsprovider"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/health"
 )
 
 var (
@@ -94,6 +97,19 @@ func main() {
 	}
 	provider := dnsprovider.NewProvider(mgr.GetClient())
 
+	healthMonitor := health.NewMonitor()
+	healthCheckQueue := health.NewRequestQueue(time.Second * 5)
+
+	if err := mgr.Add(healthMonitor); err != nil {
+		setupLog.Error(err, "unable to start health monitor")
+		os.Exit(1)
+	}
+
+	if err := mgr.Add(healthCheckQueue); err != nil {
+		setupLog.Error(err, "unable to start health check queue")
+		os.Exit(1)
+	}
+
 	if err = (&dnsrecord.DNSRecordReconciler{
 		Client:      mgr.GetClient(),
 		Scheme:      mgr.GetScheme(),
@@ -116,6 +132,15 @@ func main() {
 		DNSProvider: provider.DNSProviderFactory,
 	}).SetupWithManager(mgr, ocmHub); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DNSPolicy")
+		os.Exit(1)
+	}
+
+	if err = (&dnshealthcheckprobe.DNSHealthCheckProbeReconciler{
+		Client:        mgr.GetClient(),
+		HealthMonitor: healthMonitor,
+		Queue:         healthCheckQueue,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "DNSHealthCheckProbe")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder
