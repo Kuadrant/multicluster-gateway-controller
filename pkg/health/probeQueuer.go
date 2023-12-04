@@ -56,6 +56,8 @@ func (p *ProbeQueuer) Start() {
 	p.cancel = cancel
 	p.logger = log.FromContext(ctx)
 
+	p.logger.V(3).Info("Starting probe queuer", "id", p.ID)
+
 	go func() {
 		for {
 			select {
