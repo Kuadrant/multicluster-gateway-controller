@@ -22,6 +22,7 @@ func NewMonitor() *Monitor {
 
 func (m *Monitor) Start(ctx context.Context) error {
 	logger := log.FromContext(ctx)
+	logger.V(3).Info("Starting health check monitor")
 
 	<-ctx.Done()
 	m.mux.Lock()
