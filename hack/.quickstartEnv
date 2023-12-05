@@ -23,13 +23,13 @@ requiredENV() {
 
   if [[ "$PROVIDER" == "aws" ]]; then
     if [[ -z "${MGC_AWS_ACCESS_KEY_ID}" ]]; then
-    echo "Enter an AWS secret access key id for an Account where you have access to Route53:"
+    echo "Enter an AWS access key ID for an account where you have access to Route53:"
     read MGC_AWS_ACCESS_KEY_ID </dev/tty
     echo "export MGC_AWS_ACCESS_KEY_ID for future executions of the script to skip this step"
     fi
 
     if [[ -z "${MGC_AWS_SECRET_ACCESS_KEY}" ]]; then
-    echo "Enter your AWS secret access key for an Account where you have access to Route53:"
+    echo "Enter the corresponding AWS secret access key for the AWS access key ID entered above:"
     read MGC_AWS_SECRET_ACCESS_KEY </dev/tty
     echo "export MGC_AWS_SECRET_ACCESS_KEY for future executions of the script to skip this step"
     fi
