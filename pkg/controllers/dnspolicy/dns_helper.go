@@ -29,7 +29,6 @@ const (
 	LabelGatewayReference  = "kuadrant.io/gateway"
 	LabelGatewayNSRef      = "kuadrant.io/gateway-namespace"
 	LabelListenerReference = "kuadrant.io/listener-name"
-	LabelPolicyReference   = "kuadrant.io/policy-id"
 )
 
 var (
@@ -358,16 +357,16 @@ func (dh *dnsHelper) removeDNSForDeletedListeners(ctx context.Context, upstreamG
 		return err
 	}
 
-	for _, dns := range dnsList.Items {
+	for _, dnsRecord := range dnsList.Items {
 		listenerExists := false
 		for _, listener := range upstreamGateway.Spec.Listeners {
-			if listener.Name == gatewayapiv1.SectionName(dns.Labels[LabelListenerReference]) {
+			if listener.Name == gatewayapiv1.SectionName(dnsRecord.Labels[LabelListenerReference]) {
 				listenerExists = true
 				break
 			}
 		}
 		if !listenerExists {
-			if err := dh.Delete(ctx, &dns, &client.DeleteOptions{}); client.IgnoreNotFound(err) != nil {
+			if err := dh.Delete(ctx, &dnsRecord, &client.DeleteOptions{}); client.IgnoreNotFound(err) != nil {
 				return err
 			}
 		}
@@ -392,9 +391,8 @@ func dnsRecordName(gatewayName, listenerName string) string {
 }
 
 func (dh *dnsHelper) createDNSRecordForListener(ctx context.Context, gateway *gatewayapiv1.Gateway, dnsPolicy *v1alpha1.DNSPolicy, mz *v1alpha1.ManagedZone, listener gatewayapiv1.Listener) (*v1alpha1.DNSRecord, error) {
-
-	log := log.FromContext(ctx)
-	log.Info("creating dns for gateway listener", "listener", listener.Name)
+	logger := log.FromContext(ctx)
+	logger.Info("creating dns for gateway listener", "listener", listener.Name)
 	dnsRecord := dh.buildDNSRecordForListener(gateway, dnsPolicy, listener, mz)
 	if err := controllerutil.SetControllerReference(mz, dnsRecord, dh.Scheme()); err != nil {
 		return dnsRecord, err

@@ -45,7 +45,7 @@ func TestClusterEventHandler(t *testing.T) {
 			gateways: []gatewayapiv1.Gateway{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      testutil.GatewayClassName,
+						Name:      testutil.MultiClusterGatewayClassName,
 						Namespace: testutil.Namespace,
 						Annotations: map[string]string{
 							GatewayClusterLabelSelectorAnnotation: "type=test",
@@ -94,7 +94,7 @@ func TestClusterEventHandler(t *testing.T) {
 			enqueuedGateways: []gatewayapiv1.Gateway{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      testutil.GatewayClassName,
+						Name:      testutil.MultiClusterGatewayClassName,
 						Namespace: testutil.Namespace,
 					},
 				},
@@ -225,7 +225,7 @@ func testGateway() []gatewayapiv1.Gateway {
 	return []gatewayapiv1.Gateway{
 		{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      testutil.GatewayClassName,
+				Name:      testutil.MultiClusterGatewayClassName,
 				Namespace: testutil.Namespace,
 				Annotations: map[string]string{
 					GatewayClusterLabelSelectorAnnotation: "type=test",

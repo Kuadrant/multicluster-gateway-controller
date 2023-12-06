@@ -34,7 +34,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	. "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 	//+kubebuilder:scaffold:imports
 )
@@ -158,7 +157,6 @@ var _ = Describe("GatewayController", func() {
 		var gateway *gatewayapiv1.Gateway
 		var noLGateway *gatewayapiv1.Gateway
 		var gatewayClass *gatewayapiv1.GatewayClass
-		var managedZone *v1alpha1.ManagedZone
 		var manifest1 *ocmworkv1.ManifestWork
 		var manifest2 *ocmworkv1.ManifestWork
 		var nsSpoke1 *corev1.Namespace
@@ -180,25 +178,6 @@ var _ = Describe("GatewayController", func() {
 				},
 			}
 			Expect(k8sClient.Create(ctx, gatewayClass)).To(BeNil())
-
-			// Before: Create a test ManagedZone for test Gateway listeners to use
-			managedZone = &v1alpha1.ManagedZone{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "example.com",
-					Namespace: defaultNS,
-				},
-				Spec: v1alpha1.ManagedZoneSpec{
-					ID:          "1234",
-					DomainName:  "example.com",
-					Description: "example.com",
-					SecretRef: &v1alpha1.SecretRef{
-						Name:      providerCredential,
-						Namespace: defaultNS,
-					},
-				},
-			}
-
-			Expect(k8sClient.Create(ctx, managedZone)).To(BeNil())
 
 			//Before: Create placement decision
 
@@ -312,14 +291,6 @@ var _ = Describe("GatewayController", func() {
 				Expect(err).NotTo(HaveOccurred())
 			}
 
-			// Clean: ManagedZones
-			managedZoneList := &v1alpha1.ManagedZoneList{}
-			err = k8sClient.List(ctx, managedZoneList, client.InNamespace("default"))
-			Expect(err).NotTo(HaveOccurred())
-			for _, managedZone := range managedZoneList.Items {
-				err = k8sClient.Delete(ctx, &managedZone)
-				Expect(err).NotTo(HaveOccurred())
-			}
 			// Clean: Placement decisions
 			placementDecisionList := &ocmclusterv1beta1.PlacementDecisionList{}
 			err = k8sClient.List(ctx, placementDecisionList, client.InNamespace("default"))
