@@ -127,9 +127,6 @@ var _ = Describe("DNSPolicy", func() {
 			}
 			Expect(k8sClient.Create(ctx, probe)).To(Succeed())
 
-			err := k8sClient.Get(ctx, client.ObjectKey{Name: probe.Name, Namespace: probe.Namespace}, &v1alpha1.DNSHealthCheckProbe{})
-			Expect(err).NotTo(HaveOccurred())
-
 			Eventually(func(g Gomega) { // probe should be removed
 				err := k8sClient.Get(ctx, client.ObjectKey{Name: probe.Name, Namespace: probe.Namespace}, &v1alpha1.DNSHealthCheckProbe{})
 				g.Expect(err).To(HaveOccurred())

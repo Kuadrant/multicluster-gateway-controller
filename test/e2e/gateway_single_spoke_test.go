@@ -37,15 +37,31 @@ var _ = Describe("Gateway single target cluster", func() {
 	// it is used to name resources and/or namespaces so different
 	// tests can be run in parallel in the same cluster
 	var testID string
-	var hostname gatewayapiv1.Hostname
-	var otherHostname gatewayapiv1.Hostname
-	var wildcardHostname gatewayapiv1.Hostname
+	// testZoneDomainName provided domain name for the testZoneID e.g. e2e.hcpapps.net
+	var testZoneDomainName string
+	// testDomainName generated domain for this test e.g. t-e2e-12345.e2e.hcpapps.net
+	var testDomainName string
+	// testHostname generated hostname for this test e.g. t-gw-mgc-12345.t-e2e-12345.e2e.hcpapps.net
+	var testHostname gatewayapiv1.Hostname
+	// testHostname generated 'other' hostname for this test e.g. other-t-gw-mgc-12345.t-e2e-12345.e2e.hcpapps.net
+	var testHostnameOther gatewayapiv1.Hostname
+	// testHostnameWildcard generated '*' hostname for this test e.g. *.t-e2e-12345.e2e.hcpapps.net
+	var testHostnameWildcard gatewayapiv1.Hostname
+
 	var gw *gatewayapiv1.Gateway
 	var placement *ocm_cluster_v1beta1.Placement
 	var tlsPolicy *v1alpha1.TLSPolicy
 
 	BeforeEach(func(ctx SpecContext) {
-		testID = "t-e2e-" + tconfig.GenerateName()
+		testID = "t-gw-mgc-" + tconfig.GenerateName()
+
+		testZoneDomainName = tconfig.DNSZoneDomainName()
+		testDomainName = strings.Join([]string{testSuiteID, testZoneDomainName}, ".")
+		testHostname = gatewayapiv1.Hostname(strings.Join([]string{testID, testDomainName}, "."))
+		testHostnameOther = gatewayapiv1.Hostname(strings.Join([]string{"other-" + testID, string(testHostname)}, "."))
+		testHostnameWildcard = gatewayapiv1.Hostname(strings.Join([]string{"*", string(testHostname)}, "."))
+
+		GinkgoWriter.Printf("[debug] testHostname: '%s'\n", testHostname)
 
 		By("creating a Placement for the Gateway resource")
 		placement = &ocm_cluster_v1beta1.Placement{
@@ -60,15 +76,14 @@ var _ = Describe("Gateway single target cluster", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		By("creating a Gateway in the hub")
-		hostname = gatewayapiv1.Hostname(strings.Join([]string{testID, tconfig.ManagedZone()}, "."))
-		gw = NewGatewayBuilder(testID, GatewayClassName, tconfig.HubNamespace()).WithListener(gatewayapiv1.Listener{
+		gw = NewGatewayBuilder(testID, MultiClusterGatewayClassName, tconfig.HubNamespace()).WithListener(gatewayapiv1.Listener{
 			Name:     "https",
-			Hostname: &hostname,
+			Hostname: &testHostname,
 			Port:     443,
 			Protocol: gatewayapiv1.HTTPSProtocolType,
 			TLS: &gatewayapiv1.GatewayTLSConfig{
 				CertificateRefs: []gatewayapiv1.SecretObjectReference{{
-					Name: gatewayapiv1.ObjectName(hostname),
+					Name: gatewayapiv1.ObjectName(testHostname),
 				}},
 			},
 			AllowedRoutes: &gatewayapiv1.AllowedRoutes{
@@ -187,7 +202,7 @@ var _ = Describe("Gateway single target cluster", func() {
 			istioGW := &gatewayapiv1.Gateway{}
 			Eventually(func(ctx SpecContext) error {
 				return tconfig.SpokeClient(0).Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.SpokeNamespace()}, istioGW)
-			}).WithContext(ctx).WithTimeout(120 * time.Second).WithPolling(10 * time.Second).ShouldNot(HaveOccurred())
+			}).WithContext(ctx).WithTimeout(180 * time.Second).WithPolling(10 * time.Second).ShouldNot(HaveOccurred())
 		})
 
 		When("an HTTPRoute is attached to the Gateway", func() {
@@ -210,7 +225,7 @@ var _ = Describe("Gateway single target cluster", func() {
 								Kind:      Pointer(gatewayapiv1.Kind("Gateway")),
 							}},
 						},
-						Hostnames: []gatewayapiv1.Hostname{hostname},
+						Hostnames: []gatewayapiv1.Hostname{testHostname},
 						Rules: []gatewayapiv1.HTTPRouteRule{{
 							BackendRefs: []gatewayapiv1.HTTPBackendRef{{
 								BackendRef: gatewayapiv1.BackendRef{
@@ -265,7 +280,7 @@ var _ = Describe("Gateway single target cluster", func() {
 					Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
 					secret := &corev1.Secret{
 						ObjectMeta: metav1.ObjectMeta{
-							Name:      strings.Join([]string{testID, tconfig.ManagedZone()}, "."),
+							Name:      string(testHostname),
 							Namespace: tconfig.HubNamespace(),
 						},
 					}
@@ -273,7 +288,7 @@ var _ = Describe("Gateway single target cluster", func() {
 					Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
 					cert := &certmanv1.Certificate{
 						ObjectMeta: metav1.ObjectMeta{
-							Name:      strings.Join([]string{testID, tconfig.ManagedZone()}, "."),
+							Name:      string(testHostname),
 							Namespace: tconfig.HubNamespace(),
 						},
 					}
@@ -308,25 +323,14 @@ var _ = Describe("Gateway single target cluster", func() {
 						case <-time.After(30 * time.Second):
 						}
 					}
+
 					By("ensuring the authoritative nameserver resolves the hostname")
-
 					// speed up things by using the authoritative nameserver
-					nameservers, err := net.LookupNS(tconfig.ManagedZone())
-					Expect(err).ToNot(HaveOccurred())
-					GinkgoWriter.Printf("[debug] authoritative nameserver used for DNS record resolution: %s\n", nameservers[0].Host)
-
-					authoritativeResolver := &net.Resolver{
-						PreferGo: true,
-						Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-							d := net.Dialer{Timeout: 10 * time.Second}
-							return d.DialContext(ctx, network, strings.Join([]string{nameservers[0].Host, "53"}, ":"))
-						},
-					}
-
+					authoritativeResolver := ResolverForDomainName(testZoneDomainName)
 					Eventually(func(ctx SpecContext) bool {
 						c, cancel := context.WithTimeout(ctx, 10*time.Second)
 						defer cancel()
-						IPs, err := authoritativeResolver.LookupHost(c, string(hostname))
+						IPs, err := authoritativeResolver.LookupHost(c, string(testHostname))
 						if err != nil {
 							GinkgoWriter.Printf("[debug] LookupHost error: '%s'\n", err)
 						}
@@ -344,27 +348,27 @@ var _ = Describe("Gateway single target cluster", func() {
 						http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 
 						var resp *http.Response
+						var err error
 						Eventually(func(g Gomega, ctx SpecContext) {
 							httpClient := &http.Client{}
-							resp, err = httpClient.Get("https://" + string(hostname))
+							resp, err = httpClient.Get("https://" + string(testHostname))
 							g.Expect(err).ToNot(HaveOccurred())
 						}).WithTimeout(300 * time.Second).WithPolling(10 * time.Second).WithContext(ctx).Should(Succeed())
 
 						defer resp.Body.Close()
 						Expect(resp.StatusCode).To(Equal(http.StatusOK))
 					}
+
 					By("adding wildcard listener to the gateway")
 					{
 						gw := &gatewayapiv1.Gateway{}
-						err = tconfig.HubClient().Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.HubNamespace()}, gw)
+						err := tconfig.HubClient().Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.HubNamespace()}, gw)
 						Expect(err).ToNot(HaveOccurred())
 
 						if gw.Spec.Listeners == nil {
 							gw.Spec.Listeners = []gatewayapiv1.Listener{}
 						}
-						wildcardHostname = gatewayapiv1.Hostname(strings.Join([]string{"*", tconfig.ManagedZone()}, "."))
-						secretName := gatewayapiv1.Hostname(strings.Join([]string{testID, tconfig.ManagedZone()}, "."))
-						AddListener("wildcard", wildcardHostname, gatewayapiv1.ObjectName(secretName), gw)
+						AddListener("wildcard", testHostnameWildcard, gatewayapiv1.ObjectName(testHostname), gw)
 						err = tconfig.HubClient().Update(ctx, gw)
 						Expect(err).ToNot(HaveOccurred())
 						Eventually(func(g Gomega, ctx SpecContext) {
@@ -373,21 +377,20 @@ var _ = Describe("Gateway single target cluster", func() {
 							g.Expect(err).ToNot(HaveOccurred())
 							g.Expect(len(checkGateway.Spec.Listeners)).To(Equal(2))
 						}).WithContext(ctx).WithTimeout(100 * time.Second).WithPolling(2 * time.Second).Should(Succeed())
-
 					}
 
 					By("checking tls secrets for wildcard entry in annotation")
 					{
 						secretList := &corev1.SecretList{}
 						Eventually(func(g Gomega, ctx SpecContext) {
-							err = tconfig.HubClient().List(ctx, secretList)
+							err := tconfig.HubClient().List(ctx, secretList)
 							g.Expect(err).ToNot(HaveOccurred())
 							g.Expect(secretList.Items).To(Not(BeEmpty()))
 							g.Expect(secretList.Items).To(
 								ContainElement(
 									MatchFields(IgnoreExtras, Fields{
 										"ObjectMeta": MatchFields(IgnoreExtras, Fields{
-											"Annotations": HaveKeyWithValue("cert-manager.io/alt-names", fmt.Sprintf("%s,%s", string(hostname), string(wildcardHostname))),
+											"Annotations": HaveKeyWithValue("cert-manager.io/alt-names", fmt.Sprintf("%s,%s", string(testHostname), string(testHostnameWildcard))),
 										}),
 									})),
 							)
@@ -398,7 +401,7 @@ var _ = Describe("Gateway single target cluster", func() {
 					{
 						certList := &certmanv1.CertificateList{}
 						Eventually(func(g Gomega, ctx SpecContext) {
-							err = tconfig.HubClient().List(ctx, certList)
+							err := tconfig.HubClient().List(ctx, certList)
 							g.Expect(err).NotTo(HaveOccurred())
 							g.Expect(certList.Items).To(Not(BeEmpty()))
 							g.Expect(certList.Items).To(
@@ -408,22 +411,22 @@ var _ = Describe("Gateway single target cluster", func() {
 											"Labels": HaveKeyWithValue("gateway", testID),
 										}),
 										"Spec": MatchFields(IgnoreExtras, Fields{
-											"DNSNames": ConsistOf(string(hostname), string(wildcardHostname)),
+											"DNSNames": ConsistOf(string(testHostname), string(testHostnameWildcard)),
 										}),
 									})))
 						}).WithContext(ctx).WithTimeout(180 * time.Second).WithPolling(2 * time.Second).Should(Succeed())
 					}
+
 					By("when adding/removing listeners, checking that tls secrets are added/removed")
 					{
 						gw := &gatewayapiv1.Gateway{}
-						err = tconfig.HubClient().Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.HubNamespace()}, gw)
+						err := tconfig.HubClient().Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.HubNamespace()}, gw)
 						Expect(err).ToNot(HaveOccurred())
 
 						if gw.Spec.Listeners == nil {
 							gw.Spec.Listeners = []gatewayapiv1.Listener{}
 						}
-						otherHostname = gatewayapiv1.Hostname(strings.Join([]string{"other", tconfig.ManagedZone()}, "."))
-						AddListener("other", otherHostname, gatewayapiv1.ObjectName(otherHostname), gw)
+						AddListener("other", testHostnameOther, gatewayapiv1.ObjectName(testHostnameOther), gw)
 						Eventually(func(g Gomega, ctx SpecContext) {
 							err = tconfig.HubClient().Update(ctx, gw)
 							Expect(err).ToNot(HaveOccurred())
@@ -435,7 +438,7 @@ var _ = Describe("Gateway single target cluster", func() {
 
 						Eventually(func(g Gomega, ctx SpecContext) {
 							secret := &corev1.Secret{}
-							err = tconfig.HubClient().Get(ctx, client.ObjectKey{Name: string(otherHostname), Namespace: tconfig.HubNamespace()}, secret)
+							err = tconfig.HubClient().Get(ctx, client.ObjectKey{Name: string(testHostnameOther), Namespace: tconfig.HubNamespace()}, secret)
 							g.Expect(err).ToNot(HaveOccurred())
 						}).WithContext(ctx).WithTimeout(180 * time.Second).WithPolling(2 * time.Second).Should(Succeed())
 
@@ -456,7 +459,7 @@ var _ = Describe("Gateway single target cluster", func() {
 						Expect(err).ToNot(HaveOccurred())
 						Eventually(func(g Gomega, ctx SpecContext) {
 							secret := &corev1.Secret{}
-							err = tconfig.HubClient().Get(ctx, client.ObjectKey{Name: string(otherHostname), Namespace: tconfig.HubNamespace()}, secret)
+							err = tconfig.HubClient().Get(ctx, client.ObjectKey{Name: string(testHostnameOther), Namespace: tconfig.HubNamespace()}, secret)
 							g.Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
 						}).WithContext(ctx).WithTimeout(180 * time.Second).WithPolling(2 * time.Second).Should(Succeed())
 					}
@@ -468,13 +471,11 @@ var _ = Describe("Gateway single target cluster", func() {
 								Namespace: tconfig.HubNamespace(),
 							},
 						}
-						err := tconfig.HubClient().Delete(ctx, tlsPolicy,
-							client.PropagationPolicy(metav1.DeletePropagationForeground))
+						err := tconfig.HubClient().Delete(ctx, tlsPolicy, client.PropagationPolicy(metav1.DeletePropagationForeground))
 						Expect(err).ToNot(HaveOccurred())
-						hostname = gatewayapiv1.Hostname(strings.Join([]string{testID, tconfig.ManagedZone()}, "."))
 						Eventually(func(g Gomega, ctx SpecContext) {
 							secret := &corev1.Secret{}
-							err = tconfig.HubClient().Get(ctx, client.ObjectKey{Name: string(hostname), Namespace: tconfig.HubNamespace()}, secret)
+							err = tconfig.HubClient().Get(ctx, client.ObjectKey{Name: string(testHostname), Namespace: tconfig.HubNamespace()}, secret)
 							g.Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
 						}).WithContext(ctx).WithTimeout(180 * time.Second).WithPolling(2 * time.Second).Should(Succeed())
 					}

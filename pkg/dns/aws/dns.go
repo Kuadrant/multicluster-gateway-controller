@@ -36,7 +36,6 @@ import (
 )
 
 const (
-	ProviderSpecificEvaluateTargetHealth       = "aws/evaluate-target-health"
 	ProviderSpecificRegion                     = "aws/region"
 	ProviderSpecificFailover                   = "aws/failover"
 	ProviderSpecificGeolocationSubdivisionCode = "aws/geolocation-subdivision-code"

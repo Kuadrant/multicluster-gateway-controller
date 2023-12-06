@@ -83,6 +83,9 @@ jobs:
           export OCM_SINGLE=1
           export TEST_HUB_NAMESPACE=multi-cluster-gateways
           export TEST_HUB_KUBE_CONTEXT=kind-mgc-control-plane
+          export TEST_DNS_PROVIDER_SECRET_NAME=mgc-aws-credentials
+          export TEST_DNS_ZONE_DOMAIN_NAME=e2e.hcpapps.net
+          export TEST_DNS_ZONE_ID=Z086929132US3PB46EOLR
           export TEST_MANAGED_ZONE=${{ secrets.E2E_AWS_DNS_PUBLIC_ZONE_NAME }}
           export TEST_MANAGED_ZONE_NAME=mgc-dev-mz-aws
           make test-e2e
@@ -91,10 +94,17 @@ jobs:
           export OCM_SINGLE=1
           export TEST_HUB_NAMESPACE=multi-cluster-gateways
           export TEST_HUB_KUBE_CONTEXT=kind-mgc-control-plane
+          export TEST_DNS_PROVIDER_SECRET_NAME=mgc-gcp-credentials
+          export TEST_DNS_ZONE_DOMAIN_NAME=e2e.google.hcpapps.net
+          export TEST_DNS_ZONE_ID=e2e-google-hcpapps-net
           export TEST_MANAGED_ZONE=${{ secrets.E2E_GCP_ZONE_DNS_NAME }}
           export TEST_MANAGED_ZONE_NAME=mgc-dev-mz-gcp
           make test-e2e
-      - name: Dump MGC logs
+      - name: Dump Gateway Controller logs
         if: ${{ failure() }}
         run: |
           kubectl --context kind-mgc-control-plane logs --all-containers --ignore-errors deployment/mgc-controller-manager -n multicluster-gateway-controller-system
+      - name: Dump Policy Controller logs
+        if: ${{ failure() }}
+        run: |
+          kubectl --context kind-mgc-control-plane logs --all-containers --ignore-errors deployment/mgc-policy-controller -n multicluster-gateway-controller-system

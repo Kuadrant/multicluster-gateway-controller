@@ -28,14 +28,17 @@ import (
 )
 
 const (
-	GatewayClassName      = "kuadrant-multi-cluster-gateway-instance-per-cluster"
-	ManagedClusterSetName = "gateway-clusters"
-	PlacementLabel        = "cluster.open-cluster-management.io/placement"
-	ClusterSetLabelKey    = "test-ingress-cluster"
-	ClusterSetLabelValue  = "true"
+	MultiClusterGatewayClassName = "kuadrant-multi-cluster-gateway-instance-per-cluster"
+	IstioGatewayClassName        = "istio"
+	ManagedClusterSetName        = "gateway-clusters"
+	PlacementLabel               = "cluster.open-cluster-management.io/placement"
+	ClusterSetLabelKey           = "test-ingress-cluster"
+	ClusterSetLabelValue         = "true"
 
 	// configuration environment variables
-	managedZoneEnvvar            = "TEST_MANAGED_ZONE"
+	dnsProviderSecretNameEnvvar  = "TEST_DNS_PROVIDER_SECRET_NAME"
+	dnsZoneDomainNameEnvvar      = "TEST_DNS_ZONE_DOMAIN_NAME"
+	dnsZoneIDEnvvar              = "TEST_DNS_ZONE_ID"
 	hubNamespaceEnvvar           = "TEST_HUB_NAMESPACE"
 	hubKubeContextEnvvar         = "TEST_HUB_KUBE_CONTEXT"
 	spokeKubeContextPrefixEnvvar = "TEST_SPOKE_KUBE_CONTEXT_PREFIX"
@@ -44,21 +47,29 @@ const (
 )
 
 type SuiteConfig struct {
-	cpClient     client.Client
-	dpClients    []client.Client
-	hubNamespace string
-	managedZone  string
-	cleanupList  []client.Object
+	cpClient              client.Client
+	dpClients             []client.Client
+	dnsZoneDomainName     string
+	dnsZoneID             string
+	dnsProviderSecretName string
+	hubNamespace          string
+	cleanupList           []client.Object
 }
 
 func (cfg *SuiteConfig) Build() error {
 
 	// Load test suite configuration from the environment
+	if cfg.dnsZoneDomainName = os.Getenv(dnsZoneDomainNameEnvvar); cfg.dnsZoneDomainName == "" {
+		return fmt.Errorf("env variable '%s' must be set", dnsZoneDomainNameEnvvar)
+	}
+	if cfg.dnsZoneID = os.Getenv(dnsZoneIDEnvvar); cfg.dnsZoneID == "" {
+		return fmt.Errorf("env variable '%s' must be set", dnsZoneIDEnvvar)
+	}
+	if cfg.dnsProviderSecretName = os.Getenv(dnsProviderSecretNameEnvvar); cfg.dnsProviderSecretName == "" {
+		return fmt.Errorf("env variable '%s' must be set", dnsProviderSecretNameEnvvar)
+	}
 	if cfg.hubNamespace = os.Getenv(hubNamespaceEnvvar); cfg.hubNamespace == "" {
 		return fmt.Errorf("env variable '%s' must be set", hubNamespaceEnvvar)
-	}
-	if cfg.managedZone = os.Getenv(managedZoneEnvvar); cfg.managedZone == "" {
-		return fmt.Errorf("env variable '%s' must be set", managedZoneEnvvar)
 	}
 
 	var hubKubeContext string
@@ -153,7 +164,11 @@ func (cfg *SuiteConfig) GenerateName() string {
 	return namegenerator.NewNameGenerator(nBig.Int64()).Generate()
 }
 
-func (cfg *SuiteConfig) ManagedZone() string { return cfg.managedZone }
+func (cfg *SuiteConfig) DNSZoneDomainName() string { return cfg.dnsZoneDomainName }
+
+func (cfg *SuiteConfig) DNSZoneID() string { return cfg.dnsZoneID }
+
+func (cfg *SuiteConfig) DNSProviderSecretName() string { return cfg.dnsProviderSecretName }
 
 func (cfg *SuiteConfig) HubNamespace() string { return cfg.hubNamespace }
 
@@ -212,8 +227,6 @@ func (cfg *SuiteConfig) InstallPrerequisites(ctx context.Context) error {
 		}
 	}
 
-	//TODO ensure ManagedZone: right now this is added by local-setup
-
 	// ensure ManagedClusterSet
 	{
 		managedclusterset := &ocm_cluster_v1beta2.ManagedClusterSet{
@@ -260,7 +273,7 @@ func (cfg *SuiteConfig) InstallPrerequisites(ctx context.Context) error {
 	// ensure GatewayClass
 	{
 		gatewayclass := &gatewayapiv1.GatewayClass{
-			ObjectMeta: metav1.ObjectMeta{Name: GatewayClassName},
+			ObjectMeta: metav1.ObjectMeta{Name: MultiClusterGatewayClassName},
 			Spec:       gatewayapiv1.GatewayClassSpec{ControllerName: "kuadrant.io/mgc-gw-controller"},
 		}
 

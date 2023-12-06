@@ -16,7 +16,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/placement"
 	fakeplacement "github.com/Kuadrant/multicluster-gateway-controller/pkg/placement/fake"
 	testutil "github.com/Kuadrant/multicluster-gateway-controller/test/util"
@@ -72,8 +71,6 @@ func TestGatewayReconciler_Reconcile(t *testing.T) {
 						},
 					},
 					getValidTLSCertificateSecretList(testutil.TLSSecretName, testutil.Namespace),
-					buildTestMZ(),
-					buildTestDNSRecord(),
 				),
 				Scheme: testutil.GetValidTestScheme(),
 			},
@@ -253,8 +250,6 @@ func TestGatewayReconciler_reconcileDownstreamFromUpstreamGateway(t *testing.T) 
 			fields: fields{
 				Client: testutil.GetValidTestClient(
 					getValidTLSCertificateSecretList(testutil.TLSSecretName, testutil.Namespace),
-					buildTestMZ(),
-					buildTestDNSRecord(),
 				),
 				Scheme: testutil.GetValidTestScheme(),
 			},
@@ -279,7 +274,6 @@ func TestGatewayReconciler_reconcileDownstreamFromUpstreamGateway(t *testing.T) 
 			fields: fields{
 				Client: testutil.GetValidTestClient(
 					getValidTLSCertificateSecretList(testutil.TLSSecretName, testutil.Namespace),
-					buildTestMZ(),
 				),
 				Scheme: testutil.GetValidTestScheme(),
 			},
@@ -648,34 +642,6 @@ func buildValidTestGatewaySpec() gatewayapiv1.GatewaySpec {
 				Name:     gatewayapiv1.SectionName(testutil.ValidTestHostname),
 				Hostname: testutil.Pointer(gatewayapiv1.Hostname(testutil.ValidTestHostname)),
 				Protocol: gatewayapiv1.HTTPSProtocolType,
-			},
-		},
-	}
-}
-
-func buildTestMZ() *v1alpha1.ManagedZoneList {
-	return &v1alpha1.ManagedZoneList{
-		Items: []v1alpha1.ManagedZone{
-			{
-				ObjectMeta: v1.ObjectMeta{
-					Namespace: testutil.Namespace,
-				},
-				Spec: v1alpha1.ManagedZoneSpec{
-					DomainName: testutil.Domain,
-				},
-			},
-		},
-	}
-}
-
-func buildTestDNSRecord() *v1alpha1.DNSRecordList {
-	return &v1alpha1.DNSRecordList{
-		Items: []v1alpha1.DNSRecord{
-			{
-				ObjectMeta: v1.ObjectMeta{
-					Name:      testutil.Domain,
-					Namespace: testutil.Namespace,
-				},
 			},
 		},
 	}

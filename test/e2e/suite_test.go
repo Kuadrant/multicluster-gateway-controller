@@ -3,7 +3,11 @@
 package e2e
 
 import (
+	"context"
+	"net"
+	"strings"
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -14,7 +18,11 @@ import (
 	. "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 )
 
-var tconfig SuiteConfig
+var (
+	tconfig SuiteConfig
+	// testSuiteID is a randomly generated identifier for the test suite
+	testSuiteID string
+)
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -31,10 +39,25 @@ var _ = BeforeSuite(func(ctx SpecContext) {
 	err = tconfig.InstallPrerequisites(ctx)
 	Expect(err).NotTo(HaveOccurred())
 
+	testSuiteID = "t-e2e-" + tconfig.GenerateName()
 })
 
 var _ = AfterSuite(func(ctx SpecContext) {
 	err := tconfig.Cleanup(ctx)
 	Expect(err).ToNot(HaveOccurred())
-
 })
+
+func ResolverForDomainName(domainName string) *net.Resolver {
+	nameservers, err := net.LookupNS(domainName)
+	Expect(err).ToNot(HaveOccurred())
+	GinkgoWriter.Printf("[debug] authoritative nameserver used for DNS record resolution: %s\n", nameservers[0].Host)
+
+	authoritativeResolver := &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+			d := net.Dialer{Timeout: 10 * time.Second}
+			return d.DialContext(ctx, network, strings.Join([]string{nameservers[0].Host, "53"}, ":"))
+		},
+	}
+	return authoritativeResolver
+}

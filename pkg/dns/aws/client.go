@@ -100,6 +100,7 @@ func (c *InstrumentedRoute53) CreateHostedZone(input *route53.CreateHostedZoneIn
 	})
 	return
 }
+
 func (c *InstrumentedRoute53) DeleteHostedZone(input *route53.DeleteHostedZoneInput) (output *route53.DeleteHostedZoneOutput, err error) {
 	observe("DeleteHostedZone", func() error {
 		output, err = c.route53.DeleteHostedZone(input)
