@@ -190,7 +190,7 @@ func (dh *dnsHelper) getSimpleEndpoints(mcgTarget *dns.MultiClusterGatewayTarget
 	)
 
 	for _, cgwTarget := range mcgTarget.ClusterGatewayTargets {
-		for _, gwa := range cgwTarget.GatewayAddresses {
+		for _, gwa := range cgwTarget.Status.Addresses {
 			if *gwa.Type == gatewayapiv1.IPAddressType {
 				ipValues = append(ipValues, gwa.Value)
 			} else {
@@ -273,7 +273,7 @@ func (dh *dnsHelper) getLoadBalancedEndpoints(mcgTarget *dns.MultiClusterGateway
 
 			var ipValues []string
 			var hostValues []string
-			for _, gwa := range cgwTarget.GatewayAddresses {
+			for _, gwa := range cgwTarget.Status.Addresses {
 				if *gwa.Type == gatewayapiv1.IPAddressType {
 					ipValues = append(ipValues, gwa.Value)
 				} else {

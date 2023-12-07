@@ -18,6 +18,7 @@ import (
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/utils"
 	testutil "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 )
 
@@ -421,40 +422,42 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 				},
 				ClusterGatewayTargets: []dns.ClusterGatewayTarget{
 					{
-						ClusterGateway: &dns.ClusterGateway{
-							Cluster: &testutil.TestResource{
-								ObjectMeta: v1.ObjectMeta{
-									Name: "test-cluster-1",
+						ClusterGateway: &utils.ClusterGateway{
+							Gateway: gatewayapiv1.Gateway{
+								ObjectMeta: v1.ObjectMeta{Name: "testgw"},
+								Status: gatewayapiv1.GatewayStatus{
+									Addresses: []gatewayapiv1.GatewayStatusAddress{
+										{
+											Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
+											Value: "1.1.1.1",
+										},
+										{
+											Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
+											Value: "2.2.2.2",
+										},
+									},
 								},
 							},
-							GatewayAddresses: []gatewayapiv1.GatewayAddress{
-								{
-									Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
-									Value: "1.1.1.1",
-								},
-								{
-									Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
-									Value: "2.2.2.2",
-								},
-							},
+							ClusterName: "test-cluster-1",
 						},
 						Geo:    testutil.Pointer(dns.GeoCode("default")),
 						Weight: testutil.Pointer(120),
 					},
 					{
 
-						ClusterGateway: &dns.ClusterGateway{
-							Cluster: &testutil.TestResource{
-								ObjectMeta: v1.ObjectMeta{
-									Name: "test-cluster-2",
+						ClusterGateway: &utils.ClusterGateway{
+							Gateway: gatewayapiv1.Gateway{
+								ObjectMeta: v1.ObjectMeta{Name: "testgw"},
+								Status: gatewayapiv1.GatewayStatus{
+									Addresses: []gatewayapiv1.GatewayStatusAddress{
+										{
+											Type:  testutil.Pointer(gatewayapiv1.HostnameAddressType),
+											Value: "mylb.example.com",
+										},
+									},
 								},
 							},
-							GatewayAddresses: []gatewayapiv1.GatewayAddress{
-								{
-									Type:  testutil.Pointer(gatewayapiv1.HostnameAddressType),
-									Value: "mylb.example.com",
-								},
-							},
+							ClusterName: "test-cluster-2",
 						},
 						Geo:    testutil.Pointer(dns.GeoCode("default")),
 						Weight: testutil.Pointer(120),
@@ -531,41 +534,42 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 				},
 				ClusterGatewayTargets: []dns.ClusterGatewayTarget{
 					{
-
-						ClusterGateway: &dns.ClusterGateway{
-							Cluster: &testutil.TestResource{
-								ObjectMeta: v1.ObjectMeta{
-									Name: "test-cluster-1",
+						ClusterGateway: &utils.ClusterGateway{
+							Gateway: gatewayapiv1.Gateway{
+								ObjectMeta: v1.ObjectMeta{Name: "testgw"},
+								Status: gatewayapiv1.GatewayStatus{
+									Addresses: []gatewayapiv1.GatewayStatusAddress{
+										{
+											Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
+											Value: "1.1.1.1",
+										},
+										{
+											Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
+											Value: "2.2.2.2",
+										},
+									},
 								},
 							},
-							GatewayAddresses: []gatewayapiv1.GatewayAddress{
-								{
-									Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
-									Value: "1.1.1.1",
-								},
-								{
-									Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
-									Value: "2.2.2.2",
-								},
-							},
+							ClusterName: "test-cluster-1",
 						},
 						Geo:    testutil.Pointer(dns.GeoCode("NA")),
 						Weight: testutil.Pointer(120),
 					},
 					{
 
-						ClusterGateway: &dns.ClusterGateway{
-							Cluster: &testutil.TestResource{
-								ObjectMeta: v1.ObjectMeta{
-									Name: "test-cluster-2",
+						ClusterGateway: &utils.ClusterGateway{
+							Gateway: gatewayapiv1.Gateway{
+								ObjectMeta: v1.ObjectMeta{Name: "testgw"},
+								Status: gatewayapiv1.GatewayStatus{
+									Addresses: []gatewayapiv1.GatewayStatusAddress{
+										{
+											Type:  testutil.Pointer(gatewayapiv1.HostnameAddressType),
+											Value: "mylb.example.com",
+										},
+									},
 								},
 							},
-							GatewayAddresses: []gatewayapiv1.GatewayAddress{
-								{
-									Type:  testutil.Pointer(gatewayapiv1.HostnameAddressType),
-									Value: "mylb.example.com",
-								},
-							},
+							ClusterName: "test-cluster-2",
 						},
 						Geo:    testutil.Pointer(dns.GeoCode("IE")),
 						Weight: testutil.Pointer(120),
@@ -677,40 +681,42 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 				ClusterGatewayTargets: []dns.ClusterGatewayTarget{
 					{
 
-						ClusterGateway: &dns.ClusterGateway{
-							Cluster: &testutil.TestResource{
-								ObjectMeta: v1.ObjectMeta{
-									Name: "test-cluster-1",
+						ClusterGateway: &utils.ClusterGateway{
+							Gateway: gatewayapiv1.Gateway{
+								ObjectMeta: v1.ObjectMeta{Name: "testgw"},
+								Status: gatewayapiv1.GatewayStatus{
+									Addresses: []gatewayapiv1.GatewayStatusAddress{
+										{
+											Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
+											Value: "1.1.1.1",
+										},
+										{
+											Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
+											Value: "2.2.2.2",
+										},
+									},
 								},
 							},
-							GatewayAddresses: []gatewayapiv1.GatewayAddress{
-								{
-									Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
-									Value: "1.1.1.1",
-								},
-								{
-									Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
-									Value: "2.2.2.2",
-								},
-							},
+							ClusterName: "test-cluster-1",
 						},
 						Geo:    testutil.Pointer(dns.GeoCode("default")),
 						Weight: testutil.Pointer(120),
 					},
 					{
 
-						ClusterGateway: &dns.ClusterGateway{
-							Cluster: &testutil.TestResource{
-								ObjectMeta: v1.ObjectMeta{
-									Name: "test-cluster-2",
+						ClusterGateway: &utils.ClusterGateway{
+							Gateway: gatewayapiv1.Gateway{
+								ObjectMeta: v1.ObjectMeta{Name: "testgw"},
+								Status: gatewayapiv1.GatewayStatus{
+									Addresses: []gatewayapiv1.GatewayStatusAddress{
+										{
+											Type:  testutil.Pointer(gatewayapiv1.HostnameAddressType),
+											Value: "mylb.example.com",
+										},
+									},
 								},
 							},
-							GatewayAddresses: []gatewayapiv1.GatewayAddress{
-								{
-									Type:  testutil.Pointer(gatewayapiv1.HostnameAddressType),
-									Value: "mylb.example.com",
-								},
-							},
+							ClusterName: "test-cluster-2",
 						},
 						Geo:    testutil.Pointer(dns.GeoCode("default")),
 						Weight: testutil.Pointer(120),
@@ -788,40 +794,42 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 				ClusterGatewayTargets: []dns.ClusterGatewayTarget{
 					{
 
-						ClusterGateway: &dns.ClusterGateway{
-							Cluster: &testutil.TestResource{
-								ObjectMeta: v1.ObjectMeta{
-									Name: "test-cluster-1",
+						ClusterGateway: &utils.ClusterGateway{
+							Gateway: gatewayapiv1.Gateway{
+								ObjectMeta: v1.ObjectMeta{Name: "testgw"},
+								Status: gatewayapiv1.GatewayStatus{
+									Addresses: []gatewayapiv1.GatewayStatusAddress{
+										{
+											Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
+											Value: "1.1.1.1",
+										},
+										{
+											Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
+											Value: "2.2.2.2",
+										},
+									},
 								},
 							},
-							GatewayAddresses: []gatewayapiv1.GatewayAddress{
-								{
-									Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
-									Value: "1.1.1.1",
-								},
-								{
-									Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
-									Value: "2.2.2.2",
-								},
-							},
+							ClusterName: "test-cluster-1",
 						},
 						Geo:    testutil.Pointer(dns.GeoCode("NA")),
 						Weight: testutil.Pointer(120),
 					},
 					{
 
-						ClusterGateway: &dns.ClusterGateway{
-							Cluster: &testutil.TestResource{
-								ObjectMeta: v1.ObjectMeta{
-									Name: "test-cluster-2",
+						ClusterGateway: &utils.ClusterGateway{
+							Gateway: gatewayapiv1.Gateway{
+								ObjectMeta: v1.ObjectMeta{Name: "testgw"},
+								Status: gatewayapiv1.GatewayStatus{
+									Addresses: []gatewayapiv1.GatewayStatusAddress{
+										{
+											Type:  testutil.Pointer(gatewayapiv1.HostnameAddressType),
+											Value: "mylb.example.com",
+										},
+									},
 								},
 							},
-							GatewayAddresses: []gatewayapiv1.GatewayAddress{
-								{
-									Type:  testutil.Pointer(gatewayapiv1.HostnameAddressType),
-									Value: "mylb.example.com",
-								},
-							},
+							ClusterName: "test-cluster-2",
 						},
 						Geo:    testutil.Pointer(dns.GeoCode("IE")),
 						Weight: testutil.Pointer(120),
@@ -930,26 +938,28 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 				ClusterGatewayTargets: []dns.ClusterGatewayTarget{
 					{
 
-						ClusterGateway: &dns.ClusterGateway{
-							Cluster: &testutil.TestResource{
-								ObjectMeta: v1.ObjectMeta{
-									Name: "test-cluster-1",
+						ClusterGateway: &utils.ClusterGateway{
+							Gateway: gatewayapiv1.Gateway{
+								ObjectMeta: v1.ObjectMeta{Name: "testgw"},
+								Status: gatewayapiv1.GatewayStatus{
+									Addresses: []gatewayapiv1.GatewayStatusAddress{},
 								},
 							},
-							GatewayAddresses: []gatewayapiv1.GatewayAddress{},
+							ClusterName: "test-cluster-1",
 						},
 						Geo:    testutil.Pointer(dns.GeoCode("NA")),
 						Weight: testutil.Pointer(120),
 					},
 					{
 
-						ClusterGateway: &dns.ClusterGateway{
-							Cluster: &testutil.TestResource{
-								ObjectMeta: v1.ObjectMeta{
-									Name: "test-cluster-2",
+						ClusterGateway: &utils.ClusterGateway{
+							Gateway: gatewayapiv1.Gateway{
+								ObjectMeta: v1.ObjectMeta{Name: "testgw"},
+								Status: gatewayapiv1.GatewayStatus{
+									Addresses: []gatewayapiv1.GatewayStatusAddress{},
 								},
 							},
-							GatewayAddresses: []gatewayapiv1.GatewayAddress{},
+							ClusterName: "test-cluster-2",
 						},
 						Geo:    testutil.Pointer(dns.GeoCode("IE")),
 						Weight: testutil.Pointer(120),

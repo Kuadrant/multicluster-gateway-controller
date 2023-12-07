@@ -9,9 +9,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
-
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
-	testutil "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 )
 
 const (
@@ -113,17 +110,4 @@ func (f FakeOCMPlacer) GetAddresses(ctx context.Context, gateway *gatewayapiv1.G
 		}
 	}
 	return gwAddresses, nil
-}
-
-func (f FakeOCMPlacer) GetClusterGateway(ctx context.Context, gateway *gatewayapiv1.Gateway, clusterName string) (dns.ClusterGateway, error) {
-	gwAddresses, _ := f.GetAddresses(ctx, gateway, clusterName)
-	cgw := dns.ClusterGateway{
-		Cluster: &testutil.TestResource{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: clusterName,
-			},
-		},
-		GatewayAddresses: gwAddresses,
-	}
-	return cgw, nil
 }
