@@ -12,6 +12,7 @@ import (
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/utils"
 )
 
 const (
@@ -28,7 +29,7 @@ type MultiClusterGatewayTarget struct {
 	LoadBalancing         *v1alpha1.LoadBalancingSpec
 }
 
-func NewMultiClusterGatewayTarget(gateway *gatewayapiv1.Gateway, clusterGateways []ClusterGateway, loadBalancing *v1alpha1.LoadBalancingSpec) (*MultiClusterGatewayTarget, error) {
+func NewMultiClusterGatewayTarget(gateway *gatewayapiv1.Gateway, clusterGateways []utils.ClusterGateway, loadBalancing *v1alpha1.LoadBalancingSpec) (*MultiClusterGatewayTarget, error) {
 	mcg := &MultiClusterGatewayTarget{Gateway: gateway, LoadBalancing: loadBalancing}
 	err := mcg.setClusterGatewayTargets(clusterGateways)
 	return mcg, err
@@ -65,7 +66,7 @@ func (t *MultiClusterGatewayTarget) GetDefaultWeight() int {
 	return DefaultWeight
 }
 
-func (t *MultiClusterGatewayTarget) setClusterGatewayTargets(clusterGateways []ClusterGateway) error {
+func (t *MultiClusterGatewayTarget) setClusterGatewayTargets(clusterGateways []utils.ClusterGateway) error {
 	var cgTargets []ClusterGatewayTarget
 	for _, cg := range clusterGateways {
 		var customWeights []*v1alpha1.CustomWeight
@@ -82,12 +83,6 @@ func (t *MultiClusterGatewayTarget) setClusterGatewayTargets(clusterGateways []C
 	return nil
 }
 
-// ClusterGateway contains the addresses of a Gateway on a single cluster and the attributes of the target cluster.
-type ClusterGateway struct {
-	Cluster          metav1.Object
-	GatewayAddresses []gatewayapiv1.GatewayAddress
-}
-
 type GeoCode string
 
 func (gc GeoCode) IsDefaultCode() bool {
@@ -98,22 +93,14 @@ func (gc GeoCode) IsWildcard() bool {
 	return gc == WildcardGeo
 }
 
-func NewClusterGateway(cluster metav1.Object, gatewayAddresses []gatewayapiv1.GatewayAddress) *ClusterGateway {
-	cgw := &ClusterGateway{
-		Cluster:          cluster,
-		GatewayAddresses: gatewayAddresses,
-	}
-	return cgw
-}
-
 // ClusterGatewayTarget represents a cluster Gateway with geo and weighting info calculated
 type ClusterGatewayTarget struct {
-	*ClusterGateway
+	*utils.ClusterGateway
 	Geo    *GeoCode
 	Weight *int
 }
 
-func NewClusterGatewayTarget(cg ClusterGateway, defaultGeoCode GeoCode, defaultWeight int, customWeights []*v1alpha1.CustomWeight) (ClusterGatewayTarget, error) {
+func NewClusterGatewayTarget(cg utils.ClusterGateway, defaultGeoCode GeoCode, defaultWeight int, customWeights []*v1alpha1.CustomWeight) (ClusterGatewayTarget, error) {
 	target := ClusterGatewayTarget{
 		ClusterGateway: &cg,
 	}
@@ -134,7 +121,7 @@ func (t *ClusterGatewayTarget) GetWeight() int {
 }
 
 func (t *ClusterGatewayTarget) GetName() string {
-	return t.Cluster.GetName()
+	return t.ClusterName
 }
 
 func (t *ClusterGatewayTarget) GetShortCode() string {
@@ -147,7 +134,7 @@ func (t *ClusterGatewayTarget) setGeo(defaultGeo GeoCode) {
 		t.Geo = &geoCode
 		return
 	}
-	if gc, ok := t.Cluster.GetLabels()[LabelLBAttributeGeoCode]; ok {
+	if gc, ok := t.GetLabels()[LabelLBAttributeGeoCode]; ok {
 		geoCode = GeoCode(gc)
 	}
 	t.Geo = &geoCode
@@ -164,8 +151,8 @@ func (t *MultiClusterGatewayTarget) RemoveUnhealthyGatewayAddresses(probes []*v1
 	gwAddressHealth := map[string]bool{}
 	allunhealthy := true
 	for _, cgt := range t.ClusterGatewayTargets {
-		for _, gwa := range cgt.GatewayAddresses {
-			probe := getProbeForGatewayAddress(probes, gwa, t.Gateway.Name, string(listener.Name))
+		for _, gwa := range cgt.Status.Addresses {
+			probe := getProbeForGatewayAddress(probes, gatewayapiv1.GatewayAddress(gwa), t.Gateway.Name, string(listener.Name))
 			if probe == nil {
 				continue
 			}
@@ -187,13 +174,13 @@ func (t *MultiClusterGatewayTarget) RemoveUnhealthyGatewayAddresses(probes []*v1
 
 	// Remove all unhealthy addresses, we know by this point at least one of our addresses is healthy
 	for _, cgt := range t.ClusterGatewayTargets {
-		healthyAddresses := []gatewayapiv1.GatewayAddress{}
-		for _, gwa := range cgt.GatewayAddresses {
+		healthyAddresses := []gatewayapiv1.GatewayStatusAddress{}
+		for _, gwa := range cgt.Status.Addresses {
 			if healthy, exists := gwAddressHealth[gwa.Value]; exists && healthy {
 				healthyAddresses = append(healthyAddresses, gwa)
 			}
 		}
-		cgt.GatewayAddresses = healthyAddresses
+		cgt.Status.Addresses = healthyAddresses
 	}
 }
 
@@ -218,7 +205,7 @@ func (t *ClusterGatewayTarget) setWeight(defaultWeight int, customWeights []*v1a
 		if err != nil {
 			return err
 		}
-		if selector.Matches(labels.Set(t.Cluster.GetLabels())) {
+		if selector.Matches(labels.Set(t.GetLabels())) {
 			customWeight := int(cw.Weight)
 			weight = customWeight
 			break

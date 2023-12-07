@@ -26,7 +26,6 @@ import (
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/gracePeriod"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 )
 
 const (
@@ -264,32 +263,6 @@ func (op *ocmPlacer) GetClusters(ctx context.Context, gateway *gatewayapiv1.Gate
 		}
 	}
 	return targetClusters, nil
-}
-
-func (op *ocmPlacer) GetClusterGateway(ctx context.Context, gateway *gatewayapiv1.Gateway, clusterName string) (dns.ClusterGateway, error) {
-	var target dns.ClusterGateway
-	workname := WorkName(gateway)
-	mw := &workv1.ManifestWork{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      workname,
-			Namespace: clusterName,
-		},
-	}
-	if err := op.c.Get(ctx, client.ObjectKeyFromObject(mw), mw, &client.GetOptions{}); err != nil {
-		return target, err
-	}
-
-	mc := &clusterv1.ManagedCluster{}
-	if err := op.c.Get(ctx, client.ObjectKey{Name: clusterName}, mc, &client.GetOptions{}); err != nil {
-		return target, err
-	}
-
-	addresses, err := op.GetAddresses(ctx, gateway, clusterName)
-	if err != nil {
-		return target, err
-	}
-	target = *dns.NewClusterGateway(mc, addresses)
-	return target, nil
 }
 
 func (op *ocmPlacer) createUpdateClusterManifests(ctx context.Context, manifestName string, upstream *gatewayapiv1.Gateway, downstream *gatewayapiv1.Gateway, cluster string, obj ...metav1.Object) error {

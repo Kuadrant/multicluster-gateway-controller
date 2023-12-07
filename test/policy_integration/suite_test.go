@@ -160,7 +160,7 @@ var _ = BeforeSuite(func() {
 			BaseReconciler: dnsPolicyBaseReconciler,
 		},
 		DNSProvider: providerFactory,
-	}).SetupWithManager(k8sManager, true)
+	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 
 	tlsPolicyBaseReconciler := reconcilers.NewBaseReconciler(
