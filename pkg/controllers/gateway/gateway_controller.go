@@ -24,6 +24,7 @@ import (
 	"reflect"
 	"time"
 
+	clusterv1 "open-cluster-management.io/api/cluster/v1"
 	clusterv1beta2 "open-cluster-management.io/api/cluster/v1beta1"
 	workv1 "open-cluster-management.io/api/work/v1"
 
@@ -49,6 +50,7 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/gracePeriod"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/metadata"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/events"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/policysync"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/utils"
 )
@@ -195,6 +197,12 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 	metadata.AddAnnotation(upstreamGateway, GatewayClustersAnnotation, string(serialized))
 
+	// Map cluster labels onto the gateway
+	err = r.reconcileClusterLabels(ctx, upstreamGateway, clusters)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
 	if reconcileErr == nil && !reflect.DeepEqual(upstreamGateway, previous) {
 		log.Info("updating upstream gateway")
 		return reconcile.Result{}, r.Update(ctx, upstreamGateway)
@@ -262,6 +270,17 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 10}, reconcileErr
 	}
 	return ctrl.Result{}, reconcileErr
+}
+
+func (r *GatewayReconciler) reconcileClusterLabels(ctx context.Context, gateway *gatewayapiv1.Gateway, clusters []string) error {
+	//ToDo Implement me !!
+
+	//Iterate clusters and for each find the ManagedCluster resource, get its labels and convert all "kuadrant.io/" labels to a cluster specific label and add it to the gateway
+	// (cluster kind-mgc-workload-1 label) kuadrant.io/lb-attribute-custom-weight=AWS = (gateway label) kuadrant.io/kind-mgc-workload-1_lb-attribute-custom-weight=AWS
+	// (cluster kind-mgc-workload-2 label) kuadrant.io/lb-attribute-geo-code=ES = (gateway label) kuadrant.io/kind-mgc-workload-2_lb-attribute-geo-code=ES
+	// etc ...
+
+	return nil
 }
 
 // reconcileDownstreamGateway takes the upstream definition and transforms it as needed to apply it to the downstream spokes
@@ -475,7 +494,7 @@ func buildAcceptedCondition(generation int64, acceptedStatus metav1.ConditionSta
 // SetupWithManager sets up the controller with the Manager.
 func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager, ctx context.Context) error {
 	log := crlog.FromContext(ctx)
-
+	clusterEventMapper := events.NewClusterEventMapper(log, mgr.GetClient())
 	//TODO need to trigger gateway reconcile when gatewayclass params changes
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gatewayapiv1.Gateway{}).
@@ -517,6 +536,10 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager, ctx context.Conte
 			return req
 		})).
 		Watches(&corev1.Secret{}, &ClusterEventHandler{client: r.Client}).
+		Watches(
+			&clusterv1.ManagedCluster{},
+			handler.EnqueueRequestsFromMapFunc(clusterEventMapper.MapToGateway),
+		).
 		WithEventFilter(predicate.NewPredicateFuncs(func(object client.Object) bool {
 			gateway, ok := object.(*gatewayapiv1.Gateway)
 			if ok {
