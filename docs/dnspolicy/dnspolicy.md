@@ -117,7 +117,6 @@ spec:
   description: "apps.hcpapps.net managed domain"
   dnsProviderSecretRef:
     name: my-aws-credentials
-    namespace: <ManagedZone Namespace>
 ```
 
 The managed zone references a secret containing the external DNS provider services credentials.

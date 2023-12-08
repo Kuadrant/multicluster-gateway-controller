@@ -149,7 +149,6 @@ spec:
   description: "Dev Managed Zone"
   dnsProviderSecretRef:
     name: mgc-aws-credentials
-    namespace: multi-cluster-gateways
 EOF
 ```
 #### GCP
@@ -167,7 +166,6 @@ spec:
   description: "Dev Managed Zone"
   dnsProviderSecretRef:
     name: mgc-gcp-credentials
-    namespace: multi-cluster-gateways
 EOF
 ```
 

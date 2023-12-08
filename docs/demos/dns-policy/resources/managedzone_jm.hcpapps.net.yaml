@@ -9,5 +9,3 @@ spec:
   description: "jm.hcpapps.net managed domain"
   dnsProviderSecretRef:
     name: mgc-aws-credentials
-    namespace: multi-cluster-gateways
-    type: AWS
