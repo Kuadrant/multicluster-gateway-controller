@@ -33,7 +33,7 @@ func (p *providerFactory) DNSProviderFactory(ctx context.Context, managedZone *v
 	providerSecret := &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      managedZone.Spec.SecretRef.Name,
-			Namespace: managedZone.Spec.SecretRef.Namespace,
+			Namespace: managedZone.Namespace, // must be in same namespace as ManagedZone
 		}}
 
 	if err := p.Client.Get(ctx, client.ObjectKeyFromObject(providerSecret), providerSecret); err != nil {

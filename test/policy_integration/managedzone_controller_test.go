@@ -42,8 +42,7 @@ var _ = Describe("ManagedZoneReconciler", func() {
 					ID:         testutil.Domain,
 					DomainName: testutil.Domain,
 					SecretRef: &v1alpha1.SecretRef{
-						Name:      providerCredential,
-						Namespace: defaultNS,
+						Name: providerCredential,
 					},
 				},
 			}

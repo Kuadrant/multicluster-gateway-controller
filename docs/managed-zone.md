@@ -45,7 +45,6 @@ spec:
   description: "My Managed Zone"
   dnsProviderSecretRef:
     name: my-aws-credentials
-    namespace: multicluster-gateway-controller-system
 EOF
 ```
 
@@ -66,7 +65,6 @@ spec:
   description: "My Managed Zone"
   dnsProviderSecretRef:
     name: my-aws-credentials
-    namespace: multicluster-gateway-controller-system
 EOF
 ```
 
@@ -74,6 +72,8 @@ EOF
 
 This is a reference to secret containing the credentials and other configuration for accessing your dns provider
 [dnsProvider](/docs/dnspolicy/dns-provider.md)
+
+**Note:** the Secret referenced in the `dnsProviderSecretRef` field must be in the same namespace as the ManagedZone.
 
 **Note:** as an `id` was specified, the Managed Gateway Controller will not re-create this zone, nor will it delete it if this `ManagedZone` is deleted.
 

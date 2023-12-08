@@ -62,7 +62,6 @@ spec:
   description: "apps.hcpapps.net managed domain"
   dnsProviderSecretRef:
     name: my-aws-credentials
-    namespace: multi-cluster-gateways
 ```
 
 ## DNSPolicy creation and attachment

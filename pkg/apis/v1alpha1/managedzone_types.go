@@ -46,8 +46,7 @@ type ManagedZoneSpec struct {
 
 type SecretRef struct {
 	//+required
-	Namespace string `json:"namespace"`
-	Name      string `json:"name"`
+	Name string `json:"name"`
 }
 
 // ManagedZoneStatus defines the observed state of a Zone

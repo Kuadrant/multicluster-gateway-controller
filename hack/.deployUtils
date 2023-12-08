@@ -361,7 +361,6 @@ spec:
   description: "Dev Managed Zone"
   dnsProviderSecretRef:
     name: ${KIND_CLUSTER_PREFIX}aws-credentials
-    namespace: multicluster-gateway-controller-system
 EOF
 }
 
@@ -398,7 +397,6 @@ spec:
   description: "Dev Managed Zone"
   dnsProviderSecretRef:
     name: ${KIND_CLUSTER_PREFIX}gcp-credentials
-    namespace: multicluster-gateway-controller-system
 EOF
 }
 
