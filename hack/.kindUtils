@@ -72,7 +72,7 @@ kindSetupMGCClusters() {
     local dataPlaneClusterCount=$5
 
     # Create network for the clusters
-    docker network create -d bridge --subnet 172.31.0.0/16 mgc --gateway 172.31.0.1 \
+    docker network create -d bridge --subnet 172.31.0.0/16 ${KIND_CLUSTER_DOCKER_NETWORK} --gateway 172.31.0.1 \
       -o "com.docker.network.bridge.enable_ip_masquerade"="true" \
       -o "com.docker.network.driver.mtu"="1500"
 
