@@ -59,7 +59,15 @@ To let the Kuadrant operator use this existing installation, set the following:
 
 `kubectl annotate managedclusteraddon kuadrant-addon "addon.open-cluster-management.io/values"='{"IstioOperator":"installed-state"}' -n <managed spoke cluster>`
 
-This will propogate down and update the Kuadrant Operator, used by the Kuadrant OCM Addon.
+This will propagate down and update the Kuadrant Operator, used by the Kuadrant OCM Addon.
+
+### Changing the name of the channel to use
+
+If you want to use a different channel with the `ManagedClusterAddon` to install the kuadrant operator. You can do so by overriding the channel with the follow annotation:
+
+`kubectl annotate managedclusteraddon kuadrant-addon "addon.open-cluster-management.io/values"='{"CatalogSourceNS":"openshift-marketplace",  "CatalogSource":"community-operators", "Channel":"preview"}' -n managed-cluster-ns`
+
+This will propagate down and update the Kuadrant Subscription, used by OLM in the spoke.
 
 ## Verify the Kuadrant addon installation
 
