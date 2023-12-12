@@ -1,0 +1,6 @@
+## Append samples you want in your CSV to this file as resources ##
+resources:
+# Used as examples in kuadrant-operator bundle
+- kuadrant.io_v1alpha1_tlspolicy.yaml
+- kuadrant.io_v1alpha1_managedzone.yaml
+- dnspolicy.yaml
