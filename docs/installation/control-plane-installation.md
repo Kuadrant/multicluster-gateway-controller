@@ -33,7 +33,7 @@ export HUB_CLUSTER=<hub-cluster-name>
 [Cert-manager](https://cert-manager.io/) first needs to be installed on your hub cluster. If this has not previously been installed on the cluster you can run the command below to do so:
 
 ```bash
-kustomize --load-restrictor LoadRestrictionsNone build "github.com/kuadrant/multicluster-gateway-controller.git/config/mgc-install-guide/cert-manager?ref=release-0.2" --enable-helm | kubectl apply -f - --context $HUB_CLUSTER
+kustomize --load-restrictor LoadRestrictionsNone build "github.com/kuadrant/multicluster-gateway-controller.git/config/mgc-install-guide/cert-manager?ref=release-0.3" --enable-helm | kubectl apply -f - --context $HUB_CLUSTER
 ```
 
 ## Installing MGC
@@ -59,7 +59,7 @@ customresourcedefinition.apiextensions.k8s.io/httproutes.gateway.networking.k8s.
 Then run the following command to install the MGC:
 
 ```bash
-kubectl apply -k "github.com/kuadrant/multicluster-gateway-controller.git/config/mgc-install-guide?ref=release-0.2" --context $HUB_CLUSTER
+kubectl apply -k "github.com/kuadrant/multicluster-gateway-controller.git/config/mgc-install-guide?ref=release-0.3" --context $HUB_CLUSTER
 ```
 
 In addition to the MGC, this will also install the Kuadrant add-on manager and a `GatewayClass` from which MGC-managed `Gateways` can be instantiated.
