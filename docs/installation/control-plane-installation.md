@@ -56,7 +56,7 @@ customresourcedefinition.apiextensions.k8s.io/httproutes.gateway.networking.k8s.
 Then run the following command to install the MGC:
 
 ```bash
-kubectl apply -k "github.com/kuadrant/multicluster-gateway-controller.git/config/mgc-install-guide?ref=release-0.2" --context $HUB_CLUSTER
+kubectl apply -k "github.com/kuadrant/multicluster-gateway-controller.git/config/mgc-install-guide?ref=release-0.3" --context $HUB_CLUSTER
 ```
 
 In addition to the MGC, this will also install the Kuadrant add-on manager and a `GatewayClass` from which MGC-managed `Gateways` can be instantiated.

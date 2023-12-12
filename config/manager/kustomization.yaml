@@ -1,7 +1,6 @@
 resources:
-- manager.yaml
-
+  - manager.yaml
 images:
-- name: controller
-  newName: quay.io/kuadrant/multicluster-gateway-controller
-  newTag: main
+  - name: controller
+    newName: quay.io/kuadrant/multicluster-gateway-controller
+    newTag: release-0.3
