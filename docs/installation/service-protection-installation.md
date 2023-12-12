@@ -25,7 +25,7 @@ This walkthrough will show you how to install and setup the Kuadrant Operator in
 To install the Kuadrant Service Protection components into a spoke `ManagedCluster`, target your OCM Hub cluster with `kubectl` and run:
 
 ```
-kubectl apply -k "github.com/kuadrant/multicluster-gateway-controller.git/config/service-protection-install-guide?ref=release-0.2" -n namespace-of-your-managed-spoke-cluster-on-the-hub
+kubectl apply -k "github.com/kuadrant/multicluster-gateway-controller.git/config/service-protection-install-guide?ref=release-0.3" -n namespace-of-your-managed-spoke-cluster-on-the-hub
 ```
 
 The above command will install the `ManagedClusterAddOn` resource needed to install the Kuadrant addon into the namespace representing a spoke cluster, and install the Kuadrant data-plane components into the `open-cluster-management-agent-addon` namespace. 
@@ -59,7 +59,15 @@ To let the Kuadrant operator use this existing installation, set the following:
 
 `kubectl annotate managedclusteraddon kuadrant-addon "addon.open-cluster-management.io/values"='{"IstioOperator":"installed-state"}' -n <managed spoke cluster>`
 
-This will propogate down and update the Kuadrant Operator, used by the Kuadrant OCM Addon.
+This will propagate down and update the Kuadrant Operator, used by the Kuadrant OCM Addon.
+
+### Changing the name of the channel to use
+
+If you want to use a different channel with the `ManagedClusterAddon` to install the kuadrant operator. You can do so by overriding the channel with the follow annotation:
+
+`kubectl annotate managedclusteraddon kuadrant-addon "addon.open-cluster-management.io/values"='{"CatalogSourceNS":"openshift-marketplace",  "CatalogSource":"community-operators", "Channel":"preview"}' -n managed-cluster-ns`
+
+This will propagate down and update the Kuadrant Subscription, used by OLM in the spoke.
 
 ## Verify the Kuadrant addon installation
 
