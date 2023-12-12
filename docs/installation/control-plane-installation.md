@@ -30,11 +30,7 @@ export HUB_CLUSTER=<hub-cluster-name>
 ```
 
 ## Install Cert-Manager
-[Cert-manager](https://cert-manager.io/) first needs to be installed on your hub cluster. If this has not previously been installed on the cluster you can run the command below to do so:
-
-```bash
-kustomize --load-restrictor LoadRestrictionsNone build "github.com/kuadrant/multicluster-gateway-controller.git/config/mgc-install-guide/cert-manager?ref=release-0.2" --enable-helm | kubectl apply -f - --context $HUB_CLUSTER
-```
+[Cert-manager](https://cert-manager.io/) first needs to be installed on your hub cluster. If this has not previously been installed on the cluster, see the documentation for installation instructions [here](https://cert-manager.io/docs/installation/kubectl/).
 
 ## Installing MGC
 
