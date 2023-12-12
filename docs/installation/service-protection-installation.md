@@ -4,25 +4,27 @@
 This walkthrough will show you how to install and setup the Kuadrant Operator into an [OCM](https://open-cluster-management.io/) [Managed Cluster](https://open-cluster-management.io/concepts/managedcluster/).
 
 ## Prerequisites
-* Access to an Open Cluster Management (>= v0.11.0) Managed Cluster, which has already been bootstrapped and registered with a hub cluster
-  * We have [a guide](./control-plane-installation.md) which covers this in detail
-  * Also see:
-    * [https://open-cluster-management.io/getting-started/quick-start/]
-    * [https://open-cluster-management.io/concepts/managedcluster/]
+- Access to an Open Cluster Management(OCM) (>= v0.11.0) Managed Cluster, which has already been bootstrapped and registered with a hub cluster
+  - We have [a guide](./control-plane-installation.md) which covers this in detail
+  - For more information on OCM also see:
+    - [OCM quick start](https://open-cluster-management.io/getting-started/quick-start)
+    - [Managed cluster](https://open-cluster-management.io/concepts/managedcluster/)
 - [Kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl) (>= v1.14.0)
-* OLM will need to be installed into the ManagedCluster where you want to run the Kuadrant Service Protection components
-  * See: 
-    * https://sdk.operatorframework.io/docs/installation/
-    * https://olm.operatorframework.io/docs/getting-started/
-* Kuadrant uses Istio as a Gateway API provider - this will need to be installed into the data plane clusters
-  * We recommend installing Istio 1.20.0, including Gateway API v1
-  * ```
+- OLM installed on the ManagedCluster where you want to run the Kuadrant Service Protection components
+  - For installation guides please see: 
+    - [Operator-sdk](https://sdk.operatorframework.io/docs/installation/)
+    - [OLM](https://olm.operatorframework.io/docs/getting-started/)
+- Istio operator v1.20.0 installed on the spoke clusters
+  - Please see install guide [here](https://preliminary.istio.io/latest/docs/setup/install/operator/)
+- Gateway API v1
+  - To install please use:
+   ```
     kubectl apply -f "https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.0.0/standard-install.yaml"
     ```
-  * See also: [https://preliminary.istio.io/latest/docs/tasks/traffic-management/ingress/gateway-api/]
+  * For more information please see: [GatewayAPI DOCs](https://preliminary.istio.io/latest/docs/tasks/traffic-management/ingress/gateway-api/)
 
 ## Install the Kuadrant OCM Add-On
-To install the Kuadrant Service Protection components into a spoke `ManagedCluster`, target your OCM Hub cluster with `kubectl` and run:
+To install the Kuadrant Service Protection components into a *spoke* `ManagedCluster`, target your OCM Hub cluster with `kubectl` and run:
 
 ```
 kubectl apply -k "github.com/kuadrant/multicluster-gateway-controller.git/config/service-protection-install-guide?ref=release-0.3" -n namespace-of-your-managed-spoke-cluster-on-the-hub
@@ -32,11 +34,11 @@ The above command will install the `ManagedClusterAddOn` resource needed to inst
 
 The Kuadrant addon will install:
 
-* the Kuadrant Operator
+* Kuadrant Operator
 * Limitador (and its associated operator)
 * Authorino  (and its associated operator)
 
-For more details, see the Kuadrant components installed by the (kuadrant-operator)[https://github.com/Kuadrant/kuadrant-operator#kuadrant-components]
+For more details, see the Kuadrant components installed by the [kuadrant-operator](https://github.com/Kuadrant/kuadrant-operator#kuadrant-components)
 
 ### OLM and OpenShift CatalogSource
 

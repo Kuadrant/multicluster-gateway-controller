@@ -4,29 +4,30 @@ This guide will show you how to install and configure the Multi-Cluster Gateway 
 
 ## Prerequisites
 
-- A **hub cluster** running the OCM control plane (v0.11.0 or greater)
-- Addons enabled `clusteradm install hub-addon --names application-manager`
+- A **hub cluster** running the OCM control plane (>= v0.11.0 )
+- Open cluster management addons enabled
+  -  `clusteradm install hub-addon --names application-manager`
 - Any number of additional **spoke clusters** that have been configured as OCM [ManagedClusters](https://open-cluster-management.io/concepts/managedcluster/)
 - [Kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl) (>= v1.14.0)
-- Either a pre-existing [cert-manager](https://cert-manager.io/)(>=v1.12.2) installation or the [Kustomize](https://kubectl.docs.kubernetes.io/installation/kustomize/) and [Helm](https://helm.sh/docs/intro/quickstart/#install-helm) CLIs
+- Either a pre-existing [cert-manager](https://cert-manager.io/)(>=v1.12.2) installation _or_ the [Kustomize](https://kubectl.docs.kubernetes.io/installation/kustomize/) and [Helm](https://helm.sh/docs/intro/quickstart/#install-helm) CLIs installed
 - Amazon Web services (AWS) and or Google cloud provider (GCP) credentials. See the [DNS Provider](../dnspolicy/dns-provider.md) guide for obtaining these credentials.
 
 ## Configure OCM with RawFeedbackJsonString Feature Gate
 
-All OCM spoke clusters must be configured with the `RawFeedbackJsonString` feature gate enabled:
+All OCM spoke clusters must be configured with the `RawFeedbackJsonString` feature gate enabled.
 
-1. By patching each spoke cluster's `klusterlet` in an existing OCM install:
+Patch each spoke cluster's `klusterlet` in an existing OCM install:
 
-    ```bash
+   ```bash
     kubectl patch klusterlet klusterlet --type merge --patch '{"spec": {"workConfiguration": {"featureGates": [{"feature": "RawFeedbackJsonString", "mode": "Enable"}]}}}' --context <EACH_SPOKE_CLUSTER>
-    ```
+   ```
 
 ## Setup for hub commands
 Many of the commands in this document should be run in the context of your hub cluster.
 By configure HUB_CLUSTER which will be used in the commands:
 
 ```bash
-export HUB_CLUSTER=<hub-cluster-name>
+export HUB_CLUSTER=<HUB_CUSTER_NAME>
 ```
 
 ## Install Cert-Manager
@@ -34,13 +35,13 @@ export HUB_CLUSTER=<hub-cluster-name>
 
 ## Installing MGC
 
-First, run the following command in the context of your hub cluster to install the Gateway API CRDs:
+First, run the following command in the context of your *hub* cluster to install the Gateway API CRDs:
 
 ```bash
 kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.0.0/standard-install.yaml --context $HUB_CLUSTER
 ```
 
-We can then add a `wait` to verify the CRDs have been established:
+Verify the CRDs have been established:
 
 ```bash
 kubectl wait --timeout=5m crd/gatewayclasses.gateway.networking.k8s.io crd/gateways.gateway.networking.k8s.io crd/httproutes.gateway.networking.k8s.io --for=condition=Established --context $HUB_CLUSTER
@@ -60,7 +61,7 @@ kubectl apply -k "github.com/kuadrant/multicluster-gateway-controller.git/config
 
 In addition to the MGC, this will also install the Kuadrant add-on manager and a `GatewayClass` from which MGC-managed `Gateways` can be instantiated.
 
-After the configuration has been applied, you can verify that the MGC and add-on manager have been installed and are running:
+Verify that the MGC and add-on manager have been installed and are running:
 
 ```bash
 kubectl wait --timeout=5m -n multicluster-gateway-controller-system deployment/mgc-controller-manager deployment/mgc-add-on-manager deployment/mgc-policy-controller --for=condition=Available --context $HUB_CLUSTER
@@ -71,7 +72,7 @@ deployment.apps/mgc-add-on-manager condition met
 deployment/mgc-policy-controller condition met
 ```
 
-We can also verify that the `GatewayClass` has been accepted by the MGC:
+Verify that the `GatewayClass` has been accepted by the MGC:
 
 ```bash
 kubectl wait --timeout=5m gatewayclass/kuadrant-multi-cluster-gateway-instance-per-cluster --for=condition=Accepted --context $HUB_CLUSTER
@@ -128,7 +129,7 @@ stringData:
 EOF
 ```
 
-A `ManagedZone` can now be created:
+Create a  `ManagedZone` using the commands below:
 
 #### AWS:
 
@@ -165,7 +166,7 @@ spec:
 EOF
 ```
 
-You can now verify that the `ManagedZone` has been created and is in a ready state:
+Verify that the `ManagedZone` has been created and is in a ready state:
 
 ```bash
 kubectl get managedzone -n multi-cluster-gateways --context $HUB_CLUSTER
@@ -177,7 +178,7 @@ mgc-dev-mz   ef.hcpapps.net   /hostedzone/Z06419551EM30QQYMZN7F   2             
 
 ## Creating a Cert Issuer
 
-We will now create a `ClusterIssuer` to be used with `cert-manager`. For simplicity, we will create a self-signed cert issuer here, but [other issuers can also be configured](https://cert-manager.io/docs/configuration/).
+Create a `ClusterIssuer` to be used with `cert-manager`. For simplicity, we will create a self-signed cert issuer here, but [other issuers can also be configured](https://cert-manager.io/docs/configuration/).
 
 ```bash
 cat <<EOF | kubectl apply -f - --context $HUB_CLUSTER
