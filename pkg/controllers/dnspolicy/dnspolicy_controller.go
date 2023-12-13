@@ -44,10 +44,12 @@ import (
 )
 
 const (
-	DNSPolicyFinalizer                                    = "kuadrant.io/dns-policy"
-	DNSPoliciesBackRefAnnotation                          = "kuadrant.io/dnspolicies"
-	DNSPolicyBackRefAnnotation                            = "kuadrant.io/dnspolicy"
-	DNSPolicyAffected            conditions.ConditionType = "kuadrant.io/DNSPolicyAffected"
+	DNSPolicyFinalizer                                           = "kuadrant.io/dns-policy"
+	DNSPoliciesBackRefAnnotation                                 = "kuadrant.io/dnspolicies"
+	DNSPolicyBackRefAnnotation                                   = "kuadrant.io/dnspolicy"
+	DNSPolicyAffected                   conditions.ConditionType = "kuadrant.io/DNSPolicyAffected"
+	DNSPolicyHealthChecksNoIgnoredHosts                          = "NoIgnoredHosts"
+	DNSPolicyHealthChecksIgnoredReason                           = "NoGatewaysWithWildcardHosts"
 )
 
 type DNSPolicyRefsConfig struct{}

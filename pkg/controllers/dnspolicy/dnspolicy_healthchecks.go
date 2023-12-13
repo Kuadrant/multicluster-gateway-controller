@@ -7,6 +7,7 @@ import (
 	"time"
 
 	k8serror "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -32,19 +33,49 @@ func (r *DNSPolicyReconciler) reconcileHealthCheckProbes(ctx context.Context, dn
 		}
 	}
 
+	gwsWithIgnoredHosts := []string{}
 	// Reconcile DNSHealthCheckProbes for each gateway directly referred by the policy (existing and new)
 	for _, gw := range append(gwDiffObj.GatewaysWithValidPolicyRef, gwDiffObj.GatewaysMissingPolicyRef...) {
 		log.V(3).Info("reconciling probes", "gateway", gw.Name)
-		expectedProbes := r.expectedHealthCheckProbesForGateway(ctx, gw, dnsPolicy)
+		expectedProbes, ignoredHosts := r.expectedHealthCheckProbesForGateway(ctx, gw, dnsPolicy)
 		if err := r.createOrUpdateHealthCheckProbes(ctx, expectedProbes); err != nil {
 			return fmt.Errorf("error creating or updating expected probes for gateway %v: %w", gw.Gateway.Name, err)
 		}
 		if err := r.deleteUnexpectedGatewayHealthCheckProbes(ctx, expectedProbes, gw.Gateway, dnsPolicy); err != nil {
 			return fmt.Errorf("error removing unexpected probes for gateway %v: %w", gw.Gateway.Name, err)
 		}
-
+		if ignoredHosts != nil {
+			gwsWithIgnoredHosts = append(gwsWithIgnoredHosts, gw.Namespace+"/"+gw.Name)
+		}
 	}
+
+	addHealthCheckCondition(dnsPolicy, gwsWithIgnoredHosts)
+
 	return nil
+}
+
+func addHealthCheckCondition(dnsPolicy *v1alpha1.DNSPolicy, gwsWithIgnoredHosts []string) {
+	if dnsPolicy.Status.HealthCheck == nil {
+		dnsPolicy.Status.HealthCheck = &v1alpha1.HealthCheckStatus{}
+	}
+
+	noIgnoredHostsCondition := metav1.Condition{
+		Type:               DNSPolicyHealthChecksNoIgnoredHosts,
+		Status:             "True",
+		ObservedGeneration: dnsPolicy.Generation,
+		LastTransitionTime: metav1.Now(),
+		Reason:             DNSPolicyHealthChecksIgnoredReason,
+		Message:            "all gateways routes are creating health checks",
+	}
+
+	if len(gwsWithIgnoredHosts) > 0 {
+		noIgnoredHostsCondition.Status = "False"
+		noIgnoredHostsCondition.Reason = DNSPolicyHealthChecksIgnoredReason
+		noIgnoredHostsCondition.Message = "gateways with ignored wildcard hosts: " + strings.Join(gwsWithIgnoredHosts, ", ")
+	}
+
+	meta.SetStatusCondition(&dnsPolicy.Status.HealthCheck.Conditions, noIgnoredHostsCondition)
+
 }
 
 func (r *DNSPolicyReconciler) createOrUpdateHealthCheckProbes(ctx context.Context, expectedProbes []*v1alpha1.DNSHealthCheckProbe) error {
@@ -110,12 +141,13 @@ func (r *DNSPolicyReconciler) deleteUnexpectedGatewayHealthCheckProbes(ctx conte
 	return nil
 }
 
-func (r *DNSPolicyReconciler) expectedHealthCheckProbesForGateway(ctx context.Context, gw common.GatewayWrapper, dnsPolicy *v1alpha1.DNSPolicy) []*v1alpha1.DNSHealthCheckProbe {
+func (r *DNSPolicyReconciler) expectedHealthCheckProbesForGateway(ctx context.Context, gw common.GatewayWrapper, dnsPolicy *v1alpha1.DNSPolicy) ([]*v1alpha1.DNSHealthCheckProbe, []string) {
 	log := crlog.FromContext(ctx)
 	var healthChecks []*v1alpha1.DNSHealthCheckProbe
+	var ignoredHosts []string
 	if dnsPolicy.Spec.HealthCheck == nil {
 		log.V(3).Info("DNS Policy has no defined health check")
-		return healthChecks
+		return healthChecks, ignoredHosts
 	}
 
 	interval := metav1.Duration{Duration: 60 * time.Second}
@@ -125,7 +157,7 @@ func (r *DNSPolicyReconciler) expectedHealthCheckProbesForGateway(ctx context.Co
 
 	gatewayWrapper := utils.NewGatewayWrapper(gw.Gateway)
 	if err := gatewayWrapper.Validate(); err != nil {
-		return nil
+		return nil, ignoredHosts
 	}
 
 	clusterGatewayAddresses := gatewayWrapper.GetClusterGatewayAddresses()
@@ -134,6 +166,7 @@ func (r *DNSPolicyReconciler) expectedHealthCheckProbesForGateway(ctx context.Co
 
 		//skip wildcard listeners
 		if strings.Contains(string(*listener.Hostname), "*") {
+			ignoredHosts = append(ignoredHosts, string(*listener.Hostname))
 			continue
 		}
 
@@ -178,7 +211,7 @@ func (r *DNSPolicyReconciler) expectedHealthCheckProbesForGateway(ctx context.Co
 		}
 	}
 
-	return healthChecks
+	return healthChecks, ignoredHosts
 }
 
 func dnsHealthCheckProbeName(address, gatewayName, listenerName string) string {

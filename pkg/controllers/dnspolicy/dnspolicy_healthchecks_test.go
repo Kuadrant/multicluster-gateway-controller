@@ -8,6 +8,7 @@ import (
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/strings/slices"
 	controllerruntime "sigs.k8s.io/controller-runtime"
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
@@ -41,10 +42,11 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 		dnsPolicy *v1alpha1.DNSPolicy
 	}
 	tests := []struct {
-		name   string
-		fields fields
-		args   args
-		want   []*v1alpha1.DNSHealthCheckProbe
+		name        string
+		fields      fields
+		args        args
+		wantProbes  []*v1alpha1.DNSHealthCheckProbe
+		wantIgnored []string
 	}{
 		{
 			name: "expected probes not nil when all values specified in the check",
@@ -102,7 +104,7 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 					},
 				},
 			},
-			want: []*v1alpha1.DNSHealthCheckProbe{
+			wantProbes: []*v1alpha1.DNSHealthCheckProbe{
 				{
 					ObjectMeta: controllerruntime.ObjectMeta{
 						Name:      "172.31.200.0-testgateway-testlistener",
@@ -134,6 +136,7 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 					},
 				},
 			},
+			wantIgnored: nil,
 		},
 		{
 			name: "expected probes not nil when some values not specified in the check",
@@ -181,7 +184,7 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 					},
 				},
 			},
-			want: []*v1alpha1.DNSHealthCheckProbe{
+			wantProbes: []*v1alpha1.DNSHealthCheckProbe{
 				{
 					ObjectMeta: controllerruntime.ObjectMeta{
 						Name:      "172.31.200.0-testgateway-testlistener",
@@ -206,6 +209,7 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 					},
 				},
 			},
+			wantIgnored: nil,
 		},
 		{
 			name: "no probes when listener has a wildcard domain",
@@ -242,7 +246,8 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 					},
 				},
 			},
-			want: nil,
+			wantProbes:  nil,
+			wantIgnored: []string{"*.thecat.com"},
 		},
 		{
 			name: "expected probes when status.address.value is an IP address",
@@ -290,7 +295,7 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 					},
 				},
 			},
-			want: []*v1alpha1.DNSHealthCheckProbe{
+			wantProbes: []*v1alpha1.DNSHealthCheckProbe{
 				{
 					ObjectMeta: controllerruntime.ObjectMeta{
 						Name:      "172.31.200.0-testgateway-testlistener",
@@ -344,7 +349,8 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 					},
 				},
 			},
-			want: nil,
+			wantProbes:  nil,
+			wantIgnored: nil,
 		},
 		{
 			name: "no probes when no listeners defined",
@@ -374,7 +380,8 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 					},
 				},
 			},
-			want: nil,
+			wantProbes:  nil,
+			wantIgnored: nil,
 		},
 		{
 			name: "no probes when no address defined",
@@ -397,7 +404,8 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 					},
 				},
 			},
-			want: nil,
+			wantProbes:  nil,
+			wantIgnored: nil,
 		},
 		{
 			name:   "no probes when no healthcheck spec defined",
@@ -405,7 +413,8 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 			args: args{
 				dnsPolicy: &v1alpha1.DNSPolicy{},
 			},
-			want: nil,
+			wantProbes:  nil,
+			wantIgnored: nil,
 		},
 	}
 	for _, tt := range tests {
@@ -415,16 +424,20 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 				DNSProvider:         tt.fields.DNSProvider,
 				dnsHelper:           tt.fields.dnsHelper,
 			}
-			got := r.expectedHealthCheckProbesForGateway(tt.args.ctx, tt.args.gw, tt.args.dnsPolicy)
-			if !reflect.DeepEqual(got, tt.want) {
+			got, ignored := r.expectedHealthCheckProbesForGateway(tt.args.ctx, tt.args.gw, tt.args.dnsPolicy)
+			if !reflect.DeepEqual(got, tt.wantProbes) {
 				for _, g := range got {
 					t.Logf("got: %+v", g)
 				}
-				for _, w := range tt.want {
+				for _, w := range tt.wantProbes {
 					t.Logf("want: %+v", w)
 				}
 				t.Errorf("expectedHealthCheckProbesForGateway()")
 			}
+			if !slices.Equal(tt.wantIgnored, ignored) {
+				t.Errorf("expected ignored '%v' got '%v'", tt.wantIgnored, ignored)
+			}
+
 		})
 	}
 }
