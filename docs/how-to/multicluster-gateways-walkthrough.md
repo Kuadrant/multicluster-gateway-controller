@@ -13,7 +13,7 @@ We will start with a hub cluster and 2 workload clusters and highlight the autom
 
 ## Initial Setup
 
-In this walkthrough, we'll deploy test echo services across multiple clusters. If you followed the [Getting Started Guide](https://docs.kuadrant.io/getting-started/), you would have already set up a `MGC_ZONE_ROOT_DOMAIN` environment variable. For this tutorial, we'll derive a host from this domain for these echo services.
+In this walkthrough, we'll deploy test echo services across multiple clusters. If you followed the [Getting Started Guide](https://docs.kuadrant.io/getting-started/), you would have already set up a `KUADRANT_ZONE_ROOT_DOMAIN` environment variable. For this tutorial, we'll derive a host from this domain for these echo services.
 
 ### Create a gateway
 
@@ -50,7 +50,7 @@ You are now ready to begin creating a gateway! :tada:
         namespaces:
           from: All
       name: api
-      hostname: "*.$MGC_ZONE_ROOT_DOMAIN"
+      hostname: "*.$KUADRANT_ZONE_ROOT_DOMAIN"
       port: 443
       protocol: HTTPS
       tls:
@@ -202,7 +202,7 @@ The listener is configured to use this TLS secret also. So now our gateway has b
 
 So now we have workload ingress clusters configured with the same Gateway. 
 
-5. Let's create the HTTPRoute in the first workload cluster. Again, remembering to replace the hostname accordingly if you haven't already set a value for the `MGC_ZONE_ROOT_DOMAIN` variable as described in the [Getting Started Guide](https://docs.kuadrant.io/getting-started/):
+5. Let's create the HTTPRoute in the first workload cluster. Again, remembering to replace the hostname accordingly if you haven't already set a value for the `KUADRANT_ZONE_ROOT_DOMAIN` variable as described in the [Getting Started Guide](https://docs.kuadrant.io/getting-started/):
     ```bash
     kubectl --context kind-mgc-workload-1 apply -f - <<EOF
     apiVersion: gateway.networking.k8s.io/v1
@@ -215,7 +215,7 @@ So now we have workload ingress clusters configured with the same Gateway.
         name: prod-web
         namespace: kuadrant-multi-cluster-gateways
       hostnames:
-      - "echo.$MGC_ZONE_ROOT_DOMAIN"
+      - "echo.$KUADRANT_ZONE_ROOT_DOMAIN"
       rules:
       - backendRefs:
         - name: echo
@@ -271,7 +271,7 @@ So now we have workload ingress clusters configured with the same Gateway.
         name: prod-web
         namespace: kuadrant-multi-cluster-gateways
       hostnames:
-      - "echo.$MGC_ZONE_ROOT_DOMAIN"
+      - "echo.$KUADRANT_ZONE_ROOT_DOMAIN"
       rules:
       - backendRefs:
         - name: echo
@@ -323,18 +323,18 @@ So now we have workload ingress clusters configured with the same Gateway.
 8. Give DNS a minute or two to update. You should then be able to execute the following and get back the correct A record. 
 
     ```bash
-    dig echo.$MGC_ZONE_ROOT_DOMAIN
+    dig echo.$KUADRANT_ZONE_ROOT_DOMAIN
     ```
 9. You should also be able to curl that endpoint
 
     ```bash
-    curl -k https://echo.$MGC_ZONE_ROOT_DOMAIN
+    curl -k https://echo.$KUADRANT_ZONE_ROOT_DOMAIN
 
     # Request served by echo-XXX-XXX
     ```
 
 ## Watching DNS changes
-If you want you can use ```watch dig echo.$MGC_ZONE_ROOT_DOMAIN``` to see the DNS switching between the two addresses
+If you want you can use ```watch dig echo.$KUADRANT_ZONE_ROOT_DOMAIN``` to see the DNS switching between the two addresses
 
 ## Follow-on Walkthroughs
 Here are some good, follow-on guides that build on this walkthrough:

@@ -8,7 +8,7 @@ This user guide walks you through an example of how to configure rate limiting f
 
 ## Overview
 
-In this guide, we will rate limit a sample REST API called **Toy Store**. In reality, this API is just an echo service that echoes back to the user whatever attributes it gets in the request. The API listens to requests at the hostname `api.$MGC_ZONE_ROOT_DOMAIN`, where it exposes the endpoints `GET /toys*` and `POST /toys`, respectively, to mimic operations of reading and writing toy records.
+In this guide, we will rate limit a sample REST API called **Toy Store**. In reality, this API is just an echo service that echoes back to the user whatever attributes it gets in the request. The API listens to requests at the hostname `api.$KUADRANT_ZONE_ROOT_DOMAIN`, where it exposes the endpoints `GET /toys*` and `POST /toys`, respectively, to mimic operations of reading and writing toy records.
 
 We will rate limit the `POST /toys` endpoint to a maximum of 5rp10s ("5 requests every 10 seconds").
 
@@ -81,7 +81,7 @@ spec:
       name: prod-web
       namespace: kuadrant-multi-cluster-gateways
   hostnames:
-  - toystore.$MGC_ZONE_ROOT_DOMAIN
+  - toystore.$KUADRANT_ZONE_ROOT_DOMAIN
   rules:
   - matches:
     - method: GET
@@ -106,7 +106,7 @@ done
 Verify the routes work:
 
 ```sh
-curl -ik https://toystore.$MGC_ZONE_ROOT_DOMAIN/toys
+curl -ik https://toystore.$KUADRANT_ZONE_ROOT_DOMAIN/toys
 # HTTP/1.1 200 OK
 ```
 
@@ -154,13 +154,13 @@ Verify the rate limiting works by sending requests in a loop.
 Up to 5 successful (`200 OK`) requests every 10 seconds to `POST /toys`, then `429 Too Many Requests`:
 
 ```sh
-while :; do curl --write-out '%{http_code}' --silent -k --output /dev/null https://toystore.$MGC_ZONE_ROOT_DOMAIN/toys -X POST | egrep --color "\b(429)\b|$"; sleep 1; done
+while :; do curl --write-out '%{http_code}' --silent -k --output /dev/null https://toystore.$KUADRANT_ZONE_ROOT_DOMAIN/toys -X POST | egrep --color "\b(429)\b|$"; sleep 1; done
 ```
 
 Unlimited successful (`200 OK`) to `GET /toys`:
 
 ```sh
-while :; do curl --write-out '%{http_code}' --silent -k  --output /dev/null https://toystore.$MGC_ZONE_ROOT_DOMAIN/toys | egrep --color "\b(429)\b|$"; sleep 1; done
+while :; do curl --write-out '%{http_code}' --silent -k  --output /dev/null https://toystore.$KUADRANT_ZONE_ROOT_DOMAIN/toys | egrep --color "\b(429)\b|$"; sleep 1; done
 ```
 
 ## Next Steps

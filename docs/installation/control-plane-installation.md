@@ -103,9 +103,9 @@ metadata:
   namespace: multi-cluster-gateways
 type: "kuadrant.io/aws"
 stringData:
-  AWS_ACCESS_KEY_ID: ${MGC_AWS_ACCESS_KEY_ID}
-  AWS_SECRET_ACCESS_KEY: ${MGC_AWS_SECRET_ACCESS_KEY}
-  AWS_REGION: ${MGC_AWS_REGION}
+  AWS_ACCESS_KEY_ID: ${KUADRANT_AWS_ACCESS_KEY_ID}
+  AWS_SECRET_ACCESS_KEY: ${KUADRANT_AWS_SECRET_ACCESS_KEY}
+  AWS_REGION: ${KUADRANT_AWS_REGION}
 EOF
 ```
 #### GCP
@@ -140,8 +140,8 @@ metadata:
   name: mgc-dev-mz
   namespace: multi-cluster-gateways
 spec:
-  id: ${MGC_AWS_DNS_PUBLIC_ZONE_ID}
-  domainName: ${MGC_ZONE_ROOT_DOMAIN}
+  id: ${KUADRANT_AWS_DNS_PUBLIC_ZONE_ID}
+  domainName: ${KUADRANT_ZONE_ROOT_DOMAIN}
   description: "Dev Managed Zone"
   dnsProviderSecretRef:
     name: mgc-aws-credentials

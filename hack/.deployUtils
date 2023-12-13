@@ -327,8 +327,8 @@ setupAWSProvider() {
   if [ -z "$1" ]; then
     namespace="multi-cluster-gateways"
   fi
-  if [ "$MGC_AWS_ACCESS_KEY_ID" == "" ]; then
-    echo "MGC_AWS_ACCESS_KEY_ID is not set"
+  if [ "$KUADRANT_AWS_ACCESS_KEY_ID" == "" ]; then
+    echo "KUADRANT_AWS_ACCESS_KEY_ID is not set"
     exit 1
   fi
 
@@ -340,9 +340,9 @@ metadata:
   namespace: ${namespace}
 type: "kuadrant.io/aws"
 stringData:
-  AWS_ACCESS_KEY_ID: ${MGC_AWS_ACCESS_KEY_ID}
-  AWS_SECRET_ACCESS_KEY: ${MGC_AWS_SECRET_ACCESS_KEY}
-  AWS_REGION: ${MGC_AWS_REGION}
+  AWS_ACCESS_KEY_ID: ${KUADRANT_AWS_ACCESS_KEY_ID}
+  AWS_SECRET_ACCESS_KEY: ${KUADRANT_AWS_SECRET_ACCESS_KEY}
+  AWS_REGION: ${KUADRANT_AWS_REGION}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -350,8 +350,8 @@ metadata:
   name: ${KIND_CLUSTER_PREFIX}controller-config
   namespace: ${namespace}
 data:
-  AWS_DNS_PUBLIC_ZONE_ID: ${MGC_AWS_DNS_PUBLIC_ZONE_ID}
-  ZONE_ROOT_DOMAIN: ${MGC_ZONE_ROOT_DOMAIN}
+  AWS_DNS_PUBLIC_ZONE_ID: ${KUADRANT_AWS_DNS_PUBLIC_ZONE_ID}
+  ZONE_ROOT_DOMAIN: ${KUADRANT_ZONE_ROOT_DOMAIN}
   LOG_LEVEL: "${LOG_LEVEL}"
 ---
 apiVersion: kuadrant.io/v1alpha1
@@ -360,8 +360,8 @@ metadata:
   name: ${KIND_CLUSTER_PREFIX}dev-mz
   namespace: ${namespace}
 spec:
-  id: ${MGC_AWS_DNS_PUBLIC_ZONE_ID}
-  domainName: ${MGC_ZONE_ROOT_DOMAIN}
+  id: ${KUADRANT_AWS_DNS_PUBLIC_ZONE_ID}
+  domainName: ${KUADRANT_ZONE_ROOT_DOMAIN}
   description: "Dev Managed Zone"
   dnsProviderSecretRef:
     name: ${KIND_CLUSTER_PREFIX}aws-credentials
