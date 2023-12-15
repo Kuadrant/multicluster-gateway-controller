@@ -17,6 +17,7 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/utils"
 	testutil "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 )
 
@@ -72,7 +73,7 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 						Status: gatewayapiv1.GatewayStatus{
 							Addresses: []gatewayapiv1.GatewayStatusAddress{
 								{
-									Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
+									Type:  testutil.Pointer(utils.MultiClusterIPAddressType),
 									Value: "clusterName/172.31.200.0",
 								},
 							},
@@ -163,7 +164,7 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 						Status: gatewayapiv1.GatewayStatus{
 							Addresses: []gatewayapiv1.GatewayStatusAddress{
 								{
-									Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
+									Type:  testutil.Pointer(utils.MultiClusterIPAddressType),
 									Value: "clusterName/172.31.200.0",
 								},
 							},
@@ -242,6 +243,78 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 				},
 			},
 			want: nil,
+		},
+		{
+			name: "expected probes when status.address.value is an IP address",
+			fields: fields{
+				TargetRefReconciler: reconcilers.TargetRefReconciler{},
+				DNSProvider:         nil,
+				dnsHelper:           dnsHelper{},
+				Placer:              nil,
+			},
+			args: args{
+				ctx: nil,
+				gw: common.GatewayWrapper{
+					Gateway: &gatewayapiv1.Gateway{
+						ObjectMeta: controllerruntime.ObjectMeta{
+							Name:      "testgateway",
+							Namespace: "testnamespace",
+						},
+						Spec: gatewayapiv1.GatewaySpec{
+							Listeners: []gatewayapiv1.Listener{
+								{
+									Name:     "testlistener",
+									Hostname: (*gatewayapiv1.Hostname)(testutil.Pointer(ValidTestHostname)),
+									Port:     443,
+									Protocol: gatewayapiv1.ProtocolType(v1alpha1.HttpsProtocol),
+								},
+							},
+						},
+						Status: gatewayapiv1.GatewayStatus{
+							Addresses: []gatewayapiv1.GatewayStatusAddress{
+								{
+									Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
+									Value: "172.31.200.0",
+								},
+							},
+						},
+					},
+				},
+				dnsPolicy: &v1alpha1.DNSPolicy{
+					ObjectMeta: controllerruntime.ObjectMeta{
+						Name:      "testdnspolicy",
+						Namespace: "testnamespace",
+					},
+					Spec: v1alpha1.DNSPolicySpec{
+						HealthCheck: &v1alpha1.HealthCheckSpec{},
+					},
+				},
+			},
+			want: []*v1alpha1.DNSHealthCheckProbe{
+				{
+					ObjectMeta: controllerruntime.ObjectMeta{
+						Name:      "172.31.200.0-testgateway-testlistener",
+						Namespace: "testnamespace",
+						Labels: map[string]string{
+							DNSPolicyBackRefAnnotation:                              "testdnspolicy",
+							fmt.Sprintf("%s-namespace", DNSPolicyBackRefAnnotation): "testnamespace",
+							LabelGatewayNSRef:                                       "testnamespace",
+							LabelGatewayReference:                                   "testgateway",
+						},
+						Annotations: map[string]string{
+							"dnsrecord-name":      "testgateway-testlistener",
+							"dnsrecord-namespace": "testnamespace",
+						},
+					},
+					Spec: v1alpha1.DNSHealthCheckProbeSpec{
+						Port:     443,
+						Host:     ValidTestHostname,
+						Address:  "172.31.200.0",
+						Protocol: v1alpha1.HttpsProtocol,
+						Interval: metav1.Duration{Duration: 60 * time.Second},
+					},
+				},
+			},
 		},
 		{
 			name: "no probes when address.Value doesn't contain /",
@@ -344,7 +417,13 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 			}
 			got := r.expectedHealthCheckProbesForGateway(tt.args.ctx, tt.args.gw, tt.args.dnsPolicy)
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("expectedHealthCheckProbesForGateway() got = %v, want %v", got, tt.want)
+				for _, g := range got {
+					t.Logf("got: %+v", g)
+				}
+				for _, w := range tt.want {
+					t.Logf("want: %+v", w)
+				}
+				t.Errorf("expectedHealthCheckProbesForGateway()")
 			}
 		})
 	}
