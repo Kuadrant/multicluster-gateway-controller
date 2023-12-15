@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
@@ -56,10 +57,11 @@ import (
 )
 
 const (
-	GatewayClusterLabelSelectorAnnotation = "kuadrant.io/gateway-cluster-label-selector"
-	GatewayClustersAnnotation             = "kuadrant.io/gateway-clusters"
-	GatewayFinalizer                      = "kuadrant.io/gateway"
-	ManagedLabel                          = "kuadrant.io/managed"
+	LabelPrefix                           = "kuadrant.io/"
+	GatewayClusterLabelSelectorAnnotation = LabelPrefix + "gateway-cluster-label-selector"
+	GatewayClustersAnnotation             = LabelPrefix + "gateway-clusters"
+	GatewayFinalizer                      = LabelPrefix + "gateway"
+	ManagedLabel                          = LabelPrefix + "managed"
 )
 
 type GatewayPlacer interface {
@@ -272,14 +274,24 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	return ctrl.Result{}, reconcileErr
 }
 
+// reconcileClusterLabels fetches labels from ManagedCluster related to clusters array and adds them to the provided Gateway
 func (r *GatewayReconciler) reconcileClusterLabels(ctx context.Context, gateway *gatewayapiv1.Gateway, clusters []string) error {
-	//ToDo Implement me !!
+	for _, cluster := range clusters {
+		managedCluster := &clusterv1.ManagedCluster{}
+		if err := r.Client.Get(ctx, client.ObjectKey{Name: cluster}, managedCluster); client.IgnoreNotFound(err) != nil {
+			return err
+		}
 
-	//Iterate clusters and for each find the ManagedCluster resource, get its labels and convert all "kuadrant.io/" labels to a cluster specific label and add it to the gateway
-	// (cluster kind-mgc-workload-1 label) kuadrant.io/lb-attribute-custom-weight=AWS = (gateway label) kuadrant.io/kind-mgc-workload-1_lb-attribute-custom-weight=AWS
-	// (cluster kind-mgc-workload-2 label) kuadrant.io/lb-attribute-geo-code=ES = (gateway label) kuadrant.io/kind-mgc-workload-2_lb-attribute-geo-code=ES
-	// etc ...
-
+		for key, value := range managedCluster.Labels {
+			if strings.Contains(key, LabelPrefix) {
+				_, attribute, found := strings.Cut(key, "/")
+				if !found {
+					continue
+				}
+				gateway.Labels[LabelPrefix+cluster+"_"+attribute] = value
+			}
+		}
+	}
 	return nil
 }
 
