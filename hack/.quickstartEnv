@@ -2,7 +2,11 @@ export TOOLS_IMAGE=quay.io/kuadrant/mgc-tools:latest
 export TMP_DIR=/tmp/mgc
 
 dockerBinCmd() {
-  echo "docker run --rm -u $UID -v ${TMP_DIR}:/tmp/mgc:z --network mgc -e KUBECONFIG=/tmp/mgc/kubeconfig --entrypoint=$1 $TOOLS_IMAGE"
+  local network=""
+  if [ ! -z ${KIND_CLUSTER_DOCKER_NETWORK} ]; then
+    network=" --network ${KIND_CLUSTER_DOCKER_NETWORK}"
+  fi
+  echo "docker run --rm -u $UID -v ${TMP_DIR}:/tmp/mgc:z${network} -e KUBECONFIG=/tmp/mgc/kubeconfig --entrypoint=$1 $TOOLS_IMAGE"
 }
 
 export KIND_BIN=kind
@@ -22,34 +26,34 @@ requiredENV() {
   fi
 
   if [[ "$PROVIDER" == "aws" ]]; then
-    if [[ -z "${MGC_AWS_ACCESS_KEY_ID}" ]]; then
+    if [[ -z "${KUADRANT_AWS_ACCESS_KEY_ID}" ]]; then
     echo "Enter an AWS access key ID for an account where you have access to Route53:"
-    read MGC_AWS_ACCESS_KEY_ID </dev/tty
-    echo "export MGC_AWS_ACCESS_KEY_ID for future executions of the script to skip this step"
+    read KUADRANT_AWS_ACCESS_KEY_ID </dev/tty
+    echo "export KUADRANT_AWS_ACCESS_KEY_ID for future executions of the script to skip this step"
     fi
 
-    if [[ -z "${MGC_AWS_SECRET_ACCESS_KEY}" ]]; then
+    if [[ -z "${KUADRANT_AWS_SECRET_ACCESS_KEY}" ]]; then
     echo "Enter the corresponding AWS secret access key for the AWS access key ID entered above:"
-    read MGC_AWS_SECRET_ACCESS_KEY </dev/tty
-    echo "export MGC_AWS_SECRET_ACCESS_KEY for future executions of the script to skip this step"
+    read KUADRANT_AWS_SECRET_ACCESS_KEY </dev/tty
+    echo "export KUADRANT_AWS_SECRET_ACCESS_KEY for future executions of the script to skip this step"
     fi
 
-    if [[ -z "${MGC_AWS_REGION}" ]]; then
+    if [[ -z "${KUADRANT_AWS_REGION}" ]]; then
     echo "Enter an AWS region (e.g. eu-west-1) for an Account where you have access to Route53:"
-    read MGC_AWS_REGION </dev/tty
-    echo "export MGC_AWS_REGION for future executions of the script to skip this step"
+    read KUADRANT_AWS_REGION </dev/tty
+    echo "export KUADRANT_AWS_REGION for future executions of the script to skip this step"
     fi
 
-    if [[ -z "${MGC_AWS_DNS_PUBLIC_ZONE_ID}" ]]; then
+    if [[ -z "${KUADRANT_AWS_DNS_PUBLIC_ZONE_ID}" ]]; then
     echo "Enter the Public Zone ID of your Route53 zone:"
-    read MGC_AWS_DNS_PUBLIC_ZONE_ID </dev/tty
-    echo "export MGC_AWS_DNS_PUBLIC_ZONE_ID for future executions of the script to skip this step"
+    read KUADRANT_AWS_DNS_PUBLIC_ZONE_ID </dev/tty
+    echo "export KUADRANT_AWS_DNS_PUBLIC_ZONE_ID for future executions of the script to skip this step"
     fi
 
-    if [[ -z "${MGC_ZONE_ROOT_DOMAIN}" ]]; then
+    if [[ -z "${KUADRANT_ZONE_ROOT_DOMAIN}" ]]; then
     echo "Enter the root domain of your Route53 hosted zone (e.g. www.example.com):"
-    read MGC_ZONE_ROOT_DOMAIN </dev/tty
-    echo "export MGC_ZONE_ROOT_DOMAIN for future executions of the script to skip this step"
+    read KUADRANT_ZONE_ROOT_DOMAIN </dev/tty
+    echo "export KUADRANT_ZONE_ROOT_DOMAIN for future executions of the script to skip this step"
     fi
   else 
       if [[ -z "${GOOGLE}" ]]; then

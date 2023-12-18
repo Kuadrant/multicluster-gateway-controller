@@ -3,6 +3,7 @@
 export KIND_CLUSTER_PREFIX="mgc-"
 export KIND_CLUSTER_CONTROL_PLANE="${KIND_CLUSTER_PREFIX}control-plane"
 export KIND_CLUSTER_WORKLOAD="${KIND_CLUSTER_PREFIX}workload"
+export KIND_CLUSTER_DOCKER_NETWORK="mgc"
 
 export port80=9090
 export port443=8445

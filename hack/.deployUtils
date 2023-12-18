@@ -323,8 +323,12 @@ deployPrometheusForFederation() {
 # quickstart-setup specific functions
 
 setupAWSProvider() {
-  if [ "$MGC_AWS_ACCESS_KEY_ID" == "" ]; then
-    echo "MGC_AWS_ACCESS_KEY_ID is not set"
+  local namespace="$1"
+  if [ -z "$1" ]; then
+    namespace="multi-cluster-gateways"
+  fi
+  if [ "$KUADRANT_AWS_ACCESS_KEY_ID" == "" ]; then
+    echo "KUADRANT_AWS_ACCESS_KEY_ID is not set"
     exit 1
   fi
 
@@ -333,31 +337,31 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: ${KIND_CLUSTER_PREFIX}aws-credentials
-  namespace: multi-cluster-gateways
+  namespace: ${namespace}
 type: "kuadrant.io/aws"
 stringData:
-  AWS_ACCESS_KEY_ID: ${MGC_AWS_ACCESS_KEY_ID}
-  AWS_SECRET_ACCESS_KEY: ${MGC_AWS_SECRET_ACCESS_KEY}
-  AWS_REGION: ${MGC_AWS_REGION}
+  AWS_ACCESS_KEY_ID: ${KUADRANT_AWS_ACCESS_KEY_ID}
+  AWS_SECRET_ACCESS_KEY: ${KUADRANT_AWS_SECRET_ACCESS_KEY}
+  AWS_REGION: ${KUADRANT_AWS_REGION}
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: ${KIND_CLUSTER_PREFIX}controller-config
-  namespace: multicluster-gateway-controller-system
+  namespace: ${namespace}
 data:
-  AWS_DNS_PUBLIC_ZONE_ID: ${MGC_AWS_DNS_PUBLIC_ZONE_ID}
-  ZONE_ROOT_DOMAIN: ${MGC_ZONE_ROOT_DOMAIN}
+  AWS_DNS_PUBLIC_ZONE_ID: ${KUADRANT_AWS_DNS_PUBLIC_ZONE_ID}
+  ZONE_ROOT_DOMAIN: ${KUADRANT_ZONE_ROOT_DOMAIN}
   LOG_LEVEL: "${LOG_LEVEL}"
 ---
 apiVersion: kuadrant.io/v1alpha1
 kind: ManagedZone
 metadata:
   name: ${KIND_CLUSTER_PREFIX}dev-mz
-  namespace: multi-cluster-gateways
+  namespace: ${namespace}
 spec:
-  id: ${MGC_AWS_DNS_PUBLIC_ZONE_ID}
-  domainName: ${MGC_ZONE_ROOT_DOMAIN}
+  id: ${KUADRANT_AWS_DNS_PUBLIC_ZONE_ID}
+  domainName: ${KUADRANT_ZONE_ROOT_DOMAIN}
   description: "Dev Managed Zone"
   dnsProviderSecretRef:
     name: ${KIND_CLUSTER_PREFIX}aws-credentials
@@ -365,12 +369,16 @@ EOF
 }
 
 setupGCPProvider() {
+  local namespace="$1"
+  if [ -z "$1" ]; then
+    namespace="multi-cluster-gateways"
+  fi
   kubectl apply -f - <<EOF
 apiVersion: v1
 kind: Secret
 metadata:
   name: ${KIND_CLUSTER_PREFIX}gcp-credentials
-  namespace: multi-cluster-gateways
+  namespace: ${namespace}
 type: "kuadrant.io/gcp"
 stringData:
   GOOGLE: '${GOOGLE}'
@@ -380,7 +388,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: ${KIND_CLUSTER_PREFIX}controller-config
-  namespace: multicluster-gateway-controller-system
+  namespace: ${namespace}
 data:
   ZONE_DNS_NAME: ${ZONE_DNS_NAME}
   ZONE_NAME: ${ZONE_NAME}
@@ -390,7 +398,7 @@ apiVersion: kuadrant.io/v1alpha1
 kind: ManagedZone
 metadata:
   name: ${KIND_CLUSTER_PREFIX}dev-mz
-  namespace: multi-cluster-gateways
+  namespace: ${namespace}
 spec:
   id: ${ZONE_NAME}
   domainName: ${ZONE_DNS_NAME}
@@ -402,17 +410,18 @@ EOF
 
 configureController() {
     clusterName=${1}
+    namespace=${2}
     kubectl config use-context kind-${clusterName}
     echo "Initialize local dev setup for the controller on ${clusterName}"
 
     case $DNS_PROVIDER in
       aws)
           echo "Setting up an AWS Route 53 DNS provider"
-          setupAWSProvider
+          setupAWSProvider ${namespace}
           ;;
       gcp)
           echo "Setting up a Google Cloud DNS provider"
-          setupGCPProvider
+          setupGCPProvider ${namespace}
           ;;
       *)
         echo "Unknown DNS provider"
