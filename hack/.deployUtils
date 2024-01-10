@@ -320,6 +320,18 @@ deployPrometheusForFederation() {
   fi
 }
 
+installAPIDashboards() {
+  clusterName=${1}
+  if [[ -n "${METRICS_FEDERATION}" ]]; then
+    echo "Deploying API Dashboards in ${clusterName}"
+    kubectl config use-context kind-${clusterName}
+    ${KUSTOMIZE_BIN} build ${PROMETHEUS_FOR_FEDERATION_KUSTOMIZATION_DIR}/api-dashboards | kubectl apply -f -
+
+    kubectl patch deployment grafana -n monitoring --type=json -p "$(cat ${PROMETHEUS_FOR_FEDERATION_KUSTOMIZATION_DIR}/api-dashboards/grafana_deployment_patch.yaml)"
+    kubectl rollout restart deployment/grafana -n monitoring
+  fi
+}
+
 # quickstart-setup specific functions
 
 setupAWSProvider() {
