@@ -95,9 +95,7 @@ test: test-unit test-integration ## Run tests.
 test-e2e: ginkgo
 	$(GINKGO) -tags=e2e -v ./test/e2e
 
-
-
-	.PHONY: local-setup-api
+.PHONY: local-setup-api
 local-setup-api: local-setup-kind-api local-setup-mgc-api ## Setup multi cluster traffic controller locally using kind.
 	$(info Setup is done! Enjoy)
 	$(info Consider using local-setup-kind-api or local-setup-mgc-api targets to separate kind clusters creation and deployment of resources)
