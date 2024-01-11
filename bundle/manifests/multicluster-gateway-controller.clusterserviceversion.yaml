@@ -4,7 +4,7 @@ metadata:
   annotations:
     alm-examples: '[]'
     capabilities: Basic Install
-    createdAt: "2023-12-08T11:41:09Z"
+    createdAt: "2024-01-11T15:19:57Z"
     operators.operatorframework.io/builder: operator-sdk-v1.28.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
   name: multicluster-gateway-controller.v0.0.0
@@ -377,6 +377,32 @@ spec:
           - gateway.networking.k8s.io
           resources:
           - gateways/status
+          verbs:
+          - get
+          - patch
+          - update
+        - apiGroups:
+          - k8gb.absa.oss
+          resources:
+          - gslb
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - k8gb.absa.oss
+          resources:
+          - gslb/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - k8gb.absa.oss
+          resources:
+          - gslb/status
           verbs:
           - get
           - patch

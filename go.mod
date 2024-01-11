@@ -8,6 +8,7 @@ require (
 	github.com/google/uuid v1.3.1
 	github.com/goombaio/namegenerator v0.0.0-20181006234301-989e774b106e
 	github.com/jetstack/cert-manager v1.7.1
+	github.com/k8gb-io/k8gb v0.12.2
 	github.com/kuadrant/kuadrant-operator v0.1.1-0.20231114121136-3136ed961c70
 	github.com/martinlindhe/base36 v1.1.1
 	github.com/onsi/ginkgo/v2 v2.11.0

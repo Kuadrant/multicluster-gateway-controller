@@ -48,6 +48,7 @@ const (
 	DNSPoliciesBackRefAnnotation                          = "kuadrant.io/dnspolicies"
 	DNSPolicyBackRefAnnotation                            = "kuadrant.io/dnspolicy"
 	DNSPolicyAffected            conditions.ConditionType = "kuadrant.io/DNSPolicyAffected"
+	K8GBGateway                                           = "kuadrant.io/k8gb-gateway"
 )
 
 type DNSPolicyRefsConfig struct{}
@@ -70,6 +71,9 @@ type DNSPolicyReconciler struct {
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways/finalizers,verbs=update
+//+kubebuilder:rbac:groups=k8gb.absa.oss,resources=gslb,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=k8gb.absa.oss,resources=gslb/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=k8gb.absa.oss,resources=gslb/finalizers,verbs=update
 
 func (r *DNSPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := r.Logger().WithValues("DNSPolicy", req.NamespacedName)

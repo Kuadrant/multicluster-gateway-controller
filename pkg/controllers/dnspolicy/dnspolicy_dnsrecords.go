@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	k8gbv1beta1 "github.com/k8gb-io/k8gb/api/v1beta1"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
 
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -32,6 +33,13 @@ func (r *DNSPolicyReconciler) reconcileDNSRecords(ctx context.Context, dnsPolicy
 
 	// Reconcile DNSRecords for each gateway directly referred by the policy (existing and new)
 	for _, gw := range append(gwDiffObj.GatewaysWithValidPolicyRef, gwDiffObj.GatewaysMissingPolicyRef...) {
+		gateway := gw.Gateway
+
+		val, ok := gateway.Labels[K8GBGateway]
+		if ok && val == "true" {
+			log.V(1).Info("reconcileDNSRecords: reconciling GSLB for a gateway", "key", gw.Key())
+			return r.reconcileGSLB(ctx, gateway, dnsPolicy)
+		}
 		log.V(1).Info("reconcileDNSRecords: gateway with valid or missing policy ref", "key", gw.Key())
 		if err := r.reconcileGatewayDNSRecords(ctx, gw.Gateway, dnsPolicy); err != nil {
 			return fmt.Errorf("error reconciling dns records for gateway %v: %w", gw.Gateway.Name, err)
@@ -177,4 +185,10 @@ func (r *DNSPolicyReconciler) buildClusterGateway(ctx context.Context, clusterNa
 	target = *dns.NewClusterGateway(metaObj, singleClusterAddresses)
 
 	return target, nil
+}
+
+func (r *DNSPolicyReconciler) reconcileGSLB(ctx context.Context, gw *gatewayapiv1.Gateway, dnsPolicy *v1alpha1.DNSPolicy) error {
+	// TODO create or delete GSLB
+	_ = k8gbv1beta1.Gslb{}
+	return nil
 }

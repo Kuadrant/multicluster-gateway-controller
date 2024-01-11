@@ -74,6 +74,32 @@ rules:
   - patch
   - update
 - apiGroups:
+  - k8gb.absa.oss
+  resources:
+  - gslb
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - k8gb.absa.oss
+  resources:
+  - gslb/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - k8gb.absa.oss
+  resources:
+  - gslb/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - kuadrant.io
   resources:
   - dnshealthcheckprobes

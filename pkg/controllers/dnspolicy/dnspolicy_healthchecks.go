@@ -32,6 +32,7 @@ func (r *DNSPolicyReconciler) reconcileHealthCheckProbes(ctx context.Context, dn
 		}
 	}
 
+	// TODO k8gb has healthchecks in it - we could use them as well
 	// Reconcile DNSHealthCheckProbes for each gateway directly referred by the policy (existing and new)
 	for _, gw := range append(gwDiffObj.GatewaysWithValidPolicyRef, gwDiffObj.GatewaysMissingPolicyRef...) {
 		log.V(3).Info("reconciling probes", "gateway", gw.Name)
