@@ -40,12 +40,12 @@ patches:
           name: additional-scrape-configs
           key: prometheus-additional.yaml
   - target:
-      kind: AlertManager
-      name: k8s
+      kind: Alertmanager
+      name: main
     patch: |-
-      kind: AlertManager
+      kind: Alertmanager
       metadata:
-        name: k8s
+        name: main
       spec:
         replicas: 1
   - target:

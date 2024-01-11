@@ -16,6 +16,8 @@
 # limitations under the License.
 #
 
+METRICS_FEDERATION=true
+
 LOCAL_SETUP_DIR="$(dirname "${BASH_SOURCE[0]}")/.."
 source "${LOCAL_SETUP_DIR}"/.binEnv
 source "${LOCAL_SETUP_DIR}"/.setupEnv
@@ -79,6 +81,9 @@ deployMetalLB ${KIND_CLUSTER_CONTROL_PLANE} ${metalLBSubnetStart}
 
 # Deploy Prometheus in the hub too
 deployPrometheusForFederation ${KIND_CLUSTER_CONTROL_PLANE}
+
+# Deploy API Dashboards in hub
+installAPIDashboards ${KIND_CLUSTER_CONTROL_PLANE}
 
 # Deploy Thanos components in the hub
 deployThanos ${KIND_CLUSTER_CONTROL_PLANE}

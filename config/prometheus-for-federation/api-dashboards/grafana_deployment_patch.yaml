@@ -1,0 +1,37 @@
+- op: add
+  path: /spec/template/spec/volumes/-
+  value:
+    name: grafana-stitch
+    configMap:
+     defaultMode: 420
+     name: grafana-stitch
+- op: add
+  path: /spec/template/spec/volumes/-
+  value:
+    name: grafana-stitch-platform-eng-dashboard
+    configMap:
+     defaultMode: 420
+     name: grafana-stitch-platform-eng-dashboard
+- op: add
+  path: /spec/template/spec/volumes/-
+  value:
+    name: grafana-stitch-gatekeeper-dashboard
+    configMap:
+     defaultMode: 420
+     name: grafana-stitch-gatekeeper-dashboard     
+- op: add
+  path: /spec/template/spec/containers/0/volumeMounts/-
+  value:
+    name: grafana-stitch
+    mountPath: /grafana-dashboard-definitions/0/grafana-stitch
+- op: add
+  path: /spec/template/spec/containers/0/volumeMounts/-
+  value:
+    name: grafana-stitch-platform-eng-dashboard
+    mountPath: /grafana-dashboard-definitions/0/grafana-stitch-platform-eng-dashboard
+- op: add
+  path: /spec/template/spec/containers/0/volumeMounts/-
+  value:
+    name: grafana-stitch-gatekeeper-dashboard
+    mountPath: /grafana-dashboard-definitions/0/grafana-stitch-gatekeeper-dashboard
+
