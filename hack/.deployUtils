@@ -72,7 +72,7 @@ deployOCMHub(){
     fi
   fi
   if ! [[ -n "${minimal}" ]]; then
-      echo "Installing Redis in kind-mgc-control-plane"
+      echo "Installing Redis in kind-${clusterName}"
       ${KUSTOMIZE_BIN} build ${REDIS_KUSTOMIZATION_DIR} | kubectl apply -f -
   fi
 }
@@ -479,4 +479,58 @@ deployPrometheus() {
   kubectl config use-context kind-${clusterName}
   echo "Deploying Prometheus in ${clusterName}"
   wait_for "${KUSTOMIZE_BIN} --load-restrictor LoadRestrictionsNone build ${PROMETHEUS_DIR} --enable-helm --helm-command ${HELM_BIN} | kubectl apply -f -" "${PROMETHEUS_DIR} cluster config apply" "1m" "5"
+}
+
+deployGatekeeper(){
+  clusterName=${1}
+  kubectl config use-context kind-${clusterName}
+  echo "Deploying Gatekeeper in kind-${clusterName}"
+  ${HELM_BIN} repo add gatekeeper https://open-policy-agent.github.io/gatekeeper/charts
+  ${HELM_BIN} install gatekeeper/gatekeeper --name-template=gatekeeper --namespace gatekeeper-system --create-namespace
+  kubectl --context kind-${clusterName} wait --namespace=gatekeeper-system --for=condition=available --timeout=300s deployment/gatekeeper-audit
+  kubectl --context kind-${clusterName} wait --namespace=gatekeeper-system --for=condition=available --timeout=300s deployment/gatekeeper-controller-manager
+  kubectl --context kind-${clusterName} apply -f - <<EOF
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: gatekeeper-monitor
+  namespace: gatekeeper-system
+spec:
+  podMetricsEndpoints:
+    - port: metrics
+  selector:
+    matchLabels:
+      gatekeeper.sh/system: 'yes'
+EOF
+echo "Gatekeeper Ready"
+}
+
+configureGatekeeper() {
+  clusterName=${1}
+  kubectl --context kind-${clusterName} apply -f ./config/api-upstream/gatekeeper/constraintTemplates.yaml
+  kubectl --context kind-${clusterName} wait  --for=condition=established --timeout=300s crd/requirepolicytargetinggateway.constraints.gatekeeper.sh
+  kubectl --context kind-${clusterName} apply -f ./config/api-upstream/gatekeeper/constraints.yaml
+  kubectl --context kind-${clusterName} apply -f ./config/api-upstream/gatekeeper/mutations.yaml
+}
+
+installGatekeeperScoreCard(){
+  clusterName=${1}
+  kubectl create namespace opa-exporter 
+  kubectl --context kind-${clusterName} apply -f https://raw.githubusercontent.com/mcelep/opa-scorecard/master/exporter-k8s-resources/clusterrole.yaml
+  kubectl --context kind-${clusterName} apply -f https://raw.githubusercontent.com/mcelep/opa-scorecard/master/exporter-k8s-resources/clusterrolebinding.yaml
+  kubectl --context kind-${clusterName} apply -f https://raw.githubusercontent.com/mcelep/opa-scorecard/master/exporter-k8s-resources/deployment.yaml
+  kubectl --context kind-${clusterName} apply -f https://raw.githubusercontent.com/mcelep/opa-scorecard/master/exporter-k8s-resources/service.yaml
+  kubectl --context kind-${clusterName} apply -f - <<EOF
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: gatekeeper-scorecard
+  namespace: opa-exporter
+spec:
+  endpoints:
+    - port: 9141-9141
+  selector:
+    matchLabels:
+      app: opa-exporter
+EOF
 }

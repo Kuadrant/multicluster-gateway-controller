@@ -1,0 +1,38 @@
+apiVersion: templates.gatekeeper.sh/v1beta1
+kind: ConstraintTemplate
+metadata:
+  name: requirepolicytargetinggateway
+spec:
+  crd:
+    spec:
+      names:
+        kind: RequirePolicyTargetingGateway
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            groupVersion:
+              description: The groupVersion of a Policy to check the targetRef in e.g. kuadrant.io/v1alpha1
+              type: string
+            kind:
+              description: The kind of a Policy to check the targetRef in. e.g. DNSPolicy
+              type: string
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8srequirepolicytargetinggateway
+
+        violation[{"msg": msg}] {
+            input.review.object.spec.gatewayClassName == "kuadrant-multi-cluster-gateway-instance-per-cluster"
+            policies := [o | o = data.inventory.namespace[_][input.parameters.groupVersion][input.parameters.kind][_]]
+            msg := check_policies(policies)
+        }
+
+        check_policies(policies) = msg {
+            gateway_name := input.review.object.metadata.name
+            gateway_namespace := input.review.object.metadata.namespace
+
+            targetting_policies := [o | o = policies[_]; o.spec.targetRef.name == gateway_name]
+            count(targetting_policies) == 0
+            msg := sprintf("No %v targeting Gateway %v/%v", [input.parameters.kind, gateway_namespace, gateway_name])
+        }
