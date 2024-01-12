@@ -321,13 +321,28 @@ deployPrometheusForFederation() {
 }
 
 installAPIDashboards() {
+  local PROMETHEUS_FOR_FEDERATION_API_DASHBOARDS_KUSTOMIZATION_DIR="$2"
+  local PROMETHEUS_FOR_FEDERATION_API_DASHBOARDS_GRAFANA_PATCH="$3"
+  if [ -z "$2" ]; then
+    PROMETHEUS_FOR_FEDERATION_API_DASHBOARDS_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/prometheus-for-federation/api-dashboards
+  fi
+  if [ -z "$3" ]; then
+    PROMETHEUS_FOR_FEDERATION_API_DASHBOARDS_GRAFANA_PATCH=${PROMETHEUS_FOR_FEDERATION_API_DASHBOARDS_KUSTOMIZATION_DIR}/grafana_deployment_patch.yaml
+  fi
   clusterName=${1}
   if [[ -n "${METRICS_FEDERATION}" ]]; then
     echo "Deploying API Dashboards in ${clusterName}"
     kubectl config use-context kind-${clusterName}
-    ${KUSTOMIZE_BIN} build ${PROMETHEUS_FOR_FEDERATION_KUSTOMIZATION_DIR}/api-dashboards | kubectl apply -f -
+    ${KUSTOMIZE_BIN} build ${PROMETHEUS_FOR_FEDERATION_API_DASHBOARDS_KUSTOMIZATION_DIR} | kubectl apply -f -
 
-    kubectl patch deployment grafana -n monitoring --type=json -p "$(cat ${PROMETHEUS_FOR_FEDERATION_KUSTOMIZATION_DIR}/api-dashboards/grafana_deployment_patch.yaml)"
+    if [[ ${PROMETHEUS_FOR_FEDERATION_API_DASHBOARDS_GRAFANA_PATCH} == https* ]]; then
+      echo "Fetching patch file from ${PROMETHEUS_FOR_FEDERATION_API_DASHBOARDS_GRAFANA_PATCH}"
+      curl -L -o ${TMP_DIR}/patch.yaml ${PROMETHEUS_FOR_FEDERATION_API_DASHBOARDS_GRAFANA_PATCH}
+      kubectl patch deployment grafana -n monitoring --type=json -p "$(cat ${TMP_DIR}/patch.yaml)"
+    else
+      echo "Using local file at ${PROMETHEUS_FOR_FEDERATION_API_DASHBOARDS_GRAFANA_PATCH}"
+      kubectl patch deployment grafana -n monitoring --type=json -p "$(cat ${PROMETHEUS_FOR_FEDERATION_API_DASHBOARDS_GRAFANA_PATCH})"
+    fi
     kubectl rollout restart deployment/grafana -n monitoring
   fi
 }
