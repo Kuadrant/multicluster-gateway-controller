@@ -489,48 +489,15 @@ deployGatekeeper(){
   ${HELM_BIN} install gatekeeper/gatekeeper --name-template=gatekeeper --namespace gatekeeper-system --create-namespace
   kubectl --context kind-${clusterName} wait --namespace=gatekeeper-system --for=condition=available --timeout=300s deployment/gatekeeper-audit
   kubectl --context kind-${clusterName} wait --namespace=gatekeeper-system --for=condition=available --timeout=300s deployment/gatekeeper-controller-manager
-  kubectl --context kind-${clusterName} apply -f - <<EOF
-apiVersion: monitoring.coreos.com/v1
-kind: PodMonitor
-metadata:
-  name: gatekeeper-monitor
-  namespace: gatekeeper-system
-spec:
-  podMetricsEndpoints:
-    - port: metrics
-  selector:
-    matchLabels:
-      gatekeeper.sh/system: 'yes'
-EOF
-echo "Gatekeeper Ready"
+  echo "Gatekeeper Ready"
 }
 
 configureGatekeeper() {
   clusterName=${1}
-  kubectl --context kind-${clusterName} apply -f ./config/api-upstream/gatekeeper/constraintTemplates.yaml
-  kubectl --context kind-${clusterName} wait  --for=condition=established --timeout=300s crd/requirepolicytargetinggateway.constraints.gatekeeper.sh
-  kubectl --context kind-${clusterName} apply -f ./config/api-upstream/gatekeeper/constraints.yaml
-  kubectl --context kind-${clusterName} apply -f ./config/api-upstream/gatekeeper/mutations.yaml
+  local GATEKEEPER_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/upstream-api
+  kubectl create namespace opa-exporter 
+  ${KUSTOMIZE_BIN} build ${GATEKEEPER_KUSTOMIZATION_DIR}/gatekeeper/constraint-templates | kubectl apply -f -
+  ${KUSTOMIZE_BIN} build ${GATEKEEPER_KUSTOMIZATION_DIR} | kubectl apply -f -
 }
 
-installGatekeeperScoreCard(){
-  clusterName=${1}
-  kubectl create namespace opa-exporter 
-  kubectl --context kind-${clusterName} apply -f https://raw.githubusercontent.com/mcelep/opa-scorecard/master/exporter-k8s-resources/clusterrole.yaml
-  kubectl --context kind-${clusterName} apply -f https://raw.githubusercontent.com/mcelep/opa-scorecard/master/exporter-k8s-resources/clusterrolebinding.yaml
-  kubectl --context kind-${clusterName} apply -f https://raw.githubusercontent.com/mcelep/opa-scorecard/master/exporter-k8s-resources/deployment.yaml
-  kubectl --context kind-${clusterName} apply -f https://raw.githubusercontent.com/mcelep/opa-scorecard/master/exporter-k8s-resources/service.yaml
-  kubectl --context kind-${clusterName} apply -f - <<EOF
-apiVersion: monitoring.coreos.com/v1
-kind: ServiceMonitor
-metadata:
-  name: gatekeeper-scorecard
-  namespace: opa-exporter
-spec:
-  endpoints:
-    - port: 9141-9141
-  selector:
-    matchLabels:
-      app: opa-exporter
-EOF
-}
+

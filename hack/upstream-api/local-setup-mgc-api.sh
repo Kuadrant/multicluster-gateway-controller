@@ -94,9 +94,6 @@ deployGatekeeper ${KIND_CLUSTER_CONTROL_PLANE}
 # Configure gatekeeper in the hub
 configureGatekeeper ${KIND_CLUSTER_CONTROL_PLANE}
 
-# Deploy gatekeeper scorecard in the hub
-installGatekeeperScoreCard ${KIND_CLUSTER_CONTROL_PLANE}
-
 # Deploy to workload clusters if MGC_WORKLOAD_CLUSTERS_COUNT environment variable is set
 if [[ -n "${MGC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
   for ((i = 1; i <= ${MGC_WORKLOAD_CLUSTERS_COUNT}; i++)); do
@@ -115,7 +112,6 @@ if [[ -n "${MGC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
     configureManagedAddon ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_WORKLOAD}-${i}
     deployGatekeeper ${KIND_CLUSTER_WORKLOAD}-${i}
     configureGatekeeper ${KIND_CLUSTER_WORKLOAD}-${i}
-    installGatekeeperScoreCard ${KIND_CLUSTER_WORKLOAD}-${i}
   done
 fi
 
