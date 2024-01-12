@@ -20,20 +20,18 @@ jobs:
     name: Build controller image
     runs-on: ubuntu-22.04
     outputs:
-      sha_short: ${{ steps.vars.outputs.sha_short }}
-      controller_image: ${{ steps.vars.outputs.base_image }}:${{ steps.vars.outputs.sha_short }}
+      controller_image: ${{ steps.vars.outputs.base_image }}:${{ github.sha }}
     steps:
       - uses: actions/checkout@v3
 
       - name: Calculate vars
         id: vars
         run: |
-          echo "sha_short=$(echo ${{ github.sha }} | cut -b -7)" >> $GITHUB_OUTPUT
           echo "base_image=${{ env.IMG_REGISTRY_HOST }}/${{ env.IMG_REGISTRY_ORG }}/${{ env.IMG_REGISTRY_REPO }}" >> $GITHUB_OUTPUT
 
       - name: Add image tags
         id: add-tags
-        run: echo "IMG_TAGS=${{ steps.vars.outputs.base_image }}:${{ steps.vars.outputs.sha_short }},${{ steps.vars.outputs.base_image }}:${{ github.ref_name }}" >> $GITHUB_ENV
+        run: echo "IMG_TAGS=${{ steps.vars.outputs.base_image }}:${{ github.sha }},${{ steps.vars.outputs.base_image }}:${{ github.ref_name }}" >> $GITHUB_ENV
 
       - name: Add latest tag
         if: ${{ github.ref_name == env.MAIN_BRANCH_NAME }}
