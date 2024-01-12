@@ -1,0 +1,61 @@
+apiVersion: config.gatekeeper.sh/v1alpha1
+kind: Config
+metadata:
+  name: config
+  namespace: "gatekeeper-system"
+spec:
+  sync:
+    syncOnly:
+      - group: "kuadrant.io"
+        version: "v1alpha1"
+        kind: "DNSPolicy"
+      - group: "kuadrant.io"
+        version: "v1beta2"
+        kind: "AuthPolicy"
+      - group: "kuadrant.io"
+        version: "v1beta2"
+        kind: "RateLimitPolicy"
+---
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: RequirePolicyTargetingGateway
+metadata:
+  name: require-dnspolicy-targeting-gateway
+spec:
+  enforcementAction: warn
+  match:
+    kinds:
+      - apiGroups: ["gateway.networking.k8s.io"]
+        kinds: ["Gateway"]
+  parameters:
+    kind: DNSPolicy
+    groupVersion: "kuadrant.io/v1alpha1"
+---
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: RequirePolicyTargetingGateway
+metadata:
+  name: require-authpolicy-targeting-gateway
+spec:
+  enforcementAction: warn
+  match:
+    kinds:
+      - apiGroups: ["gateway.networking.k8s.io"]
+        kinds: ["Gateway"]
+  parameters:
+    kind: AuthPolicy
+    groupVersion: "kuadrant.io/v1beta2"
+---
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: RequirePolicyTargetingGateway
+metadata:
+  name: require-ratelimitpolicy-targeting-gateway
+spec:
+  enforcementAction: warn
+  match:
+    kinds:
+      - apiGroups: ["gateway.networking.k8s.io"]
+        kinds: ["Gateway"]
+  parameters:
+    kind: RateLimitPolicy
+    groupVersion: "kuadrant.io/v1beta2"
+
+

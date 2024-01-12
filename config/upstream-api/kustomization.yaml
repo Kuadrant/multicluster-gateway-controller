@@ -1,0 +1,13 @@
+resources:
+- gatekeeper/constraints/constraints.yaml
+- gatekeeper/mutations/mutations.yaml
+
+# used for scraping metrics
+- gatekeeper/service-monitor.yaml
+- gatekeeper/pod-monitor.yaml
+
+# Gatekeeper scorecard gives extra metrics
+- https://raw.githubusercontent.com/mcelep/opa-scorecard/master/exporter-k8s-resources/clusterrole.yaml
+- https://raw.githubusercontent.com/mcelep/opa-scorecard/master/exporter-k8s-resources/clusterrolebinding.yaml
+- https://raw.githubusercontent.com/mcelep/opa-scorecard/master/exporter-k8s-resources/deployment.yaml
+- https://raw.githubusercontent.com/mcelep/opa-scorecard/master/exporter-k8s-resources/service.yaml

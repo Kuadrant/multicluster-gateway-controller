@@ -1,0 +1,11 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: gatekeeper-scorecard
+  namespace: opa-exporter
+spec:
+  endpoints:
+    - port: 9141-9141
+  selector:
+    matchLabels:
+      app: opa-exporter
