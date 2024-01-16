@@ -301,20 +301,25 @@ var _ = Describe("Gateway single target cluster", func() {
 					// Wait for the DNSRecord to exists: this shouldn't be necessary, but I have found out that AWS dns servers
 					// cache the "no such host" response for a period of approx 10-15 minutes, which makes the test run for a
 					// long time.
-					By("waiting for the DNSRecord to be created in the Hub")
+					By("waiting for the DNSRecord to be created and ready in the Hub")
 					{
-						Eventually(func(ctx SpecContext) bool {
+						Eventually(func(g Gomega, ctx context.Context) {
 							dnsrecord := &mgcv1alpha1.DNSRecord{ObjectMeta: metav1.ObjectMeta{
 								Name:      fmt.Sprintf("%s-%s", gw.Name, "https"),
 								Namespace: gw.Namespace,
-							},
-							}
-							if err := tconfig.HubClient().Get(ctx, client.ObjectKeyFromObject(dnsrecord), dnsrecord); err != nil {
+							}}
+							err := tconfig.HubClient().Get(ctx, client.ObjectKeyFromObject(dnsrecord), dnsrecord)
+							if err != nil {
 								GinkgoWriter.Printf("[debug] unable to get DNSRecord: '%s'\n", err)
-								return false
 							}
-							return meta.IsStatusConditionTrue(dnsrecord.Status.Conditions, string(conditions.ConditionTypeReady))
-						}).WithTimeout(300 * time.Second).WithPolling(10 * time.Second).WithContext(ctx).Should(BeTrue())
+							g.Expect(err).NotTo(HaveOccurred())
+							g.Expect(dnsrecord.Status.Conditions).To(
+								ContainElement(MatchFields(IgnoreExtras, Fields{
+									"Type":   Equal(string(conditions.ConditionTypeReady)),
+									"Status": Equal(metav1.ConditionTrue),
+								})),
+							)
+						}, 300*time.Second, 10*time.Second, ctx).Should(Succeed())
 
 						// still need to wait some seconds to the dns server to actually start
 						// resolving the hostname
