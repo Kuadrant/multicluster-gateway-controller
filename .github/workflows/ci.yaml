@@ -27,16 +27,16 @@ jobs:
     name: lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: actions/setup-go@v4
         with:
           go-version: v1.21.x
-      - uses: golangci/golangci-lint-action@v2
+          cache: false
+      - uses: golangci/golangci-lint-action@v3
         with:
-          version: v1.53.3
+          version: v1.55.2
           only-new-issues: true
           args: --timeout=5m
-          skip-go-installation: true
   verify-code:
     name: Verify code
     runs-on: ubuntu-latest
@@ -45,9 +45,10 @@ jobs:
         uses: actions/setup-go@v4
         with:
           go-version: 1.21.x
+          cache: false
         id: go
       - name: Check out code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Run make verify-code
         run: |
           make verify-code
@@ -59,9 +60,10 @@ jobs:
         uses: actions/setup-go@v4
         with:
           go-version: 1.21.x
+          cache: false
         id: go
       - name: Check out code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Run make verify-manifests
         run: |
           make verify-manifests
@@ -70,12 +72,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up Go 1.21.x
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v4
         with:
           go-version: 1.21.x
+          cache: false
         id: go
       - name: Check out code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Run make verify-bundle
         run: |
           make verify-bundle
@@ -87,9 +90,10 @@ jobs:
         uses: actions/setup-go@v4
         with:
           go-version: 1.21.x
+          cache: false
         id: go
       - name: Check out code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Run make verify-manifests
         run: |
           make verify-imports
@@ -97,10 +101,11 @@ jobs:
     name: Integration Test Suite
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: actions/setup-go@v4
         with:
           go-version: v1.21
+          cache: false
       - name: Run suite
         run: |
           make test-integration
@@ -108,10 +113,11 @@ jobs:
     name: Unit Test Suite
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: actions/setup-go@v4
         with:
           go-version: v1.21
+          cache: false
       - name: Run suite
         run: |
           make test-unit
