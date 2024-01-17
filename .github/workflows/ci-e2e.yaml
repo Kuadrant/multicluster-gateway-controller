@@ -103,6 +103,7 @@ jobs:
       - name: Dump Gateway Controller logs
         if: ${{ failure() }}
         run: |
+          kubectl get deployments -A
           kubectl --context kind-mgc-control-plane logs --all-containers --ignore-errors deployment/mgc-controller-manager -n multicluster-gateway-controller-system
       - name: Dump Policy Controller logs
         if: ${{ failure() }}

@@ -64,7 +64,6 @@ deployOCMHub(){
   echo "checking if cluster is single or multi"
   if [[ -n "${OCM_SINGLE}" ]]; then
     deployOCMSpoke ${clusterName}
-    configureManagedAddon ${clusterName} ${clusterName}
     deployOLM ${KIND_CLUSTER_CONTROL_PLANE}
 
     if ! [[ -n "${minimal}" ]]; then
