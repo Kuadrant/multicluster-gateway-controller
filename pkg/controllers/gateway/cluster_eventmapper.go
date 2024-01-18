@@ -1,4 +1,4 @@
-package events
+package gateway
 
 import (
 	"context"
@@ -50,13 +50,13 @@ func (m *ClusterEventMapper) mapToGatewayRequest(ctx context.Context, obj client
 	allGwList := &gatewayapiv1.GatewayList{}
 	err := m.Client.List(ctx, allGwList)
 	if err != nil {
-		logger.Info("mapToPolicyRequest:", "error", "failed to get gateways")
+		logger.Info("mapToGatewayRequest:", "error", "failed to get gateways")
 		return []reconcile.Request{}
 	}
 
 	requests := make([]reconcile.Request, 0)
 	for _, gw := range allGwList.Items {
-		val := metadata.GetAnnotation(&gw, "kuadrant.io/gateway-clusters")
+		val := metadata.GetAnnotation(&gw, GatewayClustersAnnotation)
 		if val == "" {
 			continue
 		}

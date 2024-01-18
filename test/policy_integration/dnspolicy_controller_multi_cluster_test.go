@@ -17,7 +17,6 @@ import (
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
-	mgcgateway "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/utils"
 	testutil "github.com/Kuadrant/multicluster-gateway-controller/test/util"
@@ -463,7 +462,7 @@ var _ = Describe("DNSPolicy Multi Cluster", func() {
 
 		})
 
-		Context("custom geo+weighted", func() {
+		Context("geo+weighted with custom weights", func() {
 
 			BeforeEach(func() {
 				dnsPolicyBuilder.
@@ -471,7 +470,7 @@ var _ = Describe("DNSPolicy Multi Cluster", func() {
 						{
 							Selector: &metav1.LabelSelector{
 								MatchLabels: map[string]string{
-									"kuadrant.io/lb-attribute-custom-weight": "CAD",
+									"kuadrant.io/my-custom-weight-attr": "FOO",
 								},
 							},
 							Weight: 100,
@@ -479,7 +478,7 @@ var _ = Describe("DNSPolicy Multi Cluster", func() {
 						{
 							Selector: &metav1.LabelSelector{
 								MatchLabels: map[string]string{
-									"kuadrant.io/lb-attribute-custom-weight": "ES",
+									"kuadrant.io/my-custom-weight-attr": "BAR",
 								},
 							},
 							Weight: 160,
@@ -491,12 +490,17 @@ var _ = Describe("DNSPolicy Multi Cluster", func() {
 
 				Eventually(func() error {
 					gateway.Labels = map[string]string{}
-					gateway.Labels[mgcgateway.LabelPrefix+TestClusterNameOne+"_lb-attribute-custom-weight"] = "CAD"
-					gateway.Labels[mgcgateway.LabelPrefix+TestClusterNameTwo+"_lb-attribute-custom-weight"] = "ES"
-					gateway.Labels[mgcgateway.LabelPrefix+TestClusterNameOne+"_lb-attribute-geo-code"] = "CAD"
-					gateway.Labels[mgcgateway.LabelPrefix+TestClusterNameTwo+"_lb-attribute-geo-code"] = "ES"
+					gateway.Labels["clusters.kuadrant.io/"+TestClusterNameOne+"_my-custom-weight-attr"] = "FOO"
+					gateway.Labels["clusters.kuadrant.io/"+TestClusterNameTwo+"_my-custom-weight-attr"] = "BAR"
+					gateway.Labels["clusters.kuadrant.io/"+TestClusterNameOne+"_lb-attribute-geo-code"] = "IE"
+					gateway.Labels["clusters.kuadrant.io/"+TestClusterNameTwo+"_lb-attribute-geo-code"] = "ES"
 					return k8sClient.Update(ctx, gateway)
 				}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
+
+				Expect(gateway.Labels).To(HaveKeyWithValue("clusters.kuadrant.io/test-placed-control_my-custom-weight-attr", "FOO"))
+				Expect(gateway.Labels).To(HaveKeyWithValue("clusters.kuadrant.io/test-placed-control_lb-attribute-geo-code", "IE"))
+				Expect(gateway.Labels).To(HaveKeyWithValue("clusters.kuadrant.io/test-placed-workload-1_my-custom-weight-attr", "BAR"))
+				Expect(gateway.Labels).To(HaveKeyWithValue("clusters.kuadrant.io/test-placed-workload-1_lb-attribute-geo-code", "ES"))
 			})
 
 			It("should create dns records", func() {
@@ -528,7 +532,7 @@ var _ = Describe("DNSPolicy Multi Cluster", func() {
 											"ProviderSpecific": Equal(v1alpha1.ProviderSpecific{{Name: "weight", Value: "160"}}),
 										})),
 										PointTo(MatchFields(IgnoreExtras, Fields{
-											"DNSName":          Equal("cad.lb-" + lbHash + ".test.example.com"),
+											"DNSName":          Equal("ie.lb-" + lbHash + ".test.example.com"),
 											"Targets":          ConsistOf("s07c46.lb-" + lbHash + ".test.example.com"),
 											"RecordType":       Equal("CNAME"),
 											"SetIdentifier":    Equal("s07c46.lb-" + lbHash + ".test.example.com"),
@@ -552,15 +556,15 @@ var _ = Describe("DNSPolicy Multi Cluster", func() {
 										})),
 										PointTo(MatchFields(IgnoreExtras, Fields{
 											"DNSName":          Equal("lb-" + lbHash + ".test.example.com"),
-											"Targets":          ConsistOf("cad.lb-" + lbHash + ".test.example.com"),
+											"Targets":          ConsistOf("ie.lb-" + lbHash + ".test.example.com"),
 											"RecordType":       Equal("CNAME"),
-											"SetIdentifier":    Equal("CAD"),
+											"SetIdentifier":    Equal("IE"),
 											"RecordTTL":        Equal(v1alpha1.TTL(300)),
-											"ProviderSpecific": Equal(v1alpha1.ProviderSpecific{{Name: "geo-code", Value: "CAD"}}),
+											"ProviderSpecific": Equal(v1alpha1.ProviderSpecific{{Name: "geo-code", Value: "IE"}}),
 										})),
 										PointTo(MatchFields(IgnoreExtras, Fields{
 											"DNSName":          Equal("lb-" + lbHash + ".test.example.com"),
-											"Targets":          ConsistOf("cad.lb-" + lbHash + ".test.example.com"),
+											"Targets":          ConsistOf("ie.lb-" + lbHash + ".test.example.com"),
 											"RecordType":       Equal("CNAME"),
 											"SetIdentifier":    Equal("default"),
 											"RecordTTL":        Equal(v1alpha1.TTL(300)),
@@ -597,7 +601,7 @@ var _ = Describe("DNSPolicy Multi Cluster", func() {
 											"ProviderSpecific": Equal(v1alpha1.ProviderSpecific{{Name: "weight", Value: "160"}}),
 										})),
 										PointTo(MatchFields(IgnoreExtras, Fields{
-											"DNSName":          Equal("cad.lb-" + lbHash + ".example.com"),
+											"DNSName":          Equal("ie.lb-" + lbHash + ".example.com"),
 											"Targets":          ConsistOf("s07c46.lb-" + lbHash + ".example.com"),
 											"RecordType":       Equal("CNAME"),
 											"SetIdentifier":    Equal("s07c46.lb-" + lbHash + ".example.com"),
@@ -613,11 +617,11 @@ var _ = Describe("DNSPolicy Multi Cluster", func() {
 										})),
 										PointTo(MatchFields(IgnoreExtras, Fields{
 											"DNSName":          Equal("lb-" + lbHash + ".example.com"),
-											"Targets":          ConsistOf("cad.lb-" + lbHash + ".example.com"),
+											"Targets":          ConsistOf("ie.lb-" + lbHash + ".example.com"),
 											"RecordType":       Equal("CNAME"),
-											"SetIdentifier":    Equal("CAD"),
+											"SetIdentifier":    Equal("IE"),
 											"RecordTTL":        Equal(v1alpha1.TTL(300)),
-											"ProviderSpecific": Equal(v1alpha1.ProviderSpecific{{Name: "geo-code", Value: "CAD"}}),
+											"ProviderSpecific": Equal(v1alpha1.ProviderSpecific{{Name: "geo-code", Value: "IE"}}),
 										})),
 										PointTo(MatchFields(IgnoreExtras, Fields{
 											"DNSName":          Equal("lb-" + lbHash + ".example.com"),
@@ -629,7 +633,7 @@ var _ = Describe("DNSPolicy Multi Cluster", func() {
 										})),
 										PointTo(MatchFields(IgnoreExtras, Fields{
 											"DNSName":          Equal("lb-" + lbHash + ".example.com"),
-											"Targets":          ConsistOf("cad.lb-" + lbHash + ".example.com"),
+											"Targets":          ConsistOf("ie.lb-" + lbHash + ".example.com"),
 											"RecordType":       Equal("CNAME"),
 											"SetIdentifier":    Equal("default"),
 											"RecordTTL":        Equal(v1alpha1.TTL(300)),

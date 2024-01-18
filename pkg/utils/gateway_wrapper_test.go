@@ -241,6 +241,7 @@ func TestGatewayWrapper_GetClusterGatewayLabels(t *testing.T) {
 					Labels: map[string]string{
 						"kuadrant.io/lb-attribute-weight":   "TSTATTR",
 						"kuadrant.io/lb-attribute-geo-code": "EU",
+						"kuadrant.io/foo":                   "bar",
 						"foo":                               "bar",
 					},
 				},
@@ -249,6 +250,7 @@ func TestGatewayWrapper_GetClusterGatewayLabels(t *testing.T) {
 			want: map[string]string{
 				"kuadrant.io/lb-attribute-weight":   "TSTATTR",
 				"kuadrant.io/lb-attribute-geo-code": "EU",
+				"kuadrant.io/foo":                   "bar",
 				"foo":                               "bar",
 			},
 		},
@@ -260,6 +262,7 @@ func TestGatewayWrapper_GetClusterGatewayLabels(t *testing.T) {
 					Labels: map[string]string{
 						"kuadrant.io/lb-attribute-weight":   "TSTATTR",
 						"kuadrant.io/lb-attribute-geo-code": "EU",
+						"kuadrant.io/foo":                   "bar",
 						"foo":                               "bar",
 					},
 				},
@@ -280,6 +283,7 @@ func TestGatewayWrapper_GetClusterGatewayLabels(t *testing.T) {
 			want: map[string]string{
 				"kuadrant.io/lb-attribute-weight":   "TSTATTR",
 				"kuadrant.io/lb-attribute-geo-code": "EU",
+				"kuadrant.io/foo":                   "bar",
 				"foo":                               "bar",
 			},
 		},
@@ -289,11 +293,12 @@ func TestGatewayWrapper_GetClusterGatewayLabels(t *testing.T) {
 				ObjectMeta: v1.ObjectMeta{
 					Name: "testgw",
 					Labels: map[string]string{
-						"kuadrant.io/kind-mgc-control-plane_lb-attribute-weight":   "TSTATTR",
-						"kuadrant.io/kind-mgc-control-plane_lb-attribute-geo-code": "EU",
-						"kuadrant.io/kind-mgc-workload-1_lb-attribute-weight":      "TSTATTR2",
-						"kuadrant.io/kind-mgc-workload-1_lb-attribute-geo-code":    "US",
-						"foo": "bar",
+						"clusters.kuadrant.io/kind-mgc-control-plane_lb-attribute-weight":   "TSTATTR",
+						"clusters.kuadrant.io/kind-mgc-control-plane_lb-attribute-geo-code": "EU",
+						"clusters.kuadrant.io/kind-mgc-workload-1_lb-attribute-weight":      "TSTATTR2",
+						"clusters.kuadrant.io/kind-mgc-workload-1_lb-attribute-geo-code":    "US",
+						"kuadrant.io/foo": "bar",
+						"foo":             "bar",
 					},
 				},
 				Status: gatewayapiv1.GatewayStatus{
@@ -311,11 +316,10 @@ func TestGatewayWrapper_GetClusterGatewayLabels(t *testing.T) {
 			},
 			clusterName: "kind-mgc-control-plane",
 			want: map[string]string{
-				"kuadrant.io/lb-attribute-weight":                       "TSTATTR",
-				"kuadrant.io/lb-attribute-geo-code":                     "EU",
-				"kuadrant.io/kind-mgc-workload-1_lb-attribute-weight":   "TSTATTR2",
-				"kuadrant.io/kind-mgc-workload-1_lb-attribute-geo-code": "US",
-				"foo": "bar",
+				"kuadrant.io/lb-attribute-weight":   "TSTATTR",
+				"kuadrant.io/lb-attribute-geo-code": "EU",
+				"kuadrant.io/foo":                   "bar",
+				"foo":                               "bar",
 			},
 		},
 		{
@@ -324,13 +328,14 @@ func TestGatewayWrapper_GetClusterGatewayLabels(t *testing.T) {
 				ObjectMeta: v1.ObjectMeta{
 					Name: "testgw",
 					Labels: map[string]string{
-						"kuadrant.io/kind-mgc-control-plane_lb-attribute-weight":   "TSTATTR",
-						"kuadrant.io/kind-mgc-control-plane_lb-attribute-geo-code": "EU",
-						"kuadrant.io/kind-mgc-workload-1_lb-attribute-weight":      "TSTATTR2",
-						"kuadrant.io/kind-mgc-workload-1_lb-attribute-geo-code":    "US",
-						"kuadrant.io/lb-attribute-weight":                          "TSTATTR3",
-						"kuadrant.io/lb-attribute-geo-code":                        "ES",
-						"foo":                                                      "bar",
+						"clusters.kuadrant.io/kind-mgc-control-plane_lb-attribute-weight":   "TSTATTR",
+						"clusters.kuadrant.io/kind-mgc-control-plane_lb-attribute-geo-code": "EU",
+						"clusters.kuadrant.io/kind-mgc-workload-1_lb-attribute-weight":      "TSTATTR2",
+						"clusters.kuadrant.io/kind-mgc-workload-1_lb-attribute-geo-code":    "US",
+						"kuadrant.io/lb-attribute-weight":                                   "TSTATTR3",
+						"kuadrant.io/lb-attribute-geo-code":                                 "ES",
+						"kuadrant.io/foo":                                                   "bar",
+						"foo":                                                               "bar",
 					},
 				},
 				Status: gatewayapiv1.GatewayStatus{
@@ -348,11 +353,10 @@ func TestGatewayWrapper_GetClusterGatewayLabels(t *testing.T) {
 			},
 			clusterName: "kind-mgc-control-plane",
 			want: map[string]string{
-				"kuadrant.io/lb-attribute-weight":                       "TSTATTR",
-				"kuadrant.io/lb-attribute-geo-code":                     "EU",
-				"kuadrant.io/kind-mgc-workload-1_lb-attribute-weight":   "TSTATTR2",
-				"kuadrant.io/kind-mgc-workload-1_lb-attribute-geo-code": "US",
-				"foo": "bar",
+				"kuadrant.io/lb-attribute-weight":   "TSTATTR",
+				"kuadrant.io/lb-attribute-geo-code": "EU",
+				"kuadrant.io/foo":                   "bar",
+				"foo":                               "bar",
 			},
 		},
 	}

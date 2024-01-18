@@ -9,8 +9,10 @@ import (
 )
 
 const (
-	MultiClusterIPAddressType       gatewayapiv1.AddressType = "kuadrant.io/MultiClusterIPAddress"
-	MultiClusterHostnameAddressType gatewayapiv1.AddressType = "kuadrant.io/MultiClusterHostnameAddress"
+	LabelPrefix                                              = "kuadrant.io/"
+	ClustersLabelPrefix                                      = "clusters." + LabelPrefix
+	MultiClusterIPAddressType       gatewayapiv1.AddressType = LabelPrefix + "MultiClusterIPAddress"
+	MultiClusterHostnameAddressType gatewayapiv1.AddressType = LabelPrefix + "MultiClusterHostnameAddress"
 )
 
 type GatewayWrapper struct {
@@ -92,14 +94,16 @@ func (g *GatewayWrapper) GetClusterGatewayLabels(clusterName string) map[string]
 
 	labels := map[string]string{}
 	for k, v := range g.GetLabels() {
-		attr, found := strings.CutPrefix(k, "kuadrant.io/"+clusterName+"_")
-		if found {
-			labels["kuadrant.io/"+attr] = v
-		} else {
-			// Only add a label if we haven't already found a cluster specific version of it
-			if _, ok := labels[k]; !ok {
-				labels[k] = v
+		if strings.HasPrefix(k, ClustersLabelPrefix) {
+			attr, found := strings.CutPrefix(k, ClustersLabelPrefix+clusterName+"_")
+			if found {
+				labels[LabelPrefix+attr] = v
 			}
+			continue
+		}
+		// Only add a label if we haven't already found a cluster specific version of it
+		if _, ok := labels[k]; !ok {
+			labels[k] = v
 		}
 	}
 	return labels

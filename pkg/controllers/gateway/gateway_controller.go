@@ -51,13 +51,13 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/gracePeriod"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/metadata"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/events"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/policysync"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/utils"
 )
 
 const (
 	LabelPrefix                           = "kuadrant.io/"
+	ClustersLabelPrefix                   = "clusters." + LabelPrefix
 	GatewayClusterLabelSelectorAnnotation = LabelPrefix + "gateway-cluster-label-selector"
 	GatewayClustersAnnotation             = LabelPrefix + "gateway-clusters"
 	GatewayFinalizer                      = LabelPrefix + "gateway"
@@ -276,6 +276,14 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 // reconcileClusterLabels fetches labels from ManagedCluster related to clusters array and adds them to the provided Gateway
 func (r *GatewayReconciler) reconcileClusterLabels(ctx context.Context, gateway *gatewayapiv1.Gateway, clusters []string) error {
+	//Remove all existing clusters.kuadrant.io labels
+	for key := range gateway.Labels {
+		if strings.HasPrefix(key, ClustersLabelPrefix) {
+			delete(gateway.Labels, key)
+		}
+	}
+
+	//Add clusters.kuadrant.io labels for current clusters
 	for _, cluster := range clusters {
 		managedCluster := &clusterv1.ManagedCluster{}
 		if err := r.Client.Get(ctx, client.ObjectKey{Name: cluster}, managedCluster); client.IgnoreNotFound(err) != nil {
@@ -283,13 +291,11 @@ func (r *GatewayReconciler) reconcileClusterLabels(ctx context.Context, gateway 
 		}
 
 		for key, value := range managedCluster.Labels {
-			if strings.Contains(key, LabelPrefix) {
-				_, attribute, found := strings.Cut(key, "/")
-				if !found {
-					continue
-				}
-				gateway.Labels[LabelPrefix+cluster+"_"+attribute] = value
+			attribute, found := strings.CutPrefix(key, LabelPrefix)
+			if !found {
+				continue
 			}
+			gateway.Labels[ClustersLabelPrefix+cluster+"_"+attribute] = value
 		}
 	}
 	return nil
@@ -506,7 +512,7 @@ func buildAcceptedCondition(generation int64, acceptedStatus metav1.ConditionSta
 // SetupWithManager sets up the controller with the Manager.
 func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager, ctx context.Context) error {
 	log := crlog.FromContext(ctx)
-	clusterEventMapper := events.NewClusterEventMapper(log, mgr.GetClient())
+	clusterEventMapper := NewClusterEventMapper(log, mgr.GetClient())
 	//TODO need to trigger gateway reconcile when gatewayclass params changes
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gatewayapiv1.Gateway{}).
