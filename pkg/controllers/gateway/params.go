@@ -20,7 +20,7 @@ type Params struct {
 
 	// PoliciesToSync specifies a listof Policy GVRs that will be watched
 	// in the hub and synced to the spokes
-	PoliciesToSync []ParamsGroupVersionResource `json:"policiesToSync,omitempty"`
+	PoliciesToSync []ParamsGroupVersionResource `json:"experimentalPolicySync,omitempty"`
 }
 
 type ParamsGroupVersionResource struct {
