@@ -4,14 +4,15 @@ import (
 	"fmt"
 	"strings"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
 const (
-	SingleClusterNameValue = "kudarant.io/single"
-
-	MultiClusterIPAddressType       gatewayapiv1.AddressType = "kuadrant.io/MultiClusterIPAddress"
-	MultiClusterHostnameAddressType gatewayapiv1.AddressType = "kuadrant.io/MultiClusterHostnameAddress"
+	LabelPrefix                                              = "kuadrant.io/"
+	ClustersLabelPrefix                                      = "clusters." + LabelPrefix
+	MultiClusterIPAddressType       gatewayapiv1.AddressType = LabelPrefix + "MultiClusterIPAddress"
+	MultiClusterHostnameAddressType gatewayapiv1.AddressType = LabelPrefix + "MultiClusterHostnameAddress"
 )
 
 type GatewayWrapper struct {
@@ -52,31 +53,30 @@ func (g *GatewayWrapper) Validate() error {
 
 // GetClusterGatewayAddresses constructs a map from Status.Addresses of underlying Gateway
 // with key being a cluster and value being an address in the cluster.
-// In case of a single-cluster Gateway the key is SingleClusterNameValue
-func (g *GatewayWrapper) GetClusterGatewayAddresses() map[string][]gatewayapiv1.GatewayAddress {
-	clusterAddrs := make(map[string][]gatewayapiv1.GatewayAddress, len(g.Status.Addresses))
+// In case of a single-cluster Gateway the key is the Gateway Name.
+func (g *GatewayWrapper) GetClusterGatewayAddresses() map[string][]gatewayapiv1.GatewayStatusAddress {
 
+	if !g.IsMultiCluster() {
+		// Single Cluster (Normal Gateway Status)
+		return map[string][]gatewayapiv1.GatewayStatusAddress{g.GetName(): g.Status.Addresses}
+	}
+
+	// Multi Cluster (MGC Gateway Status)
+	clusterAddrs := map[string][]gatewayapiv1.GatewayStatusAddress{}
 	for _, address := range g.Status.Addresses {
-		//Default to Single Cluster (Normal Gateway Status)
-		cluster := SingleClusterNameValue
-		addressValue := address.Value
-
-		//Check for Multi Cluster (MGC Gateway Status)
-		if g.IsMultiCluster() {
-			tmpCluster, tmpAddress, found := strings.Cut(address.Value, "/")
-			//If this fails something is wrong and the value hasn't been set correctly
-			if found {
-				cluster = tmpCluster
-				addressValue = tmpAddress
-			}
+		cluster, addressValue, found := strings.Cut(address.Value, "/")
+		//If this fails something is wrong and the value hasn't been set correctly
+		if !found {
+			continue
 		}
 
 		if _, ok := clusterAddrs[cluster]; !ok {
-			clusterAddrs[cluster] = []gatewayapiv1.GatewayAddress{}
+			clusterAddrs[cluster] = []gatewayapiv1.GatewayStatusAddress{}
 		}
 
-		clusterAddrs[cluster] = append(clusterAddrs[cluster], gatewayapiv1.GatewayAddress{
-			Type:  address.Type,
+		addressType, _ := AddressTypeToSingleCluster(gatewayapiv1.GatewayAddress(address))
+		clusterAddrs[cluster] = append(clusterAddrs[cluster], gatewayapiv1.GatewayStatusAddress{
+			Type:  &addressType,
 			Value: addressValue,
 		})
 	}
@@ -84,27 +84,103 @@ func (g *GatewayWrapper) GetClusterGatewayAddresses() map[string][]gatewayapiv1.
 	return clusterAddrs
 }
 
-// ListenerTotalAttachedRoutes returns a count of attached routes from the Status.Listeners for a specified
-// combination of downstreamClusterName and specListener.Name
-func (g *GatewayWrapper) ListenerTotalAttachedRoutes(downstreamClusterName string, specListener gatewayapiv1.Listener) int {
-	for _, statusListener := range g.Status.Listeners {
-		// for Multi Cluster (MGC Gateway Status)
-		if g.IsMultiCluster() {
-			clusterName, listenerName, found := strings.Cut(string(statusListener.Name), ".")
-			if !found {
-				return 0
+// GetClusterGatewayLabels parses the labels of the wrapped Gateway and returns a list of labels for the given clusterName.
+// In case of a single-cluster Gateway the wrapped Gateways labels are returned unmodified.
+func (g *GatewayWrapper) GetClusterGatewayLabels(clusterName string) map[string]string {
+	if !g.IsMultiCluster() {
+		// Single Cluster (Normal Gateway Status)
+		return g.GetLabels()
+	}
+
+	labels := map[string]string{}
+	for k, v := range g.GetLabels() {
+		if strings.HasPrefix(k, ClustersLabelPrefix) {
+			attr, found := strings.CutPrefix(k, ClustersLabelPrefix+clusterName+"_")
+			if found {
+				labels[LabelPrefix+attr] = v
 			}
-			if clusterName == downstreamClusterName && listenerName == string(specListener.Name) {
-				return int(statusListener.AttachedRoutes)
+			continue
+		}
+		// Only add a label if we haven't already found a cluster specific version of it
+		if _, ok := labels[k]; !ok {
+			labels[k] = v
+		}
+	}
+	return labels
+}
+
+// GetClusterGatewayListeners processes the wrapped Gateway and returns a ListenerStatus for the given clusterName.
+// In case of a single-cluster Gateway the wrapped Gateways status listeners are returned unmodified.
+func (g *GatewayWrapper) GetClusterGatewayListeners(clusterName string) []gatewayapiv1.ListenerStatus {
+
+	if !g.IsMultiCluster() {
+		// Single Cluster (Normal Gateway Status)
+		return g.Status.Listeners
+	}
+
+	// Multi Cluster (MGC Gateway Status)
+	listeners := []gatewayapiv1.ListenerStatus{}
+	for _, specListener := range g.Spec.Listeners {
+		for _, statusListener := range g.Status.Listeners {
+			statusClusterName, statusListenerName, found := strings.Cut(string(statusListener.Name), ".")
+			if !found {
+				continue
+			}
+			if statusClusterName == clusterName && statusListenerName == string(specListener.Name) {
+				ls := gatewayapiv1.ListenerStatus{
+					Name:           specListener.Name,
+					AttachedRoutes: statusListener.AttachedRoutes,
+				}
+				listeners = append(listeners, ls)
 			}
 		}
+	}
+	return listeners
+}
+
+// ClusterGateway contains a Gateway as it would be on a single cluster and the name of the cluster.
+type ClusterGateway struct {
+	gatewayapiv1.Gateway
+	ClusterName string
+}
+
+// GetClusterGateways parse the wrapped Gateway and returns a list of ClusterGateway resources.
+// In case of a single-cluster Gateway a single ClusterGateway is returned with the unmodified wrapped Gateway and the
+// Gateway name used as values.
+func (g *GatewayWrapper) GetClusterGateways() []ClusterGateway {
+
+	if !g.IsMultiCluster() {
 		// Single Cluster (Normal Gateway Status)
-		if string(statusListener.Name) == string(specListener.Name) {
-			return int(statusListener.AttachedRoutes)
+		return []ClusterGateway{
+			{
+				Gateway:     *g.Gateway,
+				ClusterName: g.GetName(),
+			},
 		}
 	}
 
-	return 0
+	// Multi Cluster (MGC Gateway Status)
+	clusterAddrs := g.GetClusterGatewayAddresses()
+	clusterGateways := []ClusterGateway{}
+	for clusterName, addrs := range clusterAddrs {
+		gw := gatewayapiv1.Gateway{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      g.GetName(),
+				Namespace: g.GetNamespace(),
+				Labels:    g.GetClusterGatewayLabels(clusterName),
+			},
+			Spec: g.Spec,
+			Status: gatewayapiv1.GatewayStatus{
+				Addresses: addrs,
+				Listeners: g.GetClusterGatewayListeners(clusterName),
+			},
+		}
+		clusterGateways = append(clusterGateways, ClusterGateway{
+			Gateway:     gw,
+			ClusterName: clusterName,
+		})
+	}
+	return clusterGateways
 }
 
 // AddressTypeToMultiCluster returns a multi cluster version of the address type

@@ -22,8 +22,10 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
+	clusterv1 "open-cluster-management.io/api/cluster/v1"
 	clusterv1beta2 "open-cluster-management.io/api/cluster/v1beta1"
 	workv1 "open-cluster-management.io/api/work/v1"
 
@@ -49,16 +51,17 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/gracePeriod"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/metadata"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/policysync"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/utils"
 )
 
 const (
-	GatewayClusterLabelSelectorAnnotation = "kuadrant.io/gateway-cluster-label-selector"
-	GatewayClustersAnnotation             = "kuadrant.io/gateway-clusters"
-	GatewayFinalizer                      = "kuadrant.io/gateway"
-	ManagedLabel                          = "kuadrant.io/managed"
+	LabelPrefix                           = "kuadrant.io/"
+	ClustersLabelPrefix                   = "clusters." + LabelPrefix
+	GatewayClusterLabelSelectorAnnotation = LabelPrefix + "gateway-cluster-label-selector"
+	GatewayClustersAnnotation             = LabelPrefix + "gateway-clusters"
+	GatewayFinalizer                      = LabelPrefix + "gateway"
+	ManagedLabel                          = LabelPrefix + "managed"
 )
 
 type GatewayPlacer interface {
@@ -73,8 +76,6 @@ type GatewayPlacer interface {
 	ListenerTotalAttachedRoutes(ctx context.Context, gateway *gatewayapiv1.Gateway, listenerName string, downstream string) (int, error)
 	// GetAddresses will look at the downstream view of the gateway and return the LB addresses used for these gateways
 	GetAddresses(ctx context.Context, gateway *gatewayapiv1.Gateway, downstream string) ([]gatewayapiv1.GatewayAddress, error)
-	// GetClusterGateway
-	GetClusterGateway(ctx context.Context, gateway *gatewayapiv1.Gateway, clusterName string) (dns.ClusterGateway, error)
 }
 
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways,verbs=get;list;watch;create;update;patch;delete
@@ -198,6 +199,12 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 	metadata.AddAnnotation(upstreamGateway, GatewayClustersAnnotation, string(serialized))
 
+	// Map cluster labels onto the gateway
+	err = r.reconcileClusterLabels(ctx, upstreamGateway, clusters)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
 	if reconcileErr == nil && !reflect.DeepEqual(upstreamGateway, previous) {
 		log.Info("updating upstream gateway")
 		return reconcile.Result{}, r.Update(ctx, upstreamGateway)
@@ -265,6 +272,33 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 10}, reconcileErr
 	}
 	return ctrl.Result{}, reconcileErr
+}
+
+// reconcileClusterLabels fetches labels from ManagedCluster related to clusters array and adds them to the provided Gateway
+func (r *GatewayReconciler) reconcileClusterLabels(ctx context.Context, gateway *gatewayapiv1.Gateway, clusters []string) error {
+	//Remove all existing clusters.kuadrant.io labels
+	for key := range gateway.Labels {
+		if strings.HasPrefix(key, ClustersLabelPrefix) {
+			delete(gateway.Labels, key)
+		}
+	}
+
+	//Add clusters.kuadrant.io labels for current clusters
+	for _, cluster := range clusters {
+		managedCluster := &clusterv1.ManagedCluster{}
+		if err := r.Client.Get(ctx, client.ObjectKey{Name: cluster}, managedCluster); client.IgnoreNotFound(err) != nil {
+			return err
+		}
+
+		for key, value := range managedCluster.Labels {
+			attribute, found := strings.CutPrefix(key, LabelPrefix)
+			if !found {
+				continue
+			}
+			gateway.Labels[ClustersLabelPrefix+cluster+"_"+attribute] = value
+		}
+	}
+	return nil
 }
 
 // reconcileDownstreamGateway takes the upstream definition and transforms it as needed to apply it to the downstream spokes
@@ -478,7 +512,7 @@ func buildAcceptedCondition(generation int64, acceptedStatus metav1.ConditionSta
 // SetupWithManager sets up the controller with the Manager.
 func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager, ctx context.Context) error {
 	log := crlog.FromContext(ctx)
-
+	clusterEventMapper := NewClusterEventMapper(log, mgr.GetClient())
 	//TODO need to trigger gateway reconcile when gatewayclass params changes
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gatewayapiv1.Gateway{}).
@@ -520,6 +554,10 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager, ctx context.Conte
 			return req
 		})).
 		Watches(&corev1.Secret{}, &ClusterEventHandler{client: r.Client}).
+		Watches(
+			&clusterv1.ManagedCluster{},
+			handler.EnqueueRequestsFromMapFunc(clusterEventMapper.MapToGateway),
+		).
 		WithEventFilter(predicate.NewPredicateFuncs(func(object client.Object) bool {
 			gateway, ok := object.(*gatewayapiv1.Gateway)
 			if ok {

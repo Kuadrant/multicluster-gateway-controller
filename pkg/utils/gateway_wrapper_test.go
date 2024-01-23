@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"testing"
 
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 	"sigs.k8s.io/gateway-api/apis/v1beta1"
 
@@ -92,11 +93,14 @@ func TestGatewayWrapper_GetClusterGatewayAddresses(t *testing.T) {
 	tests := []struct {
 		name    string
 		Gateway *gatewayapiv1.Gateway
-		want    map[string][]gatewayapiv1.GatewayAddress
+		want    map[string][]gatewayapiv1.GatewayStatusAddress
 	}{
 		{
 			name: "single cluster Gateway",
 			Gateway: &gatewayapiv1.Gateway{
+				ObjectMeta: v1.ObjectMeta{
+					Name: "testgw",
+				},
 				Status: gatewayapiv1.GatewayStatus{
 					Addresses: []gatewayapiv1.GatewayStatusAddress{
 						{
@@ -106,8 +110,8 @@ func TestGatewayWrapper_GetClusterGatewayAddresses(t *testing.T) {
 					},
 				},
 			},
-			want: map[string][]gatewayapiv1.GatewayAddress{
-				SingleClusterNameValue: {
+			want: map[string][]gatewayapiv1.GatewayStatusAddress{
+				"testgw": {
 					{
 						Type:  testutil.Pointer(v1beta1.IPAddressType),
 						Value: "1.1.1.1",
@@ -135,20 +139,20 @@ func TestGatewayWrapper_GetClusterGatewayAddresses(t *testing.T) {
 					},
 				},
 			},
-			want: map[string][]gatewayapiv1.GatewayAddress{
+			want: map[string][]gatewayapiv1.GatewayStatusAddress{
 				"kind-mgc-control-plane": {
 					{
-						Type:  testutil.Pointer(MultiClusterIPAddressType),
+						Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
 						Value: "1.1.1.1",
 					},
 				},
 				"kind-mgc-workload-1": {
 					{
-						Type:  testutil.Pointer(MultiClusterIPAddressType),
+						Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
 						Value: "2.2.2.2",
 					},
 					{
-						Type:  testutil.Pointer(MultiClusterHostnameAddressType),
+						Type:  testutil.Pointer(gatewayapiv1.HostnameAddressType),
 						Value: "boop.com",
 					},
 				},
@@ -160,115 +164,6 @@ func TestGatewayWrapper_GetClusterGatewayAddresses(t *testing.T) {
 			g := NewGatewayWrapper(tt.Gateway)
 			if got := g.GetClusterGatewayAddresses(); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("GetClusterGatewayAddresses() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestGatewayWrapper_ListenerTotalAttachedRoutes(t *testing.T) {
-
-	tests := []struct {
-		name                  string
-		Gateway               *gatewayapiv1.Gateway
-		downstreamClusterName string
-		want                  int
-	}{
-		{
-			name: "single cluster gateway",
-			Gateway: &gatewayapiv1.Gateway{
-				Spec: gatewayapiv1.GatewaySpec{
-					Listeners: []gatewayapiv1.Listener{
-						{
-							Name: "api",
-						},
-					},
-				},
-				Status: gatewayapiv1.GatewayStatus{
-					Listeners: []gatewayapiv1.ListenerStatus{
-						{
-							Name:           "api",
-							AttachedRoutes: 1,
-						},
-					},
-				},
-			},
-			downstreamClusterName: SingleClusterNameValue,
-			want:                  1,
-		},
-		{
-			name: "multi cluster gateway",
-			Gateway: &gatewayapiv1.Gateway{
-				Spec: gatewayapiv1.GatewaySpec{
-					Listeners: []gatewayapiv1.Listener{
-						{
-							Name: "api",
-						},
-					},
-				},
-				Status: gatewayapiv1.GatewayStatus{
-					Addresses: []gatewayapiv1.GatewayStatusAddress{
-						{
-							Type:  testutil.Pointer(MultiClusterIPAddressType),
-							Value: "kind-mgc-control-plane/1.1.1.1",
-						},
-					},
-					Listeners: []gatewayapiv1.ListenerStatus{
-						{
-							Name:           "kind-mgc-control-plane.api",
-							AttachedRoutes: 1,
-						},
-					},
-				},
-			},
-			downstreamClusterName: "kind-mgc-control-plane",
-			want:                  1,
-		},
-		{
-			name: "invalid status listener name",
-			Gateway: &gatewayapiv1.Gateway{
-				Spec: gatewayapiv1.GatewaySpec{
-					Listeners: []gatewayapiv1.Listener{
-						{
-							Name: "api",
-						},
-					},
-				},
-				Status: gatewayapiv1.GatewayStatus{
-					Addresses: []gatewayapiv1.GatewayStatusAddress{
-						{
-							Type:  testutil.Pointer(MultiClusterIPAddressType),
-							Value: "kind-mgc-control-plane/1.1.1.1",
-						},
-					},
-					Listeners: []gatewayapiv1.ListenerStatus{
-						{
-							Name:           "kind-mgc-control-plane-api",
-							AttachedRoutes: 1,
-						},
-					},
-				},
-			},
-			want: 0,
-		},
-		{
-			name: "no status",
-			Gateway: &gatewayapiv1.Gateway{
-				Spec: gatewayapiv1.GatewaySpec{
-					Listeners: []gatewayapiv1.Listener{
-						{
-							Name: "api",
-						},
-					},
-				},
-			},
-			want: 0,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			g := NewGatewayWrapper(tt.Gateway)
-			if got := g.ListenerTotalAttachedRoutes(tt.downstreamClusterName, tt.Gateway.Spec.Listeners[0]); got != tt.want {
-				t.Errorf("ListenerTotalAttachedRoutes() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -326,6 +221,152 @@ func TestGatewayWrapper_Validate(t *testing.T) {
 			g := NewGatewayWrapper(tt.Gateway)
 			if err := g.Validate(); (err != nil) != tt.wantErr {
 				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestGatewayWrapper_GetClusterGatewayLabels(t *testing.T) {
+	tests := []struct {
+		name        string
+		Gateway     *gatewayapiv1.Gateway
+		clusterName string
+		want        map[string]string
+	}{
+		{
+			name: "single cluster gateway",
+			Gateway: &gatewayapiv1.Gateway{
+				ObjectMeta: v1.ObjectMeta{
+					Name: "testgw",
+					Labels: map[string]string{
+						"kuadrant.io/lb-attribute-weight":   "TSTATTR",
+						"kuadrant.io/lb-attribute-geo-code": "EU",
+						"kuadrant.io/foo":                   "bar",
+						"foo":                               "bar",
+					},
+				},
+			},
+			clusterName: "foo",
+			want: map[string]string{
+				"kuadrant.io/lb-attribute-weight":   "TSTATTR",
+				"kuadrant.io/lb-attribute-geo-code": "EU",
+				"kuadrant.io/foo":                   "bar",
+				"foo":                               "bar",
+			},
+		},
+		{
+			name: "multi cluster gateway",
+			Gateway: &gatewayapiv1.Gateway{
+				ObjectMeta: v1.ObjectMeta{
+					Name: "testgw",
+					Labels: map[string]string{
+						"kuadrant.io/lb-attribute-weight":   "TSTATTR",
+						"kuadrant.io/lb-attribute-geo-code": "EU",
+						"kuadrant.io/foo":                   "bar",
+						"foo":                               "bar",
+					},
+				},
+				Status: gatewayapiv1.GatewayStatus{
+					Addresses: []gatewayapiv1.GatewayStatusAddress{
+						{
+							Type:  testutil.Pointer(MultiClusterIPAddressType),
+							Value: "kind-mgc-control-plane/1.1.1.1",
+						},
+						{
+							Type:  testutil.Pointer(MultiClusterIPAddressType),
+							Value: "kind-mgc-workload-1/2.2.2.2",
+						},
+					},
+				},
+			},
+			clusterName: "kind-mgc-control-plane",
+			want: map[string]string{
+				"kuadrant.io/lb-attribute-weight":   "TSTATTR",
+				"kuadrant.io/lb-attribute-geo-code": "EU",
+				"kuadrant.io/foo":                   "bar",
+				"foo":                               "bar",
+			},
+		},
+		{
+			name: "multi cluster gateway with cluster labels",
+			Gateway: &gatewayapiv1.Gateway{
+				ObjectMeta: v1.ObjectMeta{
+					Name: "testgw",
+					Labels: map[string]string{
+						"clusters.kuadrant.io/kind-mgc-control-plane_lb-attribute-weight":   "TSTATTR",
+						"clusters.kuadrant.io/kind-mgc-control-plane_lb-attribute-geo-code": "EU",
+						"clusters.kuadrant.io/kind-mgc-workload-1_lb-attribute-weight":      "TSTATTR2",
+						"clusters.kuadrant.io/kind-mgc-workload-1_lb-attribute-geo-code":    "US",
+						"kuadrant.io/foo": "bar",
+						"foo":             "bar",
+					},
+				},
+				Status: gatewayapiv1.GatewayStatus{
+					Addresses: []gatewayapiv1.GatewayStatusAddress{
+						{
+							Type:  testutil.Pointer(MultiClusterIPAddressType),
+							Value: "kind-mgc-control-plane/1.1.1.1",
+						},
+						{
+							Type:  testutil.Pointer(MultiClusterIPAddressType),
+							Value: "kind-mgc-workload-1/2.2.2.2",
+						},
+					},
+				},
+			},
+			clusterName: "kind-mgc-control-plane",
+			want: map[string]string{
+				"kuadrant.io/lb-attribute-weight":   "TSTATTR",
+				"kuadrant.io/lb-attribute-geo-code": "EU",
+				"kuadrant.io/foo":                   "bar",
+				"foo":                               "bar",
+			},
+		},
+		{
+			name: "multi cluster gateway with mix of cluster labels",
+			Gateway: &gatewayapiv1.Gateway{
+				ObjectMeta: v1.ObjectMeta{
+					Name: "testgw",
+					Labels: map[string]string{
+						"clusters.kuadrant.io/kind-mgc-control-plane_lb-attribute-weight":   "TSTATTR",
+						"clusters.kuadrant.io/kind-mgc-control-plane_lb-attribute-geo-code": "EU",
+						"clusters.kuadrant.io/kind-mgc-workload-1_lb-attribute-weight":      "TSTATTR2",
+						"clusters.kuadrant.io/kind-mgc-workload-1_lb-attribute-geo-code":    "US",
+						"kuadrant.io/lb-attribute-weight":                                   "TSTATTR3",
+						"kuadrant.io/lb-attribute-geo-code":                                 "ES",
+						"kuadrant.io/foo":                                                   "bar",
+						"foo":                                                               "bar",
+					},
+				},
+				Status: gatewayapiv1.GatewayStatus{
+					Addresses: []gatewayapiv1.GatewayStatusAddress{
+						{
+							Type:  testutil.Pointer(MultiClusterIPAddressType),
+							Value: "kind-mgc-control-plane/1.1.1.1",
+						},
+						{
+							Type:  testutil.Pointer(MultiClusterIPAddressType),
+							Value: "kind-mgc-workload-1/2.2.2.2",
+						},
+					},
+				},
+			},
+			clusterName: "kind-mgc-control-plane",
+			want: map[string]string{
+				"kuadrant.io/lb-attribute-weight":   "TSTATTR",
+				"kuadrant.io/lb-attribute-geo-code": "EU",
+				"kuadrant.io/foo":                   "bar",
+				"foo":                               "bar",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := &GatewayWrapper{
+				Gateway: tt.Gateway,
+			}
+			if got := g.GetClusterGatewayLabels(tt.clusterName); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("GetClusterGatewayLabels() = %v, want %v", got, tt.want)
 			}
 		})
 	}

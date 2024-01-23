@@ -1,4 +1,4 @@
-package events
+package gateway
 
 import (
 	"context"
@@ -10,40 +10,31 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	"github.com/kuadrant/kuadrant-operator/pkg/common"
-
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/metadata"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
 )
 
-// ClusterEventMapper is an EventHandler that maps Cluster object events to policy events.
+// ClusterEventMapper is an EventHandler that maps Cluster object events to gateway events.
 //
 // Cluster object can be anything that represents a cluster and has mgc attribute labels applied to (e.g. OCM ManagedCluster)
 type ClusterEventMapper struct {
-	Logger             logr.Logger
-	GatewayEventMapper *GatewayEventMapper
-	Client             client.Client
-	PolicyRefsConfig   common.PolicyRefsConfig
-	PolicyKind         string
+	Logger logr.Logger
+	Client client.Client
 }
 
-func NewClusterEventMapper(logger logr.Logger, client client.Client, policyRefsConfig common.PolicyRefsConfig, policyKind string) *ClusterEventMapper {
+func NewClusterEventMapper(logger logr.Logger, client client.Client) *ClusterEventMapper {
 	log := logger.WithName("ClusterEventMapper")
 	return &ClusterEventMapper{
-		Logger:             log,
-		GatewayEventMapper: NewGatewayEventMapper(log, policyRefsConfig, policyKind),
-		Client:             client,
-		PolicyRefsConfig:   policyRefsConfig,
-		PolicyKind:         policyKind,
+		Logger: log,
+		Client: client,
 	}
 }
 
-func (m *ClusterEventMapper) MapToPolicy(ctx context.Context, obj client.Object) []reconcile.Request {
-	return m.mapToPolicyRequest(ctx, obj, m.PolicyKind, m.PolicyRefsConfig)
+func (m *ClusterEventMapper) MapToGateway(ctx context.Context, obj client.Object) []reconcile.Request {
+	return m.mapToGatewayRequest(ctx, obj)
 }
 
-func (m *ClusterEventMapper) mapToPolicyRequest(ctx context.Context, obj client.Object, policyKind string, policyRefsConfig common.PolicyRefsConfig) []reconcile.Request {
+func (m *ClusterEventMapper) mapToGatewayRequest(ctx context.Context, obj client.Object) []reconcile.Request {
 	logger := m.Logger.V(1).WithValues("object", client.ObjectKeyFromObject(obj))
 
 	if obj.GetDeletionTimestamp() != nil {
@@ -59,20 +50,20 @@ func (m *ClusterEventMapper) mapToPolicyRequest(ctx context.Context, obj client.
 	allGwList := &gatewayapiv1.GatewayList{}
 	err := m.Client.List(ctx, allGwList)
 	if err != nil {
-		logger.Info("mapToPolicyRequest:", "error", "failed to get gateways")
+		logger.Info("mapToGatewayRequest:", "error", "failed to get gateways")
 		return []reconcile.Request{}
 	}
 
 	requests := make([]reconcile.Request, 0)
 	for _, gw := range allGwList.Items {
-		val := metadata.GetAnnotation(&gw, gateway.GatewayClustersAnnotation)
+		val := metadata.GetAnnotation(&gw, GatewayClustersAnnotation)
 		if val == "" {
 			continue
 		}
 		var clusters []string
-		if err := json.Unmarshal([]byte(val), &clusters); err == nil {
+		if err = json.Unmarshal([]byte(val), &clusters); err == nil {
 			if slice.ContainsString(clusters, clusterName) {
-				requests = append(requests, m.GatewayEventMapper.mapToPolicyRequest(ctx, &gw, policyKind, policyRefsConfig)[:]...)
+				requests = append(requests, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(&gw)})
 			}
 		}
 	}

@@ -23,8 +23,7 @@ run-policy-controller: manifests generate fmt vet  install
 	go run ./cmd/policy_controller/main.go \
 	    --metrics-bind-address=:8090 \
 	    --health-probe-bind-address=:8091 \
-	    --zap-log-level=$(LOG_LEVEL) \
-		--ocm-hub=$(OCM)
+	    --zap-log-level=$(LOG_LEVEL)
 
 .PHONY: docker-build-policy-controller
 docker-build-policy-controller: ## Build docker image with the controller.

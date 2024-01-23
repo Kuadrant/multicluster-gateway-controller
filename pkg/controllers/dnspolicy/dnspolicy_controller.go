@@ -22,8 +22,6 @@ import (
 	"fmt"
 	"reflect"
 
-	clusterv1 "open-cluster-management.io/api/cluster/v1"
-
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -66,10 +64,9 @@ type DNSPolicyReconciler struct {
 //+kubebuilder:rbac:groups=kuadrant.io,resources=dnspolicies,verbs=get;list;watch;update;patch;delete
 //+kubebuilder:rbac:groups=kuadrant.io,resources=dnspolicies/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=kuadrant.io,resources=dnspolicies/finalizers,verbs=update
-//+kubebuilder:rbac:groups=cluster.open-cluster-management.io,resources=managedclusters,verbs=get;list;watch
-// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways,verbs=get;list;watch;update;patch
-// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways/finalizers,verbs=update
+//+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways,verbs=get;list;watch;update;patch
+//+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways/finalizers,verbs=update
 
 func (r *DNSPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := r.Logger().WithValues("DNSPolicy", req.NamespacedName)
@@ -301,9 +298,8 @@ func (r *DNSPolicyReconciler) updateGatewayCondition(ctx context.Context, condit
 	return nil
 }
 
-func (r *DNSPolicyReconciler) SetupWithManager(mgr ctrl.Manager, ocmHub bool) error {
+func (r *DNSPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	gatewayEventMapper := events.NewGatewayEventMapper(r.Logger(), &DNSPolicyRefsConfig{}, "dnspolicy")
-	clusterEventMapper := events.NewClusterEventMapper(r.Logger(), r.Client(), &DNSPolicyRefsConfig{}, "dnspolicy")
 	probeEventMapper := events.NewProbeEventMapper(r.Logger(), DNSPolicyBackRefAnnotation, "dnspolicy")
 	r.dnsHelper = dnsHelper{Client: r.Client()}
 	ctrlr := ctrl.NewControllerManagedBy(mgr).
@@ -316,12 +312,5 @@ func (r *DNSPolicyReconciler) SetupWithManager(mgr ctrl.Manager, ocmHub bool) er
 			&v1alpha1.DNSHealthCheckProbe{},
 			handler.EnqueueRequestsFromMapFunc(probeEventMapper.MapToPolicy),
 		)
-	if ocmHub {
-		r.Logger().Info("ocm enabled turning on managed cluster watch")
-		ctrlr.Watches(
-			&clusterv1.ManagedCluster{},
-			handler.EnqueueRequestsFromMapFunc(clusterEventMapper.MapToPolicy),
-		)
-	}
 	return ctrlr.Complete(r)
 }

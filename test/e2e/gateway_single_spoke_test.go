@@ -373,8 +373,9 @@ var _ = Describe("Gateway single target cluster", func() {
 						if gw.Spec.Listeners == nil {
 							gw.Spec.Listeners = []gatewayapiv1.Listener{}
 						}
+						patch := client.MergeFrom(gw.DeepCopy())
 						AddListener("wildcard", testHostnameWildcard, gatewayapiv1.ObjectName(testHostname), gw)
-						err = tconfig.HubClient().Update(ctx, gw)
+						err = tconfig.HubClient().Patch(ctx, gw, patch)
 						Expect(err).ToNot(HaveOccurred())
 						Eventually(func(g Gomega, ctx SpecContext) {
 							checkGateway := &gatewayapiv1.Gateway{}
@@ -431,9 +432,10 @@ var _ = Describe("Gateway single target cluster", func() {
 						if gw.Spec.Listeners == nil {
 							gw.Spec.Listeners = []gatewayapiv1.Listener{}
 						}
+						patch := client.MergeFrom(gw.DeepCopy())
 						AddListener("other", testHostnameOther, gatewayapiv1.ObjectName(testHostnameOther), gw)
 						Eventually(func(g Gomega, ctx SpecContext) {
-							err = tconfig.HubClient().Update(ctx, gw)
+							err = tconfig.HubClient().Patch(ctx, gw, patch)
 							Expect(err).ToNot(HaveOccurred())
 							checkGateway := &gatewayapiv1.Gateway{}
 							err = tconfig.HubClient().Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.HubNamespace()}, checkGateway)
@@ -450,6 +452,7 @@ var _ = Describe("Gateway single target cluster", func() {
 						// remove the listener
 						err = tconfig.HubClient().Get(ctx, client.ObjectKey{Name: testID, Namespace: tconfig.HubNamespace()}, gw)
 						Expect(err).ToNot(HaveOccurred())
+						patch = client.MergeFrom(gw.DeepCopy())
 
 						if gw.Spec.Listeners == nil {
 							gw.Spec.Listeners = []gatewayapiv1.Listener{}
@@ -460,7 +463,7 @@ var _ = Describe("Gateway single target cluster", func() {
 								gw.Spec.Listeners = append(gw.Spec.Listeners[:i], gw.Spec.Listeners[i+1:]...)
 							}
 						}
-						err = tconfig.HubClient().Update(ctx, gw)
+						err = tconfig.HubClient().Patch(ctx, gw, patch)
 						Expect(err).ToNot(HaveOccurred())
 						Eventually(func(g Gomega, ctx SpecContext) {
 							secret := &corev1.Secret{}

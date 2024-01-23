@@ -12,6 +12,7 @@ import (
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/utils"
 	testutil "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 )
 
@@ -25,7 +26,7 @@ const (
 func TestNewClusterGatewayTarget(t *testing.T) {
 
 	type args struct {
-		clusterGateway ClusterGateway
+		clusterGateway utils.ClusterGateway
 		defaultGeoCode GeoCode
 		defaultWeight  int
 		customWeights  []*v1alpha1.CustomWeight
@@ -39,26 +40,28 @@ func TestNewClusterGatewayTarget(t *testing.T) {
 		{
 			name: "set geo and weight from defaults",
 			args: args{
-				clusterGateway: ClusterGateway{
-					Cluster: &testutil.TestResource{
-						ObjectMeta: v1.ObjectMeta{
-							Name: clusterName1,
+				clusterGateway: utils.ClusterGateway{
+					Gateway: gatewayapiv1.Gateway{
+						ObjectMeta: v1.ObjectMeta{Name: "testgw"},
+						Status: gatewayapiv1.GatewayStatus{
+							Addresses: buildGatewayAddress(testAddress1),
 						},
 					},
-					GatewayAddresses: buildGatewayAddress(testAddress1),
+					ClusterName: clusterName1,
 				},
 				defaultWeight:  100,
 				defaultGeoCode: GeoCode("IE"),
 				customWeights:  []*v1alpha1.CustomWeight{},
 			},
 			want: ClusterGatewayTarget{
-				ClusterGateway: &ClusterGateway{
-					Cluster: &testutil.TestResource{
-						ObjectMeta: v1.ObjectMeta{
-							Name: clusterName1,
+				ClusterGateway: &utils.ClusterGateway{
+					Gateway: gatewayapiv1.Gateway{
+						ObjectMeta: v1.ObjectMeta{Name: "testgw"},
+						Status: gatewayapiv1.GatewayStatus{
+							Addresses: buildGatewayAddress(testAddress1),
 						},
 					},
-					GatewayAddresses: buildGatewayAddress(testAddress1),
+					ClusterName: clusterName1,
 				},
 				Geo:    testutil.Pointer(GeoCode("IE")),
 				Weight: testutil.Pointer(100),
@@ -66,19 +69,22 @@ func TestNewClusterGatewayTarget(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "set geo and weight from cluster labels",
+			name: "set geo and weight from gateway labels",
 			args: args{
-				clusterGateway: ClusterGateway{
-					Cluster: &testutil.TestResource{
+				clusterGateway: utils.ClusterGateway{
+					Gateway: gatewayapiv1.Gateway{
 						ObjectMeta: v1.ObjectMeta{
-							Name: clusterName1,
+							Name: "testgw",
 							Labels: map[string]string{
 								"kuadrant.io/lb-attribute-weight":   "TSTATTR",
 								"kuadrant.io/lb-attribute-geo-code": "EU",
 							},
 						},
+						Status: gatewayapiv1.GatewayStatus{
+							Addresses: buildGatewayAddress(testAddress1),
+						},
 					},
-					GatewayAddresses: buildGatewayAddress(testAddress1),
+					ClusterName: clusterName1,
 				},
 				defaultWeight:  100,
 				defaultGeoCode: GeoCode("IE"),
@@ -94,17 +100,20 @@ func TestNewClusterGatewayTarget(t *testing.T) {
 				},
 			},
 			want: ClusterGatewayTarget{
-				ClusterGateway: &ClusterGateway{
-					Cluster: &testutil.TestResource{
+				ClusterGateway: &utils.ClusterGateway{
+					Gateway: gatewayapiv1.Gateway{
 						ObjectMeta: v1.ObjectMeta{
-							Name: clusterName1,
+							Name: "testgw",
 							Labels: map[string]string{
 								"kuadrant.io/lb-attribute-weight":   "TSTATTR",
 								"kuadrant.io/lb-attribute-geo-code": "EU",
 							},
 						},
+						Status: gatewayapiv1.GatewayStatus{
+							Addresses: buildGatewayAddress(testAddress1),
+						},
 					},
-					GatewayAddresses: buildGatewayAddress(testAddress1),
+					ClusterName: clusterName1,
 				},
 				Geo:    testutil.Pointer(GeoCode("EU")),
 				Weight: testutil.Pointer(60),
@@ -132,7 +141,7 @@ func TestNewClusterGatewayTarget(t *testing.T) {
 func TestNewMultiClusterGatewayTarget(t *testing.T) {
 	type args struct {
 		gateway         *gatewayapiv1.Gateway
-		clusterGateways []ClusterGateway
+		clusterGateways []utils.ClusterGateway
 		loadBalancing   *v1alpha1.LoadBalancingSpec
 	}
 	gateway := &gatewayapiv1.Gateway{
@@ -151,22 +160,28 @@ func TestNewMultiClusterGatewayTarget(t *testing.T) {
 			name: "set cluster gateway targets with default geo and weight values",
 			args: args{
 				gateway: gateway,
-				clusterGateways: []ClusterGateway{
+				clusterGateways: []utils.ClusterGateway{
 					{
-						Cluster: &testutil.TestResource{
+						Gateway: gatewayapiv1.Gateway{
 							ObjectMeta: v1.ObjectMeta{
-								Name: clusterName1,
+								Name: "testgw",
+							},
+							Status: gatewayapiv1.GatewayStatus{
+								Addresses: buildGatewayAddress(testAddress1),
 							},
 						},
-						GatewayAddresses: buildGatewayAddress(testAddress1),
+						ClusterName: clusterName1,
 					},
 					{
-						Cluster: &testutil.TestResource{
+						Gateway: gatewayapiv1.Gateway{
 							ObjectMeta: v1.ObjectMeta{
-								Name: clusterName2,
+								Name: "testgw",
+							},
+							Status: gatewayapiv1.GatewayStatus{
+								Addresses: buildGatewayAddress(testAddress2),
 							},
 						},
-						GatewayAddresses: buildGatewayAddress(testAddress2),
+						ClusterName: clusterName2,
 					},
 				},
 				loadBalancing: nil,
@@ -175,25 +190,31 @@ func TestNewMultiClusterGatewayTarget(t *testing.T) {
 				Gateway: gateway,
 				ClusterGatewayTargets: []ClusterGatewayTarget{
 					{
-						ClusterGateway: &ClusterGateway{
-							Cluster: &testutil.TestResource{
+						ClusterGateway: &utils.ClusterGateway{
+							Gateway: gatewayapiv1.Gateway{
 								ObjectMeta: v1.ObjectMeta{
-									Name: clusterName1,
+									Name: "testgw",
+								},
+								Status: gatewayapiv1.GatewayStatus{
+									Addresses: buildGatewayAddress(testAddress1),
 								},
 							},
-							GatewayAddresses: buildGatewayAddress(testAddress1),
+							ClusterName: clusterName1,
 						},
 						Geo:    testutil.Pointer(DefaultGeo),
 						Weight: testutil.Pointer(DefaultWeight),
 					},
 					{
-						ClusterGateway: &ClusterGateway{
-							Cluster: &testutil.TestResource{
+						ClusterGateway: &utils.ClusterGateway{
+							Gateway: gatewayapiv1.Gateway{
 								ObjectMeta: v1.ObjectMeta{
-									Name: clusterName2,
+									Name: "testgw",
+								},
+								Status: gatewayapiv1.GatewayStatus{
+									Addresses: buildGatewayAddress(testAddress2),
 								},
 							},
-							GatewayAddresses: buildGatewayAddress(testAddress2),
+							ClusterName: clusterName2,
 						},
 						Geo:    testutil.Pointer(DefaultGeo),
 						Weight: testutil.Pointer(DefaultWeight),
@@ -207,22 +228,28 @@ func TestNewMultiClusterGatewayTarget(t *testing.T) {
 			name: "set cluster gateway targets with default geo and weight from load balancing config",
 			args: args{
 				gateway: gateway,
-				clusterGateways: []ClusterGateway{
+				clusterGateways: []utils.ClusterGateway{
 					{
-						Cluster: &testutil.TestResource{
+						Gateway: gatewayapiv1.Gateway{
 							ObjectMeta: v1.ObjectMeta{
-								Name: clusterName1,
+								Name: "testgw",
+							},
+							Status: gatewayapiv1.GatewayStatus{
+								Addresses: buildGatewayAddress(testAddress1),
 							},
 						},
-						GatewayAddresses: buildGatewayAddress(testAddress1),
+						ClusterName: clusterName1,
 					},
 					{
-						Cluster: &testutil.TestResource{
+						Gateway: gatewayapiv1.Gateway{
 							ObjectMeta: v1.ObjectMeta{
-								Name: clusterName2,
+								Name: "testgw",
+							},
+							Status: gatewayapiv1.GatewayStatus{
+								Addresses: buildGatewayAddress(testAddress2),
 							},
 						},
-						GatewayAddresses: buildGatewayAddress(testAddress2),
+						ClusterName: clusterName2,
 					},
 				},
 				loadBalancing: &v1alpha1.LoadBalancingSpec{
@@ -238,25 +265,31 @@ func TestNewMultiClusterGatewayTarget(t *testing.T) {
 				Gateway: gateway,
 				ClusterGatewayTargets: []ClusterGatewayTarget{
 					{
-						ClusterGateway: &ClusterGateway{
-							Cluster: &testutil.TestResource{
+						ClusterGateway: &utils.ClusterGateway{
+							Gateway: gatewayapiv1.Gateway{
 								ObjectMeta: v1.ObjectMeta{
-									Name: clusterName1,
+									Name: "testgw",
+								},
+								Status: gatewayapiv1.GatewayStatus{
+									Addresses: buildGatewayAddress(testAddress1),
 								},
 							},
-							GatewayAddresses: buildGatewayAddress(testAddress1),
+							ClusterName: clusterName1,
 						},
 						Geo:    testutil.Pointer(GeoCode("IE")),
 						Weight: testutil.Pointer(255),
 					},
 					{
-						ClusterGateway: &ClusterGateway{
-							Cluster: &testutil.TestResource{
+						ClusterGateway: &utils.ClusterGateway{
+							Gateway: gatewayapiv1.Gateway{
 								ObjectMeta: v1.ObjectMeta{
-									Name: clusterName2,
+									Name: "testgw",
+								},
+								Status: gatewayapiv1.GatewayStatus{
+									Addresses: buildGatewayAddress(testAddress2),
 								},
 							},
-							GatewayAddresses: buildGatewayAddress(testAddress2),
+							ClusterName: clusterName2,
 						},
 						Geo:    testutil.Pointer(GeoCode("IE")),
 						Weight: testutil.Pointer(255),
@@ -277,26 +310,30 @@ func TestNewMultiClusterGatewayTarget(t *testing.T) {
 			name: "set cluster gateway targets with default geo and weight from cluster labels",
 			args: args{
 				gateway: gateway,
-				clusterGateways: []ClusterGateway{
+				clusterGateways: []utils.ClusterGateway{
 					{
-						Cluster: &testutil.TestResource{
+						Gateway: gatewayapiv1.Gateway{
 							ObjectMeta: v1.ObjectMeta{
-								Name: clusterName1,
+								Name: "testgw",
 								Labels: map[string]string{
 									"kuadrant.io/lb-attribute-weight":   "TSTATTR",
 									"kuadrant.io/lb-attribute-geo-code": "EU",
 								},
 							},
-						},
-						GatewayAddresses: buildGatewayAddress(testAddress1),
-					},
-					{
-						Cluster: &testutil.TestResource{
-							ObjectMeta: v1.ObjectMeta{
-								Name: clusterName2,
+							Status: gatewayapiv1.GatewayStatus{
+								Addresses: buildGatewayAddress(testAddress1),
 							},
 						},
-						GatewayAddresses: buildGatewayAddress(testAddress2),
+						ClusterName: clusterName1,
+					},
+					{
+						Gateway: gatewayapiv1.Gateway{
+							ObjectMeta: v1.ObjectMeta{Name: "testgw"},
+							Status: gatewayapiv1.GatewayStatus{
+								Addresses: buildGatewayAddress(testAddress2),
+							},
+						},
+						ClusterName: clusterName2,
 					},
 				},
 				loadBalancing: &v1alpha1.LoadBalancingSpec{
@@ -322,29 +359,33 @@ func TestNewMultiClusterGatewayTarget(t *testing.T) {
 				Gateway: gateway,
 				ClusterGatewayTargets: []ClusterGatewayTarget{
 					{
-						ClusterGateway: &ClusterGateway{
-							Cluster: &testutil.TestResource{
+						ClusterGateway: &utils.ClusterGateway{
+							Gateway: gatewayapiv1.Gateway{
 								ObjectMeta: v1.ObjectMeta{
-									Name: clusterName1,
+									Name: "testgw",
 									Labels: map[string]string{
 										"kuadrant.io/lb-attribute-weight":   "TSTATTR",
 										"kuadrant.io/lb-attribute-geo-code": "EU",
 									},
 								},
+								Status: gatewayapiv1.GatewayStatus{
+									Addresses: buildGatewayAddress(testAddress1),
+								},
 							},
-							GatewayAddresses: buildGatewayAddress(testAddress1),
+							ClusterName: clusterName1,
 						},
 						Geo:    testutil.Pointer(GeoCode("EU")),
 						Weight: testutil.Pointer(60),
 					},
 					{
-						ClusterGateway: &ClusterGateway{
-							Cluster: &testutil.TestResource{
-								ObjectMeta: v1.ObjectMeta{
-									Name: clusterName2,
+						ClusterGateway: &utils.ClusterGateway{
+							Gateway: gatewayapiv1.Gateway{
+								ObjectMeta: v1.ObjectMeta{Name: "testgw"},
+								Status: gatewayapiv1.GatewayStatus{
+									Addresses: buildGatewayAddress(testAddress2),
 								},
 							},
-							GatewayAddresses: buildGatewayAddress(testAddress2),
+							ClusterName: clusterName2,
 						},
 						Geo:    testutil.Pointer(GeoCode("IE")),
 						Weight: testutil.Pointer(255),
@@ -418,19 +459,19 @@ func TestClusterGatewayTarget_setGeo(t *testing.T) {
 	testCases := []struct {
 		name          string
 		defaultGeo    GeoCode
-		clusterLabels map[string]string
+		gatewayLabels map[string]string
 		want          GeoCode
 	}{
 		{
 			name:          "sets geo from default",
 			defaultGeo:    "IE",
-			clusterLabels: nil,
+			gatewayLabels: nil,
 			want:          "IE",
 		},
 		{
 			name:       "sets geo from label",
 			defaultGeo: "IE",
-			clusterLabels: map[string]string{
+			gatewayLabels: map[string]string{
 				"kuadrant.io/lb-attribute-geo-code": "EU",
 			},
 			want: "EU",
@@ -438,7 +479,7 @@ func TestClusterGatewayTarget_setGeo(t *testing.T) {
 		{
 			name:       "sets geo to default for default geo value",
 			defaultGeo: "default",
-			clusterLabels: map[string]string{
+			gatewayLabels: map[string]string{
 				"kuadrant.io/lb-attribute-geo-code": "EU",
 			},
 			want: "default",
@@ -447,14 +488,17 @@ func TestClusterGatewayTarget_setGeo(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t1 *testing.T) {
 			cgt := &ClusterGatewayTarget{
-				ClusterGateway: &ClusterGateway{
-					Cluster: &testutil.TestResource{
+				ClusterGateway: &utils.ClusterGateway{
+					Gateway: gatewayapiv1.Gateway{
 						ObjectMeta: v1.ObjectMeta{
-							Name:   clusterName1,
-							Labels: testCase.clusterLabels,
+							Name:   "testgw",
+							Labels: testCase.gatewayLabels,
+						},
+						Status: gatewayapiv1.GatewayStatus{
+							Addresses: buildGatewayAddress(testAddress1),
 						},
 					},
-					GatewayAddresses: buildGatewayAddress(testAddress1),
+					ClusterName: clusterName1,
 				},
 			}
 			cgt.setGeo(testCase.defaultGeo)
@@ -470,14 +514,14 @@ func TestClusterGatewayTarget_setWeight(t *testing.T) {
 		name          string
 		defaultWeight int
 		customWeights []*v1alpha1.CustomWeight
-		clusterLabels map[string]string
+		gatewayLabels map[string]string
 		want          int
 		wantErr       bool
 	}{
 		{
 			name:          "sets geo from default",
 			defaultWeight: 255,
-			clusterLabels: nil,
+			gatewayLabels: nil,
 			customWeights: []*v1alpha1.CustomWeight{},
 			want:          255,
 			wantErr:       false,
@@ -485,7 +529,7 @@ func TestClusterGatewayTarget_setWeight(t *testing.T) {
 		{
 			name:          "sets geo from custom weight",
 			defaultWeight: 255,
-			clusterLabels: map[string]string{
+			gatewayLabels: map[string]string{
 				"tstlabel1": "TSTATTR",
 			},
 			customWeights: []*v1alpha1.CustomWeight{
@@ -504,7 +548,7 @@ func TestClusterGatewayTarget_setWeight(t *testing.T) {
 		{
 			name:          "sets geo from from custom weight with selector with multiple matches",
 			defaultWeight: 255,
-			clusterLabels: map[string]string{
+			gatewayLabels: map[string]string{
 				"tstlabel1": "TSTATTR",
 				"tstlabel2": "TSTATTR2",
 			},
@@ -525,7 +569,7 @@ func TestClusterGatewayTarget_setWeight(t *testing.T) {
 		{
 			name:          "sets geo from default when not all custom weight selectors match",
 			defaultWeight: 255,
-			clusterLabels: map[string]string{
+			gatewayLabels: map[string]string{
 				"tstlabel1": "TSTATTR",
 			},
 			customWeights: []*v1alpha1.CustomWeight{
@@ -545,7 +589,7 @@ func TestClusterGatewayTarget_setWeight(t *testing.T) {
 		{
 			name:          "returns error when label selector invalid",
 			defaultWeight: 255,
-			clusterLabels: map[string]string{
+			gatewayLabels: map[string]string{
 				"/tstlabel1": "TSTATTR",
 			},
 			customWeights: []*v1alpha1.CustomWeight{
@@ -565,14 +609,17 @@ func TestClusterGatewayTarget_setWeight(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t1 *testing.T) {
 			cgt := &ClusterGatewayTarget{
-				ClusterGateway: &ClusterGateway{
-					Cluster: &testutil.TestResource{
+				ClusterGateway: &utils.ClusterGateway{
+					Gateway: gatewayapiv1.Gateway{
 						ObjectMeta: v1.ObjectMeta{
-							Name:   clusterName1,
-							Labels: testCase.clusterLabels,
+							Name:   "testgw",
+							Labels: testCase.gatewayLabels,
+						},
+						Status: gatewayapiv1.GatewayStatus{
+							Addresses: buildGatewayAddress(testAddress2),
 						},
 					},
-					GatewayAddresses: buildGatewayAddress(testAddress1),
+					ClusterName: clusterName1,
 				},
 				Weight: &testCase.defaultWeight,
 			}
@@ -589,8 +636,8 @@ func TestClusterGatewayTarget_setWeight(t *testing.T) {
 	}
 }
 
-func buildGatewayAddress(value string) []gatewayapiv1.GatewayAddress {
-	return []gatewayapiv1.GatewayAddress{
+func buildGatewayAddress(value string) []gatewayapiv1.GatewayStatusAddress {
+	return []gatewayapiv1.GatewayStatusAddress{
 		{
 			Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
 			Value: value,
@@ -619,15 +666,22 @@ func TestMultiClusterGatewayTarget_RemoveUnhealthyGatewayAddresses(t *testing.T)
 			fields: fields{
 				ClusterGatewayTargets: []ClusterGatewayTarget{
 					{
-						ClusterGateway: &ClusterGateway{
-							GatewayAddresses: []gatewayapiv1.GatewayAddress{
-								{
-									Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
-									Value: "1.1.1.1",
+						ClusterGateway: &utils.ClusterGateway{
+							Gateway: gatewayapiv1.Gateway{
+								ObjectMeta: v1.ObjectMeta{
+									Name: "testgw",
 								},
-								{
-									Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
-									Value: "2.2.2.2",
+								Status: gatewayapiv1.GatewayStatus{
+									Addresses: []gatewayapiv1.GatewayStatusAddress{
+										{
+											Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
+											Value: "1.1.1.1",
+										},
+										{
+											Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
+											Value: "2.2.2.2",
+										},
+									},
 								},
 							},
 						},
@@ -670,15 +724,22 @@ func TestMultiClusterGatewayTarget_RemoveUnhealthyGatewayAddresses(t *testing.T)
 			},
 			want: []ClusterGatewayTarget{
 				{
-					ClusterGateway: &ClusterGateway{
-						GatewayAddresses: []gatewayapiv1.GatewayAddress{
-							{
-								Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
-								Value: "1.1.1.1",
+					ClusterGateway: &utils.ClusterGateway{
+						Gateway: gatewayapiv1.Gateway{
+							ObjectMeta: v1.ObjectMeta{
+								Name: "testgw",
 							},
-							{
-								Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
-								Value: "2.2.2.2",
+							Status: gatewayapiv1.GatewayStatus{
+								Addresses: []gatewayapiv1.GatewayStatusAddress{
+									{
+										Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
+										Value: "1.1.1.1",
+									},
+									{
+										Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
+										Value: "2.2.2.2",
+									},
+								},
 							},
 						},
 					},
@@ -690,15 +751,22 @@ func TestMultiClusterGatewayTarget_RemoveUnhealthyGatewayAddresses(t *testing.T)
 			fields: fields{
 				ClusterGatewayTargets: []ClusterGatewayTarget{
 					{
-						ClusterGateway: &ClusterGateway{
-							GatewayAddresses: []gatewayapiv1.GatewayAddress{
-								{
-									Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
-									Value: "1.1.1.1",
+						ClusterGateway: &utils.ClusterGateway{
+							Gateway: gatewayapiv1.Gateway{
+								ObjectMeta: v1.ObjectMeta{
+									Name: "testgw",
 								},
-								{
-									Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
-									Value: "2.2.2.2",
+								Status: gatewayapiv1.GatewayStatus{
+									Addresses: []gatewayapiv1.GatewayStatusAddress{
+										{
+											Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
+											Value: "1.1.1.1",
+										},
+										{
+											Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
+											Value: "2.2.2.2",
+										},
+									},
 								},
 							},
 						},
@@ -741,11 +809,18 @@ func TestMultiClusterGatewayTarget_RemoveUnhealthyGatewayAddresses(t *testing.T)
 			},
 			want: []ClusterGatewayTarget{
 				{
-					ClusterGateway: &ClusterGateway{
-						GatewayAddresses: []gatewayapiv1.GatewayAddress{
-							{
-								Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
-								Value: "2.2.2.2",
+					ClusterGateway: &utils.ClusterGateway{
+						Gateway: gatewayapiv1.Gateway{
+							ObjectMeta: v1.ObjectMeta{
+								Name: "testgw",
+							},
+							Status: gatewayapiv1.GatewayStatus{
+								Addresses: []gatewayapiv1.GatewayStatusAddress{
+									{
+										Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
+										Value: "2.2.2.2",
+									},
+								},
 							},
 						},
 					},
@@ -757,15 +832,22 @@ func TestMultiClusterGatewayTarget_RemoveUnhealthyGatewayAddresses(t *testing.T)
 			fields: fields{
 				ClusterGatewayTargets: []ClusterGatewayTarget{
 					{
-						ClusterGateway: &ClusterGateway{
-							GatewayAddresses: []gatewayapiv1.GatewayAddress{
-								{
-									Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
-									Value: "1.1.1.1",
+						ClusterGateway: &utils.ClusterGateway{
+							Gateway: gatewayapiv1.Gateway{
+								ObjectMeta: v1.ObjectMeta{
+									Name: "testgw",
 								},
-								{
-									Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
-									Value: "2.2.2.2",
+								Status: gatewayapiv1.GatewayStatus{
+									Addresses: []gatewayapiv1.GatewayStatusAddress{
+										{
+											Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
+											Value: "1.1.1.1",
+										},
+										{
+											Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
+											Value: "2.2.2.2",
+										},
+									},
 								},
 							},
 						},
@@ -808,15 +890,22 @@ func TestMultiClusterGatewayTarget_RemoveUnhealthyGatewayAddresses(t *testing.T)
 			},
 			want: []ClusterGatewayTarget{
 				{
-					ClusterGateway: &ClusterGateway{
-						GatewayAddresses: []gatewayapiv1.GatewayAddress{
-							{
-								Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
-								Value: "1.1.1.1",
+					ClusterGateway: &utils.ClusterGateway{
+						Gateway: gatewayapiv1.Gateway{
+							ObjectMeta: v1.ObjectMeta{
+								Name: "testgw",
 							},
-							{
-								Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
-								Value: "2.2.2.2",
+							Status: gatewayapiv1.GatewayStatus{
+								Addresses: []gatewayapiv1.GatewayStatusAddress{
+									{
+										Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
+										Value: "1.1.1.1",
+									},
+									{
+										Type:  testutil.Pointer(gatewayapiv1.IPAddressType),
+										Value: "2.2.2.2",
+									},
+								},
 							},
 						},
 					},

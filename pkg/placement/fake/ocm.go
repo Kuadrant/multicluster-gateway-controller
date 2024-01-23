@@ -10,7 +10,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 	testutil "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 )
 
@@ -18,10 +17,6 @@ type FakeGatewayPlacer struct{}
 
 func NewTestGatewayPlacer() *FakeGatewayPlacer {
 	return &FakeGatewayPlacer{}
-}
-
-func (p *FakeGatewayPlacer) GetClusterGateway(_ context.Context, _ *gatewayapiv1.Gateway, _ string) (dns.ClusterGateway, error) {
-	return dns.ClusterGateway{}, nil
 }
 
 func (p *FakeGatewayPlacer) Place(_ context.Context, upstream *gatewayapiv1.Gateway, _ *gatewayapiv1.Gateway, _ ...metav1.Object) (sets.Set[string], error) {
