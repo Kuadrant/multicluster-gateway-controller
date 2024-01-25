@@ -53,7 +53,7 @@ gateway-manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole 
 
 .PHONY: policy-manifests
 policy-manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
-	$(CONTROLLER_GEN) rbac:roleName=policy-role paths="./pkg/controllers/dnshealthcheckprobe" paths="./pkg/controllers/dnspolicy" paths="./pkg/controllers/dnsrecord" paths="./pkg/controllers/managedzone" paths="./pkg/controllers/tlspolicy" output:rbac:dir=config/policy-controller/rbac
+	$(CONTROLLER_GEN) rbac:roleName=policy-role paths="./pkg/controllers/dnshealthcheckprobe" paths="./pkg/controllers/dnspolicy" paths="./pkg/controllers/dnsrecord" paths="./pkg/controllers/tlspolicy" output:rbac:dir=config/policy-controller/rbac
 	$(CONTROLLER_GEN) crd paths="./..." output:crd:artifacts:config=config/policy-controller/crd/bases
 
 .PHONY: manifests

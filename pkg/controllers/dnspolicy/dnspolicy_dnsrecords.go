@@ -54,11 +54,15 @@ func (r *DNSPolicyReconciler) reconcileGatewayDNSRecords(ctx context.Context, ga
 
 	clusterGateways := gw.GetClusterGateways()
 
-	zoneList, zoneAssignment, err := r.getProviderDNSZones(ctx, dnsPolicy)
+	dnsProvider, err := r.DNSProvider(ctx, dnsPolicy)
 	if err != nil {
 		return err
 	}
-	log.V(1).Info("got zones", "zoneList", zoneList, "zoneAssignment", zoneAssignment)
+	zoneList, err := dnsProvider.ListZones()
+	if err != nil {
+		return err
+	}
+	log.V(1).Info("got zones", "zoneList", zoneList)
 
 	for _, listener := range gw.Spec.Listeners {
 		listenerHost := *listener.Hostname
@@ -68,14 +72,12 @@ func (r *DNSPolicyReconciler) reconcileGatewayDNSRecords(ctx context.Context, ga
 		}
 
 		var zone *dns.Zone
-		if zoneAssignment {
-			zone, _, err = findMatchingZone(string(listenerHost), string(listenerHost), zoneList)
-			if err != nil {
-				log.V(1).Info("skipping listener no matching zone for host", "listenerHost", listenerHost)
-				continue
-			}
-			log.V(1).Info("found zone for listener host", "zone", zone, "listenerHost", listenerHost)
+		zone, _, err = findMatchingZone(string(listenerHost), string(listenerHost), zoneList)
+		if err != nil {
+			log.V(1).Info("skipping listener no matching zone for host", "listenerHost", listenerHost)
+			continue
 		}
+		log.V(1).Info("found zone for listener host", "zone", zone, "listenerHost", listenerHost)
 
 		listenerGateways := slice.Filter(clusterGateways, func(cgw utils.ClusterGateway) bool {
 			hasAttachedRoute := false
@@ -149,40 +151,4 @@ func (r *DNSPolicyReconciler) deleteDNSRecordsWithLabels(ctx context.Context, lb
 		}
 	}
 	return nil
-}
-
-// getProviderDNSZones returns a list of dns.Zones for the given provider
-func (r *DNSPolicyReconciler) getProviderDNSZones(ctx context.Context, pa v1alpha2.ProviderAccessor) (dns.ZoneList, bool, error) {
-	logger := crlog.FromContext(ctx)
-	zoneList := dns.ZoneList{}
-	zoneAssignment := false
-
-	switch pa.GetProviderRef().Kind {
-	case v1alpha2.ProviderKindSecret:
-		zoneAssignment = true
-		dnsProvider, err := r.DNSProvider(ctx, pa)
-		if err != nil {
-			return zoneList, zoneAssignment, err
-		}
-		zoneList, err = dnsProvider.ListZones()
-		if err != nil {
-			return zoneList, zoneAssignment, err
-		}
-	case v1alpha2.ProviderKindManagedZone:
-		zoneAssignment = true
-		var mz v1alpha2.ManagedZone
-		if err := r.Client().Get(ctx, client.ObjectKey{Name: pa.GetProviderRef().Name, Namespace: pa.GetNamespace()}, &mz); err != nil {
-			logger.Error(err, "unable to get managed zone for provider", "ProviderRef", pa.GetProviderRef())
-			return zoneList, zoneAssignment, err
-		}
-		zoneList.Items = append(zoneList.Items, &dns.Zone{
-			ID:      &mz.Status.ID,
-			DNSName: &mz.Spec.DomainName,
-		})
-	case v1alpha2.ProviderKindNone:
-		fallthrough
-	default:
-		zoneAssignment = false
-	}
-	return zoneList, zoneAssignment, nil
 }

@@ -28,7 +28,6 @@ import (
 var _ = Describe("DNSPolicy", func() {
 
 	var gatewayClass *gatewayapiv1.GatewayClass
-	var managedZone *v1alpha2.ManagedZone
 	var testNamespace string
 	var dnsPolicyBuilder *testutil.DNSPolicyBuilder
 	var gateway *gatewayapiv1.Gateway
@@ -41,16 +40,8 @@ var _ = Describe("DNSPolicy", func() {
 		gatewayClass = testutil.NewTestGatewayClass("foo", "default", "kuadrant.io/bar")
 		Expect(k8sClient.Create(ctx, gatewayClass)).To(Succeed())
 
-		managedZone = testutil.NewManagedZoneBuilder("mz-example-com", testNamespace).
-			WithID("1234").
-			WithDomainName("example.com").
-			WithDescription("example.com").
-			WithProviderSecret("secretname").
-			ManagedZone
-		Expect(k8sClient.Create(ctx, managedZone)).To(Succeed())
-
 		dnsPolicyBuilder = testutil.NewDNSPolicyBuilder("test-dns-policy", testNamespace).
-			WithProviderManagedZone(managedZone.Name)
+			WithProviderSecret(TestProviderSecretName)
 	})
 
 	AfterEach(func() {
@@ -62,10 +53,6 @@ var _ = Describe("DNSPolicy", func() {
 			err := k8sClient.Delete(ctx, dnsPolicy)
 			Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
 
-		}
-		if managedZone != nil {
-			err := k8sClient.Delete(ctx, managedZone)
-			Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
 		}
 		if gatewayClass != nil {
 			err := k8sClient.Delete(ctx, gatewayClass)

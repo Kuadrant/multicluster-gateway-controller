@@ -16,21 +16,10 @@ limitations under the License.
 
 package v1alpha2
 
-// +kubebuilder:validation:Enum=None;Secret;ManagedZone
-type ProviderKind string
-
 type ProviderRef struct {
 	//+required
 	Name string `json:"name"`
-	//+required
-	Kind ProviderKind `json:"kind"`
 }
-
-const (
-	ProviderKindNone        = "None"
-	ProviderKindSecret      = "Secret"
-	ProviderKindManagedZone = "ManagedZone"
-)
 
 // +kubebuilder:object:generate=false
 type ProviderAccessor interface {

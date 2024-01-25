@@ -47,7 +47,7 @@ func findMatchingZone(originalHost, host string, zones dns.ZoneList) (*dns.Zone,
 	//get the TLD from this host
 	tld, _ := publicsuffix.PublicSuffix(host)
 
-	//The host is a TLD, so we now know `originalHost` can't possibly have a valid `ManagedZone` available.
+	//The host is a TLD, so we now know `originalHost` can't possibly have a valid `Zone` available.
 	if host == tld {
 		return nil, "", fmt.Errorf("no valid zone found for host: %v", originalHost)
 	}

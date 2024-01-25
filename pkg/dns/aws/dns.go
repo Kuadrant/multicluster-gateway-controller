@@ -21,7 +21,6 @@ import (
 	"net"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -130,77 +129,6 @@ func (p *Route53DNSProvider) ListZones() (dns.ZoneList, error) {
 		})
 	}
 	return zoneList, nil
-}
-
-func (p *Route53DNSProvider) EnsureManagedZone(zone *v1alpha2.ManagedZone) (dns.ManagedZoneOutput, error) {
-	var zoneID string
-	if zone.Spec.ID != nil {
-		zoneID = *zone.Spec.ID
-	} else {
-		zoneID = zone.Status.ID
-	}
-
-	var managedZoneOutput dns.ManagedZoneOutput
-
-	if zoneID != "" {
-		getResp, err := p.client.GetHostedZone(&route53.GetHostedZoneInput{
-			Id: &zoneID,
-		})
-		if err != nil {
-			log.Log.Error(err, "failed to get hosted zone")
-			return managedZoneOutput, err
-		}
-
-		//Only update if we created the managed zone and description is set
-		if zone.Spec.ID != nil && zone.Spec.Description != nil {
-			_, err = p.client.UpdateHostedZoneComment(&route53.UpdateHostedZoneCommentInput{
-				Comment: zone.Spec.Description,
-				Id:      &zoneID,
-			})
-			if err != nil {
-				log.Log.Error(err, "failed to update hosted zone comment")
-			}
-		}
-
-		managedZoneOutput.ID = removeHostedZoneIDPrefix(*getResp.HostedZone.Id)
-		managedZoneOutput.RecordCount = *getResp.HostedZone.ResourceRecordSetCount
-		managedZoneOutput.NameServers = getResp.DelegationSet.NameServers
-
-		return managedZoneOutput, nil
-	}
-
-	//ToDo callerRef must be unique, but this can cause duplicates if the status can't be written back during a
-	//reconciliation that successfully created a new hosted zone i.e. the object has been modified; please apply your
-	//changes to the latest version and try again
-	callerRef := time.Now().Format("20060102150405")
-	// Create the hosted zone
-	createResp, err := p.client.CreateHostedZone(&route53.CreateHostedZoneInput{
-		CallerReference: &callerRef,
-		Name:            &zone.Spec.DomainName,
-		HostedZoneConfig: &route53.HostedZoneConfig{
-			Comment:     zone.Spec.Description,
-			PrivateZone: aws.Bool(false),
-		},
-	})
-	if err != nil {
-		log.Log.Error(err, "failed to create hosted zone")
-		return managedZoneOutput, err
-	}
-	managedZoneOutput.ID = *createResp.HostedZone.Id
-	managedZoneOutput.RecordCount = *createResp.HostedZone.ResourceRecordSetCount
-	managedZoneOutput.NameServers = createResp.DelegationSet.NameServers
-	return managedZoneOutput, nil
-}
-
-func (p *Route53DNSProvider) DeleteManagedZone(zone *v1alpha2.ManagedZone) error {
-	_, err := p.client.DeleteHostedZone(&route53.DeleteHostedZoneInput{
-		Id: &zone.Status.ID,
-	})
-	if err != nil {
-		log.Log.Error(err, "failed to delete hosted zone")
-		return err
-	}
-	return nil
 }
 
 func (p *Route53DNSProvider) HealthCheckReconciler() dns.HealthCheckReconciler {

@@ -24,8 +24,9 @@ const (
 	TestListenerNameTwo      = "test-listener-2"
 	TestIPAddressOne         = "172.0.0.1"
 	TestIPAddressTwo         = "172.0.0.2"
-	defaultNS                = "default"
-	providerCredential       = "secretname"
+	TestProviderSecretName   = "secretname"
+	TestZoneID               = "1234"
+	TestZoneDNSName          = "example.com"
 )
 
 type testHealthServer struct {

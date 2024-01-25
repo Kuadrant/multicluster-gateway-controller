@@ -271,7 +271,6 @@ var _ = Describe("Gateway single target cluster", func() {
 							RoutingStrategy: mgcv1alpha2.LoadBalancedRoutingStrategy,
 							ProviderRef: mgcv1alpha2.ProviderRef{
 								Name: tconfig.DNSProviderSecretName(),
-								Kind: mgcv1alpha2.ProviderKindSecret,
 							},
 						},
 					}

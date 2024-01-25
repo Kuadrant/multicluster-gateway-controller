@@ -233,69 +233,6 @@ func (p *GoogleDNSProvider) zones() (map[string]*dnsv1.ManagedZone, error) {
 	return zones, nil
 }
 
-func (g *GoogleDNSProvider) DeleteManagedZone(managedZone *v1alpha2.ManagedZone) error {
-	return g.managedZonesClient.Delete(g.project, managedZone.Status.ID).Do()
-}
-
-func (g *GoogleDNSProvider) EnsureManagedZone(managedZone *v1alpha2.ManagedZone) (dns.ManagedZoneOutput, error) {
-	var zoneID string
-
-	if managedZone.Spec.ID != nil {
-		zoneID = *managedZone.Spec.ID
-	} else {
-		zoneID = managedZone.Status.ID
-	}
-
-	if zoneID != "" {
-		//Get existing managed zone
-		return g.getManagedZone(zoneID)
-	}
-	//Create new managed zone
-	return g.createManagedZone(managedZone)
-}
-
-func (g *GoogleDNSProvider) createManagedZone(managedZone *v1alpha2.ManagedZone) (dns.ManagedZoneOutput, error) {
-	zoneID := strings.Replace(managedZone.Spec.DomainName, ".", "-", -1)
-	zone := dnsv1.ManagedZone{
-		Name:        zoneID,
-		DnsName:     ensureTrailingDot(managedZone.Spec.DomainName),
-		Description: *managedZone.Spec.Description,
-	}
-	mz, err := g.managedZonesClient.Create(g.project, &zone).Do()
-	if err != nil {
-		return dns.ManagedZoneOutput{}, err
-	}
-	return g.toManagedZoneOutput(mz)
-}
-
-func (g *GoogleDNSProvider) getManagedZone(zoneID string) (dns.ManagedZoneOutput, error) {
-	mz, err := g.managedZonesClient.Get(g.project, zoneID).Do()
-	if err != nil {
-		return dns.ManagedZoneOutput{}, err
-	}
-	return g.toManagedZoneOutput(mz)
-}
-
-func (g *GoogleDNSProvider) toManagedZoneOutput(mz *dnsv1.ManagedZone) (dns.ManagedZoneOutput, error) {
-	var managedZoneOutput dns.ManagedZoneOutput
-
-	zoneID := mz.Name
-	var nameservers []*string
-	for i := range mz.NameServers {
-		nameservers = append(nameservers, &mz.NameServers[i])
-	}
-	managedZoneOutput.ID = zoneID
-	managedZoneOutput.NameServers = nameservers
-
-	currentRecords, err := g.getResourceRecordSets(g.ctx, zoneID)
-	if err != nil {
-		return managedZoneOutput, err
-	}
-	managedZoneOutput.RecordCount = int64(len(currentRecords))
-
-	return managedZoneOutput, nil
-}
-
 //DNSRecords
 
 func (g *GoogleDNSProvider) Ensure(record *v1alpha2.DNSRecord) error {

@@ -4,7 +4,7 @@ metadata:
   annotations:
     alm-examples: '[]'
     capabilities: Basic Install
-    createdAt: "2023-12-04T11:02:57Z"
+    createdAt: "2024-01-25T21:05:01Z"
     operators.operatorframework.io/builder: operator-sdk-v1.28.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
   name: multicluster-gateway-controller.v0.0.0
@@ -21,9 +21,6 @@ spec:
       version: v1alpha2
     - kind: DNSRecord
       name: dnsrecords.kuadrant.io
-      version: v1alpha2
-    - kind: ManagedZone
-      name: managedzones.kuadrant.io
       version: v1alpha2
     - kind: TLSPolicy
       name: tlspolicies.kuadrant.io
@@ -446,32 +443,6 @@ spec:
           - kuadrant.io
           resources:
           - dnsrecords/status
-          verbs:
-          - get
-          - patch
-          - update
-        - apiGroups:
-          - kuadrant.io
-          resources:
-          - managedzones
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - kuadrant.io
-          resources:
-          - managedzones/finalizers
-          verbs:
-          - update
-        - apiGroups:
-          - kuadrant.io
-          resources:
-          - managedzones/status
           verbs:
           - get
           - patch

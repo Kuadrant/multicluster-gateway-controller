@@ -67,24 +67,9 @@ func (t *DNSPolicyBuilder) WithTargetGateway(gwName string) *DNSPolicyBuilder {
 
 //ProviderRef
 
-func (t *DNSPolicyBuilder) WithProviderManagedZone(mzName string) *DNSPolicyBuilder {
-	return t.WithProviderRef(v1alpha2.ProviderRef{
-		Name: mzName,
-		Kind: v1alpha2.ProviderKindManagedZone,
-	})
-}
-
 func (t *DNSPolicyBuilder) WithProviderSecret(secretName string) *DNSPolicyBuilder {
 	return t.WithProviderRef(v1alpha2.ProviderRef{
 		Name: secretName,
-		Kind: v1alpha2.ProviderKindSecret,
-	})
-}
-
-func (t *DNSPolicyBuilder) WithProviderNone(name string) *DNSPolicyBuilder {
-	return t.WithProviderRef(v1alpha2.ProviderRef{
-		Name: name,
-		Kind: v1alpha2.ProviderKindNone,
 	})
 }
 
@@ -131,63 +116,5 @@ func (t *DNSPolicyBuilder) WithLoadBalancingWeightedFor(defaultWeight v1alpha2.W
 func (t *DNSPolicyBuilder) WithLoadBalancingGeoFor(defaultGeo string) *DNSPolicyBuilder {
 	return t.WithLoadBalancingGeo(v1alpha2.LoadBalancingGeo{
 		DefaultGeo: defaultGeo,
-	})
-}
-
-// ManagedZoneBuilder wrapper for ManagedZone builder helper
-type ManagedZoneBuilder struct {
-	*v1alpha2.ManagedZone
-}
-
-func NewManagedZoneBuilder(name, ns string) *ManagedZoneBuilder {
-	return &ManagedZoneBuilder{
-		&v1alpha2.ManagedZone{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      name,
-				Namespace: ns,
-			},
-			Spec: v1alpha2.ManagedZoneSpec{},
-		},
-	}
-}
-
-func (t *ManagedZoneBuilder) WithID(id string) *ManagedZoneBuilder {
-	t.Spec.ID = &id
-	return t
-}
-
-func (t *ManagedZoneBuilder) WithDomainName(domainName string) *ManagedZoneBuilder {
-	t.Spec.DomainName = domainName
-	return t
-}
-
-func (t *ManagedZoneBuilder) WithDescription(description string) *ManagedZoneBuilder {
-	t.Spec.Description = &description
-	return t
-}
-
-func (t *ManagedZoneBuilder) WithProviderRef(providerRef v1alpha2.ProviderRef) *ManagedZoneBuilder {
-	t.Spec.ProviderRef = providerRef
-	return t
-}
-
-func (t *ManagedZoneBuilder) WithProviderManagedZone(mzName string) *ManagedZoneBuilder {
-	return t.WithProviderRef(v1alpha2.ProviderRef{
-		Name: mzName,
-		Kind: v1alpha2.ProviderKindManagedZone,
-	})
-}
-
-func (t *ManagedZoneBuilder) WithProviderSecret(secretName string) *ManagedZoneBuilder {
-	return t.WithProviderRef(v1alpha2.ProviderRef{
-		Name: secretName,
-		Kind: v1alpha2.ProviderKindSecret,
-	})
-}
-
-func (t *ManagedZoneBuilder) WithProviderNone(secretName string) *ManagedZoneBuilder {
-	return t.WithProviderRef(v1alpha2.ProviderRef{
-		Name: secretName,
-		Kind: v1alpha2.ProviderKindNone,
 	})
 }

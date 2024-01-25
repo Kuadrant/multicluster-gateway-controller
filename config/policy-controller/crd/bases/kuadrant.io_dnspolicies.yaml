@@ -157,16 +157,9 @@ spec:
                 type: object
               providerRef:
                 properties:
-                  kind:
-                    enum:
-                    - None
-                    - Secret
-                    - ManagedZone
-                    type: string
                   name:
                     type: string
                 required:
-                - kind
                 - name
                 type: object
               routingStrategy:

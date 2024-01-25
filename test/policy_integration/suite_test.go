@@ -45,10 +45,10 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha2"
 	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnshealthcheckprobe"
 	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnspolicy"
-	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/managedzone"
 	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/tlspolicy"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/health"
+	testutil "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -63,7 +63,14 @@ var (
 	cancel          context.CancelFunc
 	logger          logr.Logger
 	providerFactory = func(ctx context.Context, providerAccessor v1alpha2.ProviderAccessor) (dns.Provider, error) {
-		return &dns.FakeProvider{}, nil
+		return &dns.FakeProvider{
+			Zones: []*dns.Zone{
+				{
+					ID:      testutil.Pointer(TestZoneID),
+					DNSName: testutil.Pointer(TestZoneDNSName),
+				},
+			},
+		}, nil
 	}
 )
 
@@ -177,13 +184,6 @@ var _ = BeforeSuite(func() {
 		TargetRefReconciler: reconcilers.TargetRefReconciler{
 			BaseReconciler: tlsPolicyBaseReconciler,
 		},
-	}).SetupWithManager(k8sManager)
-	Expect(err).ToNot(HaveOccurred())
-
-	err = (&ManagedZoneReconciler{
-		Client:      k8sManager.GetClient(),
-		Scheme:      k8sManager.GetScheme(),
-		DNSProvider: providerFactory,
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 

@@ -15,7 +15,6 @@ import (
 )
 
 var (
-	ErrUnsupportedProviderKind = fmt.Errorf("unsupported provider kind")
 	ErrUnsupportedProviderType = fmt.Errorf("unsupported provider type")
 )
 
@@ -36,16 +35,7 @@ func (p *providerFactory) DNSProviderFactory(ctx context.Context, pa v1alpha2.Pr
 }
 
 func (p *providerFactory) provider(ctx context.Context, pa v1alpha2.ProviderAccessor) (dns.Provider, error) {
-	switch pa.GetProviderRef().Kind {
-	case v1alpha2.ProviderKindSecret:
-		return p.providerFromSecret(ctx, pa.GetProviderRef().Name, pa.GetNamespace())
-	case v1alpha2.ProviderKindManagedZone:
-		return p.providerFromManagedZone(ctx, pa.GetProviderRef().Name, pa.GetNamespace())
-	case v1alpha2.ProviderKindNone:
-		fallthrough
-	default:
-		return nil, fmt.Errorf("%w : %s", ErrUnsupportedProviderKind, pa.GetProviderRef().Kind)
-	}
+	return p.providerFromSecret(ctx, pa.GetProviderRef().Name, pa.GetNamespace())
 }
 
 func (p *providerFactory) providerFromSecret(ctx context.Context, name, namespace string) (dns.Provider, error) {
@@ -75,16 +65,4 @@ func (p *providerFactory) providerFromSecret(ctx context.Context, name, namespac
 	default:
 		return nil, fmt.Errorf("%w : %s", ErrUnsupportedProviderType, providerSecret.Type)
 	}
-}
-
-func (p *providerFactory) providerFromManagedZone(ctx context.Context, name, namespace string) (dns.Provider, error) {
-	var mz v1alpha2.ManagedZone
-	if err := p.Client.Get(ctx, client.ObjectKey{Name: name, Namespace: namespace}, &mz); err != nil {
-		return nil, err
-	}
-	//Avoid ending up in a loop, a managed zone should not reference another managed zone
-	if mz.GetProviderRef().Kind == v1alpha2.ProviderKindManagedZone {
-		return nil, fmt.Errorf("%w : managed zone cannot have a providerRef with kind %s", ErrUnsupportedProviderKind, v1alpha2.ProviderKindManagedZone)
-	}
-	return p.provider(ctx, &mz)
 }

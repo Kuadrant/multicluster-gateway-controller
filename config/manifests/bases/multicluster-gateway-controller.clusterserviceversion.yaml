@@ -8,13 +8,7 @@ metadata:
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
-  customresourcedefinitions:
-    owned:
-    - description: ManagedZone is the Schema for the managedzones API
-      displayName: Managed Zone
-      kind: ManagedZone
-      name: managedzones.kuadrant.io
-      version: v1alpha1
+  customresourcedefinitions: {}
   description: multi-cluster gateway controller, manages multi-cluster gateways based
     on gateway api and policy attachment
   displayName: Multicluster-gateway-controller

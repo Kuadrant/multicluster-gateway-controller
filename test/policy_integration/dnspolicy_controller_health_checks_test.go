@@ -27,7 +27,6 @@ import (
 var _ = Describe("DNSPolicy Health Checks", func() {
 
 	var gatewayClass *gatewayapiv1.GatewayClass
-	var managedZone *v1alpha2.ManagedZone
 	var testNamespace string
 	var dnsPolicyBuilder *testutil.DNSPolicyBuilder
 	var gateway *gatewayapiv1.Gateway
@@ -39,15 +38,6 @@ var _ = Describe("DNSPolicy Health Checks", func() {
 
 		gatewayClass = testutil.NewTestGatewayClass("foo", "default", "kuadrant.io/bar")
 		Expect(k8sClient.Create(ctx, gatewayClass)).To(Succeed())
-
-		managedZone = testutil.NewManagedZoneBuilder("mz-example-com", testNamespace).
-			WithID("1234").
-			WithDomainName("example.com").
-			WithDescription("example.com").
-			WithProviderSecret("secretname").
-			ManagedZone
-
-		Expect(k8sClient.Create(ctx, managedZone)).To(Succeed())
 
 		gateway = testutil.NewGatewayBuilder(TestGatewayName, gatewayClass.Name, testNamespace).
 			WithHTTPListener(TestListenerNameOne, TestHostOne).
@@ -111,7 +101,7 @@ var _ = Describe("DNSPolicy Health Checks", func() {
 		}, TestTimeoutMedium, TestRetryIntervalMedium).ShouldNot(HaveOccurred())
 
 		dnsPolicyBuilder = testutil.NewDNSPolicyBuilder("test-dns-policy", testNamespace).
-			WithProviderManagedZone(managedZone.Name).
+			WithProviderSecret(TestProviderSecretName).
 			WithTargetGateway(TestGatewayName)
 
 		lbHash = dns.ToBase36hash(fmt.Sprintf("%s-%s", gateway.Name, gateway.Namespace))
@@ -128,10 +118,6 @@ var _ = Describe("DNSPolicy Health Checks", func() {
 			err := k8sClient.Delete(ctx, dnsPolicy)
 			Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
 
-		}
-		if managedZone != nil {
-			err := k8sClient.Delete(ctx, managedZone)
-			Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
 		}
 		if gatewayClass != nil {
 			err := k8sClient.Delete(ctx, gatewayClass)
@@ -172,7 +158,7 @@ var _ = Describe("DNSPolicy Health Checks", func() {
 								MatchFields(IgnoreExtras, Fields{
 									"ObjectMeta": HaveField("Name", recordName),
 									"Spec": MatchFields(IgnoreExtras, Fields{
-										"ZoneID":      Equal(managedZone.Spec.ID),
+										"ZoneID":      PointTo(Equal(TestZoneID)),
 										"ProviderRef": Equal(dnsPolicy.Spec.ProviderRef),
 										"Endpoints":   HaveLen(6),
 									}),
@@ -180,7 +166,7 @@ var _ = Describe("DNSPolicy Health Checks", func() {
 								MatchFields(IgnoreExtras, Fields{
 									"ObjectMeta": HaveField("Name", wildcardRecordName),
 									"Spec": MatchFields(IgnoreExtras, Fields{
-										"ZoneID":      Equal(managedZone.Spec.ID),
+										"ZoneID":      PointTo(Equal(TestZoneID)),
 										"ProviderRef": Equal(dnsPolicy.Spec.ProviderRef),
 										"Endpoints":   HaveLen(6),
 									}),

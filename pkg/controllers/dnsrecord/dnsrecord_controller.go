@@ -31,7 +31,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha2"
@@ -129,18 +128,10 @@ func (r *DNSRecordReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 func (r *DNSRecordReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha2.DNSRecord{}).
-		WithEventFilter(predicate.NewPredicateFuncs(func(object client.Object) bool {
-			dnsRecord, ok := object.(*v1alpha2.DNSRecord)
-			if ok {
-				return dnsRecord.GetProviderRef().Kind != v1alpha2.ProviderKindNone
-			}
-			return true
-		})).
 		Complete(r)
 }
 
-// deleteRecord deletes record(s) in the DNSPRovider(i.e. route53) configured by the ManagedZone assigned to this
-// DNSRecord (dnsRecord.Status.ParentManagedZone).
+// deleteRecord deletes record(s) in the DNSProvider(i.e. route53).
 func (r *DNSRecordReconciler) deleteRecord(ctx context.Context, dnsRecord *v1alpha2.DNSRecord) error {
 	dnsProvider, err := r.DNSProvider(ctx, dnsRecord)
 	if err != nil {
@@ -163,8 +154,7 @@ func (r *DNSRecordReconciler) deleteRecord(ctx context.Context, dnsRecord *v1alp
 	return nil
 }
 
-// publishRecord publishes record(s) to the DNSPRovider(i.e. route53) configured by the ManagedZone assigned to this
-// DNSRecord (dnsRecord.Status.ParentManagedZone).
+// publishRecord publishes record(s) to the DNSProvider(i.e. route53).
 func (r *DNSRecordReconciler) publishRecord(ctx context.Context, dnsRecord *v1alpha2.DNSRecord) error {
 	if dnsRecord.Generation == dnsRecord.Status.ObservedGeneration {
 		log.Log.V(3).Info("Skipping zone to which the DNS dnsRecord is already published", "dnsRecord", dnsRecord.Name, "zone", dnsRecord.Spec.ZoneID)

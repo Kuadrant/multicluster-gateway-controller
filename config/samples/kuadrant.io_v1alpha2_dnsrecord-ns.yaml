@@ -4,8 +4,7 @@ metadata:
   name: dnsrecord-ns
 spec:
   providerRef:
-    name: managedzone-sample
-    kind: ManagedZone
+    name: my-provider-creds
   endpoints:
     - dnsName: testns.hcpapps.net
       recordTTL: 172800

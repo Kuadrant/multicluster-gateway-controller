@@ -46,12 +46,6 @@ type Provider interface {
 	// List all zones
 	ListZones() (ZoneList, error)
 
-	// Ensure will create or update a managed zone, returns an array of NameServers for that zone.
-	EnsureManagedZone(managedZone *v1alpha2.ManagedZone) (ManagedZoneOutput, error)
-
-	// Delete will delete a managed zone.
-	DeleteManagedZone(managedZone *v1alpha2.ManagedZone) error
-
 	// Get an instance of HealthCheckReconciler for this provider
 	HealthCheckReconciler() HealthCheckReconciler
 
@@ -61,12 +55,6 @@ type Provider interface {
 type ProviderSpecificLabels struct {
 	Weight        string
 	HealthCheckID string
-}
-
-type ManagedZoneOutput struct {
-	ID          string
-	NameServers []*string
-	RecordCount int64
 }
 
 type Zone struct {
@@ -100,7 +88,9 @@ func ConfigFromJSON(jsonKey []byte) (*ProviderConfig, error) {
 
 var _ Provider = &FakeProvider{}
 
-type FakeProvider struct{}
+type FakeProvider struct {
+	Zones []*Zone
+}
 
 func (*FakeProvider) Ensure(_ *v1alpha2.DNSRecord) error {
 	return nil
@@ -108,17 +98,11 @@ func (*FakeProvider) Ensure(_ *v1alpha2.DNSRecord) error {
 func (*FakeProvider) Delete(_ *v1alpha2.DNSRecord) error {
 	return nil
 }
-func (*FakeProvider) ListZones() (ZoneList, error) {
-	return ZoneList{}, nil
-}
-func (*FakeProvider) EnsureManagedZone(mz *v1alpha2.ManagedZone) (ManagedZoneOutput, error) {
-	return ManagedZoneOutput{
-		ID:          *mz.Spec.ID,
-		NameServers: nil,
-		RecordCount: 0,
+func (p *FakeProvider) ListZones() (ZoneList, error) {
+	return ZoneList{
+		Items: p.Zones,
 	}, nil
 }
-func (*FakeProvider) DeleteManagedZone(_ *v1alpha2.ManagedZone) error { return nil }
 
 func (*FakeProvider) HealthCheckReconciler() HealthCheckReconciler {
 	return &FakeHealthCheckReconciler{}
