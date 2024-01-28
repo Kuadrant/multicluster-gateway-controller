@@ -47,11 +47,6 @@ type Provider interface {
 
 	// Delete will delete a managed zone.
 	DeleteManagedZone(managedZone *v1alpha1.ManagedZone) error
-
-	// Get an instance of HealthCheckReconciler for this provider
-	HealthCheckReconciler() HealthCheckReconciler
-
-	ProviderSpecific() ProviderSpecificLabels
 }
 
 type ProviderSpecificLabels struct {
@@ -79,16 +74,6 @@ func (*FakeProvider) EnsureManagedZone(managedZone *v1alpha1.ManagedZone) (Manag
 	return ManagedZoneOutput{}, nil
 }
 func (*FakeProvider) DeleteManagedZone(managedZone *v1alpha1.ManagedZone) error { return nil }
-
-func (*FakeProvider) HealthCheckReconciler() HealthCheckReconciler {
-	return &FakeHealthCheckReconciler{}
-}
-func (*FakeProvider) ProviderSpecific() ProviderSpecificLabels {
-	return ProviderSpecificLabels{
-		Weight:        "weight",
-		HealthCheckID: "fake/health-check-id",
-	}
-}
 
 // SanitizeError removes request specific data from error messages in order to make them consistent across multiple similar requests to the provider.  e.g AWS SDK Request ids `request id: 051c860b-9b30-4c19-be1a-1280c3e9fdc4`
 func SanitizeError(err error) error {

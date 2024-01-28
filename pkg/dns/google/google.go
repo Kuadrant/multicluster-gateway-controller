@@ -250,11 +250,6 @@ func (g *GoogleDNSProvider) Delete(record *v1alpha1.DNSRecord, managedZone *v1al
 	return g.updateRecord(record, managedZone.Status.ID, deleteAction)
 }
 
-func (g *GoogleDNSProvider) HealthCheckReconciler() dns.HealthCheckReconciler {
-	// This can be ignored and likely removed as part of the provider-agnostic health check work
-	return &dns.FakeHealthCheckReconciler{}
-}
-
 func (g *GoogleDNSProvider) ProviderSpecific() dns.ProviderSpecificLabels {
 	return dns.ProviderSpecificLabels{}
 }
