@@ -1,6 +1,6 @@
 //go:build unit
 
-package dns
+package provider
 
 import (
 	"errors"

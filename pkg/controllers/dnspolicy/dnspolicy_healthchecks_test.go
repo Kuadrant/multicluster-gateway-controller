@@ -11,13 +11,13 @@ import (
 	controllerruntime "sigs.k8s.io/controller-runtime"
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	"github.com/kuadrant/kuadrant-operator/pkg/common"
+	kuadrantcommon "github.com/kuadrant/kuadrant-operator/pkg/common"
 	"github.com/kuadrant/kuadrant-operator/pkg/reconcilers"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/common"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/utils"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/provider"
 	testutil "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 )
 
@@ -31,13 +31,13 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 
 	type fields struct {
 		TargetRefReconciler reconcilers.TargetRefReconciler
-		DNSProvider         dns.DNSProviderFactory
+		ProviderFactory     provider.Factory
 		dnsHelper           dnsHelper
 		Placer              gateway.GatewayPlacer
 	}
 	type args struct {
 		ctx       context.Context
-		gw        common.GatewayWrapper
+		gw        kuadrantcommon.GatewayWrapper
 		dnsPolicy *v1alpha1.DNSPolicy
 	}
 	tests := []struct {
@@ -50,13 +50,13 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 			name: "expected probes not nil when all values specified in the check",
 			fields: fields{
 				TargetRefReconciler: reconcilers.TargetRefReconciler{},
-				DNSProvider:         nil,
+				ProviderFactory:     nil,
 				dnsHelper:           dnsHelper{},
 				Placer:              nil,
 			},
 			args: args{
 				ctx: nil,
-				gw: common.GatewayWrapper{
+				gw: kuadrantcommon.GatewayWrapper{
 					Gateway: &gatewayapiv1.Gateway{
 						ObjectMeta: controllerruntime.ObjectMeta{
 							Name:      "testgateway",
@@ -73,7 +73,7 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 						Status: gatewayapiv1.GatewayStatus{
 							Addresses: []gatewayapiv1.GatewayStatusAddress{
 								{
-									Type:  testutil.Pointer(utils.MultiClusterIPAddressType),
+									Type:  testutil.Pointer(common.MultiClusterIPAddressType),
 									Value: "clusterName/172.31.200.0",
 								},
 							},
@@ -139,13 +139,13 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 			name: "expected probes not nil when some values not specified in the check",
 			fields: fields{
 				TargetRefReconciler: reconcilers.TargetRefReconciler{},
-				DNSProvider:         nil,
+				ProviderFactory:     nil,
 				dnsHelper:           dnsHelper{},
 				Placer:              nil,
 			},
 			args: args{
 				ctx: nil,
-				gw: common.GatewayWrapper{
+				gw: kuadrantcommon.GatewayWrapper{
 					Gateway: &gatewayapiv1.Gateway{
 						ObjectMeta: controllerruntime.ObjectMeta{
 							Name:      "testgateway",
@@ -164,7 +164,7 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 						Status: gatewayapiv1.GatewayStatus{
 							Addresses: []gatewayapiv1.GatewayStatusAddress{
 								{
-									Type:  testutil.Pointer(utils.MultiClusterIPAddressType),
+									Type:  testutil.Pointer(common.MultiClusterIPAddressType),
 									Value: "clusterName/172.31.200.0",
 								},
 							},
@@ -211,13 +211,13 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 			name: "no probes when listener has a wildcard domain",
 			fields: fields{
 				TargetRefReconciler: reconcilers.TargetRefReconciler{},
-				DNSProvider:         nil,
+				ProviderFactory:     nil,
 				dnsHelper:           dnsHelper{},
 				Placer:              nil,
 			},
 			args: args{
 				ctx: nil,
-				gw: common.GatewayWrapper{
+				gw: kuadrantcommon.GatewayWrapper{
 					Gateway: &gatewayapiv1.Gateway{
 						Spec: gatewayapiv1.GatewaySpec{
 							Listeners: []gatewayapiv1.Listener{
@@ -248,13 +248,13 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 			name: "expected probes when status.address.value is an IP address",
 			fields: fields{
 				TargetRefReconciler: reconcilers.TargetRefReconciler{},
-				DNSProvider:         nil,
+				ProviderFactory:     nil,
 				dnsHelper:           dnsHelper{},
 				Placer:              nil,
 			},
 			args: args{
 				ctx: nil,
-				gw: common.GatewayWrapper{
+				gw: kuadrantcommon.GatewayWrapper{
 					Gateway: &gatewayapiv1.Gateway{
 						ObjectMeta: controllerruntime.ObjectMeta{
 							Name:      "testgateway",
@@ -320,13 +320,13 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 			name: "no probes when address.Value doesn't contain /",
 			fields: fields{
 				TargetRefReconciler: reconcilers.TargetRefReconciler{},
-				DNSProvider:         nil,
+				ProviderFactory:     nil,
 				dnsHelper:           dnsHelper{},
 				Placer:              nil,
 			},
 			args: args{
 				ctx: nil,
-				gw: common.GatewayWrapper{
+				gw: kuadrantcommon.GatewayWrapper{
 					Gateway: &gatewayapiv1.Gateway{
 						Status: gatewayapiv1.GatewayStatus{
 							Addresses: []gatewayapiv1.GatewayStatusAddress{
@@ -350,13 +350,13 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 			name: "no probes when no listeners defined",
 			fields: fields{
 				TargetRefReconciler: reconcilers.TargetRefReconciler{},
-				DNSProvider:         nil,
+				ProviderFactory:     nil,
 				dnsHelper:           dnsHelper{},
 				Placer:              nil,
 			},
 			args: args{
 				ctx: nil,
-				gw: common.GatewayWrapper{
+				gw: kuadrantcommon.GatewayWrapper{
 					Gateway: &gatewayapiv1.Gateway{
 						Status: gatewayapiv1.GatewayStatus{
 							Addresses: []gatewayapiv1.GatewayStatusAddress{
@@ -380,13 +380,13 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 			name: "no probes when no address defined",
 			fields: fields{
 				TargetRefReconciler: reconcilers.TargetRefReconciler{},
-				DNSProvider:         nil,
+				ProviderFactory:     nil,
 				dnsHelper:           dnsHelper{},
 				Placer:              nil,
 			},
 			args: args{
 				ctx: nil,
-				gw: common.GatewayWrapper{
+				gw: kuadrantcommon.GatewayWrapper{
 					Gateway: &gatewayapiv1.Gateway{
 						Status: gatewayapiv1.GatewayStatus{},
 					},
@@ -412,7 +412,7 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			r := &DNSPolicyReconciler{
 				TargetRefReconciler: tt.fields.TargetRefReconciler,
-				DNSProvider:         tt.fields.DNSProvider,
+				ProviderFactory:     tt.fields.ProviderFactory,
 				dnsHelper:           tt.fields.dnsHelper,
 			}
 			got := r.expectedHealthCheckProbesForGateway(tt.args.ctx, tt.args.gw, tt.args.dnsPolicy)

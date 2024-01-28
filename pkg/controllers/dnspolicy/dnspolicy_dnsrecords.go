@@ -14,8 +14,7 @@ import (
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/utils"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/common"
 )
 
 func (r *DNSPolicyReconciler) reconcileDNSRecords(ctx context.Context, dnsPolicy *v1alpha1.DNSPolicy, gwDiffObj *reconcilers.GatewayDiff) error {
@@ -42,7 +41,7 @@ func (r *DNSPolicyReconciler) reconcileDNSRecords(ctx context.Context, dnsPolicy
 func (r *DNSPolicyReconciler) reconcileGatewayDNSRecords(ctx context.Context, gw *gatewayapiv1.Gateway, dnsPolicy *v1alpha1.DNSPolicy) error {
 	log := crlog.FromContext(ctx)
 
-	gatewayWrapper := utils.NewGatewayWrapper(gw)
+	gatewayWrapper := common.NewGatewayWrapper(gw)
 	if err := gatewayWrapper.Validate(); err != nil {
 		return err
 	}
@@ -67,7 +66,7 @@ func (r *DNSPolicyReconciler) reconcileGatewayDNSRecords(ctx context.Context, gw
 			continue
 		}
 
-		listenerGateways := slice.Filter(clusterGateways, func(cgw utils.ClusterGateway) bool {
+		listenerGateways := slice.Filter(clusterGateways, func(cgw common.ClusterGateway) bool {
 			hasAttachedRoute := false
 			for _, statusListener := range cgw.Status.Listeners {
 				if string(statusListener.Name) == string(listener.Name) {
@@ -97,7 +96,7 @@ func (r *DNSPolicyReconciler) reconcileGatewayDNSRecords(ctx context.Context, gw
 			}
 		}
 
-		mcgTarget, err := dns.NewMultiClusterGatewayTarget(gatewayWrapper.Gateway, listenerGateways, dnsPolicy.Spec.LoadBalancing)
+		mcgTarget, err := common.NewMultiClusterGatewayTarget(gatewayWrapper.Gateway, listenerGateways, dnsPolicy.Spec.LoadBalancing)
 		if err != nil {
 			return fmt.Errorf("failed to create multi cluster gateway target for listener %s : %s ", listener.Name, err)
 		}

@@ -109,30 +109,6 @@ func (c *InstrumentedRoute53) DeleteHostedZone(input *route53.DeleteHostedZoneIn
 	return
 }
 
-func (c *InstrumentedRoute53) GetHealthCheckWithContext(ctx aws.Context, input *route53.GetHealthCheckInput, opts ...request.Option) (output *route53.GetHealthCheckOutput, err error) {
-	observe("GetHealthCheckWithContext", func() error {
-		output, err = c.route53.GetHealthCheckWithContext(ctx, input, opts...)
-		return err
-	})
-	return
-}
-
-func (c *InstrumentedRoute53) UpdateHealthCheckWithContext(ctx aws.Context, input *route53.UpdateHealthCheckInput, opts ...request.Option) (output *route53.UpdateHealthCheckOutput, err error) {
-	observe("UpdateHealthCheckWithContext", func() error {
-		output, err = c.route53.UpdateHealthCheckWithContext(ctx, input, opts...)
-		return err
-	})
-	return
-}
-
-func (c *InstrumentedRoute53) DeleteHealthCheckWithContext(ctx aws.Context, input *route53.DeleteHealthCheckInput, opts ...request.Option) (output *route53.DeleteHealthCheckOutput, err error) {
-	observe("DeleteHealthCheckWithContext", func() error {
-		output, err = c.route53.DeleteHealthCheckWithContext(ctx, input, opts...)
-		return err
-	})
-	return
-}
-
 func (c *InstrumentedRoute53) ChangeTagsForResourceWithContext(ctx aws.Context, input *route53.ChangeTagsForResourceInput, opts ...request.Option) (output *route53.ChangeTagsForResourceOutput, err error) {
 	observe("ChangeTagsForResourceWithContext", func() error {
 		output, err = c.route53.ChangeTagsForResourceWithContext(ctx, input, opts...)

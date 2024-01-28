@@ -18,23 +18,26 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	"github.com/kuadrant/kuadrant-operator/pkg/common"
+	kuadrantcommon "github.com/kuadrant/kuadrant-operator/pkg/common"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/common"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/provider"
 )
 
 const (
 	LabelGatewayReference  = "kuadrant.io/gateway"
 	LabelGatewayNSRef      = "kuadrant.io/gateway-namespace"
 	LabelListenerReference = "kuadrant.io/listener-name"
+
+	DefaultTTL      = 60
+	DefaultCnameTTL = 300
 )
 
 var (
 	ErrUnknownRoutingStrategy = fmt.Errorf("unknown routing strategy")
 	ErrNoManagedZoneForHost   = fmt.Errorf("no managed zone for host")
-	ErrAlreadyAssigned        = fmt.Errorf("managed host already assigned")
 )
 
 type dnsHelper struct {
@@ -80,14 +83,14 @@ func findMatchingManagedZone(originalHost, host string, zones []v1alpha1.Managed
 }
 
 func commonDNSRecordLabels(gwKey, apKey client.ObjectKey) map[string]string {
-	common := map[string]string{}
+	commonLabels := map[string]string{}
 	for k, v := range policyDNSRecordLabels(apKey) {
-		common[k] = v
+		commonLabels[k] = v
 	}
 	for k, v := range gatewayDNSRecordLabels(gwKey) {
-		common[k] = v
+		commonLabels[k] = v
 	}
-	return common
+	return commonLabels
 }
 
 func policyDNSRecordLabels(apKey client.ObjectKey) map[string]string {
@@ -135,7 +138,7 @@ func (dh *dnsHelper) getDNSRecordForListener(ctx context.Context, listener gatew
 	return dnsRecord, nil
 }
 
-func withGatewayListener[T metav1.Object](gateway common.GatewayWrapper, listener gatewayapiv1.Listener, obj T) T {
+func withGatewayListener[T metav1.Object](gateway kuadrantcommon.GatewayWrapper, listener gatewayapiv1.Listener, obj T) T {
 	if obj.GetAnnotations() == nil {
 		obj.SetAnnotations(map[string]string{})
 	}
@@ -146,7 +149,7 @@ func withGatewayListener[T metav1.Object](gateway common.GatewayWrapper, listene
 	return obj
 }
 
-func (dh *dnsHelper) setEndpoints(ctx context.Context, mcgTarget *dns.MultiClusterGatewayTarget, dnsRecord *v1alpha1.DNSRecord, listener gatewayapiv1.Listener, strategy v1alpha1.RoutingStrategy) error {
+func (dh *dnsHelper) setEndpoints(ctx context.Context, mcgTarget *common.MultiClusterGatewayTarget, dnsRecord *v1alpha1.DNSRecord, listener gatewayapiv1.Listener, strategy v1alpha1.RoutingStrategy) error {
 	old := dnsRecord.DeepCopy()
 	gwListenerHost := string(*listener.Hostname)
 	var endpoints []*v1alpha1.Endpoint
@@ -181,7 +184,7 @@ func (dh *dnsHelper) setEndpoints(ctx context.Context, mcgTarget *dns.MultiClust
 
 // getSimpleEndpoints returns the endpoints for the given MultiClusterGatewayTarget using the simple routing strategy
 
-func (dh *dnsHelper) getSimpleEndpoints(mcgTarget *dns.MultiClusterGatewayTarget, hostname string, currentEndpoints map[string]*v1alpha1.Endpoint) []*v1alpha1.Endpoint {
+func (dh *dnsHelper) getSimpleEndpoints(mcgTarget *common.MultiClusterGatewayTarget, hostname string, currentEndpoints map[string]*v1alpha1.Endpoint) []*v1alpha1.Endpoint {
 
 	var (
 		endpoints  []*v1alpha1.Endpoint
@@ -200,13 +203,13 @@ func (dh *dnsHelper) getSimpleEndpoints(mcgTarget *dns.MultiClusterGatewayTarget
 	}
 
 	if len(ipValues) > 0 {
-		endpoint := createOrUpdateEndpoint(hostname, ipValues, v1alpha1.ARecordType, "", dns.DefaultTTL, currentEndpoints)
+		endpoint := createOrUpdateEndpoint(hostname, ipValues, v1alpha1.ARecordType, "", DefaultTTL, currentEndpoints)
 		endpoints = append(endpoints, endpoint)
 	}
 
 	//ToDO This could possibly result in an invalid record since you can't have multiple CNAME target values https://github.com/Kuadrant/multicluster-gateway-controller/issues/663
 	if len(hostValues) > 0 {
-		endpoint := createOrUpdateEndpoint(hostname, hostValues, v1alpha1.CNAMERecordType, "", dns.DefaultTTL, currentEndpoints)
+		endpoint := createOrUpdateEndpoint(hostname, hostValues, v1alpha1.CNAMERecordType, "", DefaultTTL, currentEndpoints)
 		endpoints = append(endpoints, endpoint)
 	}
 
@@ -252,7 +255,7 @@ func (dh *dnsHelper) getSimpleEndpoints(mcgTarget *dns.MultiClusterGatewayTarget
 // ab2.lb-a1b2.shop.example.com A 192.22.2.3
 // ab3.lb-a1b2.shop.example.com A 192.22.2.4
 
-func (dh *dnsHelper) getLoadBalancedEndpoints(mcgTarget *dns.MultiClusterGatewayTarget, hostname string, currentEndpoints map[string]*v1alpha1.Endpoint) []*v1alpha1.Endpoint {
+func (dh *dnsHelper) getLoadBalancedEndpoints(mcgTarget *common.MultiClusterGatewayTarget, hostname string, currentEndpoints map[string]*v1alpha1.Endpoint) []*v1alpha1.Endpoint {
 
 	cnameHost := hostname
 	if isWildCardHost(hostname) {
@@ -283,14 +286,14 @@ func (dh *dnsHelper) getLoadBalancedEndpoints(mcgTarget *dns.MultiClusterGateway
 
 			if len(ipValues) > 0 {
 				clusterLbName := strings.ToLower(fmt.Sprintf("%s.%s", cgwTarget.GetShortCode(), lbName))
-				endpoint = createOrUpdateEndpoint(clusterLbName, ipValues, v1alpha1.ARecordType, "", dns.DefaultTTL, currentEndpoints)
+				endpoint = createOrUpdateEndpoint(clusterLbName, ipValues, v1alpha1.ARecordType, "", DefaultTTL, currentEndpoints)
 				clusterEndpoints = append(clusterEndpoints, endpoint)
 				hostValues = append(hostValues, clusterLbName)
 			}
 
 			for _, hostValue := range hostValues {
-				endpoint = createOrUpdateEndpoint(geoLbName, []string{hostValue}, v1alpha1.CNAMERecordType, hostValue, dns.DefaultTTL, currentEndpoints)
-				endpoint.SetProviderSpecific(dns.ProviderSpecificWeight, strconv.Itoa(cgwTarget.GetWeight()))
+				endpoint = createOrUpdateEndpoint(geoLbName, []string{hostValue}, v1alpha1.CNAMERecordType, hostValue, DefaultTTL, currentEndpoints)
+				endpoint.SetProviderSpecific(provider.ProviderSpecificWeight, strconv.Itoa(cgwTarget.GetWeight()))
 				clusterEndpoints = append(clusterEndpoints, endpoint)
 			}
 		}
@@ -300,7 +303,7 @@ func (dh *dnsHelper) getLoadBalancedEndpoints(mcgTarget *dns.MultiClusterGateway
 		endpoints = append(endpoints, clusterEndpoints...)
 
 		//Create lbName CNAME (lb-a1b2.shop.example.com -> default.lb-a1b2.shop.example.com)
-		endpoint = createOrUpdateEndpoint(lbName, []string{geoLbName}, v1alpha1.CNAMERecordType, string(geoCode), dns.DefaultCnameTTL, currentEndpoints)
+		endpoint = createOrUpdateEndpoint(lbName, []string{geoLbName}, v1alpha1.CNAMERecordType, string(geoCode), DefaultCnameTTL, currentEndpoints)
 
 		//Deal with the default geo endpoint first
 		if geoCode.IsDefaultCode() {
@@ -309,20 +312,20 @@ func (dh *dnsHelper) getLoadBalancedEndpoints(mcgTarget *dns.MultiClusterGateway
 			continue
 		} else if (geoCode == mcgTarget.GetDefaultGeo()) || defaultEndpoint == nil {
 			// Ensure that a `defaultEndpoint` is always set, but the expected default takes precedence
-			defaultEndpoint = createOrUpdateEndpoint(lbName, []string{geoLbName}, v1alpha1.CNAMERecordType, "default", dns.DefaultCnameTTL, currentEndpoints)
+			defaultEndpoint = createOrUpdateEndpoint(lbName, []string{geoLbName}, v1alpha1.CNAMERecordType, "default", DefaultCnameTTL, currentEndpoints)
 		}
 
-		endpoint.SetProviderSpecific(dns.ProviderSpecificGeoCode, string(geoCode))
+		endpoint.SetProviderSpecific(provider.ProviderSpecificGeoCode, string(geoCode))
 
 		endpoints = append(endpoints, endpoint)
 	}
 
 	if len(endpoints) > 0 {
 		// Add the `defaultEndpoint`, this should always be set by this point if `endpoints` isn't empty
-		defaultEndpoint.SetProviderSpecific(dns.ProviderSpecificGeoCode, string(dns.WildcardGeo))
+		defaultEndpoint.SetProviderSpecific(provider.ProviderSpecificGeoCode, string(v1alpha1.WildcardGeo))
 		endpoints = append(endpoints, defaultEndpoint)
 		//Create gwListenerHost CNAME (shop.example.com -> lb-a1b2.shop.example.com)
-		endpoint = createOrUpdateEndpoint(hostname, []string{lbName}, v1alpha1.CNAMERecordType, "", dns.DefaultCnameTTL, currentEndpoints)
+		endpoint = createOrUpdateEndpoint(hostname, []string{lbName}, v1alpha1.CNAMERecordType, "", DefaultCnameTTL, currentEndpoints)
 		endpoints = append(endpoints, endpoint)
 	}
 

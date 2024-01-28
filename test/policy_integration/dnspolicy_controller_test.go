@@ -19,8 +19,8 @@ import (
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/common"
 	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnspolicy"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/utils"
 	testutil "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 )
 
@@ -150,7 +150,7 @@ var _ = Describe("DNSPolicy", func() {
 						Value: TestClusterNameOne + "/" + TestIPAddressOne,
 					},
 					{
-						Type:  testutil.Pointer(utils.MultiClusterIPAddressType),
+						Type:  testutil.Pointer(common.MultiClusterIPAddressType),
 						Value: TestIPAddressTwo,
 					},
 				}
@@ -284,11 +284,11 @@ var _ = Describe("DNSPolicy", func() {
 
 				gateway.Status.Addresses = []gatewayapiv1.GatewayStatusAddress{
 					{
-						Type:  testutil.Pointer(utils.MultiClusterIPAddressType),
+						Type:  testutil.Pointer(common.MultiClusterIPAddressType),
 						Value: TestClusterNameOne + "/" + TestIPAddressOne,
 					},
 					{
-						Type:  testutil.Pointer(utils.MultiClusterIPAddressType),
+						Type:  testutil.Pointer(common.MultiClusterIPAddressType),
 						Value: TestClusterNameTwo + "/" + TestIPAddressTwo,
 					},
 				}

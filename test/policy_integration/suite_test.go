@@ -46,7 +46,8 @@ import (
 	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnspolicy"
 	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/managedzone"
 	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/tlspolicy"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/provider"
+	providerFake "github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/provider/fake"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/health"
 	//+kubebuilder:scaffold:imports
 )
@@ -55,14 +56,29 @@ import (
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
 
 var (
-	cfg             *rest.Config
-	k8sClient       client.Client
-	testEnv         *envtest.Environment
-	ctx             context.Context
-	cancel          context.CancelFunc
-	logger          logr.Logger
-	providerFactory = func(ctx context.Context, managedZone *v1alpha1.ManagedZone) (dns.Provider, error) {
-		return &dns.FakeProvider{}, nil
+	cfg                *rest.Config
+	k8sClient          client.Client
+	testEnv            *envtest.Environment
+	ctx                context.Context
+	cancel             context.CancelFunc
+	logger             logr.Logger
+	dnsProviderFactory = &providerFake.Factory{
+		ProviderForFunc: func(ctx context.Context, pa v1alpha1.ProviderAccessor) (provider.Provider, error) {
+			return &providerFake.Provider{
+				EnsureFunc: func(record *v1alpha1.DNSRecord, zone *v1alpha1.ManagedZone) error {
+					return nil
+				},
+				DeleteFunc: func(record *v1alpha1.DNSRecord, zone *v1alpha1.ManagedZone) error {
+					return nil
+				},
+				EnsureManagedZoneFunc: func(zone *v1alpha1.ManagedZone) (provider.ManagedZoneOutput, error) {
+					return provider.ManagedZoneOutput{}, nil
+				},
+				DeleteManagedZoneFunc: func(zone *v1alpha1.ManagedZone) error {
+					return nil
+				},
+			}, nil
+		},
 	}
 )
 
@@ -159,7 +175,7 @@ var _ = BeforeSuite(func() {
 		TargetRefReconciler: reconcilers.TargetRefReconciler{
 			BaseReconciler: dnsPolicyBaseReconciler,
 		},
-		DNSProvider: providerFactory,
+		ProviderFactory: dnsProviderFactory,
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 
@@ -177,9 +193,9 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 
 	err = (&ManagedZoneReconciler{
-		Client:      k8sManager.GetClient(),
-		Scheme:      k8sManager.GetScheme(),
-		DNSProvider: providerFactory,
+		Client:          k8sManager.GetClient(),
+		Scheme:          k8sManager.GetScheme(),
+		ProviderFactory: dnsProviderFactory,
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 

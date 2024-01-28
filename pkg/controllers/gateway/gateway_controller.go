@@ -51,8 +51,8 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/gracePeriod"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/metadata"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/common"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/policysync"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/utils"
 )
 
 const (
@@ -221,7 +221,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 		for _, address := range addresses {
 			log.V(3).Info("checking address type for mapping", "address.Type", address.Type)
-			addressType, supported := utils.AddressTypeToMultiCluster(address)
+			addressType, supported := common.AddressTypeToMultiCluster(address)
 			if !supported {
 				continue // ignore address type gatewayapiv1.NamedAddressType. Unsupported for multi cluster gateway
 			}

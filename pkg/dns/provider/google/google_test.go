@@ -13,7 +13,7 @@ import (
 	dnsv1 "google.golang.org/api/dns/v1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/provider"
 )
 
 func TestGoogleDNSProvider_toManagedZoneOutput(t *testing.T) {
@@ -61,7 +61,7 @@ func TestGoogleDNSProvider_toManagedZoneOutput(t *testing.T) {
 		name    string
 		fields  fields
 		args    args
-		want    dns.ManagedZoneOutput
+		want    provider.ManagedZoneOutput
 		wantErr bool
 	}{
 
@@ -79,7 +79,7 @@ func TestGoogleDNSProvider_toManagedZoneOutput(t *testing.T) {
 					},
 				},
 			},
-			want: dns.ManagedZoneOutput{
+			want: provider.ManagedZoneOutput{
 				ID: "testname",
 				NameServers: []*string{
 					aws.String("nameserver1"),
@@ -103,7 +103,7 @@ func TestGoogleDNSProvider_toManagedZoneOutput(t *testing.T) {
 					},
 				},
 			},
-			want: dns.ManagedZoneOutput{
+			want: provider.ManagedZoneOutput{
 				ID: "testname",
 				NameServers: []*string{
 					aws.String("nameserver1"),

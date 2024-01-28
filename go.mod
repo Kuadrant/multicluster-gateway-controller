@@ -14,7 +14,6 @@ require (
 	github.com/onsi/gomega v1.27.10
 	github.com/operator-framework/api v0.17.5
 	github.com/prometheus/client_golang v1.17.0
-	github.com/rs/xid v1.4.0
 	golang.org/x/net v0.17.0
 	google.golang.org/api v0.126.0
 	k8s.io/api v0.28.3

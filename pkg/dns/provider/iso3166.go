@@ -1,4 +1,4 @@
-package dns
+package provider
 
 import "github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
 

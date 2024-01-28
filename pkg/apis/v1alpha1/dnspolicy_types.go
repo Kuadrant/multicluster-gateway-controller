@@ -30,6 +30,10 @@ type RoutingStrategy string
 const (
 	SimpleRoutingStrategy       RoutingStrategy = "simple"
 	LoadBalancedRoutingStrategy RoutingStrategy = "loadbalanced"
+
+	DefaultWeight Weight  = 120
+	DefaultGeo    GeoCode = "default"
+	WildcardGeo   GeoCode = "*"
 )
 
 // DNSPolicySpec defines the desired state of DNSPolicy
@@ -79,6 +83,16 @@ type LoadBalancingWeighted struct {
 	DefaultWeight Weight `json:"defaultWeight,omitempty"`
 	// +optional
 	Custom []*CustomWeight `json:"custom,omitempty"`
+}
+
+type GeoCode string
+
+func (gc GeoCode) IsDefaultCode() bool {
+	return gc == DefaultGeo
+}
+
+func (gc GeoCode) IsWildcard() bool {
+	return gc == WildcardGeo
 }
 
 type LoadBalancingGeo struct {
@@ -228,5 +242,3 @@ type DNSRecordRef struct {
 func init() {
 	SchemeBuilder.Register(&DNSPolicy{}, &DNSPolicyList{})
 }
-
-const DefaultWeight Weight = 120

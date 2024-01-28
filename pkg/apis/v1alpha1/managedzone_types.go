@@ -41,12 +41,7 @@ type ManagedZoneSpec struct {
 	// +optional
 	ParentManagedZone *ManagedZoneReference `json:"parentManagedZone,omitempty"`
 	// +required
-	SecretRef *SecretRef `json:"dnsProviderSecretRef"`
-}
-
-type SecretRef struct {
-	//+required
-	Name string `json:"name"`
+	SecretRef ProviderRef `json:"dnsProviderSecretRef"`
 }
 
 // ManagedZoneStatus defines the observed state of a Zone
@@ -87,6 +82,10 @@ type ManagedZone struct {
 
 	Spec   ManagedZoneSpec   `json:"spec,omitempty"`
 	Status ManagedZoneStatus `json:"status,omitempty"`
+}
+
+func (mz *ManagedZone) GetProviderRef() ProviderRef {
+	return mz.Spec.SecretRef
 }
 
 //+kubebuilder:object:root=true
