@@ -35,6 +35,7 @@ import (
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/provider"
 )
 
 type action string
@@ -145,7 +146,7 @@ type GoogleDNSProvider struct {
 	ctx context.Context
 }
 
-var _ dns.Provider = &GoogleDNSProvider{}
+var _ provider.Provider = &GoogleDNSProvider{}
 
 func NewProviderFromSecret(ctx context.Context, s *v1.Secret) (*GoogleDNSProvider, error) {
 
@@ -160,7 +161,7 @@ func NewProviderFromSecret(ctx context.Context, s *v1.Secret) (*GoogleDNSProvide
 
 	var project = string(s.Data["PROJECT_ID"])
 
-	provider := &GoogleDNSProvider{
+	p := &GoogleDNSProvider{
 		logger:                   log.Log.WithName("google-dns").WithValues("project", project),
 		project:                  project,
 		dryRun:                   DryRun,
@@ -172,7 +173,7 @@ func NewProviderFromSecret(ctx context.Context, s *v1.Secret) (*GoogleDNSProvide
 		ctx:                      ctx,
 	}
 
-	return provider, nil
+	return p, nil
 }
 
 // ManagedZones
@@ -181,7 +182,7 @@ func (g *GoogleDNSProvider) DeleteManagedZone(managedZone *v1alpha1.ManagedZone)
 	return g.managedZonesClient.Delete(g.project, managedZone.Status.ID).Do()
 }
 
-func (g *GoogleDNSProvider) EnsureManagedZone(managedZone *v1alpha1.ManagedZone) (dns.ManagedZoneOutput, error) {
+func (g *GoogleDNSProvider) EnsureManagedZone(managedZone *v1alpha1.ManagedZone) (provider.ManagedZoneOutput, error) {
 	var zoneID string
 
 	if managedZone.Spec.ID != "" {
@@ -198,7 +199,7 @@ func (g *GoogleDNSProvider) EnsureManagedZone(managedZone *v1alpha1.ManagedZone)
 	return g.createManagedZone(managedZone)
 }
 
-func (g *GoogleDNSProvider) createManagedZone(managedZone *v1alpha1.ManagedZone) (dns.ManagedZoneOutput, error) {
+func (g *GoogleDNSProvider) createManagedZone(managedZone *v1alpha1.ManagedZone) (provider.ManagedZoneOutput, error) {
 	zoneID := strings.Replace(managedZone.Spec.DomainName, ".", "-", -1)
 	zone := dnsv1.ManagedZone{
 		Name:        zoneID,
@@ -207,21 +208,21 @@ func (g *GoogleDNSProvider) createManagedZone(managedZone *v1alpha1.ManagedZone)
 	}
 	mz, err := g.managedZonesClient.Create(g.project, &zone).Do()
 	if err != nil {
-		return dns.ManagedZoneOutput{}, err
+		return provider.ManagedZoneOutput{}, err
 	}
 	return g.toManagedZoneOutput(mz)
 }
 
-func (g *GoogleDNSProvider) getManagedZone(zoneID string) (dns.ManagedZoneOutput, error) {
+func (g *GoogleDNSProvider) getManagedZone(zoneID string) (provider.ManagedZoneOutput, error) {
 	mz, err := g.managedZonesClient.Get(g.project, zoneID).Do()
 	if err != nil {
-		return dns.ManagedZoneOutput{}, err
+		return provider.ManagedZoneOutput{}, err
 	}
 	return g.toManagedZoneOutput(mz)
 }
 
-func (g *GoogleDNSProvider) toManagedZoneOutput(mz *dnsv1.ManagedZone) (dns.ManagedZoneOutput, error) {
-	var managedZoneOutput dns.ManagedZoneOutput
+func (g *GoogleDNSProvider) toManagedZoneOutput(mz *dnsv1.ManagedZone) (provider.ManagedZoneOutput, error) {
+	var managedZoneOutput provider.ManagedZoneOutput
 
 	zoneID := mz.Name
 	var nameservers []*string
@@ -248,10 +249,6 @@ func (g *GoogleDNSProvider) Ensure(record *v1alpha1.DNSRecord, managedZone *v1al
 
 func (g *GoogleDNSProvider) Delete(record *v1alpha1.DNSRecord, managedZone *v1alpha1.ManagedZone) error {
 	return g.updateRecord(record, managedZone.Status.ID, deleteAction)
-}
-
-func (g *GoogleDNSProvider) ProviderSpecific() dns.ProviderSpecificLabels {
-	return dns.ProviderSpecificLabels{}
 }
 
 func (g *GoogleDNSProvider) updateRecord(dnsRecord *v1alpha1.DNSRecord, zoneID string, action action) error {
@@ -427,8 +424,8 @@ func toResourceRecordSets(allEndpoints []*v1alpha1.Endpoint) []*dnsv1.ResourceRe
 		// and contain the same rrdata (weighted or geo), so we can just get that from the first endpoint in the list.
 		ttl := int64(endpoints[0].RecordTTL)
 		recordType := endpoints[0].RecordType
-		_, weighted := endpoints[0].GetProviderSpecificProperty(dns.ProviderSpecificWeight)
-		_, geoCode := endpoints[0].GetProviderSpecificProperty(dns.ProviderSpecificGeoCode)
+		_, weighted := endpoints[0].GetProviderSpecificProperty(provider.ProviderSpecificWeight)
+		_, geoCode := endpoints[0].GetProviderSpecificProperty(provider.ProviderSpecificGeoCode)
 
 		record := &dnsv1.ResourceRecordSet{
 			Name: ensureTrailingDot(dnsName),
@@ -456,7 +453,7 @@ func toResourceRecordSets(allEndpoints []*v1alpha1.Endpoint) []*dnsv1.ResourceRe
 				record.Rrdatas = targets
 			}
 			if weighted {
-				weightProp, _ := ep.GetProviderSpecificProperty(dns.ProviderSpecificWeight)
+				weightProp, _ := ep.GetProviderSpecificProperty(provider.ProviderSpecificWeight)
 				weight, err := strconv.ParseFloat(weightProp.Value, 64)
 				if err != nil {
 					weight = 0
@@ -468,7 +465,7 @@ func toResourceRecordSets(allEndpoints []*v1alpha1.Endpoint) []*dnsv1.ResourceRe
 				record.RoutingPolicy.Wrr.Items = append(record.RoutingPolicy.Wrr.Items, item)
 			}
 			if geoCode {
-				geoCodeProp, _ := ep.GetProviderSpecificProperty(dns.ProviderSpecificGeoCode)
+				geoCodeProp, _ := ep.GetProviderSpecificProperty(provider.ProviderSpecificGeoCode)
 				geoCodeValue := geoCodeProp.Value
 				targetIsDefaultGroup := strings.HasPrefix(ep.Targets[0], string(dns.DefaultGeo))
 				// GCP doesn't accept * as value for default geolocations like AWS does.

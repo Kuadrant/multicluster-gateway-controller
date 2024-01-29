@@ -16,7 +16,7 @@ import (
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/provider"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/utils"
 	testutil "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 )
@@ -31,7 +31,7 @@ func TestDNSPolicyReconciler_expectedProbesForGateway(t *testing.T) {
 
 	type fields struct {
 		TargetRefReconciler reconcilers.TargetRefReconciler
-		DNSProvider         dns.DNSProviderFactory
+		DNSProvider         provider.DNSProviderFactory
 		dnsHelper           dnsHelper
 		Placer              gateway.GatewayPlacer
 	}

@@ -46,7 +46,7 @@ import (
 	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnspolicy"
 	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/managedzone"
 	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/tlspolicy"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/provider"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/health"
 	//+kubebuilder:scaffold:imports
 )
@@ -61,8 +61,8 @@ var (
 	ctx             context.Context
 	cancel          context.CancelFunc
 	logger          logr.Logger
-	providerFactory = func(ctx context.Context, managedZone *v1alpha1.ManagedZone) (dns.Provider, error) {
-		return &dns.FakeProvider{}, nil
+	providerFactory = func(ctx context.Context, managedZone *v1alpha1.ManagedZone) (provider.Provider, error) {
+		return &provider.FakeProvider{}, nil
 	}
 )
 

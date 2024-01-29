@@ -23,6 +23,7 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/provider"
 )
 
 const (
@@ -290,7 +291,7 @@ func (dh *dnsHelper) getLoadBalancedEndpoints(mcgTarget *dns.MultiClusterGateway
 
 			for _, hostValue := range hostValues {
 				endpoint = createOrUpdateEndpoint(geoLbName, []string{hostValue}, v1alpha1.CNAMERecordType, hostValue, dns.DefaultTTL, currentEndpoints)
-				endpoint.SetProviderSpecific(dns.ProviderSpecificWeight, strconv.Itoa(cgwTarget.GetWeight()))
+				endpoint.SetProviderSpecific(provider.ProviderSpecificWeight, strconv.Itoa(cgwTarget.GetWeight()))
 				clusterEndpoints = append(clusterEndpoints, endpoint)
 			}
 		}
@@ -312,14 +313,14 @@ func (dh *dnsHelper) getLoadBalancedEndpoints(mcgTarget *dns.MultiClusterGateway
 			defaultEndpoint = createOrUpdateEndpoint(lbName, []string{geoLbName}, v1alpha1.CNAMERecordType, "default", dns.DefaultCnameTTL, currentEndpoints)
 		}
 
-		endpoint.SetProviderSpecific(dns.ProviderSpecificGeoCode, string(geoCode))
+		endpoint.SetProviderSpecific(provider.ProviderSpecificGeoCode, string(geoCode))
 
 		endpoints = append(endpoints, endpoint)
 	}
 
 	if len(endpoints) > 0 {
 		// Add the `defaultEndpoint`, this should always be set by this point if `endpoints` isn't empty
-		defaultEndpoint.SetProviderSpecific(dns.ProviderSpecificGeoCode, string(dns.WildcardGeo))
+		defaultEndpoint.SetProviderSpecific(provider.ProviderSpecificGeoCode, string(dns.WildcardGeo))
 		endpoints = append(endpoints, defaultEndpoint)
 		//Create gwListenerHost CNAME (shop.example.com -> lb-a1b2.shop.example.com)
 		endpoint = createOrUpdateEndpoint(hostname, []string{lbName}, v1alpha1.CNAMERecordType, "", dns.DefaultCnameTTL, currentEndpoints)

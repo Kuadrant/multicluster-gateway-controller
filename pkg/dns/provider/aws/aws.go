@@ -33,6 +33,7 @@ import (
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/provider"
 )
 
 const (
@@ -48,7 +49,7 @@ type Route53DNSProvider struct {
 	logger logr.Logger
 }
 
-var _ dns.Provider = &Route53DNSProvider{}
+var _ provider.Provider = &Route53DNSProvider{}
 
 func NewProviderFromSecret(s *v1.Secret) (*Route53DNSProvider, error) {
 
@@ -97,7 +98,7 @@ func (p *Route53DNSProvider) Delete(record *v1alpha1.DNSRecord, managedZone *v1a
 	return p.change(record, managedZone, deleteAction)
 }
 
-func (p *Route53DNSProvider) EnsureManagedZone(zone *v1alpha1.ManagedZone) (dns.ManagedZoneOutput, error) {
+func (p *Route53DNSProvider) EnsureManagedZone(zone *v1alpha1.ManagedZone) (provider.ManagedZoneOutput, error) {
 	var zoneID string
 	if zone.Spec.ID != "" {
 		zoneID = zone.Spec.ID
@@ -105,7 +106,7 @@ func (p *Route53DNSProvider) EnsureManagedZone(zone *v1alpha1.ManagedZone) (dns.
 		zoneID = zone.Status.ID
 	}
 
-	var managedZoneOutput dns.ManagedZoneOutput
+	var managedZoneOutput provider.ManagedZoneOutput
 
 	if zoneID != "" {
 		getResp, err := p.client.GetHostedZone(&route53.GetHostedZoneInput{
@@ -163,13 +164,6 @@ func (p *Route53DNSProvider) DeleteManagedZone(zone *v1alpha1.ManagedZone) error
 		return err
 	}
 	return nil
-}
-
-func (*Route53DNSProvider) ProviderSpecific() dns.ProviderSpecificLabels {
-	return dns.ProviderSpecificLabels{
-		Weight:        dns.ProviderSpecificWeight,
-		HealthCheckID: ProviderSpecificHealthCheckID,
-	}
 }
 
 func (p *Route53DNSProvider) change(record *v1alpha1.DNSRecord, managedZone *v1alpha1.ManagedZone, action action) error {
@@ -264,10 +258,10 @@ func (p *Route53DNSProvider) changeForEndpoint(endpoint *v1alpha1.Endpoint, acti
 	if endpoint.SetIdentifier != "" {
 		resourceRecordSet.SetIdentifier = aws.String(endpoint.SetIdentifier)
 	}
-	if prop, ok := endpoint.GetProviderSpecificProperty(dns.ProviderSpecificWeight); ok {
+	if prop, ok := endpoint.GetProviderSpecificProperty(provider.ProviderSpecificWeight); ok {
 		weight, err := strconv.ParseInt(prop.Value, 10, 64)
 		if err != nil {
-			p.logger.Error(err, "Failed parsing value, using weight of 0", "weight", dns.ProviderSpecificWeight, "value", prop.Value)
+			p.logger.Error(err, "Failed parsing value, using weight of 0", "weight", provider.ProviderSpecificWeight, "value", prop.Value)
 			weight = 0
 		}
 		resourceRecordSet.Weight = aws.Int64(weight)
@@ -285,7 +279,7 @@ func (p *Route53DNSProvider) changeForEndpoint(endpoint *v1alpha1.Endpoint, acti
 	var geolocation = &route53.GeoLocation{}
 	useGeolocation := false
 
-	if prop, ok := endpoint.GetProviderSpecificProperty(dns.ProviderSpecificGeoCode); ok {
+	if prop, ok := endpoint.GetProviderSpecificProperty(provider.ProviderSpecificGeoCode); ok {
 		if dns.IsISO3166Alpha2Code(prop.Value) || dns.GeoCode(prop.Value).IsWildcard() {
 			geolocation.CountryCode = aws.String(prop.Value)
 		} else {

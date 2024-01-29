@@ -34,7 +34,7 @@ import (
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/provider"
 )
 
 const (
@@ -47,7 +47,7 @@ var Clock clock.Clock = clock.RealClock{}
 type DNSRecordReconciler struct {
 	client.Client
 	Scheme      *runtime.Scheme
-	DNSProvider dns.DNSProviderFactory
+	DNSProvider provider.DNSProviderFactory
 }
 
 //+kubebuilder:rbac:groups=kuadrant.io,resources=dnsrecords,verbs=get;list;watch;create;update;patch;delete
@@ -103,7 +103,7 @@ func (r *DNSRecordReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	if err != nil {
 		status = metav1.ConditionFalse
 		reason = "ProviderError"
-		message = fmt.Sprintf("The DNS provider failed to ensure the record: %v", dns.SanitizeError(err))
+		message = fmt.Sprintf("The DNS provider failed to ensure the record: %v", provider.SanitizeError(err))
 	} else {
 		dnsRecord.Status.ObservedGeneration = dnsRecord.Generation
 		dnsRecord.Status.Endpoints = dnsRecord.Spec.Endpoints
