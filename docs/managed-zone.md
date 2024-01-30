@@ -71,7 +71,7 @@ EOF
 #### dnsProviderSecretRef
 
 This is a reference to secret containing the credentials and other configuration for accessing your dns provider
-[dnsProvider](/docs/dnspolicy/dns-provider.md)
+[dnsProvider](./dnspolicy/dns-provider.md)
 
 **Note:** the Secret referenced in the `dnsProviderSecretRef` field must be in the same namespace as the ManagedZone.
 
@@ -83,5 +83,5 @@ At the moment the MGC is given credentials to connect to the DNS provider at sta
 There are plans to make this more customizable and dynamic in the future, [work tracked here](https://github.com/Kuadrant/multicluster-gateway-controller/issues/228).
 
 ## Spec of a ManagedZone
-The ManagedZone is a simple resource with an uncomplicated API, see a sample [here](../config/samples/kuadrant.io_v1alpha1_managedzone.yaml).
+The ManagedZone is a simple resource with an uncomplicated API, see a sample [here](https://github.com/Kuadrant/multicluster-gateway-controller/blob/main/config/samples/kuadrant.io_v1alpha1_managedzone.yaml).
 
