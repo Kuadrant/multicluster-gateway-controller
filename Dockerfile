@@ -23,9 +23,6 @@ COPY pkg/ pkg/
 FROM builder as controller_builder
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o controller cmd/gateway_controller/main.go
 
-FROM builder as addon_builder
-RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o add-on-manager cmd/ocm/main.go
-
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
 FROM gcr.io/distroless/static:nonroot as controller
@@ -34,12 +31,3 @@ COPY --from=controller_builder /workspace/controller .
 USER 65532:65532
 
 ENTRYPOINT ["/controller"]
-
-# Use distroless as minimal base image to package the manager binary
-# Refer to https://github.com/GoogleContainerTools/distroless for more details
-FROM gcr.io/distroless/static:nonroot as add-on-manager
-WORKDIR /
-COPY --from=addon_builder /workspace/add-on-manager .
-USER 65532:65532
-
-ENTRYPOINT ["/add-on-manager"]

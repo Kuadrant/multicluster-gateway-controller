@@ -17,14 +17,24 @@ limitations under the License.
 package main
 
 import (
+	"context"
+	"embed"
 	"flag"
 	"os"
+	"sync"
 
+	certmanv1 "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"open-cluster-management.io/addon-framework/pkg/addonfactory"
+	"open-cluster-management.io/addon-framework/pkg/addonmanager"
+	addonapiv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
 	clusterv1beta2 "open-cluster-management.io/api/cluster/v1beta1"
 	workv1 "open-cluster-management.io/api/work/v1"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/dynamic"
@@ -40,14 +50,28 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	kuadrantv1beta1 "github.com/kuadrant/kuadrant-operator/api/v1beta1"
+
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/ocm/hub"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/placement"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/policysync"
 	//+kubebuilder:scaffold:imports
 )
 
 var (
-	setupLog = ctrl.Log.WithName("setup")
+	metricsAddr          string
+	enableLeaderElection bool
+	probeAddr            string
+	setupLog             = ctrl.Log.WithName("setup")
+
+	//go:embed addon-manager/manifests
+	FS embed.FS
+)
+
+const (
+	addonName = "kuadrant-addon"
 )
 
 func init() {
@@ -61,24 +85,75 @@ func init() {
 	//+kubebuilder:scaffold:scheme
 }
 
-func main() {
-	var metricsAddr string
-	var enableLeaderElection bool
-	var probeAddr string
-	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
-	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
-		"Enable leader election for controller manager. "+
-			"Enabling this will ensure there is only one active controller manager.")
-	opts := zap.Options{
-		Development: true,
+func GetDefaultValues(cluster *clusterv1.ManagedCluster,
+	addon *addonapiv1alpha1.ManagedClusterAddOn) (addonfactory.Values, error) {
+
+	defaultIstioOperator := "istiocontrolplane"
+	defaultIstioOperatorNS := "istio-system"
+	defaultIstioConfigMap := "istio"
+	defaultCatalog := "operatorhubio-catalog"
+	defaultCatalogNS := "olm"
+	defaultChannel := "stable"
+
+	manifestConfig := struct {
+		IstioOperator          string
+		IstioConfigMapName     string
+		IstioOperatorNamespace string
+		ClusterName            string
+		CatalogSource          string
+		CatalogSourceNS        string
+		Channel                string
+	}{
+		ClusterName:            cluster.Name,
+		IstioOperator:          defaultIstioOperator,
+		IstioConfigMapName:     defaultIstioConfigMap,
+		IstioOperatorNamespace: defaultIstioOperatorNS,
+		CatalogSource:          defaultCatalog,
+		CatalogSourceNS:        defaultCatalogNS,
+		Channel:                defaultChannel,
 	}
-	opts.BindFlags(flag.CommandLine)
-	flag.Parse()
 
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+	return addonfactory.StructToValues(manifestConfig), nil
+}
 
-	ctx := ctrl.SetupSignalHandler()
+func startAddonManager(ctx context.Context) {
+	setupLog.Info("starting add-on manager")
+	addonScheme := runtime.NewScheme()
+	utilruntime.Must(operatorsv1alpha1.AddToScheme(addonScheme))
+	utilruntime.Must(operatorsv1.AddToScheme(addonScheme))
+	utilruntime.Must(kuadrantv1beta1.AddToScheme(addonScheme))
+
+	kubeConfig := ctrl.GetConfigOrDie()
+
+	addonMgr, err := addonmanager.New(kubeConfig)
+	if err != nil {
+		setupLog.Error(err, "unable to setup addon manager")
+		os.Exit(1)
+	}
+
+	agentAddon, err := addonfactory.NewAgentAddonFactory(addonName, FS, "addon-manager/manifests").
+		WithAgentHealthProber(hub.AddonHealthProber()).
+		WithScheme(addonScheme).
+		WithGetValuesFuncs(GetDefaultValues, addonfactory.GetValuesFromAddonAnnotation).
+		BuildTemplateAgentAddon()
+	if err != nil {
+		setupLog.Error(err, "failed to build agent addon")
+		os.Exit(1)
+	}
+	err = addonMgr.AddAgent(agentAddon)
+	if err != nil {
+		setupLog.Error(err, "failed to add addon agent")
+		os.Exit(1)
+	}
+
+	if err := addonMgr.Start(ctx); err != nil {
+		setupLog.Error(err, "problem running addon manager")
+		os.Exit(1)
+	}
+
+}
+
+func startGatewayController(ctx context.Context) {
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme.Scheme,
 		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
@@ -139,8 +214,35 @@ func main() {
 	}
 
 	setupLog.Info("starting manager")
+
 	if err := mgr.Start(ctx); err != nil {
-		setupLog.Error(err, "problem running manager")
+		setupLog.Error(err, "problem running controller manager")
 		os.Exit(1)
 	}
+
+}
+
+func main() {
+	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
+	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
+	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
+		"Enable leader election for controller manager. "+
+			"Enabling this will ensure there is only one active controller manager.")
+	opts := zap.Options{
+		Development: true,
+	}
+	opts.BindFlags(flag.CommandLine)
+	flag.Parse()
+
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+
+	ctx := ctrl.SetupSignalHandler()
+
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+	go startAddonManager(ctx)
+	go startGatewayController(ctx)
+	wg.Wait()
+
+	<-ctx.Done()
 }
