@@ -9,11 +9,11 @@ We will start with a hub cluster and 2 workload clusters and highlight the autom
 
 ## Requirements
 
-- Complete the [Getting Started Guide](https://docs.kuadrant.io/getting-started/).
+- Complete the [Getting Started - Multi Cluster Guide](https://docs.kuadrant.io/getting-started-multi-cluster/).
 
 ## Initial Setup
 
-In this walkthrough, we'll deploy test echo services across multiple clusters. If you followed the [Getting Started Guide](https://docs.kuadrant.io/getting-started/), you would have already set up a `KUADRANT_ZONE_ROOT_DOMAIN` environment variable. For this tutorial, we'll derive a host from this domain for these echo services.
+In this walkthrough, we'll deploy test echo services across multiple clusters. If you followed the [Getting Started - Multi Cluster Guide](https://docs.kuadrant.io/getting-started-multi-cluster/), you would have already set up a `KUADRANT_ZONE_ROOT_DOMAIN` environment variable. For this tutorial, we'll derive a host from this domain for these echo services.
 
 ### Create a gateway
 
@@ -202,7 +202,7 @@ The listener is configured to use this TLS secret also. So now our gateway has b
 
 So now we have workload ingress clusters configured with the same Gateway. 
 
-5. Let's create the HTTPRoute in the first workload cluster. Again, remembering to replace the hostname accordingly if you haven't already set a value for the `KUADRANT_ZONE_ROOT_DOMAIN` variable as described in the [Getting Started Guide](https://docs.kuadrant.io/getting-started/):
+5. Let's create the HTTPRoute in the first workload cluster. Again, remembering to replace the hostname accordingly if you haven't already set a value for the `KUADRANT_ZONE_ROOT_DOMAIN` variable as described in the [Getting Started - Multi Cluster Guide](https://docs.kuadrant.io/getting-started-multi-cluster/):
     ```bash
     kubectl --context kind-mgc-workload-1 apply -f - <<EOF
     apiVersion: gateway.networking.k8s.io/v1
