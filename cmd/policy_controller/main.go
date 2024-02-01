@@ -43,10 +43,10 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnsrecord"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/managedzone"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/tlspolicy"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/health"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/provider"
 	_ "github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/provider/aws"
 	_ "github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/provider/google"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/health"
 )
 
 var (

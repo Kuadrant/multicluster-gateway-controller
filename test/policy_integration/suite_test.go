@@ -46,9 +46,9 @@ import (
 	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnspolicy"
 	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/managedzone"
 	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/tlspolicy"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/health"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/provider"
 	providerFake "github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/provider/fake"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/health"
 	//+kubebuilder:scaffold:imports
 )
 

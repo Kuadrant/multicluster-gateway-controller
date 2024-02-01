@@ -18,7 +18,7 @@ import (
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/health"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/health"
 )
 
 const (
