@@ -121,7 +121,7 @@ func NewManagedZoneBuilder(name, ns, domainName string) *ManagedZoneBuilder {
 				ID:          "1234",
 				DomainName:  domainName,
 				Description: domainName,
-				SecretRef: &v1alpha1.SecretRef{
+				SecretRef: v1alpha1.ProviderRef{
 					Name: "secretname",
 				},
 			},

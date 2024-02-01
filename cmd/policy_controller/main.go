@@ -43,8 +43,10 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/dnsrecord"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/managedzone"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/tlspolicy"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/dnsprovider"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/health"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/health"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/provider"
+	_ "github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/provider/aws"
+	_ "github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/provider/google"
 )
 
 var (
@@ -90,7 +92,8 @@ func main() {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
 	}
-	provider := dnsprovider.NewProvider(mgr.GetClient())
+
+	dnsProviderFactory := provider.NewFactory(mgr.GetClient())
 
 	healthMonitor := health.NewMonitor()
 	healthCheckQueue := health.NewRequestQueue(time.Second * 5)
@@ -106,9 +109,9 @@ func main() {
 	}
 
 	if err = (&dnsrecord.DNSRecordReconciler{
-		Client:      mgr.GetClient(),
-		Scheme:      mgr.GetScheme(),
-		DNSProvider: provider.DNSProviderFactory,
+		Client:          mgr.GetClient(),
+		Scheme:          mgr.GetScheme(),
+		ProviderFactory: dnsProviderFactory,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DNSRecord")
 		os.Exit(1)
@@ -124,7 +127,7 @@ func main() {
 		TargetRefReconciler: reconcilers.TargetRefReconciler{
 			BaseReconciler: dnsPolicyBaseReconciler,
 		},
-		DNSProvider: provider.DNSProviderFactory,
+		ProviderFactory: dnsProviderFactory,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DNSPolicy")
 		os.Exit(1)
@@ -157,9 +160,9 @@ func main() {
 	//+kubebuilder:scaffold:builder
 
 	if err = (&managedzone.ManagedZoneReconciler{
-		Client:      mgr.GetClient(),
-		Scheme:      mgr.GetScheme(),
-		DNSProvider: provider.DNSProviderFactory,
+		Client:          mgr.GetClient(),
+		Scheme:          mgr.GetScheme(),
+		ProviderFactory: dnsProviderFactory,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ManagedZone")
 		os.Exit(1)

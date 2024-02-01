@@ -17,6 +17,7 @@ limitations under the License.
 package aws
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"time"
@@ -32,7 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns/provider"
 )
 
 const (
@@ -46,13 +47,12 @@ const (
 type Route53DNSProvider struct {
 	client *InstrumentedRoute53
 	logger logr.Logger
-
-	healthCheckReconciler dns.HealthCheckReconciler
+	ctx    context.Context
 }
 
-var _ dns.Provider = &Route53DNSProvider{}
+var _ provider.Provider = &Route53DNSProvider{}
 
-func NewProviderFromSecret(s *v1.Secret) (*Route53DNSProvider, error) {
+func NewProviderFromSecret(ctx context.Context, s *v1.Secret) (provider.Provider, error) {
 
 	config := aws.NewConfig()
 	sessionOpts := session.Options{
@@ -75,6 +75,7 @@ func NewProviderFromSecret(s *v1.Secret) (*Route53DNSProvider, error) {
 	p := &Route53DNSProvider{
 		client: &InstrumentedRoute53{route53.New(sess, config)},
 		logger: log.Log.WithName("aws-route53").WithValues("region", config.Region),
+		ctx:    ctx,
 	}
 
 	if err := validateServiceEndpoints(p); err != nil {
@@ -99,7 +100,7 @@ func (p *Route53DNSProvider) Delete(record *v1alpha1.DNSRecord, managedZone *v1a
 	return p.change(record, managedZone, deleteAction)
 }
 
-func (p *Route53DNSProvider) EnsureManagedZone(zone *v1alpha1.ManagedZone) (dns.ManagedZoneOutput, error) {
+func (p *Route53DNSProvider) EnsureManagedZone(zone *v1alpha1.ManagedZone) (provider.ManagedZoneOutput, error) {
 	var zoneID string
 	if zone.Spec.ID != "" {
 		zoneID = zone.Spec.ID
@@ -107,7 +108,7 @@ func (p *Route53DNSProvider) EnsureManagedZone(zone *v1alpha1.ManagedZone) (dns.
 		zoneID = zone.Status.ID
 	}
 
-	var managedZoneOutput dns.ManagedZoneOutput
+	var managedZoneOutput provider.ManagedZoneOutput
 
 	if zoneID != "" {
 		getResp, err := p.client.GetHostedZone(&route53.GetHostedZoneInput{
@@ -165,24 +166,6 @@ func (p *Route53DNSProvider) DeleteManagedZone(zone *v1alpha1.ManagedZone) error
 		return err
 	}
 	return nil
-}
-
-func (p *Route53DNSProvider) HealthCheckReconciler() dns.HealthCheckReconciler {
-	if p.healthCheckReconciler == nil {
-		p.healthCheckReconciler = dns.NewCachedHealthCheckReconciler(
-			p,
-			NewRoute53HealthCheckReconciler(p.client.route53),
-		)
-	}
-
-	return p.healthCheckReconciler
-}
-
-func (*Route53DNSProvider) ProviderSpecific() dns.ProviderSpecificLabels {
-	return dns.ProviderSpecificLabels{
-		Weight:        dns.ProviderSpecificWeight,
-		HealthCheckID: ProviderSpecificHealthCheckID,
-	}
 }
 
 func (p *Route53DNSProvider) change(record *v1alpha1.DNSRecord, managedZone *v1alpha1.ManagedZone, action action) error {
@@ -277,10 +260,10 @@ func (p *Route53DNSProvider) changeForEndpoint(endpoint *v1alpha1.Endpoint, acti
 	if endpoint.SetIdentifier != "" {
 		resourceRecordSet.SetIdentifier = aws.String(endpoint.SetIdentifier)
 	}
-	if prop, ok := endpoint.GetProviderSpecificProperty(dns.ProviderSpecificWeight); ok {
+	if prop, ok := endpoint.GetProviderSpecificProperty(provider.ProviderSpecificWeight); ok {
 		weight, err := strconv.ParseInt(prop.Value, 10, 64)
 		if err != nil {
-			p.logger.Error(err, "Failed parsing value, using weight of 0", "weight", dns.ProviderSpecificWeight, "value", prop.Value)
+			p.logger.Error(err, "Failed parsing value, using weight of 0", "weight", provider.ProviderSpecificWeight, "value", prop.Value)
 			weight = 0
 		}
 		resourceRecordSet.Weight = aws.Int64(weight)
@@ -298,8 +281,8 @@ func (p *Route53DNSProvider) changeForEndpoint(endpoint *v1alpha1.Endpoint, acti
 	var geolocation = &route53.GeoLocation{}
 	useGeolocation := false
 
-	if prop, ok := endpoint.GetProviderSpecificProperty(dns.ProviderSpecificGeoCode); ok {
-		if dns.IsISO3166Alpha2Code(prop.Value) || dns.GeoCode(prop.Value).IsWildcard() {
+	if prop, ok := endpoint.GetProviderSpecificProperty(provider.ProviderSpecificGeoCode); ok {
+		if provider.IsISO3166Alpha2Code(prop.Value) || prop.Value == "*" {
 			geolocation.CountryCode = aws.String(prop.Value)
 		} else {
 			geolocation.ContinentCode = aws.String(prop.Value)
@@ -337,4 +320,9 @@ func validateServiceEndpoints(provider *Route53DNSProvider) error {
 		errs = append(errs, fmt.Errorf("failed to list route53 hosted zones: %v", err))
 	}
 	return kerrors.NewAggregate(errs)
+}
+
+// Register this Provider with the provider factory
+func init() {
+	provider.RegisterProvider("aws", NewProviderFromSecret)
 }

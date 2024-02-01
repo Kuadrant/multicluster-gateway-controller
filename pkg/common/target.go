@@ -1,4 +1,4 @@
-package dns
+package common
 
 import (
 	"crypto/sha256"
@@ -12,14 +12,10 @@ import (
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/utils"
 )
 
 const (
-	DefaultWeight                   = int(v1alpha1.DefaultWeight)
-	DefaultGeo              GeoCode = "default"
-	WildcardGeo             GeoCode = "*"
-	LabelLBAttributeGeoCode         = "kuadrant.io/lb-attribute-geo-code"
+	LabelLBAttributeGeoCode = "kuadrant.io/lb-attribute-geo-code"
 )
 
 // MultiClusterGatewayTarget represents a Gateway that is placed on multiple clusters (ClusterGateway).
@@ -29,7 +25,7 @@ type MultiClusterGatewayTarget struct {
 	LoadBalancing         *v1alpha1.LoadBalancingSpec
 }
 
-func NewMultiClusterGatewayTarget(gateway *gatewayapiv1.Gateway, clusterGateways []utils.ClusterGateway, loadBalancing *v1alpha1.LoadBalancingSpec) (*MultiClusterGatewayTarget, error) {
+func NewMultiClusterGatewayTarget(gateway *gatewayapiv1.Gateway, clusterGateways []ClusterGateway, loadBalancing *v1alpha1.LoadBalancingSpec) (*MultiClusterGatewayTarget, error) {
 	mcg := &MultiClusterGatewayTarget{Gateway: gateway, LoadBalancing: loadBalancing}
 	err := mcg.setClusterGatewayTargets(clusterGateways)
 	return mcg, err
@@ -44,29 +40,29 @@ func (t *MultiClusterGatewayTarget) GetShortCode() string {
 }
 
 // GroupTargetsByGeo groups targets based on Geo Code.
-func (t *MultiClusterGatewayTarget) GroupTargetsByGeo() map[GeoCode][]ClusterGatewayTarget {
-	geoTargets := make(map[GeoCode][]ClusterGatewayTarget)
+func (t *MultiClusterGatewayTarget) GroupTargetsByGeo() map[v1alpha1.GeoCode][]ClusterGatewayTarget {
+	geoTargets := make(map[v1alpha1.GeoCode][]ClusterGatewayTarget)
 	for _, target := range t.ClusterGatewayTargets {
 		geoTargets[target.GetGeo()] = append(geoTargets[target.GetGeo()], target)
 	}
 	return geoTargets
 }
 
-func (t *MultiClusterGatewayTarget) GetDefaultGeo() GeoCode {
+func (t *MultiClusterGatewayTarget) GetDefaultGeo() v1alpha1.GeoCode {
 	if t.LoadBalancing != nil && t.LoadBalancing.Geo != nil {
-		return GeoCode(t.LoadBalancing.Geo.DefaultGeo)
+		return v1alpha1.GeoCode(t.LoadBalancing.Geo.DefaultGeo)
 	}
-	return DefaultGeo
+	return v1alpha1.DefaultGeo
 }
 
 func (t *MultiClusterGatewayTarget) GetDefaultWeight() int {
 	if t.LoadBalancing != nil && t.LoadBalancing.Weighted != nil {
 		return int(t.LoadBalancing.Weighted.DefaultWeight)
 	}
-	return DefaultWeight
+	return int(v1alpha1.DefaultWeight)
 }
 
-func (t *MultiClusterGatewayTarget) setClusterGatewayTargets(clusterGateways []utils.ClusterGateway) error {
+func (t *MultiClusterGatewayTarget) setClusterGatewayTargets(clusterGateways []ClusterGateway) error {
 	var cgTargets []ClusterGatewayTarget
 	for _, cg := range clusterGateways {
 		var customWeights []*v1alpha1.CustomWeight
@@ -83,24 +79,14 @@ func (t *MultiClusterGatewayTarget) setClusterGatewayTargets(clusterGateways []u
 	return nil
 }
 
-type GeoCode string
-
-func (gc GeoCode) IsDefaultCode() bool {
-	return gc == DefaultGeo
-}
-
-func (gc GeoCode) IsWildcard() bool {
-	return gc == WildcardGeo
-}
-
 // ClusterGatewayTarget represents a cluster Gateway with geo and weighting info calculated
 type ClusterGatewayTarget struct {
-	*utils.ClusterGateway
-	Geo    *GeoCode
+	*ClusterGateway
+	Geo    *v1alpha1.GeoCode
 	Weight *int
 }
 
-func NewClusterGatewayTarget(cg utils.ClusterGateway, defaultGeoCode GeoCode, defaultWeight int, customWeights []*v1alpha1.CustomWeight) (ClusterGatewayTarget, error) {
+func NewClusterGatewayTarget(cg ClusterGateway, defaultGeoCode v1alpha1.GeoCode, defaultWeight int, customWeights []*v1alpha1.CustomWeight) (ClusterGatewayTarget, error) {
 	target := ClusterGatewayTarget{
 		ClusterGateway: &cg,
 	}
@@ -112,7 +98,7 @@ func NewClusterGatewayTarget(cg utils.ClusterGateway, defaultGeoCode GeoCode, de
 	return target, nil
 }
 
-func (t *ClusterGatewayTarget) GetGeo() GeoCode {
+func (t *ClusterGatewayTarget) GetGeo() v1alpha1.GeoCode {
 	return *t.Geo
 }
 
@@ -128,14 +114,14 @@ func (t *ClusterGatewayTarget) GetShortCode() string {
 	return ToBase36hash(t.GetName())
 }
 
-func (t *ClusterGatewayTarget) setGeo(defaultGeo GeoCode) {
+func (t *ClusterGatewayTarget) setGeo(defaultGeo v1alpha1.GeoCode) {
 	geoCode := defaultGeo
-	if geoCode == DefaultGeo {
+	if geoCode == v1alpha1.DefaultGeo {
 		t.Geo = &geoCode
 		return
 	}
 	if gc, ok := t.GetLabels()[LabelLBAttributeGeoCode]; ok {
-		geoCode = GeoCode(gc)
+		geoCode = v1alpha1.GeoCode(gc)
 	}
 	t.Geo = &geoCode
 }

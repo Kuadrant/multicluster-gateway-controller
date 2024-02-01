@@ -17,8 +17,7 @@ import (
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/utils"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/common"
 	testutil "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 )
 
@@ -65,11 +64,11 @@ var _ = Describe("DNSPolicy Multi Cluster", func() {
 			}
 			gateway.Status.Addresses = []gatewayapiv1.GatewayStatusAddress{
 				{
-					Type:  testutil.Pointer(utils.MultiClusterIPAddressType),
+					Type:  testutil.Pointer(common.MultiClusterIPAddressType),
 					Value: TestClusterNameOne + "/" + TestIPAddressOne,
 				},
 				{
-					Type:  testutil.Pointer(utils.MultiClusterIPAddressType),
+					Type:  testutil.Pointer(common.MultiClusterIPAddressType),
 					Value: TestClusterNameTwo + "/" + TestIPAddressTwo,
 				},
 			}
@@ -105,7 +104,7 @@ var _ = Describe("DNSPolicy Multi Cluster", func() {
 		dnsPolicyBuilder = testutil.NewDNSPolicyBuilder("test-dns-policy", testNamespace)
 		dnsPolicyBuilder.WithTargetGateway(TestGatewayName)
 
-		lbHash = dns.ToBase36hash(fmt.Sprintf("%s-%s", gateway.Name, gateway.Namespace))
+		lbHash = common.ToBase36hash(fmt.Sprintf("%s-%s", gateway.Name, gateway.Namespace))
 		recordName = fmt.Sprintf("%s-%s", TestGatewayName, TestListenerNameOne)
 		wildcardRecordName = fmt.Sprintf("%s-%s", TestGatewayName, TestListenerNameWildcard)
 	})

@@ -17,8 +17,7 @@ import (
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/utils"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/common"
 	testutil "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 )
 
@@ -407,7 +406,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 
 	testCases := []struct {
 		name      string
-		mcgTarget *dns.MultiClusterGatewayTarget
+		mcgTarget *common.MultiClusterGatewayTarget
 		listener  gatewayapiv1.Listener
 		dnsRecord *v1alpha1.DNSRecord
 		wantSpec  *v1alpha1.DNSRecordSpec
@@ -416,13 +415,13 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 		{
 			name:     "test wildcard listener weighted",
 			listener: getTestListener("*.example.com"),
-			mcgTarget: &dns.MultiClusterGatewayTarget{
+			mcgTarget: &common.MultiClusterGatewayTarget{
 				Gateway: &gatewayapiv1.Gateway{
 					ObjectMeta: v1.ObjectMeta{Name: "testgw"},
 				},
-				ClusterGatewayTargets: []dns.ClusterGatewayTarget{
+				ClusterGatewayTargets: []common.ClusterGatewayTarget{
 					{
-						ClusterGateway: &utils.ClusterGateway{
+						ClusterGateway: &common.ClusterGateway{
 							Gateway: gatewayapiv1.Gateway{
 								ObjectMeta: v1.ObjectMeta{Name: "testgw"},
 								Status: gatewayapiv1.GatewayStatus{
@@ -440,12 +439,12 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 							},
 							ClusterName: "test-cluster-1",
 						},
-						Geo:    testutil.Pointer(dns.GeoCode("default")),
+						Geo:    testutil.Pointer(v1alpha1.GeoCode("default")),
 						Weight: testutil.Pointer(120),
 					},
 					{
 
-						ClusterGateway: &utils.ClusterGateway{
+						ClusterGateway: &common.ClusterGateway{
 							Gateway: gatewayapiv1.Gateway{
 								ObjectMeta: v1.ObjectMeta{Name: "testgw"},
 								Status: gatewayapiv1.GatewayStatus{
@@ -459,7 +458,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 							},
 							ClusterName: "test-cluster-2",
 						},
-						Geo:    testutil.Pointer(dns.GeoCode("default")),
+						Geo:    testutil.Pointer(v1alpha1.GeoCode("default")),
 						Weight: testutil.Pointer(120),
 					},
 				},
@@ -475,14 +474,14 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						DNSName:    "20qri0.lb-ocnswx.example.com",
 						Targets:    []string{"1.1.1.1", "2.2.2.2"},
 						RecordType: "A",
-						RecordTTL:  dns.DefaultTTL,
+						RecordTTL:  DefaultTTL,
 					},
 					{
 						DNSName:       "default.lb-ocnswx.example.com",
 						Targets:       []string{"20qri0.lb-ocnswx.example.com"},
 						RecordType:    "CNAME",
 						SetIdentifier: "20qri0.lb-ocnswx.example.com",
-						RecordTTL:     dns.DefaultTTL,
+						RecordTTL:     DefaultTTL,
 						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
 							{
 								Name:  "weight",
@@ -495,7 +494,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						Targets:       []string{"mylb.example.com"},
 						RecordType:    "CNAME",
 						SetIdentifier: "mylb.example.com",
-						RecordTTL:     dns.DefaultTTL,
+						RecordTTL:     DefaultTTL,
 						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
 							{
 								Name:  "weight",
@@ -508,7 +507,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						Targets:       []string{"default.lb-ocnswx.example.com"},
 						RecordType:    "CNAME",
 						SetIdentifier: "default",
-						RecordTTL:     dns.DefaultCnameTTL,
+						RecordTTL:     DefaultCnameTTL,
 						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
 							{
 								Name:  "geo-code",
@@ -520,7 +519,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						DNSName:    "*.example.com",
 						Targets:    []string{"lb-ocnswx.example.com"},
 						RecordType: "CNAME",
-						RecordTTL:  dns.DefaultCnameTTL,
+						RecordTTL:  DefaultCnameTTL,
 					},
 				},
 			},
@@ -528,13 +527,13 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 		{
 			name:     "sets geo weighted endpoints wildcard",
 			listener: getTestListener("*.example.com"),
-			mcgTarget: &dns.MultiClusterGatewayTarget{
+			mcgTarget: &common.MultiClusterGatewayTarget{
 				Gateway: &gatewayapiv1.Gateway{
 					ObjectMeta: v1.ObjectMeta{Name: "testgw"},
 				},
-				ClusterGatewayTargets: []dns.ClusterGatewayTarget{
+				ClusterGatewayTargets: []common.ClusterGatewayTarget{
 					{
-						ClusterGateway: &utils.ClusterGateway{
+						ClusterGateway: &common.ClusterGateway{
 							Gateway: gatewayapiv1.Gateway{
 								ObjectMeta: v1.ObjectMeta{Name: "testgw"},
 								Status: gatewayapiv1.GatewayStatus{
@@ -552,12 +551,12 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 							},
 							ClusterName: "test-cluster-1",
 						},
-						Geo:    testutil.Pointer(dns.GeoCode("NA")),
+						Geo:    testutil.Pointer(v1alpha1.GeoCode("NA")),
 						Weight: testutil.Pointer(120),
 					},
 					{
 
-						ClusterGateway: &utils.ClusterGateway{
+						ClusterGateway: &common.ClusterGateway{
 							Gateway: gatewayapiv1.Gateway{
 								ObjectMeta: v1.ObjectMeta{Name: "testgw"},
 								Status: gatewayapiv1.GatewayStatus{
@@ -571,7 +570,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 							},
 							ClusterName: "test-cluster-2",
 						},
-						Geo:    testutil.Pointer(dns.GeoCode("IE")),
+						Geo:    testutil.Pointer(v1alpha1.GeoCode("IE")),
 						Weight: testutil.Pointer(120),
 					},
 				},
@@ -592,14 +591,14 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						DNSName:    "20qri0.lb-ocnswx.example.com",
 						Targets:    []string{"1.1.1.1", "2.2.2.2"},
 						RecordType: "A",
-						RecordTTL:  dns.DefaultTTL,
+						RecordTTL:  DefaultTTL,
 					},
 					{
 						DNSName:       "na.lb-ocnswx.example.com",
 						Targets:       []string{"20qri0.lb-ocnswx.example.com"},
 						RecordType:    "CNAME",
 						SetIdentifier: "20qri0.lb-ocnswx.example.com",
-						RecordTTL:     dns.DefaultTTL,
+						RecordTTL:     DefaultTTL,
 						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
 							{
 								Name:  "weight",
@@ -612,7 +611,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						Targets:       []string{"mylb.example.com"},
 						RecordType:    "CNAME",
 						SetIdentifier: "mylb.example.com",
-						RecordTTL:     dns.DefaultTTL,
+						RecordTTL:     DefaultTTL,
 						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
 							{
 								Name:  "weight",
@@ -625,7 +624,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						Targets:       []string{"na.lb-ocnswx.example.com"},
 						RecordType:    "CNAME",
 						SetIdentifier: "default",
-						RecordTTL:     dns.DefaultCnameTTL,
+						RecordTTL:     DefaultCnameTTL,
 						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
 							{
 								Name:  "geo-code",
@@ -638,7 +637,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						Targets:       []string{"na.lb-ocnswx.example.com"},
 						RecordType:    "CNAME",
 						SetIdentifier: "NA",
-						RecordTTL:     dns.DefaultCnameTTL,
+						RecordTTL:     DefaultCnameTTL,
 						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
 							{
 								Name:  "geo-code",
@@ -651,7 +650,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						Targets:       []string{"ie.lb-ocnswx.example.com"},
 						RecordType:    "CNAME",
 						SetIdentifier: "IE",
-						RecordTTL:     dns.DefaultCnameTTL,
+						RecordTTL:     DefaultCnameTTL,
 						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
 							{
 								Name:  "geo-code",
@@ -663,7 +662,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						DNSName:    "*.example.com",
 						Targets:    []string{"lb-ocnswx.example.com"},
 						RecordType: "CNAME",
-						RecordTTL:  dns.DefaultCnameTTL,
+						RecordTTL:  DefaultCnameTTL,
 					},
 				},
 			},
@@ -671,17 +670,17 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 		{
 			name:     "sets weighted endpoints",
 			listener: getTestListener("test.example.com"),
-			mcgTarget: &dns.MultiClusterGatewayTarget{
+			mcgTarget: &common.MultiClusterGatewayTarget{
 				Gateway: &gatewayapiv1.Gateway{
 					ObjectMeta: v1.ObjectMeta{
 						Name:      "testgw",
 						Namespace: "testns",
 					},
 				},
-				ClusterGatewayTargets: []dns.ClusterGatewayTarget{
+				ClusterGatewayTargets: []common.ClusterGatewayTarget{
 					{
 
-						ClusterGateway: &utils.ClusterGateway{
+						ClusterGateway: &common.ClusterGateway{
 							Gateway: gatewayapiv1.Gateway{
 								ObjectMeta: v1.ObjectMeta{Name: "testgw"},
 								Status: gatewayapiv1.GatewayStatus{
@@ -699,12 +698,12 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 							},
 							ClusterName: "test-cluster-1",
 						},
-						Geo:    testutil.Pointer(dns.GeoCode("default")),
+						Geo:    testutil.Pointer(v1alpha1.GeoCode("default")),
 						Weight: testutil.Pointer(120),
 					},
 					{
 
-						ClusterGateway: &utils.ClusterGateway{
+						ClusterGateway: &common.ClusterGateway{
 							Gateway: gatewayapiv1.Gateway{
 								ObjectMeta: v1.ObjectMeta{Name: "testgw"},
 								Status: gatewayapiv1.GatewayStatus{
@@ -718,7 +717,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 							},
 							ClusterName: "test-cluster-2",
 						},
-						Geo:    testutil.Pointer(dns.GeoCode("default")),
+						Geo:    testutil.Pointer(v1alpha1.GeoCode("default")),
 						Weight: testutil.Pointer(120),
 					},
 				},
@@ -734,14 +733,14 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						DNSName:    "20qri0.lb-0ecjaw.test.example.com",
 						Targets:    []string{"1.1.1.1", "2.2.2.2"},
 						RecordType: "A",
-						RecordTTL:  dns.DefaultTTL,
+						RecordTTL:  DefaultTTL,
 					},
 					{
 						DNSName:       "default.lb-0ecjaw.test.example.com",
 						Targets:       []string{"20qri0.lb-0ecjaw.test.example.com"},
 						RecordType:    "CNAME",
 						SetIdentifier: "20qri0.lb-0ecjaw.test.example.com",
-						RecordTTL:     dns.DefaultTTL,
+						RecordTTL:     DefaultTTL,
 						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
 							{
 								Name:  "weight",
@@ -754,7 +753,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						Targets:       []string{"mylb.example.com"},
 						RecordType:    "CNAME",
 						SetIdentifier: "mylb.example.com",
-						RecordTTL:     dns.DefaultTTL,
+						RecordTTL:     DefaultTTL,
 						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
 							{
 								Name:  "weight",
@@ -767,7 +766,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						Targets:       []string{"default.lb-0ecjaw.test.example.com"},
 						RecordType:    "CNAME",
 						SetIdentifier: "default",
-						RecordTTL:     dns.DefaultCnameTTL,
+						RecordTTL:     DefaultCnameTTL,
 						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
 							{
 								Name:  "geo-code",
@@ -779,7 +778,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						DNSName:    "test.example.com",
 						Targets:    []string{"lb-0ecjaw.test.example.com"},
 						RecordType: "CNAME",
-						RecordTTL:  dns.DefaultCnameTTL,
+						RecordTTL:  DefaultCnameTTL,
 					},
 				},
 			},
@@ -787,14 +786,14 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 		{
 			name:     "sets geo weighted endpoints",
 			listener: getTestListener("test.example.com"),
-			mcgTarget: &dns.MultiClusterGatewayTarget{
+			mcgTarget: &common.MultiClusterGatewayTarget{
 				Gateway: &gatewayapiv1.Gateway{
 					ObjectMeta: v1.ObjectMeta{Name: "testgw"},
 				},
-				ClusterGatewayTargets: []dns.ClusterGatewayTarget{
+				ClusterGatewayTargets: []common.ClusterGatewayTarget{
 					{
 
-						ClusterGateway: &utils.ClusterGateway{
+						ClusterGateway: &common.ClusterGateway{
 							Gateway: gatewayapiv1.Gateway{
 								ObjectMeta: v1.ObjectMeta{Name: "testgw"},
 								Status: gatewayapiv1.GatewayStatus{
@@ -812,12 +811,12 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 							},
 							ClusterName: "test-cluster-1",
 						},
-						Geo:    testutil.Pointer(dns.GeoCode("NA")),
+						Geo:    testutil.Pointer(v1alpha1.GeoCode("NA")),
 						Weight: testutil.Pointer(120),
 					},
 					{
 
-						ClusterGateway: &utils.ClusterGateway{
+						ClusterGateway: &common.ClusterGateway{
 							Gateway: gatewayapiv1.Gateway{
 								ObjectMeta: v1.ObjectMeta{Name: "testgw"},
 								Status: gatewayapiv1.GatewayStatus{
@@ -831,7 +830,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 							},
 							ClusterName: "test-cluster-2",
 						},
-						Geo:    testutil.Pointer(dns.GeoCode("IE")),
+						Geo:    testutil.Pointer(v1alpha1.GeoCode("IE")),
 						Weight: testutil.Pointer(120),
 					},
 				},
@@ -852,14 +851,14 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						DNSName:    "20qri0.lb-ocnswx.test.example.com",
 						Targets:    []string{"1.1.1.1", "2.2.2.2"},
 						RecordType: "A",
-						RecordTTL:  dns.DefaultTTL,
+						RecordTTL:  DefaultTTL,
 					},
 					{
 						DNSName:       "na.lb-ocnswx.test.example.com",
 						Targets:       []string{"20qri0.lb-ocnswx.test.example.com"},
 						RecordType:    "CNAME",
 						SetIdentifier: "20qri0.lb-ocnswx.test.example.com",
-						RecordTTL:     dns.DefaultTTL,
+						RecordTTL:     DefaultTTL,
 						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
 							{
 								Name:  "weight",
@@ -872,7 +871,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						Targets:       []string{"mylb.example.com"},
 						RecordType:    "CNAME",
 						SetIdentifier: "mylb.example.com",
-						RecordTTL:     dns.DefaultTTL,
+						RecordTTL:     DefaultTTL,
 						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
 							{
 								Name:  "weight",
@@ -885,7 +884,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						Targets:       []string{"na.lb-ocnswx.test.example.com"},
 						RecordType:    "CNAME",
 						SetIdentifier: "default",
-						RecordTTL:     dns.DefaultCnameTTL,
+						RecordTTL:     DefaultCnameTTL,
 						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
 							{
 								Name:  "geo-code",
@@ -898,7 +897,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						Targets:       []string{"na.lb-ocnswx.test.example.com"},
 						RecordType:    "CNAME",
 						SetIdentifier: "NA",
-						RecordTTL:     dns.DefaultCnameTTL,
+						RecordTTL:     DefaultCnameTTL,
 						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
 							{
 								Name:  "geo-code",
@@ -911,7 +910,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						Targets:       []string{"ie.lb-ocnswx.test.example.com"},
 						RecordType:    "CNAME",
 						SetIdentifier: "IE",
-						RecordTTL:     dns.DefaultCnameTTL,
+						RecordTTL:     DefaultCnameTTL,
 						ProviderSpecific: []v1alpha1.ProviderSpecificProperty{
 							{
 								Name:  "geo-code",
@@ -923,7 +922,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 						DNSName:    "test.example.com",
 						Targets:    []string{"lb-ocnswx.test.example.com"},
 						RecordType: "CNAME",
-						RecordTTL:  dns.DefaultCnameTTL,
+						RecordTTL:  DefaultCnameTTL,
 					},
 				},
 			},
@@ -931,14 +930,14 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 		{
 			name:     "sets no endpoints when no target addresses",
 			listener: getTestListener("test.example.com"),
-			mcgTarget: &dns.MultiClusterGatewayTarget{
+			mcgTarget: &common.MultiClusterGatewayTarget{
 				Gateway: &gatewayapiv1.Gateway{
 					ObjectMeta: v1.ObjectMeta{Name: "testgw"},
 				},
-				ClusterGatewayTargets: []dns.ClusterGatewayTarget{
+				ClusterGatewayTargets: []common.ClusterGatewayTarget{
 					{
 
-						ClusterGateway: &utils.ClusterGateway{
+						ClusterGateway: &common.ClusterGateway{
 							Gateway: gatewayapiv1.Gateway{
 								ObjectMeta: v1.ObjectMeta{Name: "testgw"},
 								Status: gatewayapiv1.GatewayStatus{
@@ -947,12 +946,12 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 							},
 							ClusterName: "test-cluster-1",
 						},
-						Geo:    testutil.Pointer(dns.GeoCode("NA")),
+						Geo:    testutil.Pointer(v1alpha1.GeoCode("NA")),
 						Weight: testutil.Pointer(120),
 					},
 					{
 
-						ClusterGateway: &utils.ClusterGateway{
+						ClusterGateway: &common.ClusterGateway{
 							Gateway: gatewayapiv1.Gateway{
 								ObjectMeta: v1.ObjectMeta{Name: "testgw"},
 								Status: gatewayapiv1.GatewayStatus{
@@ -961,7 +960,7 @@ func Test_dnsHelper_setEndpoints(t *testing.T) {
 							},
 							ClusterName: "test-cluster-2",
 						},
-						Geo:    testutil.Pointer(dns.GeoCode("IE")),
+						Geo:    testutil.Pointer(v1alpha1.GeoCode("IE")),
 						Weight: testutil.Pointer(120),
 					},
 				},

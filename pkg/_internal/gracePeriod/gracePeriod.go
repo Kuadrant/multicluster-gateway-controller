@@ -10,12 +10,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/metadata"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/dns"
 )
 
 const (
 	GraceTimestampAnnotation = "kuadrant.io/grace-timeout"
-	DefaultGracePeriod       = time.Second * dns.DefaultTTL * 10
+	DefaultTTL               = 60 //The TTL value here needs to match the one used by the DNSPolicy. This value however will no longer be available to gateway controller packages directly.
+	DefaultGracePeriod       = time.Second * DefaultTTL * 10
 )
 
 var ErrGracePeriodNotExpired = fmt.Errorf("grace period has not yet expired")
