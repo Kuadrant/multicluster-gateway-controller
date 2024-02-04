@@ -1,7 +1,5 @@
 resources:
 - gateway-controller-monitor.yaml
 - gateway-controller-service.yaml
-- policy-controller-monitor.yaml
-- policy-controller-service.yaml
 
 namespace: multicluster-gateway-controller-system

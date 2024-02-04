@@ -11,9 +11,9 @@ import (
 
 	"github.com/goombaio/namegenerator"
 	certmanv1 "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
-	ocm_cluster_v1 "open-cluster-management.io/api/cluster/v1"
-	ocm_cluster_v1beta1 "open-cluster-management.io/api/cluster/v1beta1"
-	ocm_cluster_v1beta2 "open-cluster-management.io/api/cluster/v1beta2"
+	ocmclusterv1 "open-cluster-management.io/api/cluster/v1"
+	ocmclusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
+	ocmclusterv1beta2 "open-cluster-management.io/api/cluster/v1beta2"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -23,8 +23,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
-
-	mgcv1alpha1 "github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 )
 
 const (
@@ -106,19 +104,15 @@ func (cfg *SuiteConfig) Build() error {
 	if err != nil {
 		return err
 	}
-	err = ocm_cluster_v1beta1.AddToScheme(scheme.Scheme)
+	err = ocmclusterv1beta1.AddToScheme(scheme.Scheme)
 	if err != nil {
 		return err
 	}
-	err = ocm_cluster_v1beta2.AddToScheme(scheme.Scheme)
+	err = ocmclusterv1beta2.AddToScheme(scheme.Scheme)
 	if err != nil {
 		return err
 	}
-	err = ocm_cluster_v1.AddToScheme(scheme.Scheme)
-	if err != nil {
-		return err
-	}
-	err = mgcv1alpha1.AddToScheme(scheme.Scheme)
+	err = ocmclusterv1.AddToScheme(scheme.Scheme)
 	if err != nil {
 		return err
 	}
@@ -195,7 +189,7 @@ func (cfg *SuiteConfig) InstallPrerequisites(ctx context.Context) error {
 
 	// label the managedclusters (at the moment we just label them all)
 	// NOTE: this action won't be reverted after the suite finishes
-	clusterList := &ocm_cluster_v1.ManagedClusterList{}
+	clusterList := &ocmclusterv1.ManagedClusterList{}
 	if err := cfg.HubClient().List(ctx, clusterList); err != nil {
 		return err
 	}
@@ -229,11 +223,11 @@ func (cfg *SuiteConfig) InstallPrerequisites(ctx context.Context) error {
 
 	// ensure ManagedClusterSet
 	{
-		managedclusterset := &ocm_cluster_v1beta2.ManagedClusterSet{
+		managedclusterset := &ocmclusterv1beta2.ManagedClusterSet{
 			ObjectMeta: metav1.ObjectMeta{Name: ManagedClusterSetName},
-			Spec: ocm_cluster_v1beta2.ManagedClusterSetSpec{
-				ClusterSelector: ocm_cluster_v1beta2.ManagedClusterSelector{
-					SelectorType: ocm_cluster_v1beta2.LabelSelector,
+			Spec: ocmclusterv1beta2.ManagedClusterSetSpec{
+				ClusterSelector: ocmclusterv1beta2.ManagedClusterSelector{
+					SelectorType: ocmclusterv1beta2.LabelSelector,
 					LabelSelector: &metav1.LabelSelector{
 						MatchLabels: map[string]string{
 							ClusterSetLabelKey: ClusterSetLabelValue,
@@ -254,9 +248,9 @@ func (cfg *SuiteConfig) InstallPrerequisites(ctx context.Context) error {
 
 	// ensure ManagedClusterSetBinding
 	{
-		managedclustersetbinding := &ocm_cluster_v1beta2.ManagedClusterSetBinding{
+		managedclustersetbinding := &ocmclusterv1beta2.ManagedClusterSetBinding{
 			ObjectMeta: metav1.ObjectMeta{Name: ManagedClusterSetName, Namespace: cfg.HubNamespace()},
-			Spec: ocm_cluster_v1beta2.ManagedClusterSetBindingSpec{
+			Spec: ocmclusterv1beta2.ManagedClusterSetBindingSpec{
 				ClusterSet: ManagedClusterSetName,
 			},
 		}

@@ -51,13 +51,8 @@ clean: ## Clean up temporary files.
 gateway-manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) rbac:roleName=manager-role paths="./pkg/controllers/gateway" output:rbac:artifacts:config=config/rbac
 
-.PHONY: policy-manifests
-policy-manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
-	$(CONTROLLER_GEN) rbac:roleName=policy-role paths="./pkg/controllers/dnshealthcheckprobe" paths="./pkg/controllers/dnspolicy" paths="./pkg/controllers/dnsrecord" paths="./pkg/controllers/managedzone" paths="./pkg/controllers/tlspolicy" output:rbac:dir=config/policy-controller/rbac
-	$(CONTROLLER_GEN) crd paths="./..." output:crd:artifacts:config=config/policy-controller/crd/bases
-
 .PHONY: manifests
-manifests: gateway-manifests policy-manifests
+manifests: gateway-manifests
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
@@ -77,7 +72,7 @@ lint: ## Run golangci-lint against code.
 
 .PHONY: imports
 imports: openshift-goimports ## Run openshift goimports against code.
-	$(OPENSHIFT_GOIMPORTS) -m github.com/Kuadrant/multicluster-gateway-controller -i github.com/kuadrant/kuadrant-operator
+	$(OPENSHIFT_GOIMPORTS) -m github.com/Kuadrant/multicluster-gateway-controller -i github.com/kuadrant
 
 .PHONY: test-unit
 test-unit: manifests generate fmt vet envtest ## Run unit tests.
@@ -85,7 +80,6 @@ test-unit: manifests generate fmt vet envtest ## Run unit tests.
 
 .PHONY: test-integration
 test-integration: ginkgo manifests generate fmt vet envtest ## Run integration tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" $(GINKGO) -tags=integration -v --focus "${FOCUS}" ./test/policy_integration
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" $(GINKGO) -tags=integration -v --focus "${FOCUS}" ./test/gateway_integration
 
 .PHONY: test
@@ -118,7 +112,7 @@ local-cleanup-mgc: ## Cleanup MGC from kind clusters
 	./hack/local-cleanup-mgc.sh
 
 .PHONY: build
-build: build-gateway-controller build-policy-controller ## Build all binaries.
+build: build-gateway-controller ## Build all binaries.
 
 ##@ Deployment
 ifndef ignore-not-found

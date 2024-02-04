@@ -16,8 +16,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
-
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 )
 
 const (
@@ -123,7 +121,6 @@ func GetValidTestScheme() *runtime.Scheme {
 	scheme := runtime.NewScheme()
 	_ = gatewayapiv1.AddToScheme(scheme)
 	_ = corev1.AddToScheme(scheme)
-	_ = v1alpha1.AddToScheme(scheme)
 	_ = certman.AddToScheme(scheme)
 	return scheme
 }

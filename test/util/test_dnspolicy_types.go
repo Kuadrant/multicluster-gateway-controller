@@ -7,22 +7,23 @@ import (
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayapiv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	kuadrantdnsv1alpha1 "github.com/kuadrant/kuadrant-dns-operator/api/v1alpha1"
+	kuadrantv1alpha1 "github.com/kuadrant/kuadrant-operator/api/v1alpha1"
 )
 
 // DNSPolicyBuilder wrapper for DNSPolicy builder helper
 type DNSPolicyBuilder struct {
-	*v1alpha1.DNSPolicy
+	*kuadrantv1alpha1.DNSPolicy
 }
 
 func NewDNSPolicyBuilder(name, ns string) *DNSPolicyBuilder {
 	return &DNSPolicyBuilder{
-		&v1alpha1.DNSPolicy{
+		&kuadrantv1alpha1.DNSPolicy{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      name,
 				Namespace: ns,
 			},
-			Spec: v1alpha1.DNSPolicySpec{},
+			Spec: kuadrantv1alpha1.DNSPolicySpec{},
 		},
 	}
 }
@@ -32,17 +33,17 @@ func (t *DNSPolicyBuilder) WithTargetRef(targetRef gatewayapiv1alpha2.PolicyTarg
 	return t
 }
 
-func (t *DNSPolicyBuilder) WithHealthCheck(healthCheck v1alpha1.HealthCheckSpec) *DNSPolicyBuilder {
+func (t *DNSPolicyBuilder) WithHealthCheck(healthCheck kuadrantv1alpha1.HealthCheckSpec) *DNSPolicyBuilder {
 	t.Spec.HealthCheck = &healthCheck
 	return t
 }
 
-func (t *DNSPolicyBuilder) WithLoadBalancing(loadBalancing v1alpha1.LoadBalancingSpec) *DNSPolicyBuilder {
+func (t *DNSPolicyBuilder) WithLoadBalancing(loadBalancing kuadrantv1alpha1.LoadBalancingSpec) *DNSPolicyBuilder {
 	t.Spec.LoadBalancing = &loadBalancing
 	return t
 }
 
-func (t *DNSPolicyBuilder) WithRoutingStrategy(strategy v1alpha1.RoutingStrategy) *DNSPolicyBuilder {
+func (t *DNSPolicyBuilder) WithRoutingStrategy(strategy kuadrantv1alpha1.RoutingStrategy) *DNSPolicyBuilder {
 	t.Spec.RoutingStrategy = strategy
 	return t
 }
@@ -61,8 +62,8 @@ func (t *DNSPolicyBuilder) WithTargetGateway(gwName string) *DNSPolicyBuilder {
 
 //HealthCheck
 
-func (t *DNSPolicyBuilder) WithHealthCheckFor(endpoint string, port *int, protocol v1alpha1.HealthProtocol, failureThreshold *int) *DNSPolicyBuilder {
-	return t.WithHealthCheck(v1alpha1.HealthCheckSpec{
+func (t *DNSPolicyBuilder) WithHealthCheckFor(endpoint string, port *int, protocol kuadrantdnsv1alpha1.HealthProtocol, failureThreshold *int) *DNSPolicyBuilder {
+	return t.WithHealthCheck(kuadrantv1alpha1.HealthCheckSpec{
 		Endpoint:                  endpoint,
 		Port:                      port,
 		Protocol:                  &protocol,
@@ -76,52 +77,52 @@ func (t *DNSPolicyBuilder) WithHealthCheckFor(endpoint string, port *int, protoc
 
 //LoadBalancing
 
-func (t *DNSPolicyBuilder) WithLoadBalancingWeighted(lbWeighted v1alpha1.LoadBalancingWeighted) *DNSPolicyBuilder {
+func (t *DNSPolicyBuilder) WithLoadBalancingWeighted(lbWeighted kuadrantv1alpha1.LoadBalancingWeighted) *DNSPolicyBuilder {
 	if t.Spec.LoadBalancing == nil {
-		t.Spec.LoadBalancing = &v1alpha1.LoadBalancingSpec{}
+		t.Spec.LoadBalancing = &kuadrantv1alpha1.LoadBalancingSpec{}
 	}
 	t.Spec.LoadBalancing.Weighted = &lbWeighted
 	return t
 }
 
-func (t *DNSPolicyBuilder) WithLoadBalancingGeo(lbGeo v1alpha1.LoadBalancingGeo) *DNSPolicyBuilder {
+func (t *DNSPolicyBuilder) WithLoadBalancingGeo(lbGeo kuadrantv1alpha1.LoadBalancingGeo) *DNSPolicyBuilder {
 	if t.Spec.LoadBalancing == nil {
-		t.Spec.LoadBalancing = &v1alpha1.LoadBalancingSpec{}
+		t.Spec.LoadBalancing = &kuadrantv1alpha1.LoadBalancingSpec{}
 	}
 	t.Spec.LoadBalancing.Geo = &lbGeo
 	return t
 }
 
-func (t *DNSPolicyBuilder) WithLoadBalancingWeightedFor(defaultWeight v1alpha1.Weight, custom []*v1alpha1.CustomWeight) *DNSPolicyBuilder {
-	return t.WithLoadBalancingWeighted(v1alpha1.LoadBalancingWeighted{
+func (t *DNSPolicyBuilder) WithLoadBalancingWeightedFor(defaultWeight kuadrantv1alpha1.Weight, custom []*kuadrantv1alpha1.CustomWeight) *DNSPolicyBuilder {
+	return t.WithLoadBalancingWeighted(kuadrantv1alpha1.LoadBalancingWeighted{
 		DefaultWeight: defaultWeight,
 		Custom:        custom,
 	})
 }
 
 func (t *DNSPolicyBuilder) WithLoadBalancingGeoFor(defaultGeo string) *DNSPolicyBuilder {
-	return t.WithLoadBalancingGeo(v1alpha1.LoadBalancingGeo{
+	return t.WithLoadBalancingGeo(kuadrantv1alpha1.LoadBalancingGeo{
 		DefaultGeo: defaultGeo,
 	})
 }
 
 // ManagedZoneBuilder wrapper for ManagedZone builder helper
 type ManagedZoneBuilder struct {
-	*v1alpha1.ManagedZone
+	*kuadrantdnsv1alpha1.ManagedZone
 }
 
 func NewManagedZoneBuilder(name, ns, domainName string) *ManagedZoneBuilder {
 	return &ManagedZoneBuilder{
-		&v1alpha1.ManagedZone{
+		&kuadrantdnsv1alpha1.ManagedZone{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      name,
 				Namespace: ns,
 			},
-			Spec: v1alpha1.ManagedZoneSpec{
+			Spec: kuadrantdnsv1alpha1.ManagedZoneSpec{
 				ID:          "1234",
 				DomainName:  domainName,
 				Description: domainName,
-				SecretRef: v1alpha1.ProviderRef{
+				SecretRef: kuadrantdnsv1alpha1.ProviderRef{
 					Name: "secretname",
 				},
 			},

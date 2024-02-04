@@ -16,7 +16,6 @@ vendor/
 #Ignore local directory (for stuff to keep locally)
 local/
 !config/deploy/local
-!config/policy-controller/deploy/local
 
 #Ignore .kcp directory
 .kcp/

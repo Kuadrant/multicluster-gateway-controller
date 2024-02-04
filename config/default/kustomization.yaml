@@ -12,7 +12,6 @@ resources:
 - ../rbac
 - ../manager
 - ../add-on-manager
-- ../policy-controller/default
 
 patches:
 - path: manager_metrics_patch.yaml

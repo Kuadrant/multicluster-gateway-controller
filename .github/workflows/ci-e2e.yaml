@@ -67,13 +67,10 @@ jobs:
           make local-setup
       - name: Deploy
         run: |
-          make docker-build-gateway-controller kind-load-gateway-controller docker-build-policy-controller kind-load-policy-controller deploy-gateway-controller
+          make docker-build-gateway-controller kind-load-gateway-controller deploy-gateway-controller
           kubectl --context kind-mgc-control-plane -n multicluster-gateway-controller-system get deployments/mgc-controller-manager -o yaml | yq .spec.template.spec.containers[0].image
-          kubectl --context kind-mgc-control-plane -n multicluster-gateway-controller-system get deployments/mgc-policy-controller -o yaml | yq .spec.template.spec.containers[0].image
           kubectl --context kind-mgc-control-plane -n multicluster-gateway-controller-system wait --timeout=300s --for=condition=Available deployment/mgc-controller-manager
-          kubectl --context kind-mgc-control-plane -n multicluster-gateway-controller-system wait --timeout=300s --for=condition=Available deployment/mgc-policy-controller
           kubectl --context kind-mgc-control-plane logs --all-containers --ignore-errors deployment/mgc-controller-manager -n multicluster-gateway-controller-system
-          kubectl --context kind-mgc-control-plane logs --all-containers --ignore-errors deployment/mgc-policy-controller -n multicluster-gateway-controller-system
           kubectl get managedzones -n multi-cluster-gateways mgc-dev-mz-aws -o yaml
           kubectl --context kind-mgc-control-plane -n multi-cluster-gateways wait --timeout=60s --for=condition=Ready managedzone/mgc-dev-mz-aws
           kubectl get managedzones -n multi-cluster-gateways mgc-dev-mz-gcp -o yaml
@@ -105,7 +102,3 @@ jobs:
         run: |
           kubectl get deployments -A
           kubectl --context kind-mgc-control-plane logs --all-containers --ignore-errors deployment/mgc-controller-manager -n multicluster-gateway-controller-system
-      - name: Dump Policy Controller logs
-        if: ${{ failure() }}
-        run: |
-          kubectl --context kind-mgc-control-plane logs --all-containers --ignore-errors deployment/mgc-policy-controller -n multicluster-gateway-controller-system

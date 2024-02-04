@@ -1,9 +1,0 @@
-
-
-resources:
-- ../manager
-- ./issuer.yaml
-- ../crd
-- ../rbac
-
-namespace: kuadrant-system

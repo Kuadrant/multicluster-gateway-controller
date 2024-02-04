@@ -16,7 +16,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
-	ocm_cluster_v1beta1 "open-cluster-management.io/api/cluster/v1beta1"
+	ocmclusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -25,9 +25,10 @@ import (
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayapiv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
+	kuadrantdnsv1alpha1 "github.com/kuadrant/kuadrant-dns-operator/api/v1alpha1"
+	kuadrantv1alpha1 "github.com/kuadrant/kuadrant-operator/api/v1alpha1"
+
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
-	mgcv1alpha1 "github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	. "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 )
 
@@ -49,8 +50,8 @@ var _ = Describe("Gateway single target cluster", func() {
 	var testHostnameWildcard gatewayapiv1.Hostname
 
 	var gw *gatewayapiv1.Gateway
-	var placement *ocm_cluster_v1beta1.Placement
-	var tlsPolicy *v1alpha1.TLSPolicy
+	var placement *ocmclusterv1beta1.Placement
+	var tlsPolicy *kuadrantv1alpha1.TLSPolicy
 
 	BeforeEach(func(ctx SpecContext) {
 		testID = "t-gw-mgc-" + tconfig.GenerateName()
@@ -64,9 +65,9 @@ var _ = Describe("Gateway single target cluster", func() {
 		GinkgoWriter.Printf("[debug] testHostname: '%s'\n", testHostname)
 
 		By("creating a Placement for the Gateway resource")
-		placement = &ocm_cluster_v1beta1.Placement{
+		placement = &ocmclusterv1beta1.Placement{
 			ObjectMeta: metav1.ObjectMeta{Name: testID, Namespace: tconfig.HubNamespace()},
-			Spec: ocm_cluster_v1beta1.PlacementSpec{
+			Spec: ocmclusterv1beta1.PlacementSpec{
 				ClusterSets:      []string{tconfig.ManagedClusterSet()},
 				NumberOfClusters: Pointer(int32(1)),
 			},
@@ -96,19 +97,19 @@ var _ = Describe("Gateway single target cluster", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		By("setting up TLSPolicy in the hub")
-		tlsPolicy = &mgcv1alpha1.TLSPolicy{
+		tlsPolicy = &kuadrantv1alpha1.TLSPolicy{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      testID,
 				Namespace: tconfig.HubNamespace(),
 			},
-			Spec: mgcv1alpha1.TLSPolicySpec{
+			Spec: kuadrantv1alpha1.TLSPolicySpec{
 				TargetRef: gatewayapiv1alpha2.PolicyTargetReference{
 					Group:     "gateway.networking.k8s.io",
 					Kind:      "Gateway",
 					Name:      gatewayapiv1.ObjectName(testID),
 					Namespace: Pointer(gatewayapiv1.Namespace(tconfig.HubNamespace())),
 				},
-				CertificateSpec: mgcv1alpha1.CertificateSpec{
+				CertificateSpec: kuadrantv1alpha1.CertificateSpec{
 					IssuerRef: certmanmetav1.ObjectReference{
 						Name:  "glbc-ca",
 						Kind:  "ClusterIssuer",
@@ -250,25 +251,25 @@ var _ = Describe("Gateway single target cluster", func() {
 			})
 
 			When("a DNSPolicy is attached to the Gateway", func() {
-				var dnsPolicy *mgcv1alpha1.DNSPolicy
+				var dnsPolicy *kuadrantv1alpha1.DNSPolicy
 
 				BeforeEach(func(ctx SpecContext) {
 
 					By("creating a DNSPolicy in the hub")
 
-					dnsPolicy = &mgcv1alpha1.DNSPolicy{
+					dnsPolicy = &kuadrantv1alpha1.DNSPolicy{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      testID,
 							Namespace: tconfig.HubNamespace(),
 						},
-						Spec: mgcv1alpha1.DNSPolicySpec{
+						Spec: kuadrantv1alpha1.DNSPolicySpec{
 							TargetRef: gatewayapiv1alpha2.PolicyTargetReference{
 								Group:     "gateway.networking.k8s.io",
 								Kind:      "Gateway",
 								Name:      gatewayapiv1.ObjectName(testID),
 								Namespace: Pointer(gatewayapiv1.Namespace(tconfig.HubNamespace())),
 							},
-							RoutingStrategy: v1alpha1.LoadBalancedRoutingStrategy,
+							RoutingStrategy: kuadrantv1alpha1.LoadBalancedRoutingStrategy,
 						},
 					}
 					err := tconfig.HubClient().Create(ctx, dnsPolicy)
@@ -304,7 +305,7 @@ var _ = Describe("Gateway single target cluster", func() {
 					By("waiting for the DNSRecord to be created and ready in the Hub")
 					{
 						Eventually(func(g Gomega, ctx context.Context) {
-							dnsrecord := &mgcv1alpha1.DNSRecord{ObjectMeta: metav1.ObjectMeta{
+							dnsrecord := &kuadrantdnsv1alpha1.DNSRecord{ObjectMeta: metav1.ObjectMeta{
 								Name:      fmt.Sprintf("%s-%s", gw.Name, "https"),
 								Namespace: gw.Namespace,
 							}}
@@ -473,7 +474,7 @@ var _ = Describe("Gateway single target cluster", func() {
 					}
 					By("when deleting tls policy, checking that tls secrets are removed")
 					{
-						tlsPolicy = &mgcv1alpha1.TLSPolicy{
+						tlsPolicy = &kuadrantv1alpha1.TLSPolicy{
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      testID,
 								Namespace: tconfig.HubNamespace(),
