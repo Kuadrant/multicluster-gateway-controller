@@ -2,5 +2,3 @@
 resources:
 # Used as examples in kuadrant-operator bundle
 - kuadrant.io_v1alpha1_tlspolicy.yaml
-- kuadrant.io_v1alpha1_managedzone.yaml
-- dnspolicy.yaml

@@ -8,4 +8,3 @@ resources:
 
 patchesStrategicMerge:
 - manager_config_patch.yaml
-- ../../policy-controller/deploy/local/manager_config_patch.yaml

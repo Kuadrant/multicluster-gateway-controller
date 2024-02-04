@@ -23,9 +23,6 @@ COPY pkg/ pkg/
 FROM builder as controller_builder
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o controller cmd/gateway_controller/main.go
 
-FROM builder as policy_builder
-RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o policy_controller cmd/policy_controller/main.go
-
 FROM builder as addon_builder
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o add-on-manager cmd/ocm/main.go
 
@@ -46,13 +43,3 @@ COPY --from=addon_builder /workspace/add-on-manager .
 USER 65532:65532
 
 ENTRYPOINT ["/add-on-manager"]
-
-
-# Use distroless as minimal base image to package the manager binary
-# Refer to https://github.com/GoogleContainerTools/distroless for more details
-FROM gcr.io/distroless/static:nonroot as policy-controller
-WORKDIR /
-COPY --from=policy_builder /workspace/policy_controller .
-USER 65532:65532
-
-ENTRYPOINT ["/policy_controller"]

@@ -51,13 +51,11 @@ import (
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/gracePeriod"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/metadata"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/slice"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/common"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/policysync"
 )
 
 const (
 	LabelPrefix                           = "kuadrant.io/"
-	ClustersLabelPrefix                   = "clusters." + LabelPrefix
 	GatewayClusterLabelSelectorAnnotation = LabelPrefix + "gateway-cluster-label-selector"
 	GatewayClustersAnnotation             = LabelPrefix + "gateway-clusters"
 	GatewayFinalizer                      = LabelPrefix + "gateway"
@@ -221,7 +219,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 		for _, address := range addresses {
 			log.V(3).Info("checking address type for mapping", "address.Type", address.Type)
-			addressType, supported := common.AddressTypeToMultiCluster(address)
+			addressType, supported := AddressTypeToMultiCluster(address)
 			if !supported {
 				continue // ignore address type gatewayapiv1.NamedAddressType. Unsupported for multi cluster gateway
 			}
@@ -568,4 +566,34 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager, ctx context.Conte
 			return true
 		})).
 		Complete(r)
+}
+
+//ToDo These need to be exposed by the kuadrant operator DNSPolicy APIs
+
+const (
+	ClustersLabelPrefix                                      = "clusters." + LabelPrefix
+	MultiClusterIPAddressType       gatewayapiv1.AddressType = LabelPrefix + "MultiClusterIPAddress"
+	MultiClusterHostnameAddressType gatewayapiv1.AddressType = LabelPrefix + "MultiClusterHostnameAddress"
+)
+
+// AddressTypeToMultiCluster returns a multi cluster version of the address type
+// and a bool to indicate that provided address type was converted. If not - original type is returned
+func AddressTypeToMultiCluster(address gatewayapiv1.GatewayAddress) (gatewayapiv1.AddressType, bool) {
+	if *address.Type == gatewayapiv1.IPAddressType {
+		return MultiClusterIPAddressType, true
+	} else if *address.Type == gatewayapiv1.HostnameAddressType {
+		return MultiClusterHostnameAddressType, true
+	}
+	return *address.Type, false
+}
+
+// AddressTypeToSingleCluster converts provided multicluster address to single cluster version
+// the bool indicates a successful conversion
+func AddressTypeToSingleCluster(address gatewayapiv1.GatewayAddress) (gatewayapiv1.AddressType, bool) {
+	if *address.Type == MultiClusterIPAddressType {
+		return gatewayapiv1.IPAddressType, true
+	} else if *address.Type == MultiClusterHostnameAddressType {
+		return gatewayapiv1.HostnameAddressType, true
+	}
+	return *address.Type, false
 }

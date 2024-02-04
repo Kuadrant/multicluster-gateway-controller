@@ -12,8 +12,12 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"k8s.io/client-go/kubernetes/scheme"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
+	kuadrantvdns1alpha1 "github.com/kuadrant/kuadrant-dns-operator/api/v1alpha1"
+	kuadrantv1alpha1 "github.com/kuadrant/kuadrant-operator/api/v1alpha1"
 
 	. "github.com/Kuadrant/multicluster-gateway-controller/test/util"
 )
@@ -34,6 +38,12 @@ var _ = BeforeSuite(func(ctx SpecContext) {
 
 	tconfig = SuiteConfig{}
 	err := tconfig.Build()
+	Expect(err).NotTo(HaveOccurred())
+
+	err = kuadrantv1alpha1.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = kuadrantvdns1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	err = tconfig.InstallPrerequisites(ctx)

@@ -3,22 +3,6 @@ layout:
 projectName: multicluster-gateway-controller
 repo: github.com/Kuadrant/multicluster-gateway-controller
 resources:
-- api:
-    crdVersion: v1alpha1
-    namespaced: true
-  controller: true
-  group: kuadrant.io
-  kind: DNSRecord
-  path: github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1
-  version: v1
-- api:
-    crdVersion: v1
-    namespaced: true
-  controller: true
-  group: kuadrant.io
-  kind: ManagedZone
-  path: github.com/Kuadrant/multicluster-gateway-controller/api/v1alpha1
-  version: v1alpha1
 - controller: true
   domain: kuadrant.io
   group: gateway.networking.k8s.io

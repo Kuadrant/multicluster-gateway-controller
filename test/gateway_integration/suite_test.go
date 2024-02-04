@@ -37,9 +37,9 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/placement"
+	//"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -71,7 +71,6 @@ var _ = BeforeSuite(func() {
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
-			filepath.Join("../../", "config", "policy-controller", "crd", "bases"),
 			filepath.Join("../../", "config", "gateway-api", "crd", "standard"),
 			filepath.Join("../../", "config", "cert-manager", "crd", "latest"),
 			filepath.Join("../../", "config", "ocm", "crd"),
@@ -93,8 +92,8 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
 
-	err = v1alpha1.AddToScheme(scheme.Scheme)
-	Expect(err).NotTo(HaveOccurred())
+	//err = v1alpha1.AddToScheme(scheme.Scheme)
+	//Expect(err).NotTo(HaveOccurred())
 
 	err = gatewayapiv1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())

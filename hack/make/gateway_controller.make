@@ -8,7 +8,7 @@ build-gateway-controller: manifests generate fmt vet ## Build controller binary.
 	go build -o bin/controller ./cmd/gateway_controller/main.go
 
 .PHONY: run-gateway-controller
-run-gateway-controller: manifests generate fmt vet  install
+run-gateway-controller: manifests generate fmt vet
 	go run ./cmd/gateway_controller/main.go \
 	    --metrics-bind-address=:8080 \
 	    --health-probe-bind-address=:8081 \
@@ -32,7 +32,7 @@ update-gateway-controller-image: kustomize ## Update gateway controller image to
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${CONTROLLER_IMG}
 
 .PHONY: deploy-gateway-controller
-deploy-gateway-controller: manifests kustomize update-gateway-controller-image update-policy-controller-image ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+deploy-gateway-controller: manifests kustomize update-gateway-controller-image ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) --load-restrictor LoadRestrictionsNone build config/deploy/local | kubectl apply -f -
 	@if [ "$(METRICS)" = "true" ]; then\
 		$(KUSTOMIZE) build config/prometheus | kubectl apply -f -;\

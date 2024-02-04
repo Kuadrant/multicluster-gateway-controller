@@ -7,12 +7,12 @@ import (
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayapiv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	kuadrantv1beta2 "github.com/kuadrant/kuadrant-operator/api/v1beta2"
 )
 
 func TestReflectPolicy(t *testing.T) {
-	policy := &v1alpha1.DNSPolicy{
-		Spec: v1alpha1.DNSPolicySpec{
+	policy := &kuadrantv1beta2.AuthPolicy{
+		Spec: kuadrantv1beta2.AuthPolicySpec{
 			TargetRef: gatewayapiv1alpha2.PolicyTargetReference{
 				Group: gatewayapiv1.Group("test.io"),
 				Kind:  gatewayapiv1.Kind("Test"),
