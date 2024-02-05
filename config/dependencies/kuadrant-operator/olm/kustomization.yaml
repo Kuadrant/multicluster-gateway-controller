@@ -1,0 +1,5 @@
+resources:
+- github.com/kuadrant/kuadrant-operator/config/deploy/olm?ref=main
+
+patchesStrategicMerge:
+  - catalog_image_patch.yaml

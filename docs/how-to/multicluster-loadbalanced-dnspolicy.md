@@ -111,7 +111,7 @@ The health check section is optional, the following fields are available:
 - `port`: The port to connect to
 - `protocol`: The protocol to use for this connection
 
-For more information about DNS Health Checks, see [this guide](../dnspolicy/dns-health-checks.md).
+For more information about DNS Health Checks, see [this guide](https://github.com/Kuadrant/kuadrant-operator/blob/main/doc/dnshealthchecks.md).
 
 #### Checking status of health checks
 To list all health checks:

@@ -34,7 +34,7 @@ When deploying the multicluster gateway controller using the make targets, the f
 * go >= 1.21
 
 ### 1. Running the controller in the cluster:
-1. Set up your DNS Provider by following these [steps](./docs/dnspolicy/dns-provider.md)
+1. Set up your DNS Provider by following these [steps](https://github.com/Kuadrant/dns-operator/blob/main/docs/provider.md)
 
 1. Setup your local environment 
     ```sh
@@ -63,7 +63,7 @@ When deploying the multicluster gateway controller using the make targets, the f
     ```
 
 ## 2. Running the controller locally:
-1. Set up your DNS Provider by following these [steps](./docs/dnspolicy/dns-provider.md)
+1. Set up your DNS Provider by following these [steps](https://github.com/Kuadrant/dns-operator/blob/main/docs/provider.md)
 
 1.  Setup your local environment 
 

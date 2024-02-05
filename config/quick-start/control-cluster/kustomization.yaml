@@ -1,8 +1,10 @@
 resources:
+  - ../../istio
   - ../../default
   - ../../metallb
   - ../../cert-manager
   - ../../gateway-api
+  - ../../dependencies/kuadrant-operator
   - cluster-config
 
 patchesStrategicMerge:

@@ -1,0 +1,7 @@
+resources:
+- github.com/kuadrant/kuadrant-operator/config/deploy?ref=main
+
+images:
+  - name: quay.io/kuadrant/kuadrant-operator
+    newName: quay.io/kuadrant/kuadrant-operator
+    newTag: latest

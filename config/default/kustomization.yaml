@@ -15,6 +15,3 @@ resources:
 
 patches:
 - path: manager_metrics_patch.yaml
-
-patchesStrategicMerge:
-  - delete-kuadrant-system-ns-object.yaml
