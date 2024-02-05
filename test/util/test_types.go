@@ -5,12 +5,9 @@ package testutil
 import (
 	"strings"
 
-	certmanv1 "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
+	certmanv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayapiv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
@@ -134,61 +131,3 @@ func AddListener(name string, hostname gatewayapiv1alpha2.Hostname, secretName g
 	gw.Spec.Listeners = append(gw.Spec.Listeners, listener)
 
 }
-
-//
-//// TLSPolicyBuilder wrapper for TLSPolicy builder helper
-//type TLSPolicyBuilder struct {
-//	*v1alpha1.TLSPolicy
-//}
-//
-//func NewTLSPolicyBuilder(policyName, ns string) *TLSPolicyBuilder {
-//	return &TLSPolicyBuilder{
-//		&v1alpha1.TLSPolicy{
-//			ObjectMeta: metav1.ObjectMeta{
-//				Name:      policyName,
-//				Namespace: ns,
-//			},
-//			Spec: v1alpha1.TLSPolicySpec{},
-//		},
-//	}
-//}
-//
-//func (t *TLSPolicyBuilder) Build() *v1alpha1.TLSPolicy {
-//	return t.TLSPolicy
-//}
-//
-//func (t *TLSPolicyBuilder) WithTargetGateway(gwName string) *TLSPolicyBuilder {
-//	typedNamespace := gatewayapiv1.Namespace(t.GetNamespace())
-//	t.Spec.TargetRef = gatewayapiv1alpha2.PolicyTargetReference{
-//		Group:     "gateway.networking.k8s.io",
-//		Kind:      "Gateway",
-//		Name:      gatewayapiv1.ObjectName(gwName),
-//		Namespace: &typedNamespace,
-//	}
-//	return t
-//}
-//
-//func (t *TLSPolicyBuilder) WithIssuerRef(issuerRef certmanmetav1.ObjectReference) *TLSPolicyBuilder {
-//	t.Spec.IssuerRef = issuerRef
-//	return t
-//}
-//
-//func (t *TLSPolicyBuilder) WithIssuer(name, kind, group string) *TLSPolicyBuilder {
-//	t.WithIssuerRef(certmanmetav1.ObjectReference{
-//		Name:  name,
-//		Kind:  kind,
-//		Group: group,
-//	})
-//	return t
-//}
-
-var _ client.Object = &TestResource{}
-
-// TestResource dummy client.Object that can be used in place of a real k8s resource for testing
-type TestResource struct {
-	metav1.TypeMeta
-	metav1.ObjectMeta
-}
-
-func (*TestResource) GetObjectKind() schema.ObjectKind { return nil }
-func (*TestResource) DeepCopyObject() runtime.Object   { return nil }

@@ -39,7 +39,6 @@ import (
 
 	. "github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/placement"
-	//"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -92,17 +91,11 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
 
-	//err = v1alpha1.AddToScheme(scheme.Scheme)
-	//Expect(err).NotTo(HaveOccurred())
-
 	err = gatewayapiv1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	err = gatewayapiv1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
-
-	// err = certman.AddToScheme(scheme.Scheme)
-	// Expect(err).NotTo(HaveOccurred())
 
 	err = ocmworkv1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())

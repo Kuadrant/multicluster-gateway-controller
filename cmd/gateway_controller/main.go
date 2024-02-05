@@ -20,7 +20,6 @@ import (
 	"flag"
 	"os"
 
-	certmanv1 "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
 	clusterv1beta2 "open-cluster-management.io/api/cluster/v1beta1"
 	workv1 "open-cluster-management.io/api/work/v1"
@@ -54,7 +53,6 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme.Scheme))
 
-	utilruntime.Must(certmanv1.AddToScheme(scheme.Scheme))
 	utilruntime.Must(gatewayapiv1.AddToScheme(scheme.Scheme))
 	utilruntime.Must(clusterv1beta2.AddToScheme(scheme.Scheme))
 	utilruntime.Must(workv1.AddToScheme(scheme.Scheme))

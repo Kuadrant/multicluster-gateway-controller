@@ -257,6 +257,7 @@ initController() {
 #    # Add the mgc CRDs
     ${KUSTOMIZE_BIN} build config/local-setup/controller/ | kubectl apply -f -
     ${KUSTOMIZE_BIN} build config/local-setup/issuer/ | kubectl apply -f -
+    ${KUSTOMIZE_BIN} build config/dependencies/kuadrant-operator/ | kubectl apply -f -
     if [[ -f "controller-config.env" && -f "gcp-credentials.env" ]]; then
       ${KUSTOMIZE_BIN} --reorder none --load-restrictor LoadRestrictionsNone build config/local-setup/controller/gcp | kubectl apply -f -
     fi

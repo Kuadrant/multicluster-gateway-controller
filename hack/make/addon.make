@@ -5,7 +5,7 @@ build-addon-manager: manifests generate fmt vet ## Build ocm binary.
 	go build -o bin/addon-manager ./cmd/ocm/main.go
 
 .PHONY: run-addon-manager
-run-addon-manager: manifests generate fmt vet install
+run-addon-manager: manifests generate fmt vet
 	go run ./cmd/ocm/main.go 
 	   
 

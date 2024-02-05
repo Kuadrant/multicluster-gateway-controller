@@ -21,6 +21,7 @@ on:
       - '**.md'
       - 'samples/**'
       - 'LICENSE'
+  workflow_dispatch:
 
 jobs:
   e2e_test_suite:

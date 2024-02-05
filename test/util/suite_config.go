@@ -9,8 +9,8 @@ import (
 	"os"
 	"strconv"
 
+	certmanv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	"github.com/goombaio/namegenerator"
-	certmanv1 "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
 	ocmclusterv1 "open-cluster-management.io/api/cluster/v1"
 	ocmclusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
 	ocmclusterv1beta2 "open-cluster-management.io/api/cluster/v1beta2"

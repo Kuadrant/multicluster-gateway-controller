@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	certman "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
+	certman "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -19,20 +19,14 @@ import (
 )
 
 const (
-	Domain                 = "thecat.com"
-	ValidTestHostname      = "boop." + Domain
-	ValidTestWildcard      = "*." + Domain
-	FailFetchDANSSubdomain = "failfetch"
-	FailCreateDNSSubdomain = "failcreate"
-	FailEnsureCertHost     = "failCreateCert" + "." + Domain
-	FailGetCertSecretName  = "fail-fail"
-	FailEndpointsHostname  = "failEndpoints" + "." + Domain
-	FailPlacementHostname  = "failPlacement" + "." + Domain
-	Cluster                = "test_cluster_one"
-	Namespace              = "boop-namespace"
-	DummyCRName            = "boop"
-	Placement              = "placement"
-	TLSSecretName          = "test-tls-cert"
+	Domain                = "thecat.com"
+	ValidTestHostname     = "boop." + Domain
+	FailPlacementHostname = "failPlacement" + "." + Domain
+	Cluster               = "test_cluster_one"
+	Namespace             = "boop-namespace"
+	DummyCRName           = "boop"
+	Placement             = "placement"
+	TLSSecretName         = "test-tls-cert"
 )
 
 func BuildValidTestRequest(name, ns string) ctrl.Request {
@@ -83,28 +77,6 @@ func AssertNoErrorReconciliation() func(res ctrl.Result, err error, t *testing.T
 	return func(res ctrl.Result, err error, t *testing.T) {
 		if err != nil || !res.IsZero() {
 			t.Errorf("failed. Expected no error and empty response but got: err: %s, res: %v", err, res)
-		}
-	}
-}
-
-func AssertErrorReconciliation(expectedError string) func(res ctrl.Result, err error, t *testing.T) {
-	return func(res ctrl.Result, err error, t *testing.T) {
-		if (expectedError == "") != (err == nil) {
-			t.Errorf("expected error %s but got %s", expectedError, err)
-		}
-		if err != nil && !strings.Contains(err.Error(), expectedError) {
-			t.Errorf("expected error to be %s but got %s", expectedError, err)
-		}
-	}
-}
-
-func AssertError(expectedError string) func(t *testing.T, err error) {
-	return func(t *testing.T, err error) {
-		if (expectedError == "") != (err == nil) {
-			t.Errorf("expected error %s but got %s", expectedError, err)
-		}
-		if err != nil && !strings.Contains(err.Error(), expectedError) {
-			t.Errorf("expected error to be %s but got %s", expectedError, err)
 		}
 	}
 }

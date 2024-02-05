@@ -16,7 +16,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	kuadrantvdns1alpha1 "github.com/kuadrant/kuadrant-dns-operator/api/v1alpha1"
+	kuadrantvdns1alpha1 "github.com/kuadrant/dns-operator/api/v1alpha1"
 	kuadrantv1alpha1 "github.com/kuadrant/kuadrant-operator/api/v1alpha1"
 
 	. "github.com/Kuadrant/multicluster-gateway-controller/test/util"

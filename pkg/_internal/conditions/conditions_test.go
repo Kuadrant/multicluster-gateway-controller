@@ -8,7 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	kuadrantv1beta2 "github.com/kuadrant/kuadrant-operator/api/v1beta2"
+	kuadrantv1alpha1 "github.com/kuadrant/kuadrant-operator/api/v1alpha1"
 
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/_internal/conditions"
 )
@@ -19,7 +19,7 @@ const (
 
 func TestBuildPolicyCondition(t *testing.T) {
 	runtimeObject := func() runtime.Object {
-		return &kuadrantv1beta2.AuthPolicy{
+		return &kuadrantv1alpha1.DNSPolicy{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "DNSPolicy",
 				APIVersion: "kuadrant.io/v1alpha1",

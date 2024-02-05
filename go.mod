@@ -3,11 +3,11 @@ module github.com/Kuadrant/multicluster-gateway-controller
 go 1.21
 
 require (
+	github.com/cert-manager/cert-manager v1.12.1
 	github.com/go-logr/logr v1.3.0
 	github.com/goombaio/namegenerator v0.0.0-20181006234301-989e774b106e
-	github.com/jetstack/cert-manager v1.7.1
-	github.com/kuadrant/kuadrant-dns-operator v0.0.0-20240202223525-b889335b228f
-	github.com/kuadrant/kuadrant-operator v0.1.1-0.20231114121136-3136ed961c70
+	github.com/kuadrant/dns-operator v0.1.0
+	github.com/kuadrant/kuadrant-operator v0.1.1-0.20240213220508-a823a3739fd6
 	github.com/onsi/ginkgo/v2 v2.13.2
 	github.com/onsi/gomega v1.30.0
 	github.com/operator-framework/api v0.17.5
@@ -59,6 +59,7 @@ require (
 	github.com/kuadrant/authorino-operator v0.9.0 // indirect
 	github.com/kuadrant/limitador-operator v0.7.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
+	github.com/martinlindhe/base36 v1.1.1 // indirect
 	github.com/matttproud/golang_protobuf_extensions/v2 v2.0.0 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
@@ -66,10 +67,12 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
+	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_golang v1.17.0 // indirect
 	github.com/prometheus/client_model v0.5.0 // indirect
 	github.com/prometheus/common v0.45.0 // indirect
 	github.com/prometheus/procfs v0.12.0 // indirect
+	github.com/rogpeppe/go-internal v1.11.0 // indirect
 	github.com/shopspring/decimal v1.3.1 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/spf13/cast v1.6.0 // indirect
@@ -115,5 +118,3 @@ require (
 replace maistra.io/istio-operator => github.com/maistra/istio-operator v0.0.0-20231214211859-76e404c8df41
 
 replace github.com/imdario/mergo => dario.cat/mergo v0.3.5
-
-replace github.com/kuadrant/kuadrant-operator => /home/mnairn/go/src/github.com/kuadrant/kuadrant-operator
