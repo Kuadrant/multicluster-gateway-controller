@@ -4,6 +4,9 @@ This walkthrough shows how to install a metrics federation stack locally and que
 
 ![arch](../images/metrics/metrics-federation.png)
 
+## Video Walkthrough
+<iframe width="100%" height="400" src="https://www.youtube.com/embed/MCuamD859WI" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+
 ## Installation and Configuration of Metrics
 This document will guide you in installing metrics for your application and provide directions on where to access them. Additionally, it will include dashboards set up to display these metrics. 
 
