@@ -3,6 +3,9 @@
 The DNSPolicy is a [GatewayAPI](https://gateway-api.sigs.k8s.io/) policy that uses `Direct Policy Attachment` as defined in the [policy attachment mechanism](https://gateway-api.sigs.k8s.io/v1alpha2/references/policy-attachment/) standard.
 This policy is used to provide dns management for gateway listeners by managing the lifecycle of dns records in external dns providers such as AWS Route53 and Google DNS.
 
+## Overview Video
+<iframe width="100%" height="400" src="https://www.youtube.com/embed/TnUE3G6bsoQ" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+
 ## How it works
 
 A DNSPolicy and its targeted Gateway API networking resource contain all the statements to configure both the ingress gateway and the external DNS service. 
