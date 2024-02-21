@@ -25,7 +25,7 @@ jobs:
       sha_short: ${{ steps.vars.outputs.sha_short }}
       controller_image: ${{ steps.vars.outputs.base_image }}:${{ steps.vars.outputs.sha_short }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Calculate vars
         id: vars
@@ -68,8 +68,13 @@ jobs:
     name: Build bundle image
     runs-on: ubuntu-22.04
     steps:
+      - name: Set up Go 1.21.x
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.21.x
+
       - name: Check out code
-        uses: actions/checkout@v3 
+        uses: actions/checkout@v4
 
       - name: Calculate vars
         id: vars
@@ -107,8 +112,13 @@ jobs:
     name: Build catalog image
     runs-on: ubuntu-22.04
     steps:
+      - name: Set up Go 1.21.x
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.21.x
+
       - name: Check out code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       
       - name: Calculate vars
         id: vars
@@ -135,4 +145,3 @@ jobs:
       - name: Make catalog push
         id: make-catalog-push
         run: make catalog-push REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} IMAGE_TAG=${{ github.ref_name }}
-      
