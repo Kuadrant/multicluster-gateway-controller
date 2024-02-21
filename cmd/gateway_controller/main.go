@@ -40,6 +40,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	"github.com/Kuadrant/multicluster-gateway-controller/cmd/gateway_controller/ocm"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/placement"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/policysync"
@@ -47,7 +48,9 @@ import (
 )
 
 var (
-	setupLog = ctrl.Log.WithName("setup")
+	metricsAddr          string
+	enableLeaderElection bool
+	probeAddr            string
 )
 
 func init() {
@@ -62,9 +65,6 @@ func init() {
 }
 
 func main() {
-	var metricsAddr string
-	var enableLeaderElection bool
-	var probeAddr string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
@@ -77,8 +77,10 @@ func main() {
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+	setupLog := ctrl.Log.WithName("gateway controller setup")
 
 	ctx := ctrl.SetupSignalHandler()
+
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme.Scheme,
 		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
@@ -129,18 +131,27 @@ func main() {
 
 	//+kubebuilder:scaffold:builder
 
-	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
+	if err = mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")
 		os.Exit(1)
 	}
-	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
+	if err = mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up ready check")
 		os.Exit(1)
 	}
 
-	setupLog.Info("starting manager")
-	if err := mgr.Start(ctx); err != nil {
-		setupLog.Error(err, "problem running manager")
+	// add addon-manager
+	if err = mgr.Add(ocm.AddonRunnable{}); err != nil {
+		setupLog.Error(err, "unable to add addon manager runnable")
 		os.Exit(1)
 	}
+
+	setupLog.Info("starting manager")
+
+	if err = mgr.Start(ctx); err != nil {
+		setupLog.Error(err, "problem running controller manager")
+		os.Exit(1)
+	}
+
+	<-ctx.Done()
 }

@@ -1,9 +1,9 @@
-package main
+package ocm
 
 import (
 	"context"
 	"embed"
-	"fmt"
+	"os"
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -14,20 +14,62 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	kuadrantv1beta1 "github.com/kuadrant/kuadrant-operator/api/v1beta1"
 
-	hub "github.com/Kuadrant/multicluster-gateway-controller/pkg/ocm/hub"
+	"github.com/Kuadrant/multicluster-gateway-controller/pkg/ocm/hub"
 )
 
-//go:embed addon-manager/manifests
+//go:embed manifests
 var FS embed.FS
 
 const (
 	addonName = "kuadrant-addon"
 )
+
+type AddonRunnable struct{}
+
+func (r AddonRunnable) Start(ctx context.Context) error {
+	setupLog := ctrl.Log.WithName("addon manager setup")
+	setupLog.Info("starting add-on manager")
+	addonScheme := runtime.NewScheme()
+	utilruntime.Must(operatorsv1alpha1.AddToScheme(addonScheme))
+	utilruntime.Must(operatorsv1.AddToScheme(addonScheme))
+	utilruntime.Must(kuadrantv1beta1.AddToScheme(addonScheme))
+
+	kubeConfig := ctrl.GetConfigOrDie()
+
+	addonMgr, err := addonmanager.New(kubeConfig)
+	if err != nil {
+		setupLog.Error(err, "unable to setup addon manager")
+		os.Exit(1)
+	}
+
+	agentAddon, err := addonfactory.NewAgentAddonFactory(addonName, FS, "manifests").
+		WithAgentHealthProber(hub.AddonHealthProber()).
+		WithScheme(addonScheme).
+		WithGetValuesFuncs(GetDefaultValues, addonfactory.GetValuesFromAddonAnnotation).
+		BuildTemplateAgentAddon()
+	if err != nil {
+		setupLog.Error(err, "failed to build agent addon")
+		os.Exit(1)
+	}
+	err = addonMgr.AddAgent(agentAddon)
+	if err != nil {
+		setupLog.Error(err, "failed to add addon agent")
+		os.Exit(1)
+	}
+
+	if err = addonMgr.Start(ctx); err != nil {
+		setupLog.Error(err, "problem running addon manager")
+		return err
+	}
+
+	<-ctx.Done()
+
+	return nil
+}
 
 func GetDefaultValues(cluster *clusterv1.ManagedCluster,
 	addon *addonapiv1alpha1.ManagedClusterAddOn) (addonfactory.Values, error) {
@@ -58,44 +100,4 @@ func GetDefaultValues(cluster *clusterv1.ManagedCluster,
 	}
 
 	return addonfactory.StructToValues(manifestConfig), nil
-}
-
-func main() {
-	fmt.Println("starting add-on manager")
-	addonScheme := runtime.NewScheme()
-	utilruntime.Must(operatorsv1alpha1.AddToScheme(addonScheme))
-	utilruntime.Must(operatorsv1.AddToScheme(addonScheme))
-	utilruntime.Must(kuadrantv1beta1.AddToScheme(addonScheme))
-
-	kubeConfig := ctrl.GetConfigOrDie()
-
-	addonMgr, err := addonmanager.New(kubeConfig)
-	if err != nil {
-		klog.Errorf("unable to setup addon manager: %v", err)
-		panic(err)
-	}
-
-	agentAddon, err := addonfactory.NewAgentAddonFactory(addonName, FS, "addon-manager/manifests").
-		WithAgentHealthProber(hub.AddonHealthProber()).
-		WithScheme(addonScheme).
-		WithGetValuesFuncs(GetDefaultValues, addonfactory.GetValuesFromAddonAnnotation).
-		BuildTemplateAgentAddon()
-	if err != nil {
-		klog.Errorf("failed to build agent addon %v", err)
-		panic(err)
-	}
-	err = addonMgr.AddAgent(agentAddon)
-	if err != nil {
-		klog.Errorf("failed to add addon agent: %v", err)
-		panic(err)
-	}
-
-	ctx := context.Background()
-	go func() {
-		if err := addonMgr.Start(ctx); err != nil {
-			panic(err)
-		}
-	}()
-
-	<-ctx.Done()
 }

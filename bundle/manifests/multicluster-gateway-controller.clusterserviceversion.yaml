@@ -4,7 +4,7 @@ metadata:
   annotations:
     alm-examples: '[]'
     capabilities: Basic Install
-    createdAt: "2024-02-09T15:14:21Z"
+    createdAt: "2024-02-21T15:02:50Z"
     operators.operatorframework.io/builder: operator-sdk-v1.28.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
   name: multicluster-gateway-controller.v0.0.0
@@ -26,142 +26,23 @@ spec:
           - ""
           resources:
           - configmaps
-          - events
           verbs:
-          - get
-          - list
-          - watch
           - create
-          - update
           - delete
-          - deletecollection
+          - get
+          - list
           - patch
-        - apiGroups:
-          - coordination.k8s.io
-          resources:
-          - leases
-          verbs:
-          - get
-          - list
+          - update
           - watch
-          - create
-          - update
-          - patch
-        - apiGroups:
-          - rbac.authorization.k8s.io
-          resources:
-          - roles
-          - rolebindings
-          verbs:
-          - get
-          - list
-          - watch
-          - create
-          - update
-          - delete
-        - apiGroups:
-          - authorization.k8s.io
-          resources:
-          - subjectaccessreviews
-          verbs:
-          - get
-          - create
-        - apiGroups:
-          - certificates.k8s.io
-          resources:
-          - certificatesigningrequests
-          - certificatesigningrequests/approval
-          verbs:
-          - get
-          - list
-          - watch
-          - create
-          - update
-        - apiGroups:
-          - certificates.k8s.io
-          resources:
-          - signers
-          verbs:
-          - approve
-        - apiGroups:
-          - cluster.open-cluster-management.io
-          resources:
-          - managedclusters
-          verbs:
-          - get
-          - list
-          - watch
-          - update
-        - apiGroups:
-          - work.open-cluster-management.io
-          resources:
-          - manifestworks
-          verbs:
-          - create
-          - update
-          - get
-          - list
-          - watch
-          - delete
-          - deletecollection
-          - patch
-        - apiGroups:
-          - addon.open-cluster-management.io
-          resources:
-          - managedclusteraddons/finalizers
-          verbs:
-          - update
-        - apiGroups:
-          - addon.open-cluster-management.io
-          resources:
-          - clustermanagementaddons/finalizers
-          verbs:
-          - update
-        - apiGroups:
-          - addon.open-cluster-management.io
-          resources:
-          - clustermanagementaddons
-          verbs:
-          - get
-          - list
-          - watch
-        - apiGroups:
-          - addon.open-cluster-management.io
-          resources:
-          - managedclusteraddons
-          verbs:
-          - get
-          - list
-          - watch
-          - create
-          - update
-          - delete
-        - apiGroups:
-          - addon.open-cluster-management.io
-          resources:
-          - managedclusteraddons/status
-          verbs:
-          - update
-          - patch
-        - apiGroups:
-          - kuadrant.io/v1beta1
-          resources:
-          - kuadrant
-          verbs:
-          - get
-          - list
-          - watch
-          - create
-          - update
-        serviceAccountName: mgc-add-on-manager
-      - rules:
         - apiGroups:
           - ""
           resources:
           - configmaps
+          - events
           verbs:
           - create
           - delete
+          - deletecollection
           - get
           - list
           - patch
@@ -177,6 +58,51 @@ spec:
           - list
           - watch
         - apiGroups:
+          - addon.open-cluster-management.io
+          resources:
+          - clustermanagementaddons
+          verbs:
+          - get
+          - list
+          - watch
+        - apiGroups:
+          - addon.open-cluster-management.io
+          resources:
+          - clustermanagementaddons/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - addon.open-cluster-management.io
+          resources:
+          - managedclusteraddons
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - update
+          - watch
+        - apiGroups:
+          - addon.open-cluster-management.io
+          resources:
+          - managedclusteraddons/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - addon.open-cluster-management.io
+          resources:
+          - managedclusteraddons/status
+          verbs:
+          - patch
+          - update
+        - apiGroups:
+          - authorization.k8s.io
+          resources:
+          - subjectaccessreviews
+          verbs:
+          - create
+          - get
+        - apiGroups:
           - cert-manager.io
           resources:
           - certificates
@@ -189,12 +115,30 @@ spec:
           - update
           - watch
         - apiGroups:
+          - certificates.k8s.io
+          resources:
+          - certificatesigningrequests
+          - certificatesigningrequests/approval
+          verbs:
+          - create
+          - get
+          - list
+          - update
+          - watch
+        - apiGroups:
+          - certificates.k8s.io
+          resources:
+          - signers
+          verbs:
+          - approve
+        - apiGroups:
           - cluster.open-cluster-management.io
           resources:
           - managedclusters
           verbs:
           - get
           - list
+          - update
           - watch
         - apiGroups:
           - cluster.open-cluster-management.io
@@ -203,6 +147,17 @@ spec:
           verbs:
           - create
           - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - coordination.k8s.io
+          resources:
+          - leases
+          verbs:
+          - create
           - get
           - list
           - patch
@@ -270,12 +225,35 @@ spec:
           - list
           - watch
         - apiGroups:
+          - kuadrant.io
+          resources:
+          - kuadrant
+          verbs:
+          - create
+          - get
+          - list
+          - update
+          - watch
+        - apiGroups:
+          - rbac.authorization.k8s.io
+          resources:
+          - rolebindings
+          - roles
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - update
+          - watch
+        - apiGroups:
           - work.open-cluster-management.io
           resources:
           - manifestworks
           verbs:
           - create
           - delete
+          - deletecollection
           - get
           - list
           - patch
@@ -295,50 +273,6 @@ spec:
           - create
         serviceAccountName: mgc-controller-manager
       deployments:
-      - label:
-          control-plane: kuadrant-add-on-manager
-        name: mgc-add-on-manager
-        spec:
-          replicas: 1
-          selector:
-            matchLabels:
-              control-plane: kuadrant-add-on-manager
-          strategy: {}
-          template:
-            metadata:
-              annotations:
-                kubectl.kubernetes.io/default-container: controller
-              labels:
-                control-plane: kuadrant-add-on-manager
-            spec:
-              containers:
-              - args:
-                - --leader-elect
-                command:
-                - /add-on-manager
-                envFrom:
-                - configMapRef:
-                    name: controller-config
-                    optional: true
-                image: quay.io/kuadrant/addon-manager:main
-                imagePullPolicy: Always
-                name: controller
-                resources:
-                  limits:
-                    cpu: 500m
-                    memory: 128Mi
-                  requests:
-                    cpu: 10m
-                    memory: 64Mi
-                securityContext:
-                  allowPrivilegeEscalation: false
-                  capabilities:
-                    drop:
-                    - ALL
-              securityContext:
-                runAsNonRoot: true
-              serviceAccountName: mgc-add-on-manager
-              terminationGracePeriodSeconds: 10
       - label:
           app.kubernetes.io/component: manager
           app.kubernetes.io/created-by: multicluster-gateway-controller
