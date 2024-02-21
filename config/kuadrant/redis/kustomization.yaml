@@ -1,4 +1,0 @@
-resources:
-- namespace.yaml
-- redis-pod.yaml
-- service.yaml

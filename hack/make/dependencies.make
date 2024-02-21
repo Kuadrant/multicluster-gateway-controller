@@ -18,7 +18,6 @@ HELM ?= $(LOCALBIN)/helm
 ISTIOCTL ?= $(LOCALBIN)/istioctl
 OPERATOR_SDK ?= $(LOCALBIN)/operator-sdk
 CLUSTERADM ?= $(LOCALBIN)/clusteradm
-SUBCTL ?= $(LOCALBIN)/subctl
 GINKGO ?= $(LOCALBIN)/ginkgo
 YQ ?= $(LOCALBIN)/yq
 OPENSHIFT_GOIMPORTS ?= $(LOCALBIN)/openshift-goimports
@@ -32,12 +31,11 @@ YQ_VERSION ?= v4.30.8
 ISTIOVERSION ?= 1.20.0
 OPERATOR_SDK_VERSION ?= 1.28.0
 CLUSTERADM_VERSION ?= 0.6.0
-SUBCTL_VERSION ?= release-0.15
 GINKGO_VERSION ?= v2.13.2
 OPENSHIFT_GOIMPORTS_VERSION ?= c70783e636f2213cac683f6865d88c5edace3157
 
 .PHONY: dependencies
-dependencies: kustomize operator-sdk controller-gen envtest kind helm yq istioctl clusteradm subctl ginkgo
+dependencies: kustomize operator-sdk controller-gen envtest kind helm yq istioctl clusteradm ginkgo
 	@echo "dependencies installed successfully"
 	@echo "consider running `export PATH=$PATH:$(pwd)/bin` if you haven't already done"
 
@@ -102,11 +100,6 @@ $(ISTIOCTL):
 clusteradm: $(CLUSTERADM)
 $(CLUSTERADM):
 	test -s $(CLUSTERADM)|| curl -sL https://raw.githubusercontent.com/open-cluster-management-io/clusteradm/main/install.sh | INSTALL_DIR=$(LOCALBIN) bash -s -- $(CLUSTERADM_VERSION)
-
-.PHONY: subctl
-subctl: $(SUBCTL)
-$(SUBCTL):
-	test -s $(SUBCTL) || curl https://get.submariner.io | DESTDIR=$(LOCALBIN) VERSION=$(SUBCTL_VERSION) bash
 
 .PHONY: ginkgo
 ginkgo: $(GINKGO) ## Download ginkgo locally if necessary

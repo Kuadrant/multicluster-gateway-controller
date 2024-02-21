@@ -53,10 +53,8 @@ deployOLM(){
   ${OPERATOR_SDK_BIN} olm install --timeout 10m0s
 }
 
-
 deployOCMHub(){
   clusterName=${1}
-  minimal=${2}
   echo "installing the hub cluster in kind-(${clusterName}) "
   ${CLUSTERADM_BIN} init --bundle-version='0.11.0' --wait --context kind-${clusterName}
   echo "PATCHING CLUSTERMANAGER: placement image patch to use amd64 image - See https://kubernetes.slack.com/archives/C01GE7YSUUF/p1685016272443249"
@@ -65,14 +63,6 @@ deployOCMHub(){
   if [[ -n "${OCM_SINGLE}" ]]; then
     deployOCMSpoke ${clusterName}
     deployOLM ${KIND_CLUSTER_CONTROL_PLANE}
-
-    if ! [[ -n "${minimal}" ]]; then
-        deployIstio ${KIND_CLUSTER_CONTROL_PLANE}
-    fi
-  fi
-  if ! [[ -n "${minimal}" ]]; then
-      echo "Installing Redis in kind-mgc-control-plane"
-      ${KUSTOMIZE_BIN} build ${REDIS_KUSTOMIZATION_DIR} | kubectl apply -f -
   fi
 }
 
@@ -98,7 +88,7 @@ deployOCMSpoke() {
 
 # local-setup-mgc specific functions
 LOCAL_SETUP_DIR="$(dirname "${BASH_SOURCE[0]}")"
-REDIS_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/kuadrant/redis
+
 
 deployMetalLB () {
   local METALLB_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/metallb
@@ -141,41 +131,7 @@ deployCertManager() {
   kubectl delete mutatingWebhookConfiguration mgc-cert-manager-webhook
 }
 
-deployExternalDNS() {
-  local EXTERNAL_DNS_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/external-dns
-  clusterName=${1}
-  echo "Deploying ExternalDNS to (${clusterName})"
-
-  kubectl config use-context kind-${clusterName}
-
-  ${KUSTOMIZE_BIN} build ${EXTERNAL_DNS_KUSTOMIZATION_DIR} --enable-helm --helm-command ${HELM_BIN} | kubectl apply -f -
-  echo "Waiting for External DNS deployments to be ready..."
-  kubectl -n external-dns wait --timeout=300s --for=condition=Available deployments --all
-}
-
-deployArgoCD() {
-  local ARGOCD_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/argocd
-  clusterName=${1}
-  echo "Deploying ArgoCD to (${clusterName})"
-
-  kubectl config use-context kind-${clusterName}
-
-  ${KUSTOMIZE_BIN} build ${ARGOCD_KUSTOMIZATION_DIR} --enable-helm --helm-command ${HELM_BIN} | kubectl apply -f -
-  echo "Waiting for ARGOCD deployments to be ready..."
-  kubectl -n argocd wait --timeout=300s --for=condition=Available deployments --all
-
-  ports=$(docker ps --format '{{json .}}' | jq "select(.Names == \"$clusterName-control-plane\").Ports")
-  httpsport=$(echo $ports | sed -e 's/.*0.0.0.0\:\(.*\)->443\/tcp.*/\1/')
-  argoPassword=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
-  nodeIP=$(kubectl get nodes -o json | jq -r ".items[] | select(.metadata.name == \"$clusterName-control-plane\").status | .addresses[] | select(.type == \"InternalIP\").address")
-
-  echo -ne "\n\n\tConnect to ArgoCD UI\n\n"
-  echo -ne "\t\tLocal URL: https://argocd.127.0.0.1.nip.io:$httpsport\n"
-  echo -ne "\t\tNode URL : https://argocd.$nodeIP.nip.io\n"
-  echo -ne "\t\tUser     : admin\n"
-  echo -ne "\t\tPassword : $argoPassword\n\n\n"
-}
-
+#ToDo Use kuadrant operator dependencies
 deployIstio() {
   local ISTIO_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/istio/istio-operator.yaml
   clusterName=${1}
@@ -186,6 +142,7 @@ deployIstio() {
 	kubectl apply -f  ${ISTIO_KUSTOMIZATION_DIR}
 }
 
+#ToDo Use kuadrant operator dependencies
 installGatewayAPI() {
   local GATEWAY_API_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/gateway-api
   clusterName=${1}
@@ -193,61 +150,6 @@ installGatewayAPI() {
   echo "Installing Gateway API in ${clusterName}"
 
   ${KUSTOMIZE_BIN} build ${GATEWAY_API_KUSTOMIZATION_DIR} | kubectl apply -f -
-}
-
-
-deployRedis(){
-  clusterName=${1}
-
-  kubectl config use-context kind-${clusterName}
-  echo "Installing Redis in kind-${clusterName}"
-  ${KUSTOMIZE_BIN} build ${REDIS_KUSTOMIZATION_DIR} | kubectl apply -f -
-}
-
-deployDashboard() {
-  clusterName=${1}
-  portOffset=${2}
-
-  echo "Deploying Kubernetes Dashboard to (${clusterName})"
-
-  kubectl config use-context kind-${clusterName}
-
-  kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.7.0/aio/deploy/recommended.yaml
-  ${KUSTOMIZE_BIN} build config/dashboard | kubectl apply -f -
-
-  kubectl wait --timeout=-30s --for=condition=Available deployment kubernetes-dashboard -n kubernetes-dashboard
-
-  token=$(kubectl get secret/admin-user-token -n kubernetes-dashboard -o go-template="{{.data.token | base64decode}}")
-
-  port=$((proxyPort + portOffset))
-
-  kubectl proxy --context kind-${clusterName} --port ${port} &
-  proxyPID=$!
-  echo $proxyPID >> /tmp/dashboard_pids
-
-  echo -ne "\n\n\tAccess Kubernetes Dashboard\n\n"
-  echo -ne "\t\t\t* The dashboard is available at http://localhost:$port/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/\n"
-  echo -ne "\t\tAccess the dashboard using the following Bearer Token: $token\n"
-}
-
-deployAgentSecret() {
-  clusterName=${1}
-  localAccess=${2:=LOCAL_ACCESS}
-  if [ $localAccess == "true" ]; then
-    secretName=control-plane-cluster
-  else
-    secretName=control-plane-cluster-internal
-  fi
-  echo "Deploying the agent secret to (${clusterName})"
-
-  kubectl config use-context kind-${clusterName}
-
-  kubectl create namespace mgc-system || true
-
-  makeSecretForCluster $KIND_CLUSTER_CONTROL_PLANE $clusterName $localAccess |
-  setNamespacedName mgc-system ${secretName} |
-  setLabel argocd.argoproj.io/secret-type cluster |
-  kubectl apply -f -
 }
 
 initController() {
@@ -264,20 +166,6 @@ initController() {
     if [[ -f "controller-config.env" && -f "aws-credentials.env" ]]; then
       ${KUSTOMIZE_BIN} --reorder none --load-restrictor LoadRestrictionsNone build config/local-setup/controller/aws | kubectl apply -f -
     fi
-}
-
-deploySubmarinerBroker() {
-  clusterName=${1}
-  if [[ -n "${SUBMARINER}" ]]; then
-    ${SUBCTL_BIN} deploy-broker --kubeconfig ${TMP_DIR}/kubeconfigs/external/${clusterName}.kubeconfig
-  fi
-}
-
-joinSubmarinerBroker() {
-  clusterName=${1}
-  if [[ -n "${SUBMARINER}" ]]; then
-    ${SUBCTL_BIN} join --kubeconfig ${TMP_DIR}/kubeconfigs/external/${clusterName}.kubeconfig broker-info.subm --clusterid ${clusterName} --natt=false --check-broker-certificate=false
-  fi
 }
 
 deployThanos() {

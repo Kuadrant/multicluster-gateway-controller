@@ -99,7 +99,7 @@ local-setup-kind: kind ## Setup kind clusters for multi cluster traffic controll
 	./hack/local-setup-kind.sh
 
 .PHONY: local-setup-mgc
-local-setup-mgc: kustomize helm yq dev-tls istioctl operator-sdk clusteradm subctl ## Setup multi cluster traffic controller locally onto kind clusters.
+local-setup-mgc: kustomize helm yq istioctl operator-sdk clusteradm ## Setup multi cluster traffic controller locally onto kind clusters.
 	./hack/local-setup-mgc.sh
 
 .PHONY: local-cleanup
@@ -119,29 +119,6 @@ ifndef ignore-not-found
   ignore-not-found = false
 endif
 
-
-.PHONY: deploy-sample-applicationset
-deploy-sample-applicationset:
-	kubectl apply -f ./samples/argocd-applicationset/echo-applicationset.yaml
-
 .PHONY: thanos-manifests
 thanos-manifests: ./hack/thanos/thanos_build.sh ./hack/thanos/thanos.jsonnet
 	./hack/thanos/thanos_build.sh
-
-DEV_TLS_DIR = config/webhook-setup/control/tls
-DEV_TLS_CRT ?= $(DEV_TLS_DIR)/tls.crt
-DEV_TLS_KEY ?= $(DEV_TLS_DIR)/tls.key
-
-.PHONY: dev-tls
-dev-tls: $(DEV_TLS_CRT) ## Generate dev tls webhook cert if necessary.
-$(DEV_TLS_CRT):
-	openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout $(DEV_TLS_KEY) -out $(DEV_TLS_CRT) -subj "/C=IE/O=Red Hat Ltd/OU=HCG/CN=webhook.172.31.0.2.nip.io" -addext "subjectAltName = DNS:webhook.172.31.0.2.nip.io"
-
-.PHONY: clear-dev-tls
-clear-dev-tls:
-	-rm -f $(DEV_TLS_CRT)
-	-rm -f $(DEV_TLS_KEY)
-
-.PHONY: skupper-setup
-skupper-setup:
-	./hack/skupper/skupper-setup.sh 
