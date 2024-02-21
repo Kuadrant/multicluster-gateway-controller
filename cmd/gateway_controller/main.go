@@ -20,7 +20,6 @@ import (
 	"flag"
 	"os"
 
-	certmanv1 "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
 	clusterv1beta2 "open-cluster-management.io/api/cluster/v1beta1"
 	workv1 "open-cluster-management.io/api/work/v1"
@@ -41,8 +40,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	addon_manager "github.com/Kuadrant/multicluster-gateway-controller/cmd/gateway_controller/addon-manager"
-	"github.com/Kuadrant/multicluster-gateway-controller/pkg/apis/v1alpha1"
+	"github.com/Kuadrant/multicluster-gateway-controller/cmd/gateway_controller/ocm"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/placement"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/policysync"
@@ -143,7 +141,7 @@ func main() {
 	}
 
 	// add addon-manager
-	if err = mgr.Add(addon_manager.AddonRunnable{}); err != nil {
+	if err = mgr.Add(ocm.AddonRunnable{}); err != nil {
 		setupLog.Error(err, "unable to add addon manager runnable")
 		os.Exit(1)
 	}

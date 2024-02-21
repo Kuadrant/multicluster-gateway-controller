@@ -1,4 +1,4 @@
-package addon_manager
+package ocm
 
 import (
 	"context"
