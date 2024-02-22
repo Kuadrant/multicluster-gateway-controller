@@ -28,9 +28,9 @@ import (
 const (
 	MultiClusterGatewayClassName = "kuadrant-multi-cluster-gateway-instance-per-cluster"
 	IstioGatewayClassName        = "istio"
-	ManagedClusterSetName        = "gateway-clusters"
+	ManagedClusterSetName        = "e2e-test-gateway-clusters"
 	PlacementLabel               = "cluster.open-cluster-management.io/placement"
-	ClusterSetLabelKey           = "test-ingress-cluster"
+	ClusterSetLabelKey           = "e2e-test-ingress-cluster"
 	ClusterSetLabelValue         = "true"
 
 	// configuration environment variables

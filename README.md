@@ -12,17 +12,12 @@ Key Features:
 - Health checks to detect and take remedial action against unhealthy endpoints
 - Cloud DNS provider integrations (AWS route 53) with new ones being added (google DNS)
 
-
 When deploying the multicluster gateway controller using the make targets, the following will be created: 
 * Kind cluster(s)
 * Gateway API CRDs in the control plane cluster
 * Ingress controller
 * Cert manager
-* ArgoCD instance
-* K8s Dashboard
 * LetsEncrypt certs
-	
-
 
 ## Prerequisites:
 * AWS or GCP
@@ -71,28 +66,7 @@ When deploying the multicluster gateway controller using the make targets, the f
     make build-gateway-controller run-gateway-controller
     ```
 
-## 3. Running the agent in the cluster:
-1. Build the agent image and load it into the workload cluster
-    ```sh
-    kubectl config use-context kind-mgc-workload-1 
-    make kind-load-agent
-    ```
-
-1. Deploy the agent to the workload cluster
-    ```sh
-    make deploy-agent
-    ```
-    
-## 4. Running the agent locally
-1. Target the workload cluster you wish to run on:
-```sh
-export KUBECONFIG=./tmp/kubeconfigs/mgc-workload-1.kubeconfig
-```
-1. Run the agent locally:
-```sh
-make build-agent run-agent
-```
-## 5. Clean up local environment
+## 3. Clean up local environment
 In any terminal window target control plane cluster by:
 ```bash
 kubectl config use-context kind-mgc-control-plane 
@@ -121,4 +95,3 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-

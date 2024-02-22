@@ -60,10 +60,6 @@ deployOCMHub(){
   echo "PATCHING CLUSTERMANAGER: placement image patch to use amd64 image - See https://kubernetes.slack.com/archives/C01GE7YSUUF/p1685016272443249"
   kubectl patch clustermanager cluster-manager --type='merge' -p '{"spec":{"placementImagePullSpec":"quay.io/open-cluster-management/placement:v0.11.0-amd64"}}' --context kind-${clusterName}
   echo "checking if cluster is single or multi"
-  if [[ -n "${OCM_SINGLE}" ]]; then
-    deployOCMSpoke ${clusterName}
-    deployOLM ${KIND_CLUSTER_CONTROL_PLANE}
-  fi
 }
 
 deployOCMSpoke() {
@@ -84,24 +80,7 @@ deployOCMSpoke() {
   done
 }
 
-
-
-# local-setup-mgc specific functions
 LOCAL_SETUP_DIR="$(dirname "${BASH_SOURCE[0]}")"
-
-
-deployMetalLB () {
-  local METALLB_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/metallb
-  clusterName=${1}
-  metalLBSubnet=${2}
-
-  kubectl config use-context kind-${clusterName}
-  echo "Deploying MetalLB to ${clusterName}"
-  ${KUSTOMIZE_BIN} build ${METALLB_KUSTOMIZATION_DIR} | kubectl apply -f -
-  echo "Waiting for deployments to be ready ..."
-  kubectl -n metallb-system wait --for=condition=ready pod --selector=app=metallb --timeout=600s
-  configureMetalLB ${clusterName} ${metalLBSubnet}
-}
 
 deployIngressController () {
   local INGRESS_NGINX_KUSTOMIZATION_DIR="$2"
@@ -114,58 +93,6 @@ deployIngressController () {
   ${KUSTOMIZE_BIN} build ${INGRESS_NGINX_KUSTOMIZATION_DIR} --enable-helm --helm-command ${HELM_BIN} | kubectl apply -f -
   echo "Waiting for deployments to be ready ..."
   kubectl -n ingress-nginx wait --timeout=600s --for=condition=Available deployments --all
-}
-
-deployCertManager() {
-  local CERT_MANAGER_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/cert-manager
-  clusterName=${1}
-  echo "Deploying Cert Manager to (${clusterName})"
-
-  kubectl config use-context kind-${clusterName}
-
-  ${KUSTOMIZE_BIN} build ${CERT_MANAGER_KUSTOMIZATION_DIR} --enable-helm --helm-command ${HELM_BIN} | kubectl apply -f -
-  echo "Waiting for Cert Manager deployments to be ready..."
-  kubectl -n cert-manager wait --timeout=300s --for=condition=Available deployments --all
-
-  kubectl delete validatingWebhookConfiguration mgc-cert-manager-webhook
-  kubectl delete mutatingWebhookConfiguration mgc-cert-manager-webhook
-}
-
-#ToDo Use kuadrant operator dependencies
-deployIstio() {
-  local ISTIO_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/istio/istio-operator.yaml
-  clusterName=${1}
-  echo "Deploying Istio to (${clusterName})"
-
-  kubectl config use-context kind-${clusterName}
-  ${ISTIOCTL_BIN} operator init
-	kubectl apply -f  ${ISTIO_KUSTOMIZATION_DIR}
-}
-
-#ToDo Use kuadrant operator dependencies
-installGatewayAPI() {
-  local GATEWAY_API_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/gateway-api
-  clusterName=${1}
-  kubectl config use-context kind-${clusterName}
-  echo "Installing Gateway API in ${clusterName}"
-
-  ${KUSTOMIZE_BIN} build ${GATEWAY_API_KUSTOMIZATION_DIR} | kubectl apply -f -
-}
-
-initController() {
-    clusterName=${1}
-    kubectl config use-context kind-${clusterName}
-    echo "Initialize local dev setup for the controller on ${clusterName}"
-#    # Add the mgc CRDs
-    ${KUSTOMIZE_BIN} build config/local-setup/controller/ | kubectl apply -f -
-    ${KUSTOMIZE_BIN} build config/local-setup/issuer/ | kubectl apply -f -
-    ${KUSTOMIZE_BIN} build config/dependencies/kuadrant-operator/ | kubectl apply -f -
-    if [[ -f "controller-config.env" && -f "gcp-credentials.env" ]]; then
-      ${KUSTOMIZE_BIN} --reorder none --load-restrictor LoadRestrictionsNone build config/local-setup/controller/gcp | kubectl apply -f -
-    fi
-    if [[ -f "controller-config.env" && -f "aws-credentials.env" ]]; then
-      ${KUSTOMIZE_BIN} --reorder none --load-restrictor LoadRestrictionsNone build config/local-setup/controller/aws | kubectl apply -f -
-    fi
 }
 
 deployThanos() {
@@ -206,138 +133,32 @@ deployPrometheusForFederation() {
   fi
 }
 
-# quickstart-setup specific functions
-
-setupAWSProvider() {
-  local namespace="$1"
-  if [ -z "$1" ]; then
-    namespace="multi-cluster-gateways"
-  fi
-  if [ "$KUADRANT_AWS_ACCESS_KEY_ID" == "" ]; then
-    echo "KUADRANT_AWS_ACCESS_KEY_ID is not set"
-    exit 1
-  fi
-
-  kubectl apply -f - <<EOF
-apiVersion: v1
-kind: Secret
-metadata:
-  name: ${KIND_CLUSTER_PREFIX}aws-credentials
-  namespace: ${namespace}
-type: "kuadrant.io/aws"
-stringData:
-  AWS_ACCESS_KEY_ID: ${KUADRANT_AWS_ACCESS_KEY_ID}
-  AWS_SECRET_ACCESS_KEY: ${KUADRANT_AWS_SECRET_ACCESS_KEY}
-  AWS_REGION: ${KUADRANT_AWS_REGION}
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: ${KIND_CLUSTER_PREFIX}controller-config
-  namespace: ${namespace}
-data:
-  AWS_DNS_PUBLIC_ZONE_ID: ${KUADRANT_AWS_DNS_PUBLIC_ZONE_ID}
-  ZONE_ROOT_DOMAIN: ${KUADRANT_ZONE_ROOT_DOMAIN}
-  LOG_LEVEL: "${LOG_LEVEL}"
----
-apiVersion: kuadrant.io/v1alpha1
-kind: ManagedZone
-metadata:
-  name: ${KIND_CLUSTER_PREFIX}dev-mz
-  namespace: ${namespace}
-spec:
-  id: ${KUADRANT_AWS_DNS_PUBLIC_ZONE_ID}
-  domainName: ${KUADRANT_ZONE_ROOT_DOMAIN}
-  description: "Dev Managed Zone"
-  dnsProviderSecretRef:
-    name: ${KIND_CLUSTER_PREFIX}aws-credentials
-EOF
-}
-
-setupGCPProvider() {
-  local namespace="$1"
-  if [ -z "$1" ]; then
-    namespace="multi-cluster-gateways"
-  fi
-  kubectl apply -f - <<EOF
-apiVersion: v1
-kind: Secret
-metadata:
-  name: ${KIND_CLUSTER_PREFIX}gcp-credentials
-  namespace: ${namespace}
-type: "kuadrant.io/gcp"
-stringData:
-  GOOGLE: '${GOOGLE}'
-  PROJECT_ID: ${PROJECT_ID}
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: ${KIND_CLUSTER_PREFIX}controller-config
-  namespace: ${namespace}
-data:
-  ZONE_DNS_NAME: ${ZONE_DNS_NAME}
-  ZONE_NAME: ${ZONE_NAME}
-  LOG_LEVEL: "${LOG_LEVEL}"
----
-apiVersion: kuadrant.io/v1alpha1
-kind: ManagedZone
-metadata:
-  name: ${KIND_CLUSTER_PREFIX}dev-mz
-  namespace: ${namespace}
-spec:
-  id: ${ZONE_NAME}
-  domainName: ${ZONE_DNS_NAME}
-  description: "Dev Managed Zone"
-  dnsProviderSecretRef:
-    name: ${KIND_CLUSTER_PREFIX}gcp-credentials
-EOF
-}
-
-configureController() {
-    clusterName=${1}
-    namespace=${2}
-    kubectl config use-context kind-${clusterName}
-    echo "Initialize local dev setup for the controller on ${clusterName}"
-
-    case $DNS_PROVIDER in
-      aws)
-          echo "Setting up an AWS Route 53 DNS provider"
-          setupAWSProvider ${namespace}
-          ;;
-      gcp)
-          echo "Setting up a Google Cloud DNS provider"
-          setupGCPProvider ${namespace}
-          ;;
-      *)
-        echo "Unknown DNS provider"
-        exit
-        ;;
-    esac
-}
-
-
-deployQuickStartControl() {
+deployMGCHub() {
     clusterName=${1}
     kubectl config use-context kind-${clusterName}
-    echo "Initialize quickstart setup on ${clusterName}"
+    echo "Initialize MGC hub setup on ${clusterName}"
     wait_for "${KUSTOMIZE_BIN} --load-restrictor LoadRestrictionsNone build ${QUICK_START_HUB_KUSTOMIZATION} --enable-helm --helm-command ${HELM_BIN} | kubectl apply -f -" "${QUICK_START_HUB_KUSTOMIZATION} control cluster config apply" "1m" "5"
     echo "Waiting for metallb-system deployments to be ready"
     kubectl -n metallb-system wait --for=condition=ready pod --selector=app=metallb --timeout=300s
+    echo "Waiting for istio deployments to be ready"
+    kubectl -n istio-operator wait --timeout=300s --for=condition=Available deployments --all
+    kubectl -n istio-system wait --timeout=300s --for=condition=Available deployments --all
     echo "Waiting for cert-manager deployments to be ready"
     kubectl -n cert-manager wait --timeout=300s --for=condition=Available deployments --all
+    echo "Waiting for kuadrant-operator deployments to be ready"
+    kubectl -n kuadrant-system wait --timeout=300s --for=condition=Available deployments --all
 }
 
-deployQuickStartWorkload() {
+deployMGCSpoke() {
    clusterName=${1}
     kubectl config use-context kind-${clusterName}
-    echo "Initialize quickstart setup on ${clusterName}"
+    echo "Initialize MGC spoke setup on ${clusterName}"
     wait_for "${KUSTOMIZE_BIN} --load-restrictor LoadRestrictionsNone build ${QUICK_START_SPOKE_KUSTOMIZATION} --enable-helm --helm-command ${HELM_BIN} | kubectl apply -f -" "${QUICK_START_SPOKE_KUSTOMIZATION} workload cluster config apply" "1m" "5"
     echo "Waiting for metallb-system deployments to be ready"
     kubectl -n metallb-system wait --for=condition=ready pod --selector=app=metallb --timeout=300s
     echo "Waiting for istio deployments to be ready"
     kubectl -n istio-operator wait --timeout=300s --for=condition=Available deployments --all
-    wait_for "kubectl -n istio-system wait --for=condition=Available deployments --all" "istio-system deployments" "300s" "20"
+    kubectl -n istio-system wait --timeout=300s --for=condition=Available deployments --all
 }
 
 configureClusterAsIngress() {
