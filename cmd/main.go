@@ -40,8 +40,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	gatewayapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	"github.com/Kuadrant/multicluster-gateway-controller/cmd/gateway_controller/ocm"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/controllers/gateway"
+	ocmaddon "github.com/Kuadrant/multicluster-gateway-controller/pkg/ocm/addon"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/placement"
 	"github.com/Kuadrant/multicluster-gateway-controller/pkg/policysync"
 	//+kubebuilder:scaffold:imports
@@ -141,7 +141,7 @@ func main() {
 	}
 
 	// add addon-manager
-	if err = mgr.Add(ocm.AddonRunnable{}); err != nil {
+	if err = mgr.Add(ocmaddon.AddonRunnable{}); err != nil {
 		setupLog.Error(err, "unable to add addon manager runnable")
 		os.Exit(1)
 	}

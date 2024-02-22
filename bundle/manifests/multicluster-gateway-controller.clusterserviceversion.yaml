@@ -300,8 +300,8 @@ spec:
                 - --metrics-bind-address=0.0.0.0:8080
                 - --leader-elect
                 command:
-                - /controller
-                image: quay.io/kuadrant/multicluster-gateway-controller:main
+                - /manager
+                image: quay.io/kuadrant/multicluster-gateway-controller:latest
                 imagePullPolicy: Always
                 livenessProbe:
                   httpGet:
