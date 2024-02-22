@@ -112,12 +112,6 @@ In `T2` run the following to start the Gateway Controller:
 ```bash
 kind export kubeconfig --name=mgc-control-plane --kubeconfig=$(pwd)/local/kube/control-plane.yaml && export KUBECONFIG=$(pwd)/local/kube/control-plane.yaml
 make build-gateway-controller install run-gateway-controller
-
-
-# new window
-
-kind export kubeconfig --name=mgc-control-plane --kubeconfig=$(pwd)/local/kube/control-plane.yaml && export KUBECONFIG=$(pwd)/local/kube/control-plane.yaml
-make build-policy-controller install run-policy-controller
 ```
 
 ### Create a Gateway

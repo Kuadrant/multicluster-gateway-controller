@@ -64,11 +64,10 @@ In addition to the MGC, this will also install the Kuadrant add-on manager and a
 Verify that the MGC and add-on manager have been installed and are running:
 
 ```bash
-kubectl wait --timeout=5m -n multicluster-gateway-controller-system deployment/mgc-controller-manager deployment/mgc-policy-controller --for=condition=Available --context $HUB_CLUSTER
+kubectl wait --timeout=5m -n multicluster-gateway-controller-system deployment/mgc-controller-manager --for=condition=Available --context $HUB_CLUSTER
 ```
 ```
 deployment.apps/mgc-controller-manager condition met
-deployment/mgc-policy-controller condition met
 ```
 
 Verify that the `GatewayClass` has been accepted by the MGC:
