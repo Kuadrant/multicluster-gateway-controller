@@ -99,7 +99,7 @@ local-setup-kind: kind ## Setup kind clusters for multi cluster traffic controll
 	./hack/local-setup-kind.sh
 
 .PHONY: local-setup-mgc
-local-setup-mgc: kustomize helm yq istioctl operator-sdk clusteradm ## Setup multi cluster traffic controller locally onto kind clusters.
+local-setup-mgc: kustomize helm yq operator-sdk clusteradm ## Setup multi cluster traffic controller locally onto kind clusters.
 	./hack/local-setup-mgc.sh
 
 .PHONY: local-cleanup
