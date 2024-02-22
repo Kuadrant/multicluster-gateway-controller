@@ -107,7 +107,7 @@ kubectl create -f hack/ocm/gatewayclass.yaml
 In `T2` run the following to start the Gateway Controller:
 
 ```bash
-make build-gateway-controller run-gateway-controller
+make build run
 ```
 
 ### Create a Gateway

@@ -34,7 +34,7 @@ spec:
         runAsNonRoot: true
       containers:
       - command:
-        - /controller
+          - /manager
         args:
         - --leader-elect
         image: controller:latest

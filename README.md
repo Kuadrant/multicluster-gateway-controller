@@ -40,20 +40,15 @@ When deploying the multicluster gateway controller using the make targets, the f
     ```sh
     make local-setup MGC_WORKLOAD_CLUSTERS_COUNT=<NUMBER_WORKLOAD_CLUSTER>
     ```  
-1. Build the controller image and load it into the control plane
+1. Build the controller image, load it into the control plane and deploy
     ```sh
    kubectl config use-context kind-mgc-control-plane 
-   make kind-load-gateway-controller
-    ```
-
-1. Deploy the controller(s) to the control plane cluster
-    ```sh
-    make deploy-gateway-controller
+   make local-deploy
     ```
 
 1. (Optional) View the logs of the deployed controller
     ```sh
-    kubectl logs -f $(kubectl get pods -n multi-cluster-gateways | grep "mgc-" | awk '{print $1}') -n multi-cluster-gateways
+    kubectl logs -f deployment/mgc-controller-manager -n multicluster-gateway-controller-system
     ```
 
 ## 2. Running the controller locally:
@@ -68,30 +63,9 @@ When deploying the multicluster gateway controller using the make targets, the f
 1. Run the controller locally:
     ```sh
     kubectl config use-context kind-mgc-control-plane 
-    make build-gateway-controller run-gateway-controller
+    make build run
     ```
 
-## 3. Running the agent in the cluster:
-1. Build the agent image and load it into the workload cluster
-    ```sh
-    kubectl config use-context kind-mgc-workload-1 
-    make kind-load-agent
-    ```
-
-1. Deploy the agent to the workload cluster
-    ```sh
-    make deploy-agent
-    ```
-    
-## 4. Running the agent locally
-1. Target the workload cluster you wish to run on:
-```sh
-export KUBECONFIG=./tmp/kubeconfigs/mgc-workload-1.kubeconfig
-```
-1. Run the agent locally:
-```sh
-make build-agent run-agent
-```
 ## 5. Clean up local environment
 In any terminal window target control plane cluster by:
 ```bash

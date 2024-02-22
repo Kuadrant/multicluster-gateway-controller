@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - "release-*"
+      - remove_gateway_prefix
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+"
     paths-ignore:
@@ -68,7 +69,7 @@ jobs:
           make local-setup
       - name: Deploy
         run: |
-          make docker-build-gateway-controller kind-load-gateway-controller deploy-gateway-controller
+          make local-deploy
           kubectl --context kind-mgc-control-plane -n multicluster-gateway-controller-system get deployments/mgc-controller-manager -o yaml | yq .spec.template.spec.containers[0].image
           kubectl --context kind-mgc-control-plane -n multicluster-gateway-controller-system wait --timeout=300s --for=condition=Available deployment/mgc-controller-manager
           kubectl --context kind-mgc-control-plane logs --all-containers --ignore-errors deployment/mgc-controller-manager -n multicluster-gateway-controller-system

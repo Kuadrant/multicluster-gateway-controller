@@ -1,4 +1,4 @@
-package ocm
+package addon
 
 import (
 	"context"
