@@ -24,3 +24,16 @@
     verbs:
     - list
     - watch
+- op: add
+  path: /rules/-
+  value:
+    apiGroups:
+    - "kuadrant.io"
+    resources:
+    - tlspolicies
+    - dnspolicies
+    - ratelimitpolicies
+    - authpolicies
+    verbs:
+    - list
+    - watch
