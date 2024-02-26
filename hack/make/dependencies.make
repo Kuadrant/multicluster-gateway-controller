@@ -15,10 +15,8 @@ CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 KIND ?= $(LOCALBIN)/kind
 HELM ?= $(LOCALBIN)/helm
-ISTIOCTL ?= $(LOCALBIN)/istioctl
 OPERATOR_SDK ?= $(LOCALBIN)/operator-sdk
 CLUSTERADM ?= $(LOCALBIN)/clusteradm
-SUBCTL ?= $(LOCALBIN)/subctl
 GINKGO ?= $(LOCALBIN)/ginkgo
 YQ ?= $(LOCALBIN)/yq
 OPENSHIFT_GOIMPORTS ?= $(LOCALBIN)/openshift-goimports
@@ -29,15 +27,13 @@ CONTROLLER_TOOLS_VERSION ?= v0.10.0
 KIND_VERSION ?= v0.17.0
 HELM_VERSION ?= v3.10.0
 YQ_VERSION ?= v4.30.8
-ISTIOVERSION ?= 1.20.0
 OPERATOR_SDK_VERSION ?= 1.28.0
 CLUSTERADM_VERSION ?= 0.6.0
-SUBCTL_VERSION ?= release-0.15
 GINKGO_VERSION ?= v2.13.2
 OPENSHIFT_GOIMPORTS_VERSION ?= c70783e636f2213cac683f6865d88c5edace3157
 
 .PHONY: dependencies
-dependencies: kustomize operator-sdk controller-gen envtest kind helm yq istioctl clusteradm subctl ginkgo
+dependencies: kustomize operator-sdk controller-gen envtest kind helm yq clusteradm ginkgo
 	@echo "dependencies installed successfully"
 	@echo "consider running `export PATH=$PATH:$(pwd)/bin` if you haven't already done"
 
@@ -90,23 +86,10 @@ yq: $(YQ)
 $(YQ):
 	test -s $(YQ) || GOBIN=$(LOCALBIN) go install github.com/mikefarah/yq/v4@$(YQ_VERSION)
 
-.PHONY: istioctl
-istioctl: $(ISTIOCTL)
-$(ISTIOCTL):
-	$(eval ISTIO_TMP := $(shell mktemp -d))
-	cd $(ISTIO_TMP); curl -sSL https://istio.io/downloadIstio | ISTIO_VERSION=$(ISTIOVERSION) sh -
-	cp $(ISTIO_TMP)/istio-$(ISTIOVERSION)/bin/istioctl ${ISTIOCTL}
-	-rm -rf $(ISTIO_TMP)
-
 .PHONY: clusteradm
 clusteradm: $(CLUSTERADM)
 $(CLUSTERADM):
 	test -s $(CLUSTERADM)|| curl -sL https://raw.githubusercontent.com/open-cluster-management-io/clusteradm/main/install.sh | INSTALL_DIR=$(LOCALBIN) bash -s -- $(CLUSTERADM_VERSION)
-
-.PHONY: subctl
-subctl: $(SUBCTL)
-$(SUBCTL):
-	test -s $(SUBCTL) || curl https://get.submariner.io | DESTDIR=$(LOCALBIN) VERSION=$(SUBCTL_VERSION) bash
 
 .PHONY: ginkgo
 ginkgo: $(GINKGO) ## Download ginkgo locally if necessary

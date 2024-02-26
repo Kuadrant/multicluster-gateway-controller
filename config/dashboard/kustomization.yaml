@@ -1,5 +1,0 @@
-namespace: kubernetes-dashboard
-
-resources:
-- rbac.yaml
-- service_account.yaml
