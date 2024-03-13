@@ -27,6 +27,121 @@ metadata:
 EOF
 }
 
+# quickstart-setup specific functions
+
+setupAWSProvider() {
+  local namespace="$1"
+  if [ -z "$1" ]; then
+    namespace="multi-cluster-gateways"
+  fi
+  if [ "$KUADRANT_AWS_ACCESS_KEY_ID" == "" ]; then
+    echo "KUADRANT_AWS_ACCESS_KEY_ID is not set"
+    exit 1
+  fi
+
+  kubectl apply -f - <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ${KIND_CLUSTER_PREFIX}aws-credentials
+  namespace: ${namespace}
+type: "kuadrant.io/aws"
+stringData:
+  AWS_ACCESS_KEY_ID: ${KUADRANT_AWS_ACCESS_KEY_ID}
+  AWS_SECRET_ACCESS_KEY: ${KUADRANT_AWS_SECRET_ACCESS_KEY}
+  AWS_REGION: ${KUADRANT_AWS_REGION}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ${KIND_CLUSTER_PREFIX}controller-config
+  namespace: ${namespace}
+data:
+  AWS_DNS_PUBLIC_ZONE_ID: ${KUADRANT_AWS_DNS_PUBLIC_ZONE_ID}
+  ZONE_ROOT_DOMAIN: ${KUADRANT_ZONE_ROOT_DOMAIN}
+  LOG_LEVEL: "${LOG_LEVEL}"
+---
+apiVersion: kuadrant.io/v1alpha1
+kind: ManagedZone
+metadata:
+  name: ${KIND_CLUSTER_PREFIX}dev-mz
+  namespace: ${namespace}
+spec:
+  id: ${KUADRANT_AWS_DNS_PUBLIC_ZONE_ID}
+  domainName: ${KUADRANT_ZONE_ROOT_DOMAIN}
+  description: "Dev Managed Zone"
+  dnsProviderSecretRef:
+    name: ${KIND_CLUSTER_PREFIX}aws-credentials
+EOF
+}
+
+setupGCPProvider() {
+  local namespace="$1"
+  if [ -z "$1" ]; then
+    namespace="multi-cluster-gateways"
+  fi
+  kubectl apply -f - <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ${KIND_CLUSTER_PREFIX}gcp-credentials
+  namespace: ${namespace}
+type: "kuadrant.io/gcp"
+stringData:
+  GOOGLE: '${GOOGLE}'
+  PROJECT_ID: ${PROJECT_ID}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ${KIND_CLUSTER_PREFIX}controller-config
+  namespace: ${namespace}
+data:
+  ZONE_DNS_NAME: ${ZONE_DNS_NAME}
+  ZONE_NAME: ${ZONE_NAME}
+  LOG_LEVEL: "${LOG_LEVEL}"
+---
+apiVersion: kuadrant.io/v1alpha1
+kind: ManagedZone
+metadata:
+  name: ${KIND_CLUSTER_PREFIX}dev-mz
+  namespace: ${namespace}
+spec:
+  id: ${ZONE_NAME}
+  domainName: ${ZONE_DNS_NAME}
+  description: "Dev Managed Zone"
+  dnsProviderSecretRef:
+    name: ${KIND_CLUSTER_PREFIX}gcp-credentials
+EOF
+}
+
+configureController(){
+  echo "configureController ${1} ${2}"
+  postDeployMGCHub ${1} ${2}
+} 
+
+postDeployMGCHub() {
+    clusterName=${1}
+    namespace=${2}
+    kubectl config use-context kind-${clusterName}
+    echo "Running post MGC deployment setup on ${clusterName}"
+
+    case $DNS_PROVIDER in
+      aws)
+          echo "Setting up an AWS Route 53 DNS provider"
+          setupAWSProvider ${namespace}
+          ;;
+      gcp)
+          echo "Setting up a Google Cloud DNS provider"
+          setupGCPProvider ${namespace}
+          ;;
+      *)
+        echo "Unknown DNS provider"
+        exit
+        ;;
+    esac
+}
+
 configureManagedAddon () {
   clusterName=${1}
   workloadCluster=${2}
