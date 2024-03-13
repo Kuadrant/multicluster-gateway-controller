@@ -116,7 +116,6 @@ EOF
 }
 
 configureController(){
-  echo "configureController ${1} ${2}"
   postDeployMGCHub ${1} ${2}
 } 
 
