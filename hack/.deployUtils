@@ -115,31 +115,6 @@ spec:
 EOF
 }
 
-configureController(){
-  postDeployMGCHub ${1} ${2}
-} 
-
-postDeployMGCHub() {
-    clusterName=${1}
-    namespace=${2}
-    kubectl config use-context kind-${clusterName}
-    echo "Running post MGC deployment setup on ${clusterName}"
-
-    case $DNS_PROVIDER in
-      aws)
-          echo "Setting up an AWS Route 53 DNS provider"
-          setupAWSProvider ${namespace}
-          ;;
-      gcp)
-          echo "Setting up a Google Cloud DNS provider"
-          setupGCPProvider ${namespace}
-          ;;
-      *)
-        echo "Unknown DNS provider"
-        exit
-        ;;
-    esac
-}
 
 configureManagedAddon () {
   clusterName=${1}
