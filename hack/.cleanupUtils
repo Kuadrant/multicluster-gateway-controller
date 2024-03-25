@@ -12,7 +12,7 @@ cleanClusters() {
 cleanNetwork() {
   # Delete the network
   echo "Deleting mgc network"
-  docker network rm mgc || true
+  $CONTAINER_RUNTIME_BIN network rm mgc || true
 }
 
 cleanupKind() {
