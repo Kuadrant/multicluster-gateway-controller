@@ -16,7 +16,7 @@
 # limitations under the License.
 #
 
-export KFILT="docker run --rm -i ryane/kfilt"
+export KFILT="$CONTAINER_RUNTIME_BIN run --rm -i ryane/kfilt"
 
 METRICS_FEDERATION=true
 
