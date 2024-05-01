@@ -3,7 +3,7 @@
 In this guide, we will go through defining a Gateway in the OCM hub cluster that can then be distributed to and instantiated on a set of managed spoke clusters.
 
 ### Prerequisites
-* Complete the [Getting Started Guide](https://docs.kuadrant.io/getting-started-multi-cluster/) to bring up a suitable environment. 
+* Complete the [Getting Started Guide](https://docs.kuadrant.io/getting-started-multi-cluster-ocm/) to bring up a suitable environment. 
 
 If you are looking to change provider from the default Istio:
 * Please have the Gateway provider of your choice installed and configured (in this example we use Envoy gateway. See the following [docs](https://gateway.envoyproxy.io/v0.5.0/user/quickstart.html))
